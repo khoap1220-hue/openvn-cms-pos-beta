@@ -62,13 +62,14 @@ model ChannelListing {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   name      String
   phone     String?
   email     String?
   address   String?
-  createdAt DateTime @default(now())
+  createdAt DateTime        @default(now())
   orders    Order[]
+  messages  DirectMessage[]
 }
 
 model Order {
@@ -86,9 +87,13 @@ model Order {
   total         Float       @default(0)
   note          String?
   address       String?
+  reviewRating  Int?
+  reviewComment String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   items         OrderItem[]
+  shipments     Shipment[]
+  events        OrderEvent[]
 }
 
 model OrderItem {
@@ -110,4 +115,63 @@ model StockMovement {
   stockAfter Int
   note       String?
   createdAt  DateTime @default(now())
+}
+
+// ===== Lớp vận hành tự động (Agent Autopilot) =====
+
+model Shipment {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier      String // GHN | GHTK | VIETTEL | JT | NINJA
+  trackingCode String   @unique
+  status       String   @default("DISPATCHED") // DISPATCHED | PICKED_UP | IN_TRANSIT | DELIVERED | RETURNED
+  fee          Float    @default(0)
+  dispatchedBy String   @default("AGENT") // AGENT | OPERATOR
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AgentActivity {
+  id          String   @id @default(cuid())
+  agent       String // CONFIRM_AGENT | LOGISTICS_AGENT | CARE_AGENT | REVIEW_AGENT | SUPPORT_AGENT
+  action      String // CONFIRM_ORDER | START_PACKING | NOTIFY_CARRIER | PICKUP | IN_TRANSIT | DELIVERY_NOTICE | CARE_MESSAGE | REQUEST_REVIEW | AUTO_REPLY | ORDER_RECEIVED | MANUAL_ACTION
+  level       String   @default("info") // info | success | warning | error
+  targetType  String? // ORDER | CUSTOMER | CONVERSATION
+  targetId    String?
+  targetLabel String?
+  message     String
+  detail      String?
+  createdAt   DateTime @default(now())
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type      String // CREATED | CONFIRMED | PACKING | CARRIER_DISPATCHED | PICKED_UP | IN_TRANSIT | DELIVERED | CARE_SENT | REVIEW_REQUESTED | REVIEW_RECEIVED | STATUS_CHANGED | CANCELLED
+  actor     String // AGENT | OPERATOR | SYSTEM | CUSTOMER
+  title     String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model DirectMessage {
+  id             String    @id @default(cuid())
+  channelKey     String // ZALO_OA | ZALO_PERSONAL
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  sender         String // CUSTOMER | AGENT | OPERATOR
+  agentName      String?
+  content        String
+  relatedOrderId String?
+  isAuto         Boolean   @default(false)
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model AutomationSetting {
+  key       String   @id // master | auto_confirm | auto_carrier | auto_care | auto_review | auto_reply
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
 }

@@ -86,6 +86,10 @@ export interface Order {
   total: number
   note: string | null
   address: string | null
+  reviewRating?: number | null
+  reviewComment?: string | null
+  shipments?: Shipment[]
+  events?: OrderEvent[]
   createdAt: string
   items: OrderItem[]
 }
@@ -165,4 +169,130 @@ export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
   IMPORT: 'Nhập kho',
   EXPORT: 'Xuất kho',
   ADJUST: 'Điều chỉnh',
+}
+
+// ===== Lớp vận hành tự động (Agent Autopilot) =====
+
+export interface Shipment {
+  id: string
+  orderId: string
+  carrier: string
+  trackingCode: string
+  status: string
+  fee: number
+  dispatchedBy: string
+  createdAt: string
+  updatedAt: string
+  order?: {
+    code: string
+    total: number
+    status: string
+    customer?: { id: string; name: string; phone: string | null } | null
+    channel?: { id: string; key: string; name: string; color: string } | null
+  } | null
+}
+
+export interface AgentActivity {
+  id: string
+  agent: string
+  action: string
+  level: string
+  targetType: string | null
+  targetId: string | null
+  targetLabel: string | null
+  message: string
+  detail: string | null
+  createdAt: string
+}
+
+export interface OrderEvent {
+  id: string
+  orderId: string
+  type: string
+  actor: string
+  title: string
+  detail: string | null
+  createdAt: string
+}
+
+export interface DirectMessage {
+  id: string
+  channelKey: string
+  customerId: string | null
+  sender: 'CUSTOMER' | 'AGENT' | 'OPERATOR'
+  agentName: string | null
+  content: string
+  relatedOrderId: string | null
+  isAuto: boolean
+  readAt: string | null
+  createdAt: string
+  customer?: { id: string; name: string; phone: string | null } | null
+}
+
+export interface AutomationSettings {
+  [key: string]: boolean
+}
+
+export interface Conversation {
+  key: string
+  customerId: string
+  channelKey: string
+  customer: { id: string; name: string; phone: string | null }
+  lastMessage: { content: string; createdAt: string; sender: string; agentName: string | null; isAuto: boolean }
+  unread: number
+  total: number
+}
+
+export interface AttentionOrder {
+  id: string
+  code: string
+  total: number
+  createdAt: string
+  channel?: { id: string; key: string; name: string; color: string } | null
+  customer?: { name: string; phone: string | null } | null
+  items?: Array<{ product?: { name: string } | null }>
+}
+
+export interface LiveOpsData {
+  settings: AutomationSettings
+  stats: {
+    pendingOrders: number
+    processing: number
+    shippingCount: number
+    completedTotal: number
+    tasksToday: number
+    reviewsToday: number
+    messagesToday: number
+    unread: number
+    automationRate: number
+  }
+  pipeline: Array<{ key: string; label: string; count: number }>
+  activities: AgentActivity[]
+  activeShipments: Shipment[]
+  attention: {
+    pendingList: AttentionOrder[]
+    packingStuckList: AttentionOrder[]
+    pendingActive: boolean
+    packingStuckActive: boolean
+  }
+}
+
+export const CHANNEL_KEY_LABELS: Record<string, string> = {
+  ZALO_OA: 'Zalo OA',
+  ZALO_PERSONAL: 'Zalo cá nhân',
+}
+
+export const AGENT_ACTION_LABELS: Record<string, string> = {
+  ORDER_RECEIVED: 'Nhận đơn mới',
+  CONFIRM_ORDER: 'Xác nhận đơn',
+  START_PACKING: 'Soạn hàng',
+  NOTIFY_CARRIER: 'Báo ĐVVC',
+  PICKUP: 'Lấy hàng',
+  IN_TRANSIT: 'Đang giao',
+  DELIVERY_NOTICE: 'Báo giao hàng',
+  CARE_MESSAGE: 'Chăm sóc',
+  REQUEST_REVIEW: 'Xin đánh giá',
+  REVIEW_RECEIVED: 'Nhận đánh giá',
+  AUTO_REPLY: 'Trả lời tự động',
+  MANUAL_ACTION: 'Xử lý thủ công',
 }

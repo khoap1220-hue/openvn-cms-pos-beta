@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { AUTOMATION_DEFS } from '../src/lib/agents'
 
 const db = new PrismaClient()
 
@@ -16,6 +17,8 @@ function pick<T>(arr: T[]): T {
 }
 
 const CHANNELS = [
+  { key: 'ZALO_OA', name: 'Zalo OA', color: '#0084FF', feePercent: 0, connected: true },
+  { key: 'ZALO_PERSONAL', name: 'Zalo cá nhân', color: '#45C4B0', feePercent: 0, connected: true },
   { key: 'SHOPEE', name: 'Shopee', color: '#EE4D2D', feePercent: 8.5, connected: true },
   { key: 'LAZADA', name: 'Lazada', color: '#0F146D', feePercent: 7.0, connected: true },
   { key: 'TIKTOK', name: 'TikTok Shop', color: '#FE2C55', feePercent: 6.0, connected: true },
@@ -93,6 +96,10 @@ async function main() {
   console.log('🌱 Seeding OmniSales CMS...')
 
   // Clean existing data (order matters for FK)
+  await db.directMessage.deleteMany()
+  await db.agentActivity.deleteMany()
+  await db.orderEvent.deleteMany()
+  await db.shipment.deleteMany()
   await db.stockMovement.deleteMany()
   await db.orderItem.deleteMany()
   await db.order.deleteMany()
@@ -101,6 +108,7 @@ async function main() {
   await db.category.deleteMany()
   await db.channel.deleteMany()
   await db.customer.deleteMany()
+  await db.automationSetting.deleteMany()
 
   // 1. Channels
   const channels = await Promise.all(
@@ -111,6 +119,11 @@ async function main() {
     )
   )
   const activeChannels = channels.filter((c) => c.connected)
+
+  // 1b. Cấu hình tự động hóa mặc định (Autopilot BẬT toàn bộ)
+  for (const def of AUTOMATION_DEFS) {
+    await db.automationSetting.create({ data: { key: def.key, enabled: true } })
+  }
 
   // 2. Categories
   const catMap = new Map<string, string>()
@@ -250,6 +263,54 @@ async function main() {
     }
   }
 
+  // 7. Hội thoại Zalo mẫu (tin cuối là của Agent → không kích hoạt auto-reply)
+  const demoChats: Array<{ custIdx: number; channelKey: string; msgs: Array<{ sender: 'CUSTOMER' | 'AGENT'; content: string; agentName?: string }> }> = [
+    {
+      custIdx: 0,
+      channelKey: 'ZALO_OA',
+      msgs: [
+        { sender: 'CUSTOMER', content: 'Cho mình hỏi áo sơ mi lụa nữ còn size M không shop ạ?' },
+        { sender: 'AGENT', content: 'Dạ chào chị Hương 🌿 Mẫu áo sơ mi lụa vẫn còn đầy đủ size từ S đến XL ạ. Chị cần tư vấn thêm gì thì nhắn shop nhé!', agentName: 'Agent Hỗ trợ 24/7' },
+      ],
+    },
+    {
+      custIdx: 1,
+      channelKey: 'ZALO_PERSONAL',
+      msgs: [
+        { sender: 'CUSTOMER', content: 'Đơn của mình đặt hôm qua bao giờ thì nhận được vậy shop?' },
+        { sender: 'AGENT', content: 'Dạ anh Nam ơi, đơn của anh đã bàn giao cho GHN và dự kiến giao trong 1–2 ngày tới ạ. Anh để ý điện thoại khi shipper gọi giúp shop nhé!', agentName: 'Agent CSKH' },
+      ],
+    },
+    {
+      custIdx: 3,
+      channelKey: 'ZALO_OA',
+      msgs: [
+        { sender: 'CUSTOMER', content: 'Son kem lì này có màu hồng đất không ạ?' },
+        { sender: 'AGENT', content: 'Dạ có ạ! Son kem lì hoàn mỹ của shop có 3 tông hồng đất hot nhất: M01, M03, M05. Chị thích tông sáng hay trầm ạ? 💄', agentName: 'Agent Hỗ trợ 24/7' },
+      ],
+    },
+  ]
+  const nowMs = Date.now()
+  for (const chat of demoChats) {
+    const customer = customers[chat.custIdx]
+    if (!customer) continue
+    for (let i = 0; i < chat.msgs.length; i++) {
+      const m = chat.msgs[i]
+      await db.directMessage.create({
+        data: {
+          customerId: customer.id,
+          channelKey: chat.channelKey,
+          sender: m.sender,
+          agentName: m.sender === 'AGENT' ? m.agentName ?? 'Agent' : null,
+          content: m.content,
+          isAuto: m.sender === 'AGENT',
+          readAt: m.sender === 'CUSTOMER' ? new Date(nowMs - 3600_000) : null,
+          createdAt: new Date(nowMs - (chat.msgs.length - i) * 300_000),
+        },
+      })
+    }
+  }
+
   const counts = {
     channels: await db.channel.count(),
     categories: await db.category.count(),
@@ -258,6 +319,8 @@ async function main() {
     customers: await db.customer.count(),
     orders: await db.order.count(),
     movements: await db.stockMovement.count(),
+    messages: await db.directMessage.count(),
+    settings: await db.automationSetting.count(),
   }
   console.log('✅ Seed hoàn tất:', counts)
 }

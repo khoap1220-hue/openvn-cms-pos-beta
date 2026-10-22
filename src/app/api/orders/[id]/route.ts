@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { logActivity, logEvent } from '@/lib/agent-log'
+import { broadcast } from '@/lib/realtime'
+import { ORDER_STATUS_LABELS } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +15,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         channel: { select: { id: true, key: true, name: true, color: true } },
         customer: { select: { id: true, name: true, phone: true } },
         items: { include: { product: { select: { id: true, sku: true, name: true } } } },
+        shipments: true,
+        events: { orderBy: { createdAt: 'asc' } },
       },
     })
     if (!order) return NextResponse.json({ error: 'Không tìm thấy đơn hàng' }, { status: 404 })
@@ -69,6 +74,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Đơn hoàn thành → tự đánh dấu đã thanh toán (nếu chưa)
     if (data.status === 'COMPLETED' && order.paymentStatus !== 'PAID') {
       await db.order.update({ where: { id }, data: { paymentStatus: 'PAID' } })
+    }
+
+    // Ghi timeline + broadcast realtime
+    if (data.status && data.status !== order.status) {
+      if (data.status === 'CANCELLED') {
+        await logEvent(id, 'CANCELLED', 'OPERATOR', 'Người vận hành hủy đơn — hoàn kho tự động')
+        await logActivity({
+          agent: 'SYSTEM',
+          action: 'MANUAL_ACTION',
+          level: 'warning',
+          targetType: 'ORDER',
+          targetId: id,
+          targetLabel: order.code,
+          message: `Người vận hành hủy đơn ${order.code} (hoàn kho tự động)`,
+        })
+      } else {
+        await logEvent(id, 'STATUS_CHANGED', 'OPERATOR', `Người vận hành chuyển trạng thái: ${ORDER_STATUS_LABELS[order.status] ?? order.status} → ${ORDER_STATUS_LABELS[data.status] ?? data.status}`)
+        await logActivity({
+          agent: 'SYSTEM',
+          action: 'MANUAL_ACTION',
+          level: 'info',
+          targetType: 'ORDER',
+          targetId: id,
+          targetLabel: order.code,
+          message: `Người vận hành chuyển đơn ${order.code} sang «${ORDER_STATUS_LABELS[data.status] ?? data.status}»`,
+        })
+      }
+      broadcast('order.updated', { id, status: data.status, code: order.code })
+    } else if (data.paymentStatus) {
+      broadcast('order.updated', { id, paymentStatus: data.paymentStatus, code: order.code })
     }
 
     return NextResponse.json({ order: updated })

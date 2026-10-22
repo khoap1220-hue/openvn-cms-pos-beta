@@ -29,3 +29,15 @@ export function percentDiff(current: number, previous: number): number | null {
   if (previous === 0) return current > 0 ? 100 : null
   return Math.round(((current - previous) / previous) * 1000) / 10
 }
+
+export function timeAgo(iso: string | Date): string {
+  const d = typeof iso === 'string' ? new Date(iso) : iso
+  const seconds = Math.floor((Date.now() - d.getTime()) / 1000)
+  if (seconds < 10) return 'vừa xong'
+  if (seconds < 60) return `${seconds} giây trước`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} phút trước`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} giờ trước`
+  return `${Math.floor(hours / 24)} ngày trước`
+}

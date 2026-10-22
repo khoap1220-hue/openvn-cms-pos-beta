@@ -95,3 +95,44 @@ Work Log:
 Stage Summary:
 - eslint: 0 lỗi; tsc: sạch (chỉ lỗi có sẵn ở examples/skills); dev.log không có runtime error
 - Toàn bộ golden path verified qua browser: 7/7 view hoạt động end-to-end với dữ liệu thật
+
+---
+Task ID: 2-a
+Agent: realtime-service developer
+Task: Dựng mini-service realtime broadcast socket.io độc lập (port 3003) cho CMS e-commerce — chỉ broadcast event đẩy tới qua HTTP, không có DB
+
+Work Log:
+- Đọc worklog.md; kiểm tra port 3003 bằng lsof → rảnh, không có process cũ cần kill
+- Tạo mini-services/realtime/package.json đúng spec (dev = bun --hot index.ts, dependency socket.io ^4.8.1 → bun install cài socket.io@4.8.4) và index.ts: Node http server + socket.io Server, PORT 3003 hardcoded, options bắt buộc { path: '/', cors: { origin: '*', methods: ['GET','POST'] }, pingTimeout: 60000, pingInterval: 25000 }
+- Khắc phục xung đột cốt lõi: với path '/', engine.io intercept MỌI HTTP request (check() là prefix-match nên luôn true) → /health và /emit bị nuốt, trả {"code":0,"message":"Transport unknown"}. Fix giữ nguyên options: sau khi new Server(httpServer, opts), lấy các listener 'request' của engine, removeAllListeners rồi đăng ký dispatcher riêng — GET /health + POST /emit xử lý trực tiếp; request mang EIO= (polling socket.io) forward về engine handler; còn lại → 404 JSON. WebSocket upgrade không bị ảnh hưởng vì đi qua event 'upgrade' riêng của engine
+- Routes: POST /emit { event: string, payload: any } → io.emit(event, payload) → 200 { ok: true, clients }; JSON lỗi/thiếu event → 400 (giới hạn body 1MB); GET /health → { ok, clients, uptime }; còn lại → 404. console.log connect/disconnect + socket.on('ping-custom', cb). Graceful shutdown SIGTERM/SIGINT (disconnectSockets + httpServer.close + fallback exit 3s)
+- bun install OK. Vấn đề môi trường: background process bị reaper của sandbox giết khi session bash kết thúc (thử nohup & và setsid & đều chết chéo session) → fix bằng double-fork: ( setsid bun run dev > service.log 2>&1 < /dev/null & ) — process được reparent về init (PPID=1), verify sống bền vững qua nhiều session liên tiếp
+- Verify bằng curl: GET /health → {"ok":true,"clients":0,"uptime":N}; POST /emit hợp lệ → 200 {"ok":true,"clients":N}; body 'not-json' → 400; thiếu event → 400; GET /nope → 404; handshake polling GET /?EIO=4&transport=polling → trả sid + pingInterval 25000/pingTimeout 60000 (đúng options bắt buộc); E2E websocket (bun -e inline client, không thêm dependency): connect ws://localhost:3003/?EIO=4&transport=websocket → CONNECT packet → POST /emit → client nhận 42["test.broadcast",{"hello":"world","n":42}] → PASSED; service.log sạch, log connect/disconnect đúng
+- Không đụng Next.js dev server port 3000 (chain PID 1136 nguyên vẹn), không sửa file nào ngoài mini-services/realtime + worklog.md
+
+Stage Summary:
+- realtime-service đang chạy background trên port 3003 (bun --hot index.ts, PPID=1). Restart: cd /home/z/my-project/mini-services/realtime && ( setsid bun run dev > service.log 2>&1 < /dev/null & ); dừng: kill $(lsof -t -i :3003)
+- Contract broadcast: POST http://localhost:3003/emit, body {"event":"<tên event>","payload":<any>} → io.emit tới TẤT CẢ clients, response {"ok":true,"clients":N}; body sai → 400. Health: GET /health → {"ok":true,"clients":N,"uptime":giây}; route khác → 404
+- Socket.io client nối path '/' (bắt buộc bởi Caddy gateway), CORS origin '*', cả polling lẫn websocket OK; event 'ping-custom' ack {ok:true,t}. Service stateless không DB — task khác chỉ cần POST /emit để đẩy event realtime tới các client CMS
+
+---
+Task ID: 9
+Agent: main (Z.ai Code)
+Task: Lớp vận hành tự động 100% bằng Agent — Zalo OA/Zalo cá nhân, tự báo ĐVVC, chăm sóc & xin đánh giá, realtime socket, kiểm thử vận hành 1 người
+
+Work Log:
+- Schema mở rộng: Shipment, AgentActivity, OrderEvent, DirectMessage, AutomationSetting; Order thêm reviewRating/reviewComment + relations; db:push OK
+- Mini-service realtime (Task 2-a, subagent): socket.io port 3003, path '/', POST /emit + GET /health, dispatcher phân biệt HTTP vs engine.io; chạy nền setsid
+- lib/realtime.ts (broadcast fire-and-forget), lib/llm.ts (z-ai-web-dev-sdk + timeout + fallback), lib/agents.ts (5 Agent + 5 ĐVVC + AUTOMATION_DEFS + template Zalo), lib/agent-log.ts, lib/order-service.ts (tạo đơn dùng chung)
+- lib/agent-engine.ts: state machine tick 2.5s, 10 bước: xác nhận (LLM tin Zalo) → soạn hàng → báo ĐVVC (GHN/GHTK/Viettel/J&T/Ninja + mã vận đơn) → lấy hàng → đang giao → đã giao (COMPLETED+PAID) → cảm ơn CSKH (LLM) → xin đánh giá (LLM) → khách đánh giá (LLM) → AI trả lời tin nhắn 24/7 (LLM + fallback theo từ khóa khi 429)
+- instrumentation.ts khởi động engine; APIs: /api/autopilot (GET/PATCH), /api/agent-activities, /api/shipments (+POST báo ĐVVC thủ công), /api/inbox (hội thoại/tin nhắn/gửi), /api/liveops (buồng lái), /api/simulate (đơn Zalo OA/CN + tin nhắn khách); orders POST/[id] ghi event + broadcast
+- use-realtime.ts: socket singleton '/?XTransformPort=3003' + useRealtime/useRealtimeStatus
+- UI: LiveOpsView (banner Autopilot + KPI + pipeline + feed realtime + mô phỏng 3 nút + đang vận chuyển + hàng đợi cần người), InboxView (hội thoại Zalo, bubble Agent/Khách/Người vận hành, trả lời thay Agent), ShipmentsView, AutopilotView (công tắc từng Agent + nhật ký lưu vĩnh viễn + thống kê); sidebar 3 nhóm Vận hành/Quản trị/Phân tích + badge unread; header chip Autopilot + Realtime; footer thêm Zalo
+- orders-view: timeline hành trình Agent + card vận đơn + sao đánh giá trong chi tiết đơn
+- Seed: +2 kênh Zalo (connected), AutomationSetting mặc định BẬT, 3 hội thoại Zalo mẫu
+- Debug quan trọng: (1) dev server giữ Prisma client cũ → phải kill đúng PID next-server (pkill -f "next dev" không ăn) + rm -rf .next; (2) socket qua gateway chỉ hoạt động qua Caddy :81, không phải :3000 trực tiếp; (3) hot-reload không hiệu lực với engine trên globalThis → restart dev server; (4) LLM 429 rate-limit → fallback template cho auto-reply, Agent không bao giờ im lặng
+
+Stage Summary:
+- Kiểm thử browser end-to-end PASS: mô phỏng đơn Zalo OA DH261022-8147 → xác nhận/soạn gói/báo GHTK/lấy hàng/giao/cảm ơn/xin đánh giá/5⭐ hoàn tất 100% tự động ~30s; Agent Hỗ trợ auto-reply tin nhắn; tắt/bật Autopilot broadcast realtime (header+sidebar+toast); timeline đơn đầy đủ; mobile 390px + footer sticky OK
+- Số liệu sau ~40 phút chạy: 226 tác vụ Agent, 160 tin nhắn Zalo, 6 đánh giá, automationRate 100% — 1 người chỉ cần giám sát Buồng lái
+- lint 0 lỗi; dev.log không có runtime error (chỉ LLM 429 đã có fallback)

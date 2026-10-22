@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { createOrder } from '@/lib/order-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,91 +42,24 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: tạo đơn thủ công (POS / Facebook) — trừ kho + ghi biến động
+// POST: tạo đơn (POS / bất kỳ kênh) — Agent Autopilot sẽ tự xử lý tiếp
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { channelId, customerId, customerName, customerPhone, address, note, paymentMethod, items } = body
-
-    if (!channelId) return NextResponse.json({ error: 'Vui lòng chọn kênh bán' }, { status: 400 })
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'Đơn hàng cần ít nhất 1 sản phẩm' }, { status: 400 })
-    }
-
-    const channel = await db.channel.findUnique({ where: { id: channelId } })
-    if (!channel) return NextResponse.json({ error: 'Kênh bán không tồn tại' }, { status: 404 })
-
-    // Lấy thông tin sản phẩm + kiểm tra tồn kho
-    const orderItems: Array<{ productId: string; quantity: number; price: number }> = []
-    let subtotal = 0
-    for (const it of items) {
-      const qty = Number(it.quantity) || 1
-      if (qty <= 0) continue
-      const product = await db.product.findUnique({ where: { id: it.productId } })
-      if (!product) return NextResponse.json({ error: 'Sản phẩm không tồn tại' }, { status: 404 })
-      if (product.stock < qty) {
-        return NextResponse.json({ error: `Sản phẩm "${product.name}" chỉ còn ${product.stock} trong kho` }, { status: 400 })
-      }
-      const listing = await db.channelListing.findUnique({ where: { productId_channelId: { productId: product.id, channelId } } })
-      const price = listing?.price ?? product.sellPrice
-      subtotal += price * qty
-      orderItems.push({ productId: product.id, quantity: qty, price })
-    }
-
-    // Tạo/tìm khách hàng
-    let finalCustomerId: string | null = customerId || null
-    if (!finalCustomerId && customerName?.trim()) {
-      const customer = await db.customer.create({
-        data: {
-          name: customerName.trim(),
-          phone: customerPhone?.trim() || null,
-          address: address?.trim() || null,
-        },
-      })
-      finalCustomerId = customer.id
-    }
-
-    const shippingFee = subtotal >= 500000 ? 0 : 30000
-    const now = new Date()
-    const code = `DH${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
-
-    const order = await db.order.create({
-      data: {
-        code,
-        channelId,
-        customerId: finalCustomerId,
-        status: 'PENDING',
-        paymentMethod: paymentMethod || 'COD',
-        paymentStatus: 'UNPAID',
-        subtotal,
-        shippingFee,
-        total: subtotal + shippingFee,
-        note: note?.trim() || null,
-        address: address?.trim() || null,
-        items: { create: orderItems },
-      },
-      include: {
-        channel: { select: { id: true, key: true, name: true, color: true } },
-        customer: { select: { id: true, name: true, phone: true } },
-        items: { include: { product: { select: { id: true, sku: true, name: true } } } },
-      },
+    const body = (await req.json()) as Record<string, unknown>
+    const order = await createOrder({
+      channelId: String(body.channelId ?? ''),
+      items: (body.items as Array<{ productId: string; quantity: number }>) ?? [],
+      customerId: (body.customerId as string) || undefined,
+      customerName: (body.customerName as string) || undefined,
+      customerPhone: (body.customerPhone as string) || undefined,
+      address: (body.address as string) || undefined,
+      note: (body.note as string) || undefined,
+      paymentMethod: (body.paymentMethod as string) || undefined,
     })
-
-    // Trừ kho + ghi biến động
-    for (const it of orderItems) {
-      const product = await db.product.findUnique({ where: { id: it.productId } })
-      if (product) {
-        const after = product.stock - it.quantity
-        await db.product.update({ where: { id: product.id }, data: { stock: after } })
-        await db.stockMovement.create({
-          data: { productId: product.id, type: 'EXPORT', quantity: -it.quantity, stockAfter: after, note: `Xuất kho cho đơn ${code}` },
-        })
-      }
-    }
-
     return NextResponse.json({ order }, { status: 201 })
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Không thể tạo đơn hàng'
     console.error('Orders POST error:', error)
-    return NextResponse.json({ error: 'Không thể tạo đơn hàng' }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }

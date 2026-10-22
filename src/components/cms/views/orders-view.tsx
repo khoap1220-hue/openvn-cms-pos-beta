@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -54,6 +54,9 @@ import { ChannelBadge } from '@/components/cms/channel-badge'
 import { ConfirmDialog } from '@/components/cms/confirm-dialog'
 import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/cms/status-badge'
+import { ShipmentStatusBadge } from '@/components/cms/agent-badge'
+import { useRealtime } from '@/hooks/use-realtime'
+import { carrierName } from '@/lib/agents'
 
 const PAGE_SIZE = 10
 // Luồng xử lý đơn: PENDING → CONFIRMED → PACKING → SHIPPING → COMPLETED (CANCELLED từ mọi trạng thái)
@@ -83,6 +86,20 @@ const EMPTY_CREATE_FORM: CreateOrderFormState = {
   address: '',
   note: '',
   paymentMethod: 'COD',
+}
+
+const EVENT_ACTOR_LABELS: Record<string, string> = {
+  AGENT: 'Agent tự động',
+  OPERATOR: 'Người vận hành',
+  SYSTEM: 'Hệ thống',
+  CUSTOMER: 'Khách hàng',
+}
+
+const EVENT_ACTOR_DOTS: Record<string, string> = {
+  AGENT: 'bg-emerald-500',
+  OPERATOR: 'bg-violet-500',
+  SYSTEM: 'bg-slate-400',
+  CUSTOMER: 'bg-amber-500',
 }
 
 function errorMessage(err: unknown): string {
@@ -132,6 +149,17 @@ export function OrdersView() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [channelFilter, setChannelFilter] = useState('ALL')
   const [channels, setChannels] = useState<Channel[]>([])
+
+  // Realtime: Agent tự cập nhật đơn → tự refresh danh sách + dialog chi tiết
+  const realtimeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useRealtime((e) => {
+    if (!['order.created', 'order.updated', 'review.received'].includes(e.type)) return
+    if (realtimeTimer.current) clearTimeout(realtimeTimer.current)
+    realtimeTimer.current = setTimeout(() => {
+      setRefreshKey((k) => k + 1)
+      if (detailOpen && detailId) setDetailReload((k) => k + 1)
+    }, 600)
+  })
 
   // ===== Dialog chi tiết đơn hàng =====
   const [detailOpen, setDetailOpen] = useState(false)
@@ -692,6 +720,55 @@ export function OrdersView() {
                   <span className="text-primary">{formatVND(detail.total)}</span>
                 </div>
               </div>
+
+              {detail.shipments && detail.shipments.length > 0 && detail.shipments[0] && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      {carrierName(detail.shipments[0].carrier)} —{' '}
+                      <span className="font-mono text-xs">{detail.shipments[0].trackingCode}</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Báo bởi {detail.shipments[0].dispatchedBy === 'AGENT' ? 'Agent Kho vận (tự động)' : 'Người vận hành'} · Phí {formatVND(detail.shipments[0].fee)}
+                    </p>
+                  </div>
+                  <ShipmentStatusBadge status={detail.shipments[0].status} />
+                </div>
+              )}
+
+              {detail.events && detail.events.length > 0 && (
+                <div>
+                  <p className="mb-3 text-sm font-semibold">Hành trình xử lý (Agent + người vận hành)</p>
+                  <div className="max-h-64 space-y-0 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                    {[...detail.events].reverse().map((ev, idx, arr) => (
+                      <div key={ev.id} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_ACTOR_DOTS[ev.actor] ?? 'bg-slate-400'}`} />
+                          {idx < arr.length - 1 && <span className="w-px flex-1 bg-border" />}
+                        </div>
+                        <div className="min-w-0 flex-1 pb-3">
+                          <p className="text-sm leading-snug">{ev.title}</p>
+                          {ev.detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ev.detail}</p>}
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            {EVENT_ACTOR_LABELS[ev.actor] ?? ev.actor} · {formatDateTime(ev.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {typeof detail.reviewRating === 'number' && detail.reviewRating != null && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+                  <p className="text-sm font-medium text-amber-600">
+                    {'★'.repeat(detail.reviewRating)}
+                    {'☆'.repeat(5 - detail.reviewRating)}
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">Khách đánh giá {detail.reviewRating}/5</span>
+                  </p>
+                  {detail.reviewComment && <p className="mt-1 text-sm text-muted-foreground">“{detail.reviewComment}”</p>}
+                </div>
+              )}
 
               <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">

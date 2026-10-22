@@ -1,0 +1,996 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+     4→import {
+     5→  ChevronLeft,
+     6→  ChevronRight,
+     7→  Eye,
+     8→  Loader2,
+     9→  Minus,
+    10→  Plus,
+    11→  Search,
+    12→  ShoppingCart,
+    13→  Trash2,
+    14→  Wallet,
+    15→} from 'lucide-react'
+    16→
+    17→import { apiGet, apiPatch, apiPost } from '@/lib/api'
+    18→import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
+    19→import { ORDER_STATUSES, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/types'
+    20→import type { Channel, Order, Product } from '@/lib/types'
+    21→import { useToast } from '@/hooks/use-toast'
+    22→
+    23→import { Button } from '@/components/ui/button'
+    24→import {
+    25→  Dialog,
+    26→  DialogContent,
+    27→  DialogDescription,
+    28→  DialogFooter,
+    29→  DialogHeader,
+    30→  DialogTitle,
+    31→} from '@/components/ui/dialog'
+    32→import { Input } from '@/components/ui/input'
+    33→import { Label } from '@/components/ui/label'
+    34→import {
+    35→  Select,
+    36→  SelectContent,
+    37→  SelectItem,
+    38→  SelectTrigger,
+    39→  SelectValue,
+    40→} from '@/components/ui/select'
+    41→import { Separator } from '@/components/ui/separator'
+    42→import { Skeleton } from '@/components/ui/skeleton'
+    43→import {
+    44→  Table,
+    45→  TableBody,
+    46→  TableCell,
+    47→  TableHead,
+    48→  TableHeader,
+    49→  TableRow,
+    50→} from '@/components/ui/table'
+    51→import { Textarea } from '@/components/ui/textarea'
+    52→
+    53→import { ChannelBadge } from '@/components/cms/channel-badge'
+    54→import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+    55→import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
+    56→import { OrderStatusBadge, PaymentStatusBadge } from '@/components/cms/status-badge'
+    57→
+    58→const PAGE_SIZE = 10
+    59→// Luồng xử lý đơn: PENDING → CONFIRMED → PACKING → SHIPPING → COMPLETED (CANCELLED từ mọi trạng thái)
+    60→const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PACKING', 'SHIPPING', 'COMPLETED'] as const
+    61→
+    62→interface CreateOrderItem {
+    63→  productId: string
+    64→  name: string
+    65→  sku: string
+    66→  price: number
+    67→  quantity: number
+    68→}
+    69→
+    70→interface CreateOrderFormState {
+    71→  channelId: string
+    72→  customerName: string
+    73→  customerPhone: string
+    74→  address: string
+    75→  note: string
+    76→  paymentMethod: string
+    77→}
+    78→
+    79→const EMPTY_CREATE_FORM: CreateOrderFormState = {
+    80→  channelId: '',
+    81→  customerName: '',
+    82→  customerPhone: '',
+    83→  address: '',
+    84→  note: '',
+    85→  paymentMethod: 'COD',
+    86→}
+    87→
+    88→function errorMessage(err: unknown): string {
+    89→  return err instanceof Error ? err.message : 'Đã xảy ra lỗi'
+    90→}
+    91→
+    92→// Các trạng thái đích hợp lệ từ trạng thái hiện tại (chỉ tiến theo luồng + có thể hủy)
+    93→function allowedNextStatuses(current: string): string[] {
+    94→  if (current === 'CANCELLED') return []
+    95→  const idx = STATUS_FLOW.indexOf(current as (typeof STATUS_FLOW)[number])
+    96→  const forward = idx >= 0 ? STATUS_FLOW.slice(idx + 1) : STATUS_FLOW
+    97→  return [...forward, 'CANCELLED']
+    98→}
+    99→
+   100→function itemsSummary(order: Order): string {
+   101→  if (order.items.length === 0) return '—'
+   102→  if (order.items.length === 1) {
+   103→    const item = order.items[0]
+   104→    return `${item.quantity} × ${item.product?.name ?? 'Sản phẩm'}`
+   105→  }
+   106→  return `${order.items.length} sản phẩm`
+   107→}
+   108→
+   109→function InfoField({ label, children }: { label: string; children: ReactNode }) {
+   110→  return (
+   111→    <div>
+   112→      <p className="text-xs text-muted-foreground">{label}</p>
+   113→      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm font-medium">{children}</div>
+   114→    </div>
+   115→  )
+   116→}
+   117→
+   118→export function OrdersView() {
+   119→  const { toast } = useToast()
+   120→
+   121→  // ===== Danh sách đơn hàng + bộ lọc + phân trang server-side =====
+   122→  const [orders, setOrders] = useState<Order[]>([])
+   123→  const [total, setTotal] = useState(0)
+   124→  const [page, setPage] = useState(1)
+   125→  const [totalPages, setTotalPages] = useState(1)
+   126→  const [loading, setLoading] = useState(true)
+   127→  const [error, setError] = useState<string | null>(null)
+   128→  const [refreshKey, setRefreshKey] = useState(0)
+   129→
+   130→  const [searchInput, setSearchInput] = useState('')
+   131→  const [search, setSearch] = useState('')
+   132→  const [statusFilter, setStatusFilter] = useState('ALL')
+   133→  const [channelFilter, setChannelFilter] = useState('ALL')
+   134→  const [channels, setChannels] = useState<Channel[]>([])
+   135→
+   136→  // ===== Dialog chi tiết đơn hàng =====
+   137→  const [detailOpen, setDetailOpen] = useState(false)
+   138→  const [detailId, setDetailId] = useState<string | null>(null)
+   139→  const [detail, setDetail] = useState<Order | null>(null)
+   140→  const [detailLoading, setDetailLoading] = useState(false)
+   141→  const [detailError, setDetailError] = useState<string | null>(null)
+   142→  const [detailReload, setDetailReload] = useState(0)
+   143→  const [statusChoice, setStatusChoice] = useState('')
+   144→  const [updatingStatus, setUpdatingStatus] = useState(false)
+   145→  const [markingPaid, setMarkingPaid] = useState(false)
+   146→  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+   147→
+   148→  // ===== Dialog tạo đơn =====
+   149→  const [createOpen, setCreateOpen] = useState(false)
+   150→  const [createForm, setCreateForm] = useState<CreateOrderFormState>(EMPTY_CREATE_FORM)
+   151→  const [createProducts, setCreateProducts] = useState<Product[]>([])
+   152→  const [createLoadingProducts, setCreateLoadingProducts] = useState(false)
+   153→  const [productSearch, setProductSearch] = useState('')
+   154→  const [selectedProductId, setSelectedProductId] = useState('')
+   155→  const [selectedQty, setSelectedQty] = useState('1')
+   156→  const [items, setItems] = useState<CreateOrderItem[]>([])
+   157→  const [submitting, setSubmitting] = useState(false)
+   158→
+   159→  // ===== Tìm kiếm debounce =====
+   160→  useEffect(() => {
+   161→    const timer = setTimeout(() => {
+   162→      setSearch(searchInput.trim())
+   163→      setPage(1)
+   164→    }, 400)
+   165→    return () => clearTimeout(timer)
+   166→  }, [searchInput])
+   167→
+   168→  const fetchOrders = useCallback(async () => {
+   169→    setLoading(true)
+   170→    setError(null)
+   171→    try {
+   172→      const params = new URLSearchParams()
+   173→      if (search) params.set('search', search)
+   174→      if (statusFilter !== 'ALL') params.set('status', statusFilter)
+   175→      if (channelFilter !== 'ALL') params.set('channelId', channelFilter)
+   176→      params.set('page', String(page))
+   177→      params.set('pageSize', String(PAGE_SIZE))
+   178→      const data = await apiGet<{
+   179→        orders: Order[]
+   180→        total: number
+   181→        page: number
+   182→        pageSize: number
+   183→        totalPages: number
+   184→      }>(`/api/orders?${params.toString()}`)
+   185→      setOrders(data.orders)
+   186→      setTotal(data.total)
+   187→      setTotalPages(Math.max(1, data.totalPages))
+   188→    } catch (err) {
+   189→      setError(errorMessage(err))
+   190→    } finally {
+   191→      setLoading(false)
+   192→    }
+   193→  }, [search, statusFilter, channelFilter, page, refreshKey])
+   194→
+   195→  useEffect(() => {
+   196→    void fetchOrders()
+   197→  }, [fetchOrders])
+   198→
+   199→  const fetchChannels = useCallback(async () => {
+   200→    try {
+   201→      const data = await apiGet<{ channels: Channel[] }>('/api/channels')
+   202→      setChannels(data.channels)
+   203→    } catch (err) {
+   204→      toast({
+   205→        title: 'Không thể tải danh sách kênh bán',
+   206→        description: errorMessage(err),
+   207→        variant: 'destructive',
+   208→      })
+   209→    }
+   210→  }, [toast])
+   211→
+   212→  useEffect(() => {
+   213→    void fetchChannels()
+   214→  }, [fetchChannels])
+   215→
+   216→  const connectedChannels = useMemo(() => channels.filter((c) => c.connected), [channels])
+   217→
+   218→  // ===== Chi tiết đơn hàng =====
+   219→  const openDetail = (id: string) => {
+   220→    setDetailId(id)
+   221→    setDetail(null)
+   222→    setDetailError(null)
+   223→    setStatusChoice('')
+   224→    setDetailOpen(true)
+   225→  }
+   226→
+   227→  useEffect(() => {
+   228→    if (!detailOpen || !detailId) return
+   229→    let cancelled = false
+   230→    setDetailLoading(true)
+   231→    setDetailError(null)
+   232→    apiGet<{ order: Order }>(`/api/orders/${detailId}`)
+   233→      .then((data) => {
+   234→        if (!cancelled) setDetail(data.order)
+   235→      })
+   236→      .catch((err) => {
+   237→        if (!cancelled) setDetailError(errorMessage(err))
+   238→      })
+   239→      .finally(() => {
+   240→        if (!cancelled) setDetailLoading(false)
+   241→      })
+   242→    return () => {
+   243→      cancelled = true
+   244→    }
+   245→  }, [detailOpen, detailId, detailReload])
+   246→
+   247→  const handleUpdateStatus = async (target: string) => {
+   248→    if (!detail) return
+   249→    setUpdatingStatus(true)
+   250→    try {
+   251→      await apiPatch<{ order: Order }>(`/api/orders/${detail.id}`, { status: target })
+   252→      toast({
+   253→        title: 'Đã cập nhật trạng thái',
+   254→        description: `${detail.code} → ${ORDER_STATUS_LABELS[target] ?? target}`,
+   255→      })
+   256→      setDetailReload((k) => k + 1)
+   257→      setRefreshKey((k) => k + 1)
+   258→    } catch (err) {
+   259→      toast({
+   260→        title: 'Không thể cập nhật trạng thái',
+   261→        description: errorMessage(err),
+   262→        variant: 'destructive',
+   263→      })
+   264→    } finally {
+   265→      setUpdatingStatus(false)
+   266→      setStatusChoice('')
+   267→    }
+   268→  }
+   269→
+   270→  const handleStatusSelect = (target: string) => {
+   271→    setStatusChoice(target)
+   272→    if (target === 'CANCELLED') {
+   273→      setConfirmCancelOpen(true)
+   274→      return
+   275→    }
+   276→    void handleUpdateStatus(target)
+   277→  }
+   278→
+   279→  const handleConfirmCancel = () => {
+   280→    setConfirmCancelOpen(false)
+   281→    setStatusChoice('')
+   282→    void handleUpdateStatus('CANCELLED')
+   283→  }
+   284→
+   285→  const handleMarkPaid = async () => {
+   286→    if (!detail) return
+   287→    setMarkingPaid(true)
+   288→    try {
+   289→      await apiPatch<{ order: Order }>(`/api/orders/${detail.id}`, { paymentStatus: 'PAID' })
+   290→      toast({ title: 'Đã xác nhận thanh toán', description: `${detail.code} đã được đánh dấu đã thanh toán.` })
+   291→      setDetailReload((k) => k + 1)
+   292→      setRefreshKey((k) => k + 1)
+   293→    } catch (err) {
+   294→      toast({
+   295→        title: 'Không thể cập nhật thanh toán',
+   296→        description: errorMessage(err),
+   297→        variant: 'destructive',
+   298→      })
+   299→    } finally {
+   300→      setMarkingPaid(false)
+   301→    }
+   302→  }
+   303→
+   304→  // ===== Tạo đơn hàng =====
+   305→  const openCreate = () => {
+   306→    setCreateForm(EMPTY_CREATE_FORM)
+   307→    setItems([])
+   308→    setSelectedProductId('')
+   309→    setSelectedQty('1')
+   310→    setProductSearch('')
+   311→    setCreateOpen(true)
+   312→  }
+   313→
+   314→  useEffect(() => {
+   315→    if (!createOpen) return
+   316→    let cancelled = false
+   317→    setCreateLoadingProducts(true)
+   318→    apiGet<{ products: Product[] }>('/api/products?status=ACTIVE')
+   319→      .then((data) => {
+   320→        if (!cancelled) setCreateProducts(data.products)
+   321→      })
+   322→      .catch((err) => {
+   323→        if (!cancelled) {
+   324→          toast({
+   325→            title: 'Không thể tải danh sách sản phẩm',
+   326→            description: errorMessage(err),
+   327→            variant: 'destructive',
+   328→          })
+   329→        }
+   330→      })
+   331→      .finally(() => {
+   332→        if (!cancelled) setCreateLoadingProducts(false)
+   333→      })
+   334→    return () => {
+   335→      cancelled = true
+   336→    }
+   337→  }, [createOpen, toast])
+   338→
+   339→  const filteredCreateProducts = useMemo(() => {
+   340→    const keyword = productSearch.trim().toLowerCase()
+   341→    if (!keyword) return createProducts
+   342→    return createProducts.filter(
+   343→      (p) => p.name.toLowerCase().includes(keyword) || p.sku.toLowerCase().includes(keyword)
+   344→    )
+   345→  }, [createProducts, productSearch])
+   346→
+   347→  const createTotal = useMemo(
+   348→    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+   349→    [items]
+   350→  )
+   351→
+   352→  const handleAddItem = () => {
+   353→    const product = createProducts.find((p) => p.id === selectedProductId)
+   354→    if (!product) {
+   355→      toast({ title: 'Vui lòng chọn một sản phẩm', variant: 'destructive' })
+   356→      return
+   357→    }
+   358→    const qty = Math.max(1, Math.floor(Number(selectedQty) || 1))
+   359→    setItems((prev) => {
+   360→      const existing = prev.find((i) => i.productId === product.id)
+   361→      if (existing) {
+   362→        return prev.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + qty } : i))
+   363→      }
+   364→      return [
+   365→        ...prev,
+   366→        { productId: product.id, name: product.name, sku: product.sku, price: product.sellPrice, quantity: qty },
+   367→      ]
+   368→    })
+   369→    setSelectedProductId('')
+   370→    setSelectedQty('1')
+   371→  }
+   372→
+   373→  const changeItemQty = (productId: string, delta: number) => {
+   374→    setItems((prev) =>
+   375→      prev.map((i) =>
+   376→        i.productId === productId ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i
+   377→      )
+   378→    )
+   379→  }
+   380→
+   381→  const removeItem = (productId: string) => {
+   382→    setItems((prev) => prev.filter((i) => i.productId !== productId))
+   383→  }
+   384→
+   385→  const submitCreate = async () => {
+   386→    if (!createForm.channelId) {
+   387→      toast({ title: 'Vui lòng chọn kênh bán', variant: 'destructive' })
+   388→      return
+   389→    }
+   390→    if (!createForm.customerName.trim()) {
+   391→      toast({ title: 'Vui lòng nhập tên khách hàng', variant: 'destructive' })
+   392→      return
+   393→    }
+   394→    if (items.length === 0) {
+   395→      toast({ title: 'Vui lòng thêm ít nhất một sản phẩm vào đơn', variant: 'destructive' })
+   396→      return
+   397→    }
+   398→    setSubmitting(true)
+   399→    try {
+   400→      const data = await apiPost<{ order: Order }>('/api/orders', {
+   401→        channelId: createForm.channelId,
+   402→        customerName: createForm.customerName.trim(),
+   403→        customerPhone: createForm.customerPhone.trim(),
+   404→        address: createForm.address.trim(),
+   405→        note: createForm.note.trim(),
+   406→        paymentMethod: createForm.paymentMethod,
+   407→        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+   408→      })
+   409→      toast({ title: 'Đã tạo đơn hàng', description: `Mã đơn ${data.order.code}` })
+   410→      setCreateOpen(false)
+   411→      setPage(1)
+   412→      setRefreshKey((k) => k + 1)
+   413→    } catch (err) {
+   414→      // Lỗi 400: hết hàng hoặc dữ liệu không hợp lệ — hiển thị message từ server
+   415→      toast({
+   416→        title: 'Không thể tạo đơn hàng',
+   417→        description: errorMessage(err),
+   418→        variant: 'destructive',
+   419→      })
+   420→    } finally {
+   421→      setSubmitting(false)
+   422→    }
+   423→  }
+   424→
+   425→  // ===== Phân trang hiển thị =====
+   426→  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+   427→  const to = Math.min(page * PAGE_SIZE, total)
+   428→  const hasFilter = search !== '' || statusFilter !== 'ALL' || channelFilter !== 'ALL'
+   429→  const nextStatuses = detail ? allowedNextStatuses(detail.status) : []
+   430→
+   431→  return (
+   432→    <div>
+   433→      <PageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn hàng từ tất cả các kênh bán">
+   434→        <Button onClick={openCreate}>
+   435→          <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+   436→        </Button>
+   437→      </PageHeader>
+   438→
+   439→      {/* Toolbar */}
+   440→      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+   441→        <div className="relative w-full sm:w-64">
+   442→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   443→          <Input
+   444→            value={searchInput}
+   445→            onChange={(e) => setSearchInput(e.target.value)}
+   446→            placeholder="Tìm mã đơn, tên hoặc SĐT khách..."
+   447→            className="pl-8"
+   448→            aria-label="Tìm kiếm đơn hàng"
+   449→          />
+   450→        </div>
+   451→        <Select
+   452→          value={statusFilter}
+   453→          onValueChange={(v) => {
+   454→            setStatusFilter(v)
+   455→            setPage(1)
+   456→          }}
+   457→        >
+   458→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo trạng thái">
+   459→            <SelectValue placeholder="Tất cả trạng thái" />
+   460→          </SelectTrigger>
+   461→          <SelectContent>
+   462→            <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+   463→            {ORDER_STATUSES.map((s) => (
+   464→              <SelectItem key={s} value={s}>
+   465→                {ORDER_STATUS_LABELS[s] ?? s}
+   466→              </SelectItem>
+   467→            ))}
+   468→          </SelectContent>
+   469→        </Select>
+   470→        <Select
+   471→          value={channelFilter}
+   472→          onValueChange={(v) => {
+   473→            setChannelFilter(v)
+   474→            setPage(1)
+   475→          }}
+   476→        >
+   477→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo kênh bán">
+   478→            <SelectValue placeholder="Tất cả kênh" />
+   479→          </SelectTrigger>
+   480→          <SelectContent>
+   481→            <SelectItem value="ALL">Tất cả kênh</SelectItem>
+   482→            {channels.map((c) => (
+   483→              <SelectItem key={c.id} value={c.id}>
+   484→                {c.name}
+   485→              </SelectItem>
+   486→            ))}
+   487→          </SelectContent>
+   488→        </Select>
+   489→      </div>
+   490→
+   491→      {/* Nội dung chính */}
+   492→      {loading ? (
+   493→        <TableSkeleton rows={7} />
+   494→      ) : error ? (
+   495→        <ErrorState message={error} onRetry={() => void fetchOrders()} />
+   496→      ) : orders.length === 0 ? (
+   497→        <EmptyState
+   498→          icon={ShoppingCart}
+   499→          title={hasFilter ? 'Không tìm thấy đơn hàng nào' : 'Chưa có đơn hàng nào'}
+   500→          description={
+   501→            hasFilter
+   502→              ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc.'
+   503→              : 'Các đơn hàng từ mọi kênh bán sẽ hiển thị tại đây.'
+   504→          }
+   505→          action={
+   506→            <Button onClick={openCreate}>
+   507→              <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+   508→            </Button>
+   509→          }
+   510→        />
+   511→      ) : (
+   512→        <>
+   513→          <div className="overflow-x-auto rounded-lg border">
+   514→            <Table className="min-w-[960px]">
+   515→              <TableHeader>
+   516→                <TableRow>
+   517→                  <TableHead>Mã đơn</TableHead>
+   518→                  <TableHead>Kênh</TableHead>
+   519→                  <TableHead>Khách hàng</TableHead>
+   520→                  <TableHead>Sản phẩm</TableHead>
+   521→                  <TableHead className="text-right">Tổng tiền</TableHead>
+   522→                  <TableHead>Thanh toán</TableHead>
+   523→                  <TableHead>Trạng thái</TableHead>
+   524→                  <TableHead>Thời gian</TableHead>
+   525→                  <TableHead className="text-right">Hành động</TableHead>
+   526→                </TableRow>
+   527→              </TableHeader>
+   528→              <TableBody>
+   529→                {orders.map((o) => (
+   530→                  <TableRow key={o.id}>
+   531→                    <TableCell className="font-mono text-sm font-medium">{o.code}</TableCell>
+   532→                    <TableCell>
+   533→                      <ChannelBadge channel={o.channel} className="text-xs" />
+   534→                    </TableCell>
+   535→                    <TableCell>
+   536→                      <p className="text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
+   537→                      {o.customer?.phone && (
+   538→                        <p className="text-xs text-muted-foreground">{o.customer.phone}</p>
+   539→                      )}
+   540→                    </TableCell>
+   541→                    <TableCell className="max-w-[180px] truncate text-sm">{itemsSummary(o)}</TableCell>
+   542→                    <TableCell className="whitespace-nowrap text-right font-semibold">
+   543→                      {formatVND(o.total)}
+   544→                    </TableCell>
+   545→                    <TableCell>
+   546→                      <PaymentStatusBadge status={o.paymentStatus} />
+   547→                    </TableCell>
+   548→                    <TableCell>
+   549→                      <OrderStatusBadge status={o.status} />
+   550→                    </TableCell>
+   551→                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+   552→                      {formatDateTime(o.createdAt)}
+   553→                    </TableCell>
+   554→                    <TableCell className="text-right">
+   555→                      <Button variant="outline" size="sm" onClick={() => openDetail(o.id)}>
+   556→                        <Eye className="mr-1 h-4 w-4" /> Chi tiết
+   557→                      </Button>
+   558→                    </TableCell>
+   559→                  </TableRow>
+   560→                ))}
+   561→              </TableBody>
+   562→            </Table>
+   563→          </div>
+   564→
+   565→          {/* Phân trang server-side */}
+   566→          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+   567→            <p className="text-sm text-muted-foreground">
+   568→              Hiển thị {formatNumber(from)}–{formatNumber(to)} trong {formatNumber(total)} đơn
+   569→            </p>
+   570→            <div className="flex items-center gap-2">
+   571→              <Button
+   572→                variant="outline"
+   573→                size="sm"
+   574→                disabled={page <= 1 || loading}
+   575→                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+   576→              >
+   577→                <ChevronLeft className="mr-1 h-4 w-4" /> Trước
+   578→              </Button>
+   579→              <span className="text-sm text-muted-foreground">
+   580→                Trang {page}/{totalPages}
+   581→              </span>
+   582→              <Button
+   583→                variant="outline"
+   584→                size="sm"
+   585→                disabled={page >= totalPages || loading}
+   586→                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+   587→              >
+   588→                Sau <ChevronRight className="ml-1 h-4 w-4" />
+   589→              </Button>
+   590→            </div>
+   591→          </div>
+   592→        </>
+   593→      )}
+   594→
+   595→      {/* Dialog chi tiết đơn hàng */}
+   596→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+   597→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   598→          <DialogHeader>
+   599→            <DialogTitle className="flex flex-wrap items-center gap-2.5">
+   600→              {detail ? (
+   601→                <>
+   602→                  <span className="font-mono">{detail.code}</span>
+   603→                  <OrderStatusBadge status={detail.status} />
+   604→                </>
+   605→              ) : (
+   606→                'Chi tiết đơn hàng'
+   607→              )}
+   608→            </DialogTitle>
+   609→            <DialogDescription>Thông tin chi tiết và các sản phẩm trong đơn hàng.</DialogDescription>
+   610→          </DialogHeader>
+   611→
+   612→          {detailLoading && !detail ? (
+   613→            <div className="space-y-3">
+   614→              <Skeleton className="h-24 w-full" />
+   615→              <Skeleton className="h-40 w-full" />
+   616→              <Skeleton className="h-12 w-full" />
+   617→            </div>
+   618→          ) : detailError ? (
+   619→            <ErrorState message={detailError} onRetry={() => setDetailReload((k) => k + 1)} />
+   620→          ) : detail ? (
+   621→            <div className="space-y-4">
+   622→              <div className="grid gap-3 sm:grid-cols-2">
+   623→                <InfoField label="Kênh bán">
+   624→                  <ChannelBadge channel={detail.channel} />
+   625→                </InfoField>
+   626→                <InfoField label="Khách hàng">{detail.customer?.name ?? 'Khách lẻ'}</InfoField>
+   627→                <InfoField label="Số điện thoại">{detail.customer?.phone ?? '—'}</InfoField>
+   628→                <InfoField label="Địa chỉ">{detail.address ?? '—'}</InfoField>
+   629→                <InfoField label="Thanh toán">
+   630→                  <span>{PAYMENT_METHOD_LABELS[detail.paymentMethod] ?? detail.paymentMethod}</span>
+   631→                  <PaymentStatusBadge status={detail.paymentStatus} />
+   632→                </InfoField>
+   633→                <InfoField label="Ghi chú">{detail.note ?? '—'}</InfoField>
+   634→              </div>
+   635→
+   636→              <Separator />
+   637→
+   638→              <div className="overflow-x-auto rounded-lg border">
+   639→                <Table className="min-w-[420px]">
+   640→                  <TableHeader>
+   641→                    <TableRow>
+   642→                      <TableHead>Sản phẩm</TableHead>
+   643→                      <TableHead className="text-right">Đơn giá</TableHead>
+   644→                      <TableHead className="text-center">SL</TableHead>
+   645→                      <TableHead className="text-right">Thành tiền</TableHead>
+   646→                    </TableRow>
+   647→                  </TableHeader>
+   648→                  <TableBody>
+   649→                    {detail.items.length === 0 ? (
+   650→                      <TableRow>
+   651→                        <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+   652→                          Đơn hàng không có sản phẩm nào.
+   653→                        </TableCell>
+   654→                      </TableRow>
+   655→                    ) : (
+   656→                      detail.items.map((item) => (
+   657→                        <TableRow key={item.id}>
+   658→                          <TableCell>
+   659→                            <p className="text-sm font-medium">
+   660→                              {item.product?.name ?? 'Sản phẩm đã xóa'}
+   661→                            </p>
+   662→                            {item.product?.sku && (
+   663→                              <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+   664→                            )}
+   665→                          </TableCell>
+   666→                          <TableCell className="whitespace-nowrap text-right text-sm">
+   667→                            {formatVND(item.price)}
+   668→                          </TableCell>
+   669→                          <TableCell className="text-center text-sm">{item.quantity}</TableCell>
+   670→                          <TableCell className="whitespace-nowrap text-right text-sm font-medium">
+   671→                            {formatVND(item.price * item.quantity)}
+   672→                          </TableCell>
+   673→                        </TableRow>
+   674→                      ))
+   675→                    )}
+   676→                  </TableBody>
+   677→                </Table>
+   678→              </div>
+   679→
+   680→              <div className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+   681→                <div className="flex justify-between">
+   682→                  <span className="text-muted-foreground">Tạm tính</span>
+   683→                  <span>{formatVND(detail.subtotal)}</span>
+   684→                </div>
+   685→                <div className="flex justify-between">
+   686→                  <span className="text-muted-foreground">Phí vận chuyển</span>
+   687→                  <span>{formatVND(detail.shippingFee)}</span>
+   688→                </div>
+   689→                <Separator />
+   690→                <div className="flex justify-between text-base font-semibold">
+   691→                  <span>Tổng cộng</span>
+   692→                  <span className="text-primary">{formatVND(detail.total)}</span>
+   693→                </div>
+   694→              </div>
+   695→
+   696→              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+   697→                <div className="flex flex-wrap items-center gap-2">
+   698→                  <span className="text-sm text-muted-foreground">Cập nhật trạng thái</span>
+   699→                  <Select
+   700→                    value={statusChoice}
+   701→                    onValueChange={handleStatusSelect}
+   702→                    disabled={updatingStatus || nextStatuses.length === 0}
+   703→                  >
+   704→                    <SelectTrigger className="w-[190px]">
+   705→                      <SelectValue
+   706→                        placeholder={nextStatuses.length === 0 ? 'Không thể cập nhật' : 'Chọn trạng thái'}
+   707→                      />
+   708→                    </SelectTrigger>
+   709→                    <SelectContent>
+   710→                      {nextStatuses.map((s) => (
+   711→                        <SelectItem key={s} value={s}>
+   712→                          {ORDER_STATUS_LABELS[s] ?? s}
+   713→                        </SelectItem>
+   714→                      ))}
+   715→                    </SelectContent>
+   716→                  </Select>
+   717→                </div>
+   718→                {detail.paymentStatus === 'UNPAID' && (
+   719→                  <Button onClick={() => void handleMarkPaid()} disabled={markingPaid}>
+   720→                    {markingPaid ? (
+   721→                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+   722→                    ) : (
+   723→                      <Wallet className="mr-1.5 h-4 w-4" />
+   724→                    )}
+   725→                    Đánh dấu đã thanh toán
+   726→                  </Button>
+   727→                )}
+   728→              </div>
+   729→            </div>
+   730→          ) : null}
+   731→        </DialogContent>
+   732→      </Dialog>
+   733→
+   734→      {/* Dialog xác nhận hủy đơn (cảnh báo hoàn kho) */}
+   735→      <ConfirmDialog
+   736→        open={confirmCancelOpen}
+   737→        onOpenChange={(open) => {
+   738→          setConfirmCancelOpen(open)
+   739→          if (!open) setStatusChoice('')
+   740→        }}
+   741→        title={`Hủy đơn hàng ${detail?.code ?? ''}?`}
+   742→        description="Đơn hàng sẽ chuyển sang trạng thái Đã hủy và số lượng sản phẩm trong đơn sẽ được hoàn lại vào kho. Hành động này không thể hoàn tác."
+   743→        confirmText="Xác nhận hủy đơn"
+   744→        destructive
+   745→        loading={updatingStatus}
+   746→        onConfirm={handleConfirmCancel}
+   747→      />
+   748→
+   749→      {/* Dialog tạo đơn hàng */}
+   750→      <Dialog
+   751→        open={createOpen}
+   752→        onOpenChange={(open) => {
+   753→          if (!submitting) setCreateOpen(open)
+   754→        }}
+   755→      >
+   756→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   757→          <DialogHeader>
+   758→            <DialogTitle>Tạo đơn hàng</DialogTitle>
+   759→            <DialogDescription>
+   760→              Tạo đơn thủ công (POS) — tổng tiền được hệ thống tự tính theo giá hiện tại.
+   761→            </DialogDescription>
+   762→          </DialogHeader>
+   763→
+   764→          <div className="space-y-4 py-1">
+   765→            <div className="space-y-1.5">
+   766→              <Label>
+   767→                Kênh bán <span className="text-destructive">*</span>
+   768→              </Label>
+   769→              <Select
+   770→                value={createForm.channelId}
+   771→                onValueChange={(v) => setCreateForm((f) => ({ ...f, channelId: v }))}
+   772→              >
+   773→                <SelectTrigger className="w-full">
+   774→                  <SelectValue placeholder="Chọn kênh bán" />
+   775→                </SelectTrigger>
+   776→                <SelectContent>
+   777→                  {connectedChannels.length === 0 ? (
+   778→                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+   779→                      Không có kênh nào đã kết nối
+   780→                    </div>
+   781→                  ) : (
+   782→                    connectedChannels.map((c) => (
+   783→                      <SelectItem key={c.id} value={c.id}>
+   784→                        <span className="inline-flex items-center gap-2">
+   785→                          <span
+   786→                            className="h-2.5 w-2.5 rounded-full"
+   787→                            style={{ backgroundColor: c.color }}
+   788→                          />
+   789→                          {c.name}
+   790→                        </span>
+   791→                      </SelectItem>
+   792→                    ))
+   793→                  )}
+   794→                </SelectContent>
+   795→              </Select>
+   796→              {connectedChannels.length === 0 && (
+   797→                <p className="text-xs text-destructive">Chưa có kênh bán nào được kết nối.</p>
+   798→              )}
+   799→            </div>
+   800→
+   801→            <div className="grid gap-3 sm:grid-cols-2">
+   802→              <div className="space-y-1.5">
+   803→                <Label htmlFor="order-customer-name">
+   804→                  Tên khách hàng <span className="text-destructive">*</span>
+   805→                </Label>
+   806→                <Input
+   807→                  id="order-customer-name"
+   808→                  value={createForm.customerName}
+   809→                  onChange={(e) => setCreateForm((f) => ({ ...f, customerName: e.target.value }))}
+   810→                  placeholder="VD: Nguyễn Văn A"
+   811→                />
+   812→              </div>
+   813→              <div className="space-y-1.5">
+   814→                <Label htmlFor="order-customer-phone">Số điện thoại</Label>
+   815→                <Input
+   816→                  id="order-customer-phone"
+   817→                  value={createForm.customerPhone}
+   818→                  onChange={(e) => setCreateForm((f) => ({ ...f, customerPhone: e.target.value }))}
+   819→                  placeholder="VD: 0901234567"
+   820→                />
+   821→              </div>
+   822→              <div className="space-y-1.5 sm:col-span-2">
+   823→                <Label htmlFor="order-address">Địa chỉ giao hàng</Label>
+   824→                <Input
+   825→                  id="order-address"
+   826→                  value={createForm.address}
+   827→                  onChange={(e) => setCreateForm((f) => ({ ...f, address: e.target.value }))}
+   828→                  placeholder="Số nhà, đường, phường/xã, tỉnh/thành phố"
+   829→                />
+   830→              </div>
+   831→            </div>
+   832→
+   833→            <div className="grid gap-3 sm:grid-cols-2">
+   834→              <div className="space-y-1.5">
+   835→                <Label>Phương thức thanh toán</Label>
+   836→                <Select
+   837→                  value={createForm.paymentMethod}
+   838→                  onValueChange={(v) => setCreateForm((f) => ({ ...f, paymentMethod: v }))}
+   839→                >
+   840→                  <SelectTrigger className="w-full">
+   841→                    <SelectValue placeholder="Chọn phương thức" />
+   842→                  </SelectTrigger>
+   843→                  <SelectContent>
+   844→                    {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => (
+   845→                      <SelectItem key={key} value={key}>
+   846→                        {label}
+   847→                      </SelectItem>
+   848→                    ))}
+   849→                  </SelectContent>
+   850→                </Select>
+   851→              </div>
+   852→              <div className="space-y-1.5">
+   853→                <Label htmlFor="order-note">Ghi chú</Label>
+   854→                <Textarea
+   855→                  id="order-note"
+   856→                  rows={1}
+   857→                  value={createForm.note}
+   858→                  onChange={(e) => setCreateForm((f) => ({ ...f, note: e.target.value }))}
+   859→                  placeholder="Ghi chú cho đơn hàng..."
+   860→                />
+   861→              </div>
+   862→            </div>
+   863→
+   864→            <Separator />
+   865→
+   866→            <div className="space-y-2">
+   867→              <Label>Chọn sản phẩm</Label>
+   868→              <div className="flex flex-col gap-2 sm:flex-row">
+   869→                <div className="relative flex-1">
+   870→                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   871→                  <Input
+   872→                    value={productSearch}
+   873→                    onChange={(e) => setProductSearch(e.target.value)}
+   874→                    placeholder="Tìm sản phẩm..."
+   875→                    className="pl-8"
+   876→                    aria-label="Tìm sản phẩm để thêm vào đơn"
+   877→                  />
+   878→                </div>
+   879→                <Select
+   880→                  value={selectedProductId}
+   881→                  onValueChange={setSelectedProductId}
+   882→                  disabled={createLoadingProducts}
+   883→                >
+   884→                  <SelectTrigger className="w-full sm:w-[240px]">
+   885→                    <SelectValue
+   886→                      placeholder={createLoadingProducts ? 'Đang tải...' : 'Chọn sản phẩm'}
+   887→                    />
+   888→                  </SelectTrigger>
+   889→                  <SelectContent>
+   890→                    {filteredCreateProducts.length === 0 ? (
+   891→                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+   892→                        Không có sản phẩm phù hợp
+   893→                      </div>
+   894→                    ) : (
+   895→                      filteredCreateProducts.map((p) => (
+   896→                        <SelectItem key={p.id} value={p.id}>
+   897→                          {p.name} · Tồn {p.stock}
+   898→                        </SelectItem>
+   899→                      ))
+   900→                    )}
+   901→                  </SelectContent>
+   902→                </Select>
+   903→                <Input
+   904→                  type="number"
+   905→                  min={1}
+   906→                  step={1}
+   907→                  className="w-full sm:w-20"
+   908→                  value={selectedQty}
+   909→                  onChange={(e) => setSelectedQty(e.target.value)}
+   910→                  aria-label="Số lượng"
+   911→                />
+   912→                <Button variant="secondary" onClick={handleAddItem}>
+   913→                  <Plus className="mr-1 h-4 w-4" /> Thêm
+   914→                </Button>
+   915→              </div>
+   916→            </div>
+   917→
+   918→            <div className="space-y-2">
+   919→              <Label>Sản phẩm trong đơn</Label>
+   920→              {items.length === 0 ? (
+   921→                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+   922→                  Chưa có sản phẩm nào. Chọn sản phẩm bên trên rồi bấm &quot;Thêm&quot;.
+   923→                </p>
+   924→              ) : (
+   925→                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+   926→                  {items.map((item) => (
+   927→                    <div key={item.productId} className="flex items-center gap-2 rounded-lg border p-2">
+   928→                      <div className="min-w-0 flex-1">
+   929→                        <p className="truncate text-sm font-medium">{item.name}</p>
+   930→                        <p className="text-xs text-muted-foreground">
+   931→                          {formatVND(item.price)} · {item.sku}
+   932→                        </p>
+   933→                      </div>
+   934→                      <div className="flex items-center gap-1">
+   935→                        <Button
+   936→                          variant="outline"
+   937→                          size="icon"
+   938→                          className="h-7 w-7"
+   939→                          onClick={() => changeItemQty(item.productId, -1)}
+   940→                          disabled={item.quantity <= 1}
+   941→                          aria-label="Giảm số lượng"
+   942→                        >
+   943→                          <Minus className="h-3.5 w-3.5" />
+   944→                        </Button>
+   945→                        <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+   946→                        <Button
+   947→                          variant="outline"
+   948→                          size="icon"
+   949→                          className="h-7 w-7"
+   950→                          onClick={() => changeItemQty(item.productId, 1)}
+   951→                          aria-label="Tăng số lượng"
+   952→                        >
+   953→                          <Plus className="h-3.5 w-3.5" />
+   954→                        </Button>
+   955→                      </div>
+   956→                      <span className="w-24 text-right text-sm font-semibold">
+   957→                        {formatVND(item.price * item.quantity)}
+   958→                      </span>
+   959→                      <Button
+   960→                        variant="ghost"
+   961→                        size="icon"
+   962→                        className="h-7 w-7 text-destructive hover:text-destructive"
+   963→                        onClick={() => removeItem(item.productId)}
+   964→                        aria-label="Xóa sản phẩm khỏi đơn"
+   965→                      >
+   966→                        <Trash2 className="h-3.5 w-3.5" />
+   967→                      </Button>
+   968→                    </div>
+   969→                  ))}
+   970→                </div>
+   971→              )}
+   972→            </div>
+   973→          </div>
+   974→
+   975→          <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
+   976→            <p className="text-sm">
+   977→              Tạm tính:{' '}
+   978→              <span className="text-base font-semibold text-primary">{formatVND(createTotal)}</span>
+   979→            </p>
+   980→            <div className="flex gap-2">
+   981→              <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={submitting}>
+   982→                Hủy
+   983→              </Button>
+   984→              <Button onClick={() => void submitCreate()} disabled={submitting}>
+   985→                {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   986→                <ShoppingCart className="mr-1.5 h-4 w-4" />
+   987→                Tạo đơn hàng
+   988→              </Button>
+   989→            </div>
+   990→          </DialogFooter>
+   991→        </DialogContent>
+   992→      </Dialog>
+   993→    </div>
+   994→  )
+   995→}
+   996→
