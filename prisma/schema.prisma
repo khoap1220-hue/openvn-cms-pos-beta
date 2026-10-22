@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id                String           @id @default(cuid())
+  sku               String           @unique
+  name              String
+  description       String?
+  categoryId        String?
+  category          Category?        @relation(fields: [categoryId], references: [id])
+  costPrice         Float            @default(0)
+  sellPrice         Float            @default(0)
+  stock             Int              @default(0)
+  lowStockThreshold Int              @default(5)
+  image             String?
+  status            String           @default("ACTIVE")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  orderItems        OrderItem[]
+  listings          ChannelListing[]
+  stockMovements    StockMovement[]
+}
+
+model Channel {
+  id         String           @id @default(cuid())
+  key        String           @unique
+  name       String
+  color      String           @default("#10b981")
+  connected  Boolean          @default(false)
+  feePercent Float            @default(0)
+  syncedAt   DateTime?
+  createdAt  DateTime         @default(now())
+  listings   ChannelListing[]
+  orders     Order[]
+}
+
+model ChannelListing {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  price     Float?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  @@unique([productId, channelId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  channelId     String
+  channel       Channel     @relation(fields: [channelId], references: [id])
+  status        String      @default("PENDING")
+  paymentMethod String      @default("COD")
+  paymentStatus String      @default("UNPAID")
+  subtotal      Float       @default(0)
+  shippingFee   Float       @default(0)
+  total         Float       @default(0)
+  note          String?
+  address       String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+  price     Float   @default(0)
+}
+
+model StockMovement {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type       String
+  quantity   Int
+  stockAfter Int
+  note       String?
+  createdAt  DateTime @default(now())
+}
