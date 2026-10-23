@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { logLedger } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,11 +37,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (dup) return NextResponse.json({ error: `SKU "${sku}" đã tồn tại` }, { status: 409 })
     }
 
+    // MÃ VẠCH: cập nhật nếu gửi lên (trống = xóa mã vạch)
+    let barcodeChanged: { from: string | null; to: string | null } | null = null
+    if (body.barcode !== undefined) {
+      const nextBarcode =
+        typeof body.barcode === 'string' && body.barcode.trim() ? body.barcode.trim() : null
+      if (nextBarcode) {
+        if (!/^[\x20-\x7E]{1,64}$/.test(nextBarcode)) {
+          return NextResponse.json({ error: 'Mã vạch chỉ được chứa 1–64 ký tự ASCII in được' }, { status: 400 })
+        }
+        const dup = await db.product.findUnique({ where: { barcode: nextBarcode } })
+        if (dup && dup.id !== id) {
+          return NextResponse.json(
+            { error: `Mã vạch "${nextBarcode}" đã thuộc sản phẩm ${dup.sku}` },
+            { status: 409 }
+          )
+        }
+      }
+      if ((existing.barcode ?? null) !== nextBarcode) {
+        barcodeChanged = { from: existing.barcode ?? null, to: nextBarcode }
+      }
+    }
+
     const product = await db.product.update({
       where: { id },
       data: {
         ...(sku !== undefined ? { sku: sku.trim() } : {}),
         ...(name !== undefined ? { name: name.trim() } : {}),
+        ...(body.barcode !== undefined
+          ? { barcode: body.barcode && String(body.barcode).trim() ? String(body.barcode).trim() : null }
+          : {}),
         ...(description !== undefined ? { description: description?.trim() || null } : {}),
         ...(categoryId !== undefined ? { categoryId: categoryId || null } : {}),
         ...(costPrice !== undefined ? { costPrice: Number(costPrice) || 0 } : {}),
@@ -61,6 +87,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
       const toAdd = [...targetIds].filter((cid) => !currentIds.has(cid))
       if (toAdd.length > 0) await db.channelListing.createMany({ data: toAdd.map((channelId) => ({ productId: id, channelId })) })
+    }
+
+    if (barcodeChanged) {
+      await logLedger({
+        scope: 'INVENTORY',
+        action: 'PRODUCT_BARCODE_UPDATED',
+        entityType: 'PRODUCT',
+        entityId: id,
+        entityCode: product.sku,
+        title: `Cập nhật mã vạch ${product.sku}: ${barcodeChanged.from ?? '(trống)'} → ${barcodeChanged.to ?? '(xóa)'}`,
+        detail: { sku: product.sku, name: product.name, barcode: product.barcode },
+        actor: 'OPERATOR',
+      })
     }
 
     return NextResponse.json({ product })

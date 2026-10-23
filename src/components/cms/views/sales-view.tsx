@@ -1,11 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost } from '@/lib/api'
 import { formatCompactVND, formatDate, formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/cms/page-header'
 import { StatCard } from '@/components/cms/stat-card'
 import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+import { BarcodeScanner } from '@/components/cms/barcode-scanner'
+import { InvoicePrintDialog } from '@/components/cms/invoice-print'
+import type { InvoicePrintData } from '@/components/cms/invoice-print'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -46,6 +49,7 @@ import {
   FileSpreadsheet,
   Loader2,
   Plus,
+  Printer,
   Receipt,
   Search,
   ShoppingBag,
@@ -61,6 +65,7 @@ interface ProductLite {
   costPrice: number
   sellPrice: number
   stock: number
+  barcode?: string | null
 }
 
 interface PartnerLite {
@@ -88,10 +93,13 @@ interface SalesInvoice {
   total: number
   status: 'POSTED' | 'CANCELLED'
   note: string | null
-  partner: { name: string; taxCode: string | null } | null
+  partner: { name: string; taxCode: string | null; address?: string | null; phone?: string | null } | null
   order: { code: string } | null
   items: InvoiceItemRow[]
 }
+
+/** Dữ liệu in hóa đơn — GET /api/sales-invoices/{id} trả partner FULL (đủ địa chỉ/điện thoại để in) */
+type InvoiceDetailForPrint = SalesInvoice
 
 interface UninvoicedOrder {
   id: string
@@ -154,12 +162,44 @@ export function SalesView() {
   const [note, setNote] = useState('')
   const [rows, setRows] = useState<DraftRow[]>([{ productId: '', quantity: '', unitPrice: '' }])
   const [submitting, setSubmitting] = useState(false)
+
+  // In hóa đơn — dữ liệu mới nhất từ API chi tiết (partner FULL) + dialog xem trước bản in
+  const [printOpen, setPrintOpen] = useState(false)
+  const [printInvoice, setPrintInvoice] = useState<InvoicePrintData | null>(null)
+  const [printLoading, setPrintLoading] = useState(false)
+
+  // Cấu hình mặc định cho hóa đơn mới (VAT mặc định + ghi chú mặc định) — tải 1 lần lúc mount,
+  // dùng ref để openCreate không bị stale closure
+  const vatDefaultRef = useRef('8')
+  const invoiceDefaultNoteRef = useRef('')
   const { toast } = useToast()
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 400)
     return () => clearTimeout(t)
   }, [searchInput])
+
+  // GET /api/settings 1 lần lúc mount — vat_default + invoice_default_note cho dialog tạo hóa đơn
+  useEffect(() => {
+    let cancelled = false
+    apiGet<{ vat_default?: string; invoice_default_note?: string }>('/api/settings')
+      .then((res) => {
+        if (cancelled) return
+        const vat = Number(res.vat_default)
+        if (res.vat_default != null && res.vat_default !== '' && Number.isFinite(vat) && vat >= 0 && vat <= 100) {
+          vatDefaultRef.current = String(vat)
+        }
+        if (typeof res.invoice_default_note === 'string') {
+          invoiceDefaultNoteRef.current = res.invoice_default_note
+        }
+      })
+      .catch(() => {
+        // offline / chưa cấu hình — giữ mặc định VAT 8% và ghi chú rỗng
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -204,8 +244,8 @@ export function SalesView() {
     setSelectedOrderId('')
     setManualPartnerId('none')
     setInvoiceDate(todayInput())
-    setVatRate('8')
-    setNote('')
+    setVatRate(vatDefaultRef.current || '8')
+    setNote(invoiceDefaultNoteRef.current)
     setRows([{ productId: '', quantity: '', unitPrice: '' }])
     setDialogOpen(true)
     void loadDialogData()
@@ -217,6 +257,31 @@ export function SalesView() {
   const removeRow = (index: number) => setRows((prev) => prev.filter((_, i) => i !== index))
 
   const addRow = () => setRows((prev) => [...prev, { productId: '', quantity: '', unitPrice: '' }])
+
+  /** Quét mã vạch: dòng trống đầu tiên → điền SP; SP đã có dòng → tăng số lượng; không thấy → thêm dòng mới */
+  const handleBarcodeScan = (code: string) => {
+    const list = products ?? []
+    const product = list.find((p) => p.barcode === code) ?? list.find((p) => p.sku === code)
+    if (!product) {
+      toast({ title: `Không tìm thấy sản phẩm với mã vạch ${code}`, variant: 'destructive' })
+      return
+    }
+    setRows((prev) => {
+      const emptyIndex = prev.findIndex((row) => !row.productId)
+      if (emptyIndex !== -1) {
+        return prev.map((row, i) =>
+          i === emptyIndex ? { productId: product.id, quantity: '1', unitPrice: String(product.sellPrice) } : row
+        )
+      }
+      const existingIndex = prev.findIndex((row) => row.productId === product.id)
+      if (existingIndex !== -1) {
+        return prev.map((row, i) =>
+          i === existingIndex ? { ...row, quantity: String((Number(row.quantity) || 0) + 1) } : row
+        )
+      }
+      return [...prev, { productId: product.id, quantity: '1', unitPrice: String(product.sellPrice) }]
+    })
+  }
 
   const selectProduct = (index: number, productId: string) => {
     const product = (products ?? []).find((p) => p.id === productId)
@@ -301,6 +366,25 @@ export function SalesView() {
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  /** Mở dialog in hóa đơn — luôn lấy dữ liệu FRESH từ API chi tiết để có đầy đủ địa chỉ/điện thoại đối tác */
+  const openPrint = async () => {
+    if (!detail) return
+    setPrintLoading(true)
+    try {
+      const fresh = await apiGet<{ invoice: InvoiceDetailForPrint }>(`/api/sales-invoices/${detail.id}`)
+      setPrintInvoice(fresh.invoice)
+      setPrintOpen(true)
+    } catch (e) {
+      toast({
+        title: 'Không thể tải dữ liệu in hóa đơn',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setPrintLoading(false)
     }
   }
 
@@ -566,6 +650,10 @@ export function SalesView() {
               </div>
               {detail.status === 'POSTED' && (
                 <DialogFooter>
+                  <Button variant="outline" onClick={() => void openPrint()} disabled={printLoading}>
+                    {printLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                    In hóa đơn
+                  </Button>
                   <Button variant="destructive" onClick={() => setCancelTarget(detail)}>
                     <Trash2 className="h-4 w-4" />
                     Hủy hóa đơn
@@ -661,6 +749,11 @@ export function SalesView() {
                   </div>
                   <div className="space-y-2">
                     <Label>Danh sách mặt hàng</Label>
+                    <BarcodeScanner
+                      className="mb-3"
+                      hint="Quét mã vạch để thêm nhanh sản phẩm — quét lại tăng số lượng"
+                      onScan={handleBarcodeScan}
+                    />
                     {rows.map((row, index) => (
                       <div key={index} className="space-y-1.5 rounded-xl border p-3">
                         <div className="flex items-center gap-2">
@@ -780,6 +873,9 @@ export function SalesView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog in hóa đơn bán — dữ liệu chi tiết fresh + settings tải khi mở */}
+      <InvoicePrintDialog open={printOpen} onOpenChange={setPrintOpen} invoice={printInvoice} />
 
       {/* Confirm hủy hóa đơn */}
       <ConfirmDialog

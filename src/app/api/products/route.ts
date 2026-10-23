@@ -10,10 +10,19 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')
     const categoryId = searchParams.get('categoryId')
     const channelId = searchParams.get('channelId')
+    const barcode = searchParams.get('barcode')?.trim()
 
     const where: Record<string, unknown> = {}
+    if (barcode) {
+      // tra cứu chính xác theo mã vạch (dùng cho quét nhanh)
+      where.barcode = barcode
+    }
     if (search) {
-      where.OR = [{ name: { contains: search } }, { sku: { contains: search } }]
+      where.OR = [
+        { name: { contains: search } },
+        { sku: { contains: search } },
+        { barcode: { contains: search } },
+      ]
     }
     if (status && status !== 'ALL') where.status = status
     if (categoryId && categoryId !== 'ALL') where.categoryId = categoryId
@@ -54,10 +63,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `SKU "${sku}" đã tồn tại` }, { status: 409 })
     }
 
+    const barcodeInput = typeof body.barcode === 'string' && body.barcode.trim() ? body.barcode.trim() : null
+    if (barcodeInput) {
+      if (!/^[\x20-\x7E]{1,64}$/.test(barcodeInput)) {
+        return NextResponse.json({ error: 'Mã vạch chỉ được chứa 1–64 ký tự ASCII in được' }, { status: 400 })
+      }
+      const barcodeDup = await db.product.findUnique({ where: { barcode: barcodeInput } })
+      if (barcodeDup) {
+        return NextResponse.json({ error: `Mã vạch "${barcodeInput}" đã thuộc sản phẩm ${barcodeDup.sku}` }, { status: 409 })
+      }
+    }
+
     const initialStock = Number(stock) || 0
     const product = await db.product.create({
       data: {
         sku: sku.trim(),
+        barcode: barcodeInput,
         name: name.trim(),
         description: description?.trim() || null,
         categoryId: categoryId || null,

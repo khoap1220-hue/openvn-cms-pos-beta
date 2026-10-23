@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPatch, apiPost } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -32,14 +33,17 @@ import {
   Building2,
   Database,
   Gem,
+  ImageUp,
   Info,
   KeyRound,
   Loader2,
   LockKeyhole,
   LockOpen,
   Percent,
+  ReceiptText,
   Save,
   Sparkles,
+  Trash2,
   WifiOff,
 } from 'lucide-react'
 
@@ -49,6 +53,16 @@ interface SettingsData {
   company_address: string
   vat_default: string
   geminiConfigured: boolean
+  // THIẾT LẬP HÓA ĐƠN — invoice_bank_* có thể vắng mặt ở GET (backend chưa trả) → coi là tùy chọn
+  invoice_title: string
+  invoice_template_code: string
+  invoice_series: string
+  invoice_bank_name?: string
+  invoice_bank_account?: string
+  invoice_bank_holder?: string
+  invoice_footer_note: string
+  invoice_default_note: string
+  invoice_logo: string
 }
 
 interface Period {
@@ -92,6 +106,24 @@ export function SystemView() {
   // VAT mặc định
   const [vatDefault, setVatDefault] = useState('8')
   const [savingVat, setSavingVat] = useState(false)
+
+  // Thiết lập hóa đơn (mẫu in hóa đơn bán ở module Xuất hàng)
+  const [invoiceTitle, setInvoiceTitle] = useState('HÓA ĐƠN BÁN HÀNG')
+  const [invoiceTemplateCode, setInvoiceTemplateCode] = useState('01GTKT0/001')
+  const [invoiceSeries, setInvoiceSeries] = useState('AA/26E')
+  const [invoiceBankName, setInvoiceBankName] = useState('')
+  const [invoiceBankAccount, setInvoiceBankAccount] = useState('')
+  const [invoiceBankHolder, setInvoiceBankHolder] = useState('')
+  const [invoiceFooterNote, setInvoiceFooterNote] = useState('')
+  const [invoiceDefaultNote, setInvoiceDefaultNote] = useState('')
+  const [invoiceLogo, setInvoiceLogo] = useState('')
+  const [savingInvoice, setSavingInvoice] = useState(false)
+  const invoiceLogoInputRef = useRef<HTMLInputElement | null>(null)
+  // GET /api/settings hiện CHƯA trả invoice_bank_* (đã lưu DB nhưng thiếu ở response).
+  // Chỉ gửi lên PATCH những trường bank mà (a) GET đã trả về hoặc (b) người dùng vừa sửa —
+  // tránh việc bấm Lưu vô tình xóa sạch giá trị bank đã lưu trước đó.
+  const bankKnownRef = useRef<Set<string>>(new Set())
+  const bankDirtyRef = useRef<Set<string>>(new Set())
   const { toast } = useToast()
 
   const load = useCallback(async () => {
@@ -104,6 +136,22 @@ export function SystemView() {
       setCompanyTax(res.company_tax)
       setCompanyAddress(res.company_address)
       setVatDefault(String(Number(res.vat_default) || 8))
+      // Thiết lập hóa đơn — thiếu key (vd invoice_bank_*) → giữ giá trị mặc định rỗng
+      setInvoiceTitle(res.invoice_title || 'HÓA ĐƠN BÁN HÀNG')
+      setInvoiceTemplateCode(res.invoice_template_code || '01GTKT0/001')
+      setInvoiceSeries(res.invoice_series || 'AA/26E')
+      setInvoiceBankName(res.invoice_bank_name ?? '')
+      setInvoiceBankAccount(res.invoice_bank_account ?? '')
+      setInvoiceBankHolder(res.invoice_bank_holder ?? '')
+      bankKnownRef.current = new Set(
+        (['invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder'] as const).filter(
+          (key) => res[key] !== undefined
+        )
+      )
+      bankDirtyRef.current = new Set()
+      setInvoiceFooterNote(res.invoice_footer_note ?? '')
+      setInvoiceDefaultNote(res.invoice_default_note ?? '')
+      setInvoiceLogo(res.invoice_logo ?? '')
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Không thể tải cấu hình hệ thống'
       setError(message)
@@ -151,6 +199,74 @@ export function SystemView() {
       })
     } finally {
       setSavingCompany(false)
+    }
+  }
+
+  /** Chọn logo từ máy — chỉ đọc thành data URL và xem trước, KHÔNG upload; chỉ PATCH khi bấm Lưu */
+  const handleLogoFile = (file: File | undefined) => {
+    if (!file) return
+    if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type)) {
+      toast({
+        title: 'Định dạng logo không hợp lệ',
+        description: 'Chỉ hỗ trợ ảnh PNG, JPG, WebP hoặc GIF.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (file.size > 400 * 1024) {
+      toast({ title: 'Logo quá lớn', description: 'Dung lượng tối đa 400KB — hãy nén ảnh trước khi tải lên.', variant: 'destructive' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+      if (!dataUrl.startsWith('data:image/') || dataUrl.length > 600000) {
+        toast({ title: 'Không đọc được ảnh logo', description: 'Ảnh lỗi hoặc vượt giới hạn 600.000 ký tự data URL.', variant: 'destructive' })
+        return
+      }
+      setInvoiceLogo(dataUrl)
+      toast({ title: 'Đã chọn logo', description: 'Nhớ bấm "Lưu thiết lập hóa đơn" để áp dụng.' })
+    }
+    reader.onerror = () => {
+      toast({ title: 'Không đọc được tệp logo', variant: 'destructive' })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const saveInvoiceSettings = async () => {
+    setSavingInvoice(true)
+    try {
+      const body: Record<string, string> = {
+        invoice_title: invoiceTitle.trim() || 'HÓA ĐƠN BÁN HÀNG',
+        invoice_template_code: invoiceTemplateCode.trim(),
+        invoice_series: invoiceSeries.trim(),
+        invoice_footer_note: invoiceFooterNote.trim(),
+        invoice_default_note: invoiceDefaultNote.trim(),
+        invoice_logo: invoiceLogo,
+      }
+      const bankValues: Record<string, string> = {
+        invoice_bank_name: invoiceBankName.trim(),
+        invoice_bank_account: invoiceBankAccount.trim(),
+        invoice_bank_holder: invoiceBankHolder.trim(),
+      }
+      for (const [key, value] of Object.entries(bankValues)) {
+        if (bankKnownRef.current.has(key) || bankDirtyRef.current.has(key)) body[key] = value
+      }
+      const res = await apiPatch<SettingsData>('/api/settings', body)
+      setSettings(res)
+      setInvoiceLogo(res.invoice_logo ?? invoiceLogo)
+      toast({
+        title: 'Đã lưu thiết lập hóa đơn',
+        description: 'Bản in hóa đơn bán ở module Xuất hàng sẽ dùng cấu hình mới.',
+      })
+    } catch (e) {
+      toast({
+        title: 'Lưu thiết lập hóa đơn thất bại',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingInvoice(false)
     }
   }
 
@@ -303,6 +419,180 @@ export function SystemView() {
                     <Button onClick={() => void saveCompany()} disabled={savingCompany}>
                       {savingCompany ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       Lưu thông tin
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Thiết lập hóa đơn — áp dụng cho bản in ở module Xuất hàng */}
+          <Card className="border-border/70 shadow-sm lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ReceiptText className="h-5 w-5 text-emerald-500" />
+                Thiết lập hóa đơn
+              </CardTitle>
+              <CardDescription>
+                Tiêu đề, mẫu số, ký hiệu, thông tin ngân hàng và ghi chú hiển thị trên bản in hóa đơn bán GTGT
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <TableSkeleton rows={4} />
+              ) : (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-title">Tiêu đề hóa đơn</Label>
+                      <Input
+                        id="invoice-title"
+                        value={invoiceTitle}
+                        onChange={(e) => setInvoiceTitle(e.target.value)}
+                        placeholder="HÓA ĐƠN BÁN HÀNG"
+                        maxLength={120}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-template-code">Mẫu số</Label>
+                      <Input
+                        id="invoice-template-code"
+                        value={invoiceTemplateCode}
+                        onChange={(e) => setInvoiceTemplateCode(e.target.value)}
+                        placeholder="01GTKT0/001"
+                        maxLength={60}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-series">Ký hiệu</Label>
+                      <Input
+                        id="invoice-series"
+                        value={invoiceSeries}
+                        onChange={(e) => setInvoiceSeries(e.target.value)}
+                        placeholder="AA/26E"
+                        maxLength={40}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-bank-name">Tên ngân hàng</Label>
+                      <Input
+                        id="invoice-bank-name"
+                        value={invoiceBankName}
+                        onChange={(e) => {
+                          setInvoiceBankName(e.target.value)
+                          bankDirtyRef.current.add('invoice_bank_name')
+                        }}
+                        placeholder="Vietcombank — CN Tân Bình"
+                        maxLength={120}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-bank-account">Số tài khoản</Label>
+                      <Input
+                        id="invoice-bank-account"
+                        value={invoiceBankAccount}
+                        onChange={(e) => {
+                          setInvoiceBankAccount(e.target.value)
+                          bankDirtyRef.current.add('invoice_bank_account')
+                        }}
+                        placeholder="0071000123456"
+                        maxLength={60}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-bank-holder">Chủ tài khoản</Label>
+                      <Input
+                        id="invoice-bank-holder"
+                        value={invoiceBankHolder}
+                        onChange={(e) => {
+                          setInvoiceBankHolder(e.target.value)
+                          bankDirtyRef.current.add('invoice_bank_holder')
+                        }}
+                        placeholder="CÔNG TY TNHH THƯƠNG MẠI ABC"
+                        maxLength={120}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-footer-note">Ghi chú cuối hóa đơn</Label>
+                      <Textarea
+                        id="invoice-footer-note"
+                        rows={2}
+                        value={invoiceFooterNote}
+                        onChange={(e) => setInvoiceFooterNote(e.target.value)}
+                        placeholder="Cảm ơn Quý khách đã mua hàng!"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-default-note">Ghi chú mặc định khi tạo hóa đơn</Label>
+                      <Textarea
+                        id="invoice-default-note"
+                        rows={2}
+                        value={invoiceDefaultNote}
+                        onChange={(e) => setInvoiceDefaultNote(e.target.value)}
+                        placeholder="Ví dụ: Hàng đã giao đủ — bảo hành 12 tháng"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Logo in trên hóa đơn — chỉ đọc trước, lưu khi bấm Lưu thiết lập */}
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-muted/40 p-3">
+                    {invoiceLogo ? (
+                      <img
+                        src={invoiceLogo}
+                        alt="Logo hóa đơn"
+                        className="h-12 w-12 rounded-md border bg-white object-contain p-0.5"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed text-muted-foreground">
+                        <ImageUp className="h-5 w-5" />
+                      </div>
+                    )}
+                    <div className="min-w-[200px] flex-1">
+                      <p className="text-sm font-medium">Logo in trên hóa đơn</p>
+                      <p className="text-xs text-muted-foreground">
+                        PNG/JPG/WebP/GIF, tối đa 400KB — chỉ được lưu khi bấm &quot;Lưu thiết lập hóa đơn&quot;.
+                      </p>
+                    </div>
+                    <input
+                      ref={invoiceLogoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => {
+                        handleLogoFile(e.target.files?.[0])
+                        e.target.value = ''
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => invoiceLogoInputRef.current?.click()}
+                    >
+                      <ImageUp className="h-4 w-4" />
+                      Tải logo
+                    </Button>
+                    {invoiceLogo && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setInvoiceLogo('')}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Xóa logo
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      Áp dụng cho bản in hóa đơn bán ở module Xuất hàng.
+                    </p>
+                    <Button onClick={() => void saveInvoiceSettings()} disabled={savingInvoice}>
+                      {savingInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Lưu thiết lập hóa đơn
                     </Button>
                   </div>
                 </>

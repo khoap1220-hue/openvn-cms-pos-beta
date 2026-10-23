@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { MOVEMENT_TYPE_LABELS, type Product, type StockMovement } from '@/lib/types'
@@ -44,13 +44,19 @@ import {
   CheckCircle2,
   Loader2,
   PackagePlus,
+  ScanLine,
   Warehouse,
 } from 'lucide-react'
+
+import { BarcodeScanner } from '@/components/cms/barcode-scanner'
 
 type LowStockProduct = Pick<
   Product,
   'id' | 'sku' | 'name' | 'stock' | 'lowStockThreshold' | 'sellPrice'
 >
+
+/** Product của lib/types chưa có barcode — mở rộng cục bộ cho đến khi lib cập nhật */
+type ProductWithBarcode = Product & { barcode?: string | null }
 
 type MovementType = 'IMPORT' | 'EXPORT' | 'ADJUST'
 
@@ -74,9 +80,10 @@ const EMPTY_MOVEMENT_FORM: MovementFormState = { productId: '', type: 'IMPORT', 
 export function InventoryView() {
   const [lowStock, setLowStock] = useState<LowStockProduct[] | null>(null)
   const [movements, setMovements] = useState<StockMovement[] | null>(null)
-  const [products, setProducts] = useState<Product[] | null>(null)
+  const [products, setProducts] = useState<ProductWithBarcode[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const qtyInputRef = useRef<HTMLInputElement | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<MovementFormState>(EMPTY_MOVEMENT_FORM)
@@ -88,9 +95,9 @@ export function InventoryView() {
     setError(null)
     try {
       const [lowStockRes, movementsRes, productsRes] = await Promise.all([
-        apiGet<{ products: LowStockProduct[] }>('/api/inventory?view=lowstock'),
+        apiGet<{ products: ProductWithBarcode[] }>('/api/inventory?view=lowstock'),
         apiGet<{ movements: StockMovement[] }>('/api/inventory?view=movements'),
-        apiGet<{ products: Product[] }>('/api/products'),
+        apiGet<{ products: ProductWithBarcode[] }>('/api/products'),
       ])
       setLowStock(lowStockRes.products)
       setMovements(movementsRes.movements)
@@ -131,10 +138,39 @@ export function InventoryView() {
     (form.type !== 'ADJUST' && qtyNum <= 0) ||
     (form.type === 'EXPORT' && preview !== null && preview.next < 0)
 
-  const openDialog = (prefill?: { productId: string; type: MovementType }) => {
+  const openDialog = useCallback((prefill?: { productId: string; type: MovementType }) => {
     setForm(prefill ? { ...EMPTY_MOVEMENT_FORM, productId: prefill.productId, type: prefill.type } : EMPTY_MOVEMENT_FORM)
     setDialogOpen(true)
-  }
+  }, [])
+
+  // Quét mã vạch → tự mở phiếu nhập/xuất cho sản phẩm tương ứng
+  const handleBarcodeScan = useCallback(
+    async (code: string) => {
+      // Ưu tiên tra trong state đã tải; không thấy thì hỏi server theo barcode chính xác
+      let found = (products ?? []).find((p) => p.barcode === code) ?? null
+      if (!found) {
+        try {
+          const res = await apiGet<{ products: ProductWithBarcode[] }>(
+            `/api/products?barcode=${encodeURIComponent(code)}`
+          )
+          found = res.products[0] ?? null
+        } catch {
+          found = null
+        }
+      }
+      if (!found) {
+        toast({ title: `Không tìm thấy sản phẩm với mã vạch ${code}`, variant: 'destructive' })
+        return
+      }
+      const product = found
+      // Nếu SP tra từ server chưa có trong state, bổ sung để Select hiển thị đúng
+      setProducts((prev) => (prev && !prev.some((p) => p.id === product.id) ? [...prev, product] : prev))
+      openDialog({ productId: product.id, type: 'IMPORT' })
+      toast({ title: `Đã chọn sản phẩm ${product.sku} — ${product.name}` })
+      setTimeout(() => qtyInputRef.current?.focus(), 100)
+    },
+    [products, openDialog, toast]
+  )
 
   const handleSubmit = async () => {
     if (!form.productId) {
@@ -197,6 +233,23 @@ export function InventoryView() {
           hint="60 bản ghi mới nhất"
         />
       </div>
+
+      {/* Quét mã vạch nhanh */}
+      <Card className="mb-6 border-border/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ScanLine className="h-5 w-5 text-emerald-500" />
+            Quét mã vạch nhanh
+          </CardTitle>
+          <CardDescription>Dùng bút quét USB hoặc camera — quét xong tự chọn sản phẩm cho phiếu kho</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BarcodeScanner
+            onScan={(code) => void handleBarcodeScan(code)}
+            hint="Quét mã vạch → tự mở phiếu nhập/xuất cho sản phẩm tương ứng"
+          />
+        </CardContent>
+      </Card>
 
       {/* Panel cảnh báo tồn kho thấp */}
       <Card className="mb-6 border-amber-200/70 shadow-sm dark:border-amber-900/50">
@@ -380,6 +433,7 @@ export function InventoryView() {
               </Label>
               <Input
                 id="movement-quantity"
+                ref={qtyInputRef}
                 type="number"
                 min={0}
                 step={1}

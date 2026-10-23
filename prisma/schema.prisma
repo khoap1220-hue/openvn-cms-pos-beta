@@ -18,6 +18,7 @@ model Category {
 model Product {
   id                String           @id @default(cuid())
   sku               String           @unique
+  barcode           String?          @unique // MÃ VẠCH (CODE128 — dùng cho in nhãn & quét nhanh)
   name              String
   description       String?
   categoryId        String?

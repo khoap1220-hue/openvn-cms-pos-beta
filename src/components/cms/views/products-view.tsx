@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Barcode,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -12,6 +13,7 @@ import {
   Power,
   Search,
   Trash2,
+  Wand2,
 } from 'lucide-react'
 
 import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api'
@@ -60,17 +62,22 @@ import { Textarea } from '@/components/ui/textarea'
 
 import { ChannelBadge } from '@/components/cms/channel-badge'
 import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+import { LabelPrintDialog, type BarcodeProduct } from '@/components/cms/label-print-dialog'
 import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
 import { ProductAvatar } from '@/components/cms/product-avatar'
 import { ProductStatusBadge } from '@/components/cms/status-badge'
 
 const PAGE_SIZE = 20
 
+/** Product của lib/types chưa có barcode — mở rộng cục bộ cho đến khi lib cập nhật */
+type ProductRow = Product & { barcode?: string | null }
+
 interface ProductFormState {
   sku: string
   name: string
   description: string
   categoryId: string
+  barcode: string
   costPrice: string
   sellPrice: string
   stock: string
@@ -84,6 +91,7 @@ const EMPTY_FORM: ProductFormState = {
   name: '',
   description: '',
   categoryId: 'NONE',
+  barcode: '',
   costPrice: '',
   sellPrice: '',
   stock: '0',
@@ -100,7 +108,7 @@ export function ProductsView() {
   const { toast } = useToast()
 
   // ===== Danh sách sản phẩm + bộ lọc =====
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -124,6 +132,17 @@ export function ProductsView() {
   const [deleting, setDeleting] = useState<Product | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
+  // ===== In nhãn mã vạch =====
+  const [printOpen, setPrintOpen] = useState(false)
+  const [printProducts, setPrintProducts] = useState<BarcodeProduct[]>([])
+
+  const openPrintDialog = (list: ProductRow[]) => {
+    setPrintProducts(
+      list.map((p) => ({ id: p.id, sku: p.sku, name: p.name, barcode: p.barcode ?? null, sellPrice: p.sellPrice }))
+    )
+    setPrintOpen(true)
+  }
+
   // ===== Tìm kiếm debounce (client-side) =====
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -142,7 +161,7 @@ export function ProductsView() {
       if (categoryFilter !== 'ALL') params.set('categoryId', categoryFilter)
       if (statusFilter !== 'ALL') params.set('status', statusFilter)
       const qs = params.toString()
-      const data = await apiGet<{ products: Product[] }>(`/api/products${qs ? `?${qs}` : ''}`)
+      const data = await apiGet<{ products: ProductRow[] }>(`/api/products${qs ? `?${qs}` : ''}`)
       setProducts(data.products)
     } catch (err) {
       setError(errorMessage(err))
@@ -192,13 +211,14 @@ export function ProductsView() {
     setDialogOpen(true)
   }
 
-  const openEdit = (p: Product) => {
+  const openEdit = (p: ProductRow) => {
     setEditing(p)
     setForm({
       sku: p.sku,
       name: p.name,
       description: p.description ?? '',
       categoryId: p.categoryId ?? 'NONE',
+      barcode: p.barcode ?? '',
       costPrice: String(p.costPrice),
       sellPrice: String(p.sellPrice),
       stock: String(p.stock),
@@ -238,6 +258,7 @@ export function ProductsView() {
         name: form.name.trim(),
         description: form.description.trim(),
         categoryId: form.categoryId === 'NONE' ? null : form.categoryId,
+        barcode: form.barcode.trim(),
         costPrice: Number(form.costPrice) || 0,
         sellPrice: Number(form.sellPrice) || 0,
         lowStockThreshold: Number(form.lowStockThreshold) || 0,
@@ -245,7 +266,7 @@ export function ProductsView() {
         listingChannelIds: form.listingChannelIds,
       }
       if (editing) {
-        await apiPut<{ product: Product }>(`/api/products/${editing.id}`, base)
+        await apiPut<{ product: ProductRow }>(`/api/products/${editing.id}`, base)
         toast({ title: 'Đã cập nhật sản phẩm', description: base.name })
       } else {
         await apiPost<{ product: Product }>('/api/products', { ...base, stock: Number(form.stock) || 0 })
@@ -306,6 +327,9 @@ export function ProductsView() {
   return (
     <div>
       <PageHeader title="Sản phẩm" description="Quản lý sản phẩm và kênh phân phối đa kênh">
+        <Button variant="outline" onClick={() => openPrintDialog(products)}>
+          <Barcode className="mr-1.5 h-4 w-4" /> In nhãn mã vạch
+        </Button>
         <Button onClick={openCreate}>
           <Plus className="mr-1.5 h-4 w-4" /> Thêm sản phẩm
         </Button>
@@ -318,7 +342,7 @@ export function ProductsView() {
           <Input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tìm theo tên hoặc SKU..."
+            placeholder="Tìm theo tên, SKU hoặc mã vạch..."
             className="pl-8"
             aria-label="Tìm kiếm sản phẩm"
           />
@@ -388,6 +412,7 @@ export function ProductsView() {
                 <TableRow>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead>Danh mục</TableHead>
+                  <TableHead>Mã vạch</TableHead>
                   <TableHead>Giá bán</TableHead>
                   <TableHead>Tồn kho</TableHead>
                   <TableHead>Kênh bán</TableHead>
@@ -410,6 +435,27 @@ export function ProductsView() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">{p.category?.name ?? '—'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        {p.barcode ? (
+                          <span className="max-w-[140px] truncate font-mono text-xs" title={p.barcode}>
+                            {p.barcode}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                          title="In nhãn mã vạch"
+                          aria-label={`In nhãn mã vạch cho ${p.sku}`}
+                          onClick={() => openPrintDialog([p])}
+                        >
+                          <Barcode className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-sm">{formatVND(p.sellPrice)}</TableCell>
                     <TableCell>
                       {p.stock <= p.lowStockThreshold ? (
@@ -536,6 +582,32 @@ export function ProductsView() {
               />
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="product-barcode">Mã vạch (CODE128)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="product-barcode"
+                  value={form.barcode}
+                  onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                  placeholder="VD: 8935201001234"
+                  className="font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  title="Tự sinh mã vạch"
+                  onClick={() => setForm((f) => ({ ...f, barcode: `BC${Date.now().toString(36).toUpperCase()}` }))}
+                >
+                  <Wand2 className="h-4 w-4" />
+                  Tự sinh
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Quét bút quét USB hoặc nhập tay. Để trống sẽ sinh theo SKU khi in nhãn.
+              </p>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="product-name">
                 Tên sản phẩm <span className="text-destructive">*</span>
               </Label>
@@ -707,6 +779,9 @@ export function ProductsView() {
         loading={deleteLoading}
         onConfirm={() => void handleDelete()}
       />
+
+      {/* Dialog in nhãn mã vạch */}
+      <LabelPrintDialog open={printOpen} onOpenChange={setPrintOpen} products={printProducts} />
     </div>
   )
 }

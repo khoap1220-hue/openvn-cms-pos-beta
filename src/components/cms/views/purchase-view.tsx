@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
+import { BarcodeScanner } from '@/components/cms/barcode-scanner'
 import {
   Eye,
   FileSpreadsheet,
@@ -58,6 +59,7 @@ interface ProductLite {
   costPrice: number
   sellPrice: number
   stock: number
+  barcode?: string | null
 }
 
 interface PartnerLite {
@@ -195,6 +197,32 @@ export function PurchaseView() {
   const removeRow = (index: number) => setRows((prev) => prev.filter((_, i) => i !== index))
 
   const addRow = () => setRows((prev) => [...prev, { productId: '', quantity: '', unitPrice: '' }])
+
+  // Quét mã vạch trong dialog tạo hóa đơn mua → thêm nhanh/tăng SL dòng sản phẩm
+  const handleScanToAdd = (code: string) => {
+    const product =
+      (products ?? []).find((p) => p.barcode === code) ?? (products ?? []).find((p) => p.sku === code)
+    if (!product) {
+      toast({ title: `Không tìm thấy sản phẩm với mã vạch ${code}`, variant: 'destructive' })
+      return
+    }
+    setRows((prev) => {
+      const existIdx = prev.findIndex((r) => r.productId === product.id)
+      if (existIdx >= 0) {
+        // Đã có dòng của SP này → tăng số lượng lên 1
+        return prev.map((row, i) =>
+          i === existIdx ? { ...row, quantity: String((Number(row.quantity) || 0) + 1) } : row
+        )
+      }
+      // Dòng đầu vẫn trống → điền vào thay vì thêm dòng mới
+      if (prev[0] && prev[0].productId === '') {
+        return prev.map((row, i) =>
+          i === 0 ? { productId: product.id, quantity: '1', unitPrice: String(product.costPrice) } : row
+        )
+      }
+      return [...prev, { productId: product.id, quantity: '1', unitPrice: String(product.costPrice) }]
+    })
+  }
 
   const draftTotals = useMemo(() => {
     const vatRate = Number(form.vatRate) || 0
@@ -602,6 +630,11 @@ export function PurchaseView() {
                   </Select>
                 </div>
               </div>
+              <BarcodeScanner
+                onScan={handleScanToAdd}
+                hint="Quét mã vạch để thêm nhanh dòng sản phẩm"
+                className="mb-3"
+              />
               {rows.map((row, index) => (
                 <div key={index} className="space-y-1.5 rounded-xl border p-3">
                   <div className="flex items-center gap-2">

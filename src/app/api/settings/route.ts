@@ -5,18 +5,62 @@ import { getSetting, getSettings, setSetting } from '@/lib/settings'
 export const dynamic = 'force-dynamic'
 
 // Các setting công khai (không bao giờ trả raw API key)
-const PUBLIC_KEYS = ['company_name', 'company_tax', 'company_address', 'vat_default'] as const
+const PUBLIC_KEYS = [
+  'company_name',
+  'company_tax',
+  'company_address',
+  'vat_default',
+  // THIẾT LẬP HÓA ĐƠN — mẫu in hóa đơn bán GTGT
+  'invoice_title', // tiêu đề HÓA ĐƠN BÁN HÀNG
+  'invoice_template_code', // Mẫu số (vd 01GTKT0/001)
+  'invoice_series', // Ký hiệu (vd AA/26E)
+  'invoice_bank_name', // tên ngân hàng
+  'invoice_bank_account', // số tài khoản
+  'invoice_bank_holder', // chủ tài khoản
+  'invoice_footer_note', // ghi chú cuối hóa đơn
+  'invoice_default_note', // ghi chú mặc định khi tạo hóa đơn
+] as const
+
+const DEFAULTS: Record<string, string> = {
+  invoice_title: 'HÓA ĐƠN BÁN HÀNG',
+  invoice_template_code: '01GTKT0/001',
+  invoice_series: 'AA/26E',
+  invoice_footer_note: 'Cảm ơn Quý khách đã mua hàng!',
+  invoice_default_note: '',
+}
+
+/** giới hạn độ dài từng trường để chống nhồi dữ liệu */
+const MAX_LENGTHS: Record<string, number> = {
+  invoice_title: 120,
+  invoice_template_code: 60,
+  invoice_series: 40,
+  invoice_bank_name: 120,
+  invoice_bank_account: 60,
+  invoice_bank_holder: 120,
+  invoice_footer_note: 500,
+  invoice_default_note: 500,
+  invoice_logo: 600_000, // data URL ảnh logo (≈450KB ảnh gốc)
+}
 
 async function buildPublicSettings(): Promise<Record<string, string | boolean>> {
-  const values = await getSettings([...PUBLIC_KEYS])
+  const values = await getSettings([...PUBLIC_KEYS, 'invoice_logo'])
   const geminiKey = await getSetting('gemini_api_key')
-  return {
+  const out: Record<string, string | boolean> = {
     company_name: values.company_name ?? '',
     company_tax: values.company_tax ?? '',
     company_address: values.company_address ?? '',
     vat_default: values.vat_default ?? '8',
+    invoice_logo: values.invoice_logo ?? '',
     geminiConfigured: Boolean(geminiKey && geminiKey.trim().length > 0),
   }
+  for (const key of Object.keys(DEFAULTS)) {
+    out[key] = values[key] ?? DEFAULTS[key]
+  }
+  // ngân hàng + logo: không có giá trị mặc định, trả chuỗi rỗng khi chưa cấu hình
+  for (const key of ['invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder']) {
+    out[key] = values[key] ?? ''
+  }
+  return out
 }
 
 export async function GET() {
@@ -48,6 +92,27 @@ export async function PATCH(req: NextRequest) {
       updates.push({ key: 'gemini_api_key', value: String(body.gemini_api_key).trim() })
     }
 
+    // THIẾT LẬP HÓA ĐƠN
+    for (const key of ['invoice_title', 'invoice_template_code', 'invoice_series', 'invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder', 'invoice_footer_note', 'invoice_default_note']) {
+      if (body[key] === undefined) continue
+      const value = String(body[key]).trim()
+      const max = MAX_LENGTHS[key] ?? 200
+      if (value.length > max) {
+        return NextResponse.json({ error: `Trường ${key} tối đa ${max} ký tự` }, { status: 400 })
+      }
+      updates.push({ key, value })
+    }
+    if (body.invoice_logo !== undefined) {
+      const value = String(body.invoice_logo).trim()
+      if (value && !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(value)) {
+        return NextResponse.json({ error: 'Logo phải là ảnh data URL (png/jpg/webp/gif)' }, { status: 400 })
+      }
+      if (value.length > (MAX_LENGTHS.invoice_logo ?? 600_000)) {
+        return NextResponse.json({ error: 'Logo quá lớn — dùng ảnh dưới 400KB' }, { status: 400 })
+      }
+      updates.push({ key: 'invoice_logo', value })
+    }
+
     if (updates.length === 0) {
       return NextResponse.json({ error: 'Không có gì để cập nhật' }, { status: 400 })
     }
@@ -65,6 +130,7 @@ export async function PATCH(req: NextRequest) {
         keys: updates.map((u) => u.key),
         // không bao giờ log giá trị raw của API key
         gemini_api_key: updates.some((u) => u.key === 'gemini_api_key') ? '***đã thay đổi***' : undefined,
+        invoice_logo: updates.some((u) => u.key === 'invoice_logo') ? (updates.find((u) => u.key === 'invoice_logo')?.value ? '***ảnh logo***' : '***đã xóa logo***') : undefined,
       },
     })
 

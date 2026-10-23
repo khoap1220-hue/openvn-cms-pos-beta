@@ -1,0 +1,798 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useCallback, useEffect, useMemo, useState } from 'react'
+     4→     4→import { apiGet, apiPost } from '@/lib/api'
+     5→     5→import { formatCompactVND, formatDate, formatDateTime, formatNumber, formatVND } from '@/lib/format'
+     6→     6→import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/cms/page-header'
+     7→     7→import { StatCard } from '@/components/cms/stat-card'
+     8→     8→import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+     9→     9→import { Badge } from '@/components/ui/badge'
+    10→    10→import { Button } from '@/components/ui/button'
+    11→    11→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    12→    12→import { Input } from '@/components/ui/input'
+    13→    13→import { Label } from '@/components/ui/label'
+    14→    14→import { Textarea } from '@/components/ui/textarea'
+    15→    15→import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+    16→    16→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    17→    17→import {
+    18→    18→  Dialog,
+    19→    19→  DialogContent,
+    20→    20→  DialogDescription,
+    21→    21→  DialogFooter,
+    22→    22→  DialogHeader,
+    23→    23→  DialogTitle,
+    24→    24→} from '@/components/ui/dialog'
+    25→    25→import {
+    26→    26→  Select,
+    27→    27→  SelectContent,
+    28→    28→  SelectItem,
+    29→    29→  SelectTrigger,
+    30→    30→  SelectValue,
+    31→    31→} from '@/components/ui/select'
+    32→    32→import {
+    33→    33→  Table,
+    34→    34→  TableBody,
+    35→    35→  TableCell,
+    36→    36→  TableHead,
+    37→    37→  TableHeader,
+    38→    38→  TableRow,
+    39→    39→} from '@/components/ui/table'
+    40→    40→import { Separator } from '@/components/ui/separator'
+    41→    41→import { useToast } from '@/hooks/use-toast'
+    42→    42→import {
+    43→    43→  CircleDollarSign,
+    44→    44→  ClipboardList,
+    45→    45→  Eye,
+    46→    46→  FileSpreadsheet,
+    47→    47→  Loader2,
+    48→    48→  Plus,
+    49→    49→  Receipt,
+    50→    50→  Search,
+    51→    51→  ShoppingBag,
+    52→    52→  Trash2,
+    53→    53→  X,
+    54→    54→} from 'lucide-react'
+    55→    55→
+    56→    56→interface ProductLite {
+    57→    57→  id: string
+    58→    58→  sku: string
+    59→    59→  name: string
+    60→    60→  unit: string | null
+    61→    61→  costPrice: number
+    62→    62→  sellPrice: number
+    63→    63→  stock: number
+    64→    64→}
+    65→    65→
+    66→    66→interface PartnerLite {
+    67→    67→  id: string
+    68→    68→  code: string
+    69→    69→  name: string
+    70→    70→  taxCode: string | null
+    71→    71→  type: string
+    72→    72→}
+    73→    73→
+    74→    74→interface InvoiceItemRow {
+    75→    75→  quantity: number
+    76→    76→  unitPrice: number
+    77→    77→  amount: number
+    78→    78→  product: { sku: string; name: string; unit: string }
+    79→    79→}
+    80→    80→
+    81→    81→interface SalesInvoice {
+    82→    82→  id: string
+    83→    83→  code: string
+    84→    84→  invoiceDate: string
+    85→    85→  subtotal: number
+    86→    86→  vatRate: number
+    87→    87→  vatAmount: number
+    88→    88→  total: number
+    89→    89→  status: 'POSTED' | 'CANCELLED'
+    90→    90→  note: string | null
+    91→    91→  partner: { name: string; taxCode: string | null } | null
+    92→    92→  order: { code: string } | null
+    93→    93→  items: InvoiceItemRow[]
+    94→    94→}
+    95→    95→
+    96→    96→interface UninvoicedOrder {
+    97→    97→  id: string
+    98→    98→  code: string
+    99→    99→  subtotal: number
+   100→   100→  items: Array<{ product: { sku: string; name: string }; quantity: number; price: number }>
+   101→   101→  customer: { name: string } | null
+   102→   102→  createdAt: string
+   103→   103→}
+   104→   104→
+   105→   105→interface DraftRow {
+   106→   106→  productId: string
+   107→   107→  quantity: string
+   108→   108→  unitPrice: string
+   109→   109→}
+   110→   110→
+   111→   111→const FIRST_YEAR = 2024
+   112→   112→const CURRENT_YEAR = new Date().getFullYear()
+   113→   113→const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR + 2 - FIRST_YEAR }, (_, i) => FIRST_YEAR + i)
+   114→   114→const QUARTER_OPTIONS = [
+   115→   115→  { value: 'all', label: 'Cả năm' },
+   116→   116→  { value: '1', label: 'Quý 1' },
+   117→   117→  { value: '2', label: 'Quý 2' },
+   118→   118→  { value: '3', label: 'Quý 3' },
+   119→   119→  { value: '4', label: 'Quý 4' },
+   120→   120→]
+   121→   121→const VAT_RATES = [0, 5, 8, 10]
+   122→   122→
+   123→   123→const todayInput = () => {
+   124→   124→  const d = new Date()
+   125→   125→  const mm = String(d.getMonth() + 1).padStart(2, '0')
+   126→   126→  const dd = String(d.getDate()).padStart(2, '0')
+   127→   127→  return `${d.getFullYear()}-${mm}-${dd}`
+   128→   128→}
+   129→   129→
+   130→   130→export function SalesView() {
+   131→   131→  const [invoices, setInvoices] = useState<SalesInvoice[] | null>(null)
+   132→   132→  const [uninvoiced, setUninvoiced] = useState<UninvoicedOrder[] | null>(null)
+   133→   133→  const [loading, setLoading] = useState(true)
+   134→   134→  const [error, setError] = useState<string | null>(null)
+   135→   135→
+   136→   136→  const [year, setYear] = useState<number>(CURRENT_YEAR)
+   137→   137→  const [quarter, setQuarter] = useState<string>('all')
+   138→   138→  const [searchInput, setSearchInput] = useState('')
+   139→   139→  const [search, setSearch] = useState('')
+   140→   140→
+   141→   141→  const [partners, setPartners] = useState<PartnerLite[] | null>(null)
+   142→   142→  const [products, setProducts] = useState<ProductLite[] | null>(null)
+   143→   143→
+   144→   144→  const [detail, setDetail] = useState<SalesInvoice | null>(null)
+   145→   145→  const [cancelTarget, setCancelTarget] = useState<SalesInvoice | null>(null)
+   146→   146→  const [cancelling, setCancelling] = useState(false)
+   147→   147→
+   148→   148→  const [dialogOpen, setDialogOpen] = useState(false)
+   149→   149→  const [dialogTab, setDialogTab] = useState<'order' | 'manual'>('order')
+   150→   150→  const [selectedOrderId, setSelectedOrderId] = useState<string>('')
+   151→   151→  const [manualPartnerId, setManualPartnerId] = useState('none')
+   152→   152→  const [invoiceDate, setInvoiceDate] = useState(todayInput())
+   153→   153→  const [vatRate, setVatRate] = useState('8')
+   154→   154→  const [note, setNote] = useState('')
+   155→   155→  const [rows, setRows] = useState<DraftRow[]>([{ productId: '', quantity: '', unitPrice: '' }])
+   156→   156→  const [submitting, setSubmitting] = useState(false)
+   157→   157→  const { toast } = useToast()
+   158→   158→
+   159→   159→  useEffect(() => {
+   160→   160→    const t = setTimeout(() => setSearch(searchInput.trim()), 400)
+   161→   161→    return () => clearTimeout(t)
+   162→   162→  }, [searchInput])
+   163→   163→
+   164→   164→  const load = useCallback(async () => {
+   165→   165→    setLoading(true)
+   166→   166→    setError(null)
+   167→   167→    try {
+   168→   168→      const params = new URLSearchParams({ year: String(year) })
+   169→   169→      if (quarter !== 'all') params.set('quarter', quarter)
+   170→   170→      if (search) params.set('q', search)
+   171→   171→      const [invoiceRes, uninvoicedRes] = await Promise.all([
+   172→   172→        apiGet<{ invoices: SalesInvoice[] }>(`/api/sales-invoices?${params.toString()}`),
+   173→   173→        apiGet<{ orders: UninvoicedOrder[] }>('/api/sales-invoices?uninvoiced=1'),
+   174→   174→      ])
+   175→   175→      setInvoices(invoiceRes.invoices)
+   176→   176→      setUninvoiced(uninvoicedRes.orders)
+   177→   177→    } catch (e) {
+   178→   178→      const message = e instanceof Error ? e.message : 'Không thể tải hóa đơn bán'
+   179→   179→      setError(message)
+   180→   180→    } finally {
+   181→   181→      setLoading(false)
+   182→   182→    }
+   183→   183→  }, [year, quarter, search])
+   184→   184→
+   185→   185→  useEffect(() => {
+   186→   186→    void load()
+   187→   187→  }, [load])
+   188→   188→
+   189→   189→  const loadDialogData = useCallback(async () => {
+   190→   190→    try {
+   191→   191→      const [partnersRes, productsRes] = await Promise.all([
+   192→   192→        apiGet<{ partners: PartnerLite[] }>('/api/partners'),
+   193→   193→        apiGet<{ products: ProductLite[] }>('/api/products?status=ACTIVE'),
+   194→   194→      ])
+   195→   195→      setPartners(partnersRes.partners.filter((p) => p.type === 'CUSTOMER' || p.type === 'BOTH'))
+   196→   196→      setProducts(productsRes.products)
+   197→   197→    } catch {
+   198→   198→      // bỏ qua — dialog vẫn mở, select sẽ rỗng
+   199→   199→    }
+   200→   200→  }, [])
+   201→   201→
+   202→   202→  const openCreate = () => {
+   203→   203→    setDialogTab('order')
+   204→   204→    setSelectedOrderId('')
+   205→   205→    setManualPartnerId('none')
+   206→   206→    setInvoiceDate(todayInput())
+   207→   207→    setVatRate('8')
+   208→   208→    setNote('')
+   209→   209→    setRows([{ productId: '', quantity: '', unitPrice: '' }])
+   210→   210→    setDialogOpen(true)
+   211→   211→    void loadDialogData()
+   212→   212→  }
+   213→   213→
+   214→   214→  const updateRow = (index: number, patch: Partial<DraftRow>) =>
+   215→   215→    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+   216→   216→
+   217→   217→  const removeRow = (index: number) => setRows((prev) => prev.filter((_, i) => i !== index))
+   218→   218→
+   219→   219→  const addRow = () => setRows((prev) => [...prev, { productId: '', quantity: '', unitPrice: '' }])
+   220→   220→
+   221→   221→  const selectProduct = (index: number, productId: string) => {
+   222→   222→    const product = (products ?? []).find((p) => p.id === productId)
+   223→   223→    updateRow(index, {
+   224→   224→      productId,
+   225→   225→      unitPrice:
+   226→   226→        product && (rows[index].unitPrice === '' || Number(rows[index].unitPrice) === 0)
+   227→   227→          ? String(product.sellPrice)
+   228→   228→          : rows[index].unitPrice,
+   229→   229→    })
+   230→   230→  }
+   231→   231→
+   232→   232→  const manualTotals = useMemo(() => {
+   233→   233→    let subtotal = 0
+   234→   234→    for (const row of rows) {
+   235→   235→      subtotal += (Number(row.quantity) || 0) * (Number(row.unitPrice) || 0)
+   236→   236→    }
+   237→   237→    const vat = Math.round((subtotal * (Number(vatRate) || 0)) / 100)
+   238→   238→    return { subtotal, vat, total: subtotal + vat }
+   239→   239→  }, [rows, vatRate])
+   240→   240→
+   241→   241→  const posted = (invoices ?? []).filter((inv) => inv.status === 'POSTED')
+   242→   242→  const totalRevenue = posted.reduce((sum, inv) => sum + inv.total, 0)
+   243→   243→  const totalVatOutput = posted.reduce((sum, inv) => sum + inv.vatAmount, 0)
+   244→   244→
+   245→   245→  const handleCreate = async () => {
+   246→   246→    const common = {
+   247→   247→      vatRate: Number(vatRate) || 0,
+   248→   248→      invoiceDate: invoiceDate || undefined,
+   249→   249→      note: note.trim() || undefined,
+   250→   250→    }
+   251→   251→    let body: Record<string, unknown>
+   252→   252→    if (dialogTab === 'order') {
+   253→   253→      if (!selectedOrderId) {
+   254→   254→        toast({ title: 'Vui lòng chọn một đơn hàng cần xuất hóa đơn', variant: 'destructive' })
+   255→   255→        return
+   256→   256→      }
+   257→   257→      body = { orderId: selectedOrderId, ...common }
+   258→   258→    } else {
+   259→   259→      const items: Array<{ productId: string; quantity: number; unitPrice?: number }> = []
+   260→   260→      for (const row of rows) {
+   261→   261→        const qty = Number(row.quantity)
+   262→   262→        const price = row.unitPrice === '' ? undefined : Number(row.unitPrice)
+   263→   263→        if (!row.productId) {
+   264→   264→          toast({ title: 'Vui lòng chọn sản phẩm cho mọi dòng', variant: 'destructive' })
+   265→   265→          return
+   266→   266→        }
+   267→   267→        if (!Number.isFinite(qty) || qty <= 0) {
+   268→   268→          toast({ title: 'Số lượng phải lớn hơn 0', variant: 'destructive' })
+   269→   269→          return
+   270→   270→        }
+   271→   271→        if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+   272→   272→          toast({ title: 'Đơn giá không được âm', variant: 'destructive' })
+   273→   273→          return
+   274→   274→        }
+   275→   275→        items.push({ productId: row.productId, quantity: qty, ...(price !== undefined ? { unitPrice: price } : {}) })
+   276→   276→      }
+   277→   277→      if (items.length === 0) {
+   278→   278→        toast({ title: 'Cần ít nhất 1 dòng sản phẩm', variant: 'destructive' })
+   279→   279→        return
+   280→   280→      }
+   281→   281→      body = {
+   282→   282→        partnerId: manualPartnerId !== 'none' ? manualPartnerId : undefined,
+   283→   283→        items,
+   284→   284→        ...common,
+   285→   285→      }
+   286→   286→    }
+   287→   287→    setSubmitting(true)
+   288→   288→    try {
+   289→   289→      await apiPost<{ invoice: SalesInvoice }>('/api/sales-invoices', body)
+   290→   290→      toast({
+   291→   291→        title: 'Đã xuất hóa đơn bán',
+   292→   292→        description: 'Doanh thu & thuế VAT đầu ra đã được ghi nhận.',
+   293→   293→      })
+   294→   294→      setDialogOpen(false)
+   295→   295→      await load()
+   296→   296→    } catch (e) {
+   297→   297→      toast({
+   298→   298→        title: 'Xuất hóa đơn bán thất bại',
+   299→   299→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   300→   300→        variant: 'destructive',
+   301→   301→      })
+   302→   302→    } finally {
+   303→   303→      setSubmitting(false)
+   304→   304→    }
+   305→   305→  }
+   306→   306→
+   307→   307→  const handleCancel = async () => {
+   308→   308→    if (!cancelTarget) return
+   309→   309→    setCancelling(true)
+   310→   310→    try {
+   311→   311→      await apiPost<{ invoice: SalesInvoice }>(`/api/sales-invoices/${cancelTarget.id}`, { action: 'CANCEL' })
+   312→   312→      toast({
+   313→   313→        title: 'Đã hủy hóa đơn bán',
+   314→   314→        description: `${cancelTarget.code} — doanh thu, VAT & kho đã hoàn ngược.`,
+   315→   315→      })
+   316→   316→      setCancelTarget(null)
+   317→   317→      setDetail(null)
+   318→   318→      await load()
+   319→   319→    } catch (e) {
+   320→   320→      toast({
+   321→   321→        title: 'Hủy hóa đơn thất bại',
+   322→   322→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   323→   323→        variant: 'destructive',
+   324→   324→      })
+   325→   325→    } finally {
+   326→   326→      setCancelling(false)
+   327→   327→    }
+   328→   328→  }
+   329→   329→
+   330→   330→  return (
+   331→   331→    <div>
+   332→   332→      <PageHeader
+   333→   333→        title="Xuất hàng"
+   334→   334→        description="Hóa đơn bán — ghi sổ doanh thu, thuế VAT đầu ra và trừ kho (kèm định mức BOM)"
+   335→   335→      >
+   336→   336→        <Button onClick={openCreate}>
+   337→   337→          <Receipt className="h-4 w-4" />
+   338→   338→          Tạo hóa đơn bán
+   339→   339→        </Button>
+   340→   340→      </PageHeader>
+   341→   341→
+   342→   342→      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   343→   343→        <StatCard
+   344→   344→          title="Tổng thu"
+   345→   345→          value={loading ? '' : formatCompactVND(totalRevenue)}
+   346→   346→          icon={CircleDollarSign}
+   347→   347→          loading={loading}
+   348→   348→          hint="Đã loại hóa đơn hủy"
+   349→   349→          iconClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+   350→   350→        />
+   351→   351→        <StatCard
+   352→   352→          title="Số hóa đơn"
+   353→   353→          value={loading ? '' : formatNumber(invoices?.length ?? 0)}
+   354→   354→          icon={Receipt}
+   355→   355→          loading={loading}
+   356→   356→          hint={`${posted.length} đã ghi sổ`}
+   357→   357→        />
+   358→   358→        <StatCard
+   359→   359→          title="Thuế VAT đầu ra"
+   360→   360→          value={loading ? '' : formatCompactVND(totalVatOutput)}
+   361→   361→          icon={FileSpreadsheet}
+   362→   362→          loading={loading}
+   363→   363→          hint="Kê khai từ hóa đơn bán"
+   364→   364→          iconClassName="bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400"
+   365→   365→        />
+   366→   366→        <StatCard
+   367→   367→          title="Đơn chưa xuất HĐ"
+   368→   368→          value={loading ? '' : formatNumber(uninvoiced?.length ?? 0)}
+   369→   369→          icon={ClipboardList}
+   370→   370→          loading={loading}
+   371→   371→          hint="Đơn COMPLETED chưa có hóa đơn"
+   372→   372→          iconClassName="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+   373→   373→        />
+   374→   374→      </div>
+   375→   375→
+   376→   376→      {/* Bộ lọc */}
+   377→   377→      <div className="mb-4 flex flex-wrap items-center gap-3">
+   378→   378→        <Select value={quarter} onValueChange={setQuarter}>
+   379→   379→          <SelectTrigger className="w-[140px]">
+   380→   380→            <SelectValue />
+   381→   381→          </SelectTrigger>
+   382→   382→          <SelectContent>
+   383→   383→            {QUARTER_OPTIONS.map((q) => (
+   384→   384→              <SelectItem key={q.value} value={q.value}>
+   385→   385→                {q.label}
+   386→   386→              </SelectItem>
+   387→   387→            ))}
+   388→   388→          </SelectContent>
+   389→   389→        </Select>
+   390→   390→        <Select value={String(year)} onValueChange={(value) => setYear(Number(value))}>
+   391→   391→          <SelectTrigger className="w-[120px]">
+   392→   392→            <SelectValue />
+   393→   393→          </SelectTrigger>
+   394→   394→          <SelectContent>
+   395→   395→            {YEAR_OPTIONS.map((y) => (
+   396→   396→              <SelectItem key={y} value={String(y)}>
+   397→   397→                Năm {y}
+   398→   398→              </SelectItem>
+   399→   399→            ))}
+   400→   400→          </SelectContent>
+   401→   401→        </Select>
+   402→   402→        <div className="relative w-full max-w-xs">
+   403→   403→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   404→   404→          <Input
+   405→   405→            value={searchInput}
+   406→   406→            onChange={(e) => setSearchInput(e.target.value)}
+   407→   407→            placeholder="Tìm mã hóa đơn, đối tác, đơn nguồn..."
+   408→   408→            className="pl-8"
+   409→   409→          />
+   410→   410→        </div>
+   411→   411→      </div>
+   412→   412→
+   413→   413→      <Card className="border-border/70 shadow-sm">
+   414→   414→        <CardContent className="p-0">
+   415→   415→          {loading ? (
+   416→   416→            <div className="p-4">
+   417→   417→              <TableSkeleton rows={6} />
+   418→   418→            </div>
+   419→   419→          ) : error ? (
+   420→   420→            <div className="p-4">
+   421→   421→              <ErrorState message={error} onRetry={() => void load()} />
+   422→   422→            </div>
+   423→   423→          ) : !invoices || invoices.length === 0 ? (
+   424→   424→            <div className="p-4">
+   425→   425→              <EmptyState
+   426→   426→                icon={Receipt}
+   427→   427→                title="Chưa có hóa đơn bán nào"
+   428→   428→                description="Xuất hóa đơn từ đơn hàng COMPLETED hoặc tự tạo hóa đơn thủ công."
+   429→   429→                action={
+   430→   430→                  <Button onClick={openCreate}>
+   431→   431→                    <Receipt className="h-4 w-4" />
+   432→   432→                    Tạo hóa đơn bán
+   433→   433→                  </Button>
+   434→   434→                }
+   435→   435→              />
+   436→   436→            </div>
+   437→   437→          ) : (
+   438→   438→            <div className="max-h-96 overflow-auto">
+   439→   439→              <Table>
+   440→   440→                <TableHeader className="sticky top-0 bg-background">
+   441→   441→                  <TableRow>
+   442→   442→                    <TableHead>Mã HĐ</TableHead>
+   443→   443→                    <TableHead>Ngày</TableHead>
+   444→   444→                    <TableHead>Khách hàng</TableHead>
+   445→   445→                    <TableHead>Đơn nguồn</TableHead>
+   446→   446→                    <TableHead className="text-right">Tiền hàng</TableHead>
+   447→   447→                    <TableHead className="text-right">VAT</TableHead>
+   448→   448→                    <TableHead className="text-right">Tổng cộng</TableHead>
+   449→   449→                    <TableHead>Trạng thái</TableHead>
+   450→   450→                    <TableHead className="w-12" />
+   451→   451→                  </TableRow>
+   452→   452→                </TableHeader>
+   453→   453→                <TableBody>
+   454→   454→                  {invoices.map((inv) => (
+   455→   455→                    <TableRow key={inv.id} className={inv.status === 'CANCELLED' ? 'opacity-60' : undefined}>
+   456→   456→                      <TableCell className="whitespace-nowrap font-mono text-xs font-medium">{inv.code}</TableCell>
+   457→   457→                      <TableCell className="whitespace-nowrap text-sm">{formatDate(inv.invoiceDate)}</TableCell>
+   458→   458→                      <TableCell>
+   459→   459→                        <p className="max-w-[160px] truncate font-medium">{inv.partner?.name ?? 'Khách lẻ'}</p>
+   460→   460→                        {inv.partner?.taxCode && (
+   461→   461→                          <p className="font-mono text-xs text-muted-foreground">{inv.partner.taxCode}</p>
+   462→   462→                        )}
+   463→   463→                      </TableCell>
+   464→   464→                      <TableCell className="whitespace-nowrap font-mono text-xs">
+   465→   465→                        {inv.order?.code ?? '—'}
+   466→   466→                      </TableCell>
+   467→   467→                      <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(inv.subtotal)}</TableCell>
+   468→   468→                      <TableCell className="whitespace-nowrap text-right tabular-nums text-sky-700 dark:text-sky-400">
+   469→   469→                        {inv.vatRate}% · {formatVND(inv.vatAmount)}
+   470→   470→                      </TableCell>
+   471→   471→                      <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">
+   472→   472→                        {formatVND(inv.total)}
+   473→   473→                      </TableCell>
+   474→   474→                      <TableCell>
+   475→   475→                        {inv.status === 'POSTED' ? (
+   476→   476→                          <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+   477→   477→                            Đã ghi sổ
+   478→   478→                          </Badge>
+   479→   479→                        ) : (
+   480→   480→                          <Badge variant="secondary">Đã hủy</Badge>
+   481→   481→                        )}
+   482→   482→                      </TableCell>
+   483→   483→                      <TableCell>
+   484→   484→                        <Button
+   485→   485→                          variant="ghost"
+   486→   486→                          size="icon"
+   487→   487→                          className="h-8 w-8"
+   488→   488→                          onClick={() => setDetail(inv)}
+   489→   489→                          title="Xem chi tiết"
+   490→   490→                        >
+   491→   491→                          <Eye className="h-4 w-4" />
+   492→   492→                        </Button>
+   493→   493→                      </TableCell>
+   494→   494→                    </TableRow>
+   495→   495→                  ))}
+   496→   496→                </TableBody>
+   497→   497→              </Table>
+   498→   498→            </div>
+   499→   499→          )}
+   500→   500→        </CardContent>
+   501→   501→      </Card>
+   502→   502→
+   503→   503→      {/* Dialog chi tiết hóa đơn bán */}
+   504→   504→      <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
+   505→   505→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   506→   506→          {detail && (
+   507→   507→            <>
+   508→   508→              <DialogHeader>
+   509→   509→                <DialogTitle className="flex flex-wrap items-center gap-2">
+   510→   510→                  <span className="font-mono">{detail.code}</span>
+   511→   511→                  {detail.status === 'POSTED' ? (
+   512→   512→                    <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+   513→   513→                      Đã ghi sổ
+   514→   514→                    </Badge>
+   515→   515→                  ) : (
+   516→   516→                    <Badge variant="secondary">Đã hủy</Badge>
+   517→   517→                  )}
+   518→   518→                </DialogTitle>
+   519→   519→                <DialogDescription>
+   520→   520→                  {formatDate(detail.invoiceDate)} — {detail.partner?.name ?? 'Khách lẻ'}
+   521→   521→                  {detail.order ? ` · từ đơn ${detail.order.code}` : ' · tạo thủ công'}
+   522→   522→                </DialogDescription>
+   523→   523→              </DialogHeader>
+   524→   524→              <div className="overflow-x-auto">
+   525→   525→                <Table>
+   526→   526→                  <TableHeader>
+   527→   527→                    <TableRow>
+   528→   528→                      <TableHead className="font-mono">Mã SP</TableHead>
+   529→   529→                      <TableHead>Sản phẩm</TableHead>
+   530→   530→                      <TableHead className="text-right">SL</TableHead>
+   531→   531→                      <TableHead className="text-right">Đơn giá</TableHead>
+   532→   532→                      <TableHead className="text-right">Thành tiền</TableHead>
+   533→   533→                    </TableRow>
+   534→   534→                  </TableHeader>
+   535→   535→                  <TableBody>
+   536→   536→                    {detail.items.map((item, i) => (
+   537→   537→                      <TableRow key={`${detail.id}-${i}`}>
+   538→   538→                        <TableCell className="whitespace-nowrap font-mono text-xs">{item.product.sku}</TableCell>
+   539→   539→                        <TableCell>
+   540→   540→                          <p className="max-w-[220px] truncate font-medium">{item.product.name}</p>
+   541→   541→                          <p className="text-xs text-muted-foreground">{item.product.unit}</p>
+   542→   542→                        </TableCell>
+   543→   543→                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatNumber(item.quantity)}</TableCell>
+   544→   544→                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(item.unitPrice)}</TableCell>
+   545→   545→                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(item.amount)}</TableCell>
+   546→   546→                      </TableRow>
+   547→   547→                    ))}
+   548→   548→                  </TableBody>
+   549→   549→                </Table>
+   550→   550→              </div>
+   551→   551→              <Separator />
+   552→   552→              <div className="space-y-1.5 text-sm">
+   553→   553→                <div className="flex justify-between">
+   554→   554→                  <span className="text-muted-foreground">Tiền hàng</span>
+   555→   555→                  <span className="tabular-nums">{formatVND(detail.subtotal)}</span>
+   556→   556→                </div>
+   557→   557→                <div className="flex justify-between">
+   558→   558→                  <span className="text-muted-foreground">Thuế VAT ({detail.vatRate}%)</span>
+   559→   559→                  <span className="tabular-nums text-sky-700 dark:text-sky-400">{formatVND(detail.vatAmount)}</span>
+   560→   560→                </div>
+   561→   561→                <div className="flex justify-between text-base font-bold">
+   562→   562→                  <span>Tổng cộng</span>
+   563→   563→                  <span className="tabular-nums">{formatVND(detail.total)}</span>
+   564→   564→                </div>
+   565→   565→                {detail.note && <p className="pt-1 text-xs text-muted-foreground">Ghi chú: {detail.note}</p>}
+   566→   566→              </div>
+   567→   567→              {detail.status === 'POSTED' && (
+   568→   568→                <DialogFooter>
+   569→   569→                  <Button variant="destructive" onClick={() => setCancelTarget(detail)}>
+   570→   570→                    <Trash2 className="h-4 w-4" />
+   571→   571→                    Hủy hóa đơn
+   572→   572→                  </Button>
+   573→   573→                </DialogFooter>
+   574→   574→              )}
+   575→   575→            </>
+   576→   576→          )}
+   577→   577→        </DialogContent>
+   578→   578→      </Dialog>
+   579→   579→
+   580→   580→      {/* Dialog tạo hóa đơn bán — 2 tab */}
+   581→   581→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   582→   582→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   583→   583→          <DialogHeader>
+   584→   584→            <DialogTitle>Tạo hóa đơn bán</DialogTitle>
+   585→   585→            <DialogDescription>
+   586→   586→              Chọn xuất từ đơn hàng COMPLETED (không trừ kho lần 2) hoặc tự tạo hóa đơn thủ công (tự trừ kho + BOM).
+   587→   587→            </DialogDescription>
+   588→   588→          </DialogHeader>
+   589→   589→          <div className="grid gap-4 py-2">
+   590→   590→            <Tabs value={dialogTab} onValueChange={(value) => setDialogTab(value as 'order' | 'manual')}>
+   591→   591→              <TabsList className="grid w-full grid-cols-2">
+   592→   592→                <TabsTrigger value="order">Từ đơn hàng</TabsTrigger>
+   593→   593→                <TabsTrigger value="manual">Tự tạo</TabsTrigger>
+   594→   594→              </TabsList>
+   595→   595→
+   596→   596→              <TabsContent value="order" className="mt-2">
+   597→   597→                {!uninvoiced || uninvoiced.length === 0 ? (
+   598→   598→                  <EmptyState
+   599→   599→                    icon={ShoppingBag}
+   600→   600→                    title="Không có đơn chưa xuất hóa đơn"
+   601→   601→                    description="Mọi đơn COMPLETED đã được xuất hóa đơn."
+   602→   602→                  />
+   603→   603→                ) : (
+   604→   604→                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+   605→   605→                    <RadioGroup value={selectedOrderId} onValueChange={setSelectedOrderId} className="gap-2">
+   606→   606→                      {uninvoiced.map((order) => (
+   607→   607→                        <Label
+   608→   608→                          key={order.id}
+   609→   609→                          htmlFor={`order-${order.id}`}
+   610→   610→                          className="block"
+   611→   611→                        >
+   612→   612→                          <div
+   613→   613→                            className={
+   614→   614→                              'flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ' +
+   615→   615→                              (selectedOrderId === order.id
+   616→   616→                                ? 'border-primary bg-primary/5'
+   617→   617→                                : 'border-border/70 hover:bg-muted/60')
+   618→   618→                            }
+   619→   619→                          >
+   620→   620→                            <RadioGroupItem value={order.id} id={`order-${order.id}`} className="mt-0.5" />
+   621→   621→                            <div className="min-w-0 flex-1">
+   622→   622→                              <p className="flex flex-wrap items-center gap-2">
+   623→   623→                                <span className="font-mono text-sm font-semibold">{order.code}</span>
+   624→   624→                                <span className="text-sm text-muted-foreground">
+   625→   625→                                  {order.customer?.name ?? 'Khách lẻ'}
+   626→   626→                                </span>
+   627→   627→                              </p>
+   628→   628→                              <p className="mt-0.5 text-xs text-muted-foreground">
+   629→   629→                                {formatDateTime(order.createdAt)} · {order.items.length} mặt hàng
+   630→   630→                              </p>
+   631→   631→                            </div>
+   632→   632→                            <span className="shrink-0 text-sm font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+   633→   633→                              {formatVND(order.subtotal)}
+   634→   634→                            </span>
+   635→   635→                          </div>
+   636→   636→                        </Label>
+   637→   637→                      ))}
+   638→   638→                    </RadioGroup>
+   639→   639→                  </div>
+   640→   640→                )}
+   641→   641→              </TabsContent>
+   642→   642→
+   643→   643→              <TabsContent value="manual" className="mt-2">
+   644→   644→                <div className="grid gap-4">
+   645→   645→                  <div className="grid gap-2">
+   646→   646→                    <Label htmlFor="sales-partner">Khách hàng (đối tác)</Label>
+   647→   647→                    <Select value={manualPartnerId} onValueChange={setManualPartnerId}>
+   648→   648→                      <SelectTrigger id="sales-partner" className="w-full">
+   649→   649→                        <SelectValue placeholder="Chọn khách hàng" />
+   650→   650→                      </SelectTrigger>
+   651→   651→                      <SelectContent>
+   652→   652→                        <SelectItem value="none">— Không chọn (khách lẻ) —</SelectItem>
+   653→   653→                        {(partners ?? []).map((p) => (
+   654→   654→                          <SelectItem key={p.id} value={p.id}>
+   655→   655→                            {p.name}
+   656→   656→                            {p.taxCode ? ` (${p.taxCode})` : ''}
+   657→   657→                          </SelectItem>
+   658→   658→                        ))}
+   659→   659→                      </SelectContent>
+   660→   660→                    </Select>
+   661→   661→                  </div>
+   662→   662→                  <div className="space-y-2">
+   663→   663→                    <Label>Danh sách mặt hàng</Label>
+   664→   664→                    {rows.map((row, index) => (
+   665→   665→                      <div key={index} className="space-y-1.5 rounded-xl border p-3">
+   666→   666→                        <div className="flex items-center gap-2">
+   667→   667→                          <Select value={row.productId || undefined} onValueChange={(value) => selectProduct(index, value)}>
+   668→   668→                            <SelectTrigger className="min-w-[200px] flex-1">
+   669→   669→                              <SelectValue placeholder="Chọn sản phẩm" />
+   670→   670→                            </SelectTrigger>
+   671→   671→                            <SelectContent>
+   672→   672→                              {(products ?? []).map((p) => (
+   673→   673→                                <SelectItem key={p.id} value={p.id}>
+   674→   674→                                  {p.sku} — {p.name} (tồn {formatNumber(p.stock)})
+   675→   675→                                </SelectItem>
+   676→   676→                              ))}
+   677→   677→                            </SelectContent>
+   678→   678→                          </Select>
+   679→   679→                          <Button
+   680→   680→                            type="button"
+   681→   681→                            variant="ghost"
+   682→   682→                            size="icon"
+   683→   683→                            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+   684→   684→                            onClick={() => removeRow(index)}
+   685→   685→                            disabled={rows.length === 1}
+   686→   686→                          >
+   687→   687→                            <X className="h-4 w-4" />
+   688→   688→                          </Button>
+   689→   689→                        </div>
+   690→   690→                        <div className="flex flex-wrap items-center gap-2">
+   691→   691→                          <Input
+   692→   692→                            type="number"
+   693→   693→                            min={0}
+   694→   694→                            step={1}
+   695→   695→                            value={row.quantity}
+   696→   696→                            onChange={(e) => updateRow(index, { quantity: e.target.value })}
+   697→   697→                            placeholder="Số lượng"
+   698→   698→                            className="w-32"
+   699→   699→                          />
+   700→   700→                          <Input
+   701→   701→                            type="number"
+   702→   702→                            min={0}
+   703→   703→                            step={1000}
+   704→   704→                            value={row.unitPrice}
+   705→   705→                            onChange={(e) => updateRow(index, { unitPrice: e.target.value })}
+   706→   706→                            placeholder="Đơn giá bán"
+   707→   707→                            className="w-40"
+   708→   708→                          />
+   709→   709→                          <span className="ml-auto text-sm tabular-nums text-muted-foreground">
+   710→   710→                            Thành tiền:{' '}
+   711→   711→                            <span className="font-semibold text-foreground">
+   712→   712→                              {formatVND((Number(row.quantity) || 0) * (Number(row.unitPrice) || 0))}
+   713→   713→                            </span>
+   714→   714→                          </span>
+   715→   715→                        </div>
+   716→   716→                      </div>
+   717→   717→                    ))}
+   718→   718→                    <Button type="button" variant="outline" size="sm" onClick={addRow}>
+   719→   719→                      <Plus className="h-4 w-4" />
+   720→   720→                      Thêm dòng
+   721→   721→                    </Button>
+   722→   722→                  </div>
+   723→   723→                  <div className="rounded-xl border bg-muted/40 p-3 text-sm">
+   724→   724→                    <div className="flex justify-between">
+   725→   725→                      <span className="text-muted-foreground">Tiền hàng</span>
+   726→   726→                      <span className="tabular-nums">{formatVND(manualTotals.subtotal)}</span>
+   727→   727→                    </div>
+   728→   728→                    <div className="flex justify-between">
+   729→   729→                      <span className="text-muted-foreground">Thuế VAT ({vatRate}%)</span>
+   730→   730→                      <span className="tabular-nums text-sky-700 dark:text-sky-400">{formatVND(manualTotals.vat)}</span>
+   731→   731→                    </div>
+   732→   732→                    <div className="mt-1 flex justify-between border-t pt-1.5 text-base font-bold">
+   733→   733→                      <span>Tổng cộng</span>
+   734→   734→                      <span className="tabular-nums">{formatVND(manualTotals.total)}</span>
+   735→   735→                    </div>
+   736→   736→                  </div>
+   737→   737→                </div>
+   738→   738→              </TabsContent>
+   739→   739→            </Tabs>
+   740→   740→
+   741→   741→            <div className="grid gap-4 sm:grid-cols-3">
+   742→   742→              <div className="grid gap-2">
+   743→   743→                <Label htmlFor="sales-date">Ngày hóa đơn</Label>
+   744→   744→                <Input id="sales-date" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+   745→   745→              </div>
+   746→   746→              <div className="grid gap-2">
+   747→   747→                <Label>Thuế suất VAT</Label>
+   748→   748→                <Select value={vatRate} onValueChange={setVatRate}>
+   749→   749→                  <SelectTrigger className="w-full">
+   750→   750→                    <SelectValue />
+   751→   751→                  </SelectTrigger>
+   752→   752→                  <SelectContent>
+   753→   753→                    {VAT_RATES.map((rate) => (
+   754→   754→                      <SelectItem key={rate} value={String(rate)}>
+   755→   755→                        VAT {rate}%
+   756→   756→                      </SelectItem>
+   757→   757→                    ))}
+   758→   758→                  </SelectContent>
+   759→   759→                </Select>
+   760→   760→              </div>
+   761→   761→              <div className="grid gap-2">
+   762→   762→                <Label htmlFor="sales-note">Ghi chú</Label>
+   763→   763→                <Input
+   764→   764→                  id="sales-note"
+   765→   765→                  value={note}
+   766→   766→                  onChange={(e) => setNote(e.target.value)}
+   767→   767→                  placeholder="Ghi chú trên hóa đơn..."
+   768→   768→                />
+   769→   769→              </div>
+   770→   770→            </div>
+   771→   771→          </div>
+   772→   772→          <DialogFooter>
+   773→   773→            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+   774→   774→              Hủy
+   775→   775→            </Button>
+   776→   776→            <Button onClick={() => void handleCreate()} disabled={submitting}>
+   777→   777→              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+   778→   778→              Xuất hóa đơn
+   779→   779→            </Button>
+   780→   780→          </DialogFooter>
+   781→   781→        </DialogContent>
+   782→   782→      </Dialog>
+   783→   783→
+   784→   784→      {/* Confirm hủy hóa đơn */}
+   785→   785→      <ConfirmDialog
+   786→   786→        open={cancelTarget !== null}
+   787→   787→        onOpenChange={(open) => !open && setCancelTarget(null)}
+   788→   788→        title={`Hủy hóa đơn bán ${cancelTarget?.code ?? ''}?`}
+   789→   789→        description="Hóa đơn hủy sẽ không còn tính vào doanh thu, thuế VAT đầu ra; kho (và định mức BOM) được hoàn ngược."
+   790→   790→        confirmText="Hủy hóa đơn"
+   791→   791→        destructive
+   792→   792→        loading={cancelling}
+   793→   793→        onConfirm={() => void handleCancel()}
+   794→   794→      />
+   795→   795→    </div>
+   796→   796→  )
+   797→   797→}
+   798→   798→

@@ -34,6 +34,7 @@ export interface ProductListing {
 export interface Product {
   id: string
   sku: string
+  barcode: string | null
   name: string
   description: string | null
   categoryId: string | null
