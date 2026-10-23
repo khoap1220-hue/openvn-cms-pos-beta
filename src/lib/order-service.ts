@@ -3,6 +3,8 @@
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
 import { logActivity, logEvent } from '@/lib/agent-log'
+import { logLedgerAsync } from '@/lib/ledger'
+import { dispatchWebhook } from '@/lib/webhook-service'
 
 export interface CreateOrderInput {
   channelId: string
@@ -104,6 +106,26 @@ export async function createOrder(input: CreateOrderInput) {
     message: `Nhận đơn mới ${order.code} qua ${channel.name} — ${order.customer?.name ?? 'Khách lẻ'}, tổng ${(order.total).toLocaleString('vi-VN')}đ`,
   })
   broadcast('order.created', order)
+
+  // Sổ Data + Webhook outbound (fire-and-forget)
+  logLedgerAsync({
+    scope: 'ORDER',
+    action: 'ORDER_CREATED',
+    entityType: 'Order',
+    entityId: order.id,
+    entityCode: order.code,
+    title: `Đơn ${order.code} — ${channel.name}`,
+    detail: { total: order.total, items: order.items.length, customer: order.customer?.name ?? 'Khách lẻ' },
+    actor: 'SYSTEM',
+  })
+  dispatchWebhook('order.created', {
+    id: order.id,
+    code: order.code,
+    channel: channel.key,
+    total: order.total,
+    customer: order.customer?.name ?? 'Khách lẻ',
+    items: order.items.map((i) => ({ sku: i.product?.sku ?? null, name: i.product?.name ?? null, quantity: i.quantity, price: i.price })),
+  })
 
   return order
 }

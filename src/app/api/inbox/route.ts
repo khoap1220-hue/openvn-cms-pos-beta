@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
+import { logLedger } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,6 +94,19 @@ export async function POST(req: NextRequest) {
       include: { customer: { select: { id: true, name: true, phone: true } } },
     })
     broadcast('message.new', message)
+
+    // Sổ Data: người vận hành trả lời khách
+    await logLedger({
+      scope: 'MESSAGE',
+      action: 'OPERATOR_REPLY',
+      entityType: 'DirectMessage',
+      entityId: message.id,
+      entityCode: body.channelKey,
+      title: `Người vận hành trả lời ${message.customer?.name ?? 'khách hàng'} trên ${body.channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
+      detail: { customerId: body.customerId, channelKey: body.channelKey, content: body.content.trim().slice(0, 200) },
+      actor: 'OPERATOR',
+    })
+
     return NextResponse.json({ message }, { status: 201 })
   } catch (error) {
     console.error('Inbox POST error:', error)

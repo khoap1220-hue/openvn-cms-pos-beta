@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { logLedger } from '@/lib/ledger'
+import { dispatchWebhook } from '@/lib/webhook-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
       movementQty = newStock - product.stock
     }
 
+    const finalNote = note?.trim() || (type === 'IMPORT' ? 'Nhập kho' : type === 'EXPORT' ? 'Xuất kho' : 'Điều chỉnh kiểm kê')
     await db.product.update({ where: { id: productId }, data: { stock: newStock } })
     const movement = await db.stockMovement.create({
       data: {
@@ -74,10 +77,28 @@ export async function POST(req: NextRequest) {
         type,
         quantity: movementQty,
         stockAfter: newStock,
-        note: note?.trim() || (type === 'IMPORT' ? 'Nhập kho' : type === 'EXPORT' ? 'Xuất kho' : 'Điều chỉnh kiểm kê'),
+        note: finalNote,
       },
       include: { product: { select: { id: true, sku: true, name: true, stock: true } } },
     })
+
+    // Sổ Data: biến động kho
+    const action = type === 'IMPORT' ? 'STOCK_IMPORT' : type === 'EXPORT' ? 'STOCK_EXPORT' : 'STOCK_ADJUST'
+    const qtyText = movementQty >= 0 ? `+${movementQty}` : `${movementQty}`
+    const actionLabel = type === 'IMPORT' ? 'Nhập kho' : type === 'EXPORT' ? 'Xuất kho' : 'Điều chỉnh kho'
+    await logLedger({
+      scope: 'INVENTORY',
+      action,
+      entityType: 'Product',
+      entityId: productId,
+      entityCode: product.sku,
+      title: `${actionLabel} ${product.sku} ${qtyText}`,
+      detail: { stockAfter: newStock, note: finalNote },
+      actor: 'OPERATOR',
+    })
+
+    // Webhook outbound: biến động tồn kho
+    dispatchWebhook('stock.movement', { productId, sku: product.sku, type, quantity: movementQty, stockAfter: newStock })
 
     return NextResponse.json({ movement }, { status: 201 })
   } catch (error) {

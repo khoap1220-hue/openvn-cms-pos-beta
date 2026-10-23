@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createOrder } from '@/lib/order-service'
 import { sendZalo } from '@/lib/agent-log'
+import { logLedgerAsync } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
       // Khách: 70% khách cũ có hội thoại, 30% khách mới
       const existingCustomers = await db.customer.findMany({ take: 30, orderBy: { createdAt: 'desc' } })
       const useExisting = existingCustomers.length > 0 && Math.random() < 0.7
-      const picked = useExisting
+      const picked: { id?: string; name: string; phone: string | null } = useExisting
         ? existingCustomers[Math.floor(Math.random() * existingCustomers.length)]
         : NEW_CUSTOMERS[Math.floor(Math.random() * NEW_CUSTOMERS.length)]
 
@@ -60,9 +61,21 @@ export async function POST(req: NextRequest) {
         items,
         customerId: useExisting ? picked.id : undefined,
         customerName: useExisting ? undefined : picked.name,
-        customerPhone: useExisting ? undefined : picked.phone,
+        customerPhone: useExisting ? undefined : (picked.phone ?? undefined),
         address: useExisting ? undefined : ADDRESSES[Math.floor(Math.random() * ADDRESSES.length)],
         paymentMethod: 'COD',
+      })
+
+      // Sổ Data: đơn mô phỏng
+      logLedgerAsync({
+        scope: 'ORDER',
+        action: 'SIMULATED',
+        entityType: 'Order',
+        entityId: order.id,
+        entityCode: order.code,
+        title: `Mô phỏng đơn ${order.code} qua ${channel.name}`,
+        detail: { channelKey: channel.key },
+        actor: 'SYSTEM',
       })
 
       // Khách nhắn kèm trên Zalo → Agent Hỗ trợ sẽ tự trả lời

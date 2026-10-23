@@ -12,6 +12,7 @@ export type CmsEventType =
   | 'message.new'
   | 'review.received'
   | 'settings.updated'
+  | 'ledger.new'
 
 export function broadcast(type: CmsEventType, payload?: unknown): void {
   const body = JSON.stringify({

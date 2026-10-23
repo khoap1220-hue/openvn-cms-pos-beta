@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logActivity, logEvent } from '@/lib/agent-log'
 import { broadcast } from '@/lib/realtime'
-import { ORDER_STATUS_LABELS } from '@/lib/types'
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/lib/types'
+import { logLedger } from '@/lib/ledger'
+import { dispatchWebhook } from '@/lib/webhook-service'
 
 export const dynamic = 'force-dynamic'
+
+// Map trạng thái mới → sự kiện webhook outbound tương ứng
+const STATUS_WEBHOOK_EVENT: Record<string, string> = {
+  CONFIRMED: 'order.confirmed',
+  PACKING: 'order.packing',
+  SHIPPING: 'order.shipping',
+  COMPLETED: 'order.completed',
+  CANCELLED: 'order.cancelled',
+}
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -72,9 +83,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     // Đơn hoàn thành → tự đánh dấu đã thanh toán (nếu chưa)
-    if (data.status === 'COMPLETED' && order.paymentStatus !== 'PAID') {
+    const autoPaid = data.status === 'COMPLETED' && order.paymentStatus !== 'PAID'
+    if (autoPaid) {
       await db.order.update({ where: { id }, data: { paymentStatus: 'PAID' } })
     }
+    const finalPaymentStatus = autoPaid ? 'PAID' : (data.paymentStatus ?? order.paymentStatus)
 
     // Ghi timeline + broadcast realtime
     if (data.status && data.status !== order.status) {
@@ -102,8 +115,57 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         })
       }
       broadcast('order.updated', { id, status: data.status, code: order.code })
+
+      // Sổ Data: đổi trạng thái / hủy đơn
+      if (data.status === 'CANCELLED') {
+        await logLedger({
+          scope: 'ORDER',
+          action: 'ORDER_CANCELLED',
+          entityType: 'Order',
+          entityId: id,
+          entityCode: order.code,
+          title: `Hủy đơn ${order.code} — hoàn kho tự động`,
+          detail: { from: order.status, to: 'CANCELLED' },
+          actor: 'OPERATOR',
+        })
+      } else {
+        await logLedger({
+          scope: 'ORDER',
+          action: 'STATUS_CHANGED',
+          entityType: 'Order',
+          entityId: id,
+          entityCode: order.code,
+          title: `Đơn ${order.code}: ${ORDER_STATUS_LABELS[order.status] ?? order.status} → ${ORDER_STATUS_LABELS[data.status] ?? data.status}`,
+          detail: { from: order.status, to: data.status },
+          actor: 'OPERATOR',
+        })
+      }
+
+      // Webhook outbound theo trạng thái mới (kèm paymentStatus khi có đánh dấu thanh toán)
+      const webhookEvent = STATUS_WEBHOOK_EVENT[data.status]
+      if (webhookEvent) {
+        dispatchWebhook(webhookEvent, { id, code: order.code, status: data.status, paymentStatus: finalPaymentStatus })
+      }
     } else if (data.paymentStatus) {
       broadcast('order.updated', { id, paymentStatus: data.paymentStatus, code: order.code })
+
+      // Sổ Data: đánh dấu thanh toán
+      await logLedger({
+        scope: 'ORDER',
+        action: 'PAYMENT_MARKED',
+        entityType: 'Order',
+        entityId: id,
+        entityCode: order.code,
+        title: `Đơn ${order.code} — thanh toán ${PAYMENT_STATUS_LABELS[data.paymentStatus] ?? data.paymentStatus}`,
+        detail: { from: order.paymentStatus, to: data.paymentStatus },
+        actor: 'OPERATOR',
+      })
+
+      // Webhook outbound kèm paymentStatus (theo trạng thái hiện tại của đơn)
+      const webhookEvent = STATUS_WEBHOOK_EVENT[updated.status]
+      if (webhookEvent) {
+        dispatchWebhook(webhookEvent, { id, code: order.code, status: updated.status, paymentStatus: data.paymentStatus })
+      }
     }
 
     return NextResponse.json({ order: updated })

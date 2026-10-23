@@ -5,8 +5,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  LifeBuoy,
   Loader2,
   Minus,
+  MoreHorizontal,
   Plus,
   Search,
   ShoppingCart,
@@ -20,6 +22,7 @@ import { ORDER_STATUSES, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/li
 import type { Channel, Order, Product } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -29,6 +32,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -102,6 +111,57 @@ const EVENT_ACTOR_DOTS: Record<string, string> = {
   CUSTOMER: 'bg-amber-500',
 }
 
+// ===== Sau bán hàng: đổi trả / bảo hành =====
+interface AfterSalesCase {
+  id: string
+  code: string
+  type: string
+  status: string
+  reason: string
+  resolution: string | null
+  refundAmount: number
+  handledBy: string
+  createdAt: string
+  order?: { id: string; code: string }
+}
+
+const CASE_TYPE_BADGES: Record<string, { label: string; className: string }> = {
+  RETURN: {
+    label: 'Đổi trả',
+    className: 'border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
+  },
+  EXCHANGE: {
+    label: 'Đổi hàng',
+    className: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+  },
+  WARRANTY: {
+    label: 'Bảo hành',
+    className: 'border-transparent bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+  },
+}
+
+const CASE_STATUS_BADGES: Record<string, { label: string; className: string }> = {
+  OPEN: {
+    label: 'Mới',
+    className: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+  },
+  PROCESSING: {
+    label: 'Đang xử lý',
+    className: 'border-transparent bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400',
+  },
+  RESOLVED: {
+    label: 'Đã giải quyết',
+    className: 'border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+  },
+  REJECTED: { label: 'Từ chối', className: 'border-transparent bg-muted text-muted-foreground' },
+}
+
+const CASE_STATUS_ACTIONS: Array<{ status: string; label: string }> = [
+  { status: 'PROCESSING', label: 'Đang xử lý' },
+  { status: 'RESOLVED', label: 'Đã giải quyết' },
+  { status: 'REJECTED', label: 'Từ chối' },
+]
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Đã xảy ra lỗi'
 }
@@ -172,6 +232,17 @@ export function OrdersView() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [markingPaid, setMarkingPaid] = useState(false)
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+
+  // ===== Sau bán hàng: đổi trả / bảo hành =====
+  const [cases, setCases] = useState<AfterSalesCase[]>([])
+  const [casesLoading, setCasesLoading] = useState(false)
+  const [caseActionId, setCaseActionId] = useState<string | null>(null)
+  const [createCaseOpen, setCreateCaseOpen] = useState(false)
+  const [caseType, setCaseType] = useState('RETURN')
+  const [caseReason, setCaseReason] = useState('')
+  const [caseRefund, setCaseRefund] = useState('')
+  const [caseHandledBy, setCaseHandledBy] = useState('OPERATOR')
+  const [caseSubmitting, setCaseSubmitting] = useState(false)
 
   // ===== Dialog tạo đơn =====
   const [createOpen, setCreateOpen] = useState(false)
@@ -249,6 +320,7 @@ export function OrdersView() {
     setDetail(null)
     setDetailError(null)
     setStatusChoice('')
+    setCases([])
     setDetailOpen(true)
   }
 
@@ -266,6 +338,26 @@ export function OrdersView() {
       })
       .finally(() => {
         if (!cancelled) setDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [detailOpen, detailId, detailReload])
+
+  // ===== Fetch vụ sau bán hàng của đơn (reload cùng detailReload) =====
+  useEffect(() => {
+    if (!detailOpen || !detailId) return
+    let cancelled = false
+    setCasesLoading(true)
+    apiGet<{ cases: AfterSalesCase[] }>(`/api/aftersales?orderId=${detailId}`)
+      .then((data) => {
+        if (!cancelled) setCases(data.cases)
+      })
+      .catch(() => {
+        if (!cancelled) setCases([])
+      })
+      .finally(() => {
+        if (!cancelled) setCasesLoading(false)
       })
     return () => {
       cancelled = true
@@ -326,6 +418,67 @@ export function OrdersView() {
       })
     } finally {
       setMarkingPaid(false)
+    }
+  }
+
+  // ===== Sau bán hàng: xử lý nhanh trạng thái + tạo yêu cầu =====
+  const handleCaseStatus = async (caseId: string, status: string, label: string) => {
+    setCaseActionId(caseId)
+    try {
+      await apiPatch<{ case: AfterSalesCase }>(`/api/aftersales/${caseId}`, {
+        status,
+        resolution: `Đã ${label.toLowerCase()} bởi người vận hành`,
+      })
+      toast({ title: `Đã chuyển yêu cầu sang "${label}"` })
+      setDetailReload((k) => k + 1)
+    } catch (err) {
+      toast({
+        title: 'Không thể cập nhật yêu cầu sau bán hàng',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setCaseActionId(null)
+    }
+  }
+
+  const openCreateCase = () => {
+    setCaseType('RETURN')
+    setCaseReason('')
+    setCaseRefund(detail ? String(Math.round(detail.total)) : '0')
+    setCaseHandledBy('OPERATOR')
+    setCreateCaseOpen(true)
+  }
+
+  const submitCreateCase = async () => {
+    if (!detail) return
+    if (!caseReason.trim()) {
+      toast({ title: 'Vui lòng nhập lý do đổi trả / bảo hành', variant: 'destructive' })
+      return
+    }
+    setCaseSubmitting(true)
+    try {
+      const data = await apiPost<{ case: AfterSalesCase }>('/api/aftersales', {
+        orderId: detail.id,
+        type: caseType,
+        reason: caseReason.trim(),
+        refundAmount: caseType === 'WARRANTY' ? 0 : Math.max(0, Number(caseRefund) || 0),
+        handledBy: caseHandledBy,
+      })
+      toast({
+        title: `Đã tạo yêu cầu ${data.case.code}`,
+        description: 'Yêu cầu sau bán hàng đã được ghi vào Sổ Data.',
+      })
+      setCreateCaseOpen(false)
+      setDetailReload((k) => k + 1)
+    } catch (err) {
+      toast({
+        title: 'Không thể tạo yêu cầu sau bán hàng',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setCaseSubmitting(false)
     }
   }
 
@@ -770,6 +923,89 @@ export function OrdersView() {
                 </div>
               )}
 
+              {/* Sau bán hàng — Đổi trả / Bảo hành */}
+              <div className="border-t pt-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">Sau bán hàng — Đổi trả / Bảo hành</p>
+                  {detail.status === 'COMPLETED' && (
+                    <Button variant="outline" size="sm" onClick={openCreateCase}>
+                      <LifeBuoy className="mr-1 h-4 w-4" /> Tạo yêu cầu
+                    </Button>
+                  )}
+                </div>
+
+                {detail.status !== 'COMPLETED' ? (
+                  <p className="text-xs text-muted-foreground">
+                    Có thể tạo đổi trả / bảo hành sau khi đơn hoàn tất.
+                  </p>
+                ) : casesLoading && cases.length === 0 ? (
+                  <Skeleton className="h-12 w-full" />
+                ) : cases.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Đơn chưa có yêu cầu đổi trả / bảo hành nào.</p>
+                ) : (
+                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {cases.map((c) => {
+                      const typeBadge = CASE_TYPE_BADGES[c.type] ?? {
+                        label: c.type,
+                        className: 'border-transparent bg-muted text-muted-foreground',
+                      }
+                      const statusBadge = CASE_STATUS_BADGES[c.status] ?? {
+                        label: c.status,
+                        className: 'border-transparent bg-muted text-muted-foreground',
+                      }
+                      return (
+                        <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5">
+                          <span className="font-mono text-xs font-semibold">{c.code}</span>
+                          <Badge variant="outline" className={`border-transparent ${typeBadge.className}`}>
+                            {typeBadge.label}
+                          </Badge>
+                          <Badge variant="outline" className={`border-transparent ${statusBadge.className}`}>
+                            {statusBadge.label}
+                          </Badge>
+                          <span
+                            className="min-w-0 flex-1 basis-40 truncate text-xs text-muted-foreground"
+                            title={c.reason}
+                          >
+                            {c.reason}
+                          </span>
+                          {c.refundAmount > 0 && (
+                            <span className="whitespace-nowrap text-xs font-medium">{formatVND(c.refundAmount)}</span>
+                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                disabled={caseActionId === c.id}
+                                aria-label="Xử lý nhanh yêu cầu"
+                              >
+                                {caseActionId === c.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {CASE_STATUS_ACTIONS.map((action) => (
+                                <DropdownMenuItem
+                                  key={action.status}
+                                  disabled={c.status === action.status}
+                                  onClick={() => void handleCaseStatus(c.id, action.status, action.label)}
+                                >
+                                  {action.label}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-muted-foreground">Cập nhật trạng thái</span>
@@ -1064,6 +1300,95 @@ export function OrdersView() {
                 Tạo đơn hàng
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog tạo yêu cầu sau bán hàng (đổi trả / bảo hành) */}
+      <Dialog
+        open={createCaseOpen}
+        onOpenChange={(open) => {
+          if (!caseSubmitting) setCreateCaseOpen(open)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tạo yêu cầu sau bán hàng</DialogTitle>
+            <DialogDescription>
+              Đổi trả / bảo hành cho đơn <span className="font-mono">{detail?.code}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label>Loại yêu cầu</Label>
+              <Select
+                value={caseType}
+                onValueChange={(v) => {
+                  setCaseType(v)
+                  setCaseRefund(v === 'RETURN' && detail ? String(Math.round(detail.total)) : '0')
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="RETURN">Đổi trả (hoàn tiền)</SelectItem>
+                  <SelectItem value="EXCHANGE">Đổi hàng</SelectItem>
+                  <SelectItem value="WARRANTY">Bảo hành</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="aftersales-reason">
+                Lý do <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="aftersales-reason"
+                rows={3}
+                value={caseReason}
+                onChange={(e) => setCaseReason(e.target.value)}
+                placeholder="Mô tả vấn đề của khách hàng..."
+              />
+            </div>
+
+            {caseType !== 'WARRANTY' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="aftersales-refund">Số tiền hoàn (VND)</Label>
+                <Input
+                  id="aftersales-refund"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={caseRefund}
+                  onChange={(e) => setCaseRefund(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Người xử lý</Label>
+              <Select value={caseHandledBy} onValueChange={setCaseHandledBy}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="OPERATOR">Người vận hành</SelectItem>
+                  <SelectItem value="AGENT">Agent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateCaseOpen(false)} disabled={caseSubmitting}>
+              Hủy
+            </Button>
+            <Button onClick={() => void submitCreateCase()} disabled={caseSubmitting}>
+              {caseSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Tạo yêu cầu
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

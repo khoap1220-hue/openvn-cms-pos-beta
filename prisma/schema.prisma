@@ -28,11 +28,17 @@ model Product {
   lowStockThreshold Int              @default(5)
   image             String?
   status            String           @default("ACTIVE")
+  attributes        String? // ĐẶC TÍNH (Invoice Pro: mô tả thuộc tính SP)
+  unit              String           @default("sp")
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   orderItems        OrderItem[]
   listings          ChannelListing[]
   stockMovements    StockMovement[]
+  bomFinished       BomComponent[]   @relation("BomFinished")
+  bomMaterials      BomComponent[]   @relation("BomMaterial")
+  purchaseItems     PurchaseInvoiceItem[] @relation("PurchaseItems")
+  salesItems        SalesInvoiceItem[]    @relation("SalesItems")
 }
 
 model Channel {
@@ -94,6 +100,7 @@ model Order {
   items         OrderItem[]
   shipments     Shipment[]
   events        OrderEvent[]
+  afterSalesCases AfterSalesCase[]
 }
 
 model OrderItem {
@@ -174,4 +181,198 @@ model AutomationSetting {
   key       String   @id // master | auto_confirm | auto_carrier | auto_care | auto_review | auto_reply
   enabled   Boolean  @default(true)
   updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// SỔ DATA — sổ cái tổng: mọi dữ liệu & thao tác đều ghi vào đây
+// ============================================================
+
+model LedgerEntry {
+  id         String   @id @default(cuid())
+  scope      String // ORDER | INVOICE | INVENTORY | AGENT | WEBHOOK | PARTNER | BOM | AFTERSALES | PERIOD | SETTINGS | CHANNEL | MESSAGE | SYSTEM
+  action     String
+  entityType String?
+  entityId   String?
+  entityCode String?
+  title      String
+  detail     String? // JSON chi tiết
+  actor      String   @default("SYSTEM") // AGENT | OPERATOR | SYSTEM | CUSTOMER | API
+  createdAt  DateTime @default(now())
+
+  @@index([scope])
+  @@index([createdAt])
+}
+
+// ============================================================
+// INVOICE PRO — Hạch toán nội bộ & Quản lý hóa đơn
+// ============================================================
+
+model Partner {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  name             String // Tên đơn vị
+  taxCode          String? // Mã số thuế (MST)
+  address          String?
+  phone            String?
+  email            String?
+  type             String   @default("SUPPLIER") // SUPPLIER | CUSTOMER | BOTH
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  purchaseInvoices PurchaseInvoice[]
+  salesInvoices    SalesInvoice[]
+}
+
+model BomComponent {
+  id                 String   @id @default(cuid())
+  productId          String // thành phẩm
+  product            Product  @relation("BomFinished", fields: [productId], references: [id], onDelete: Cascade)
+  componentProductId String // nguyên vật liệu
+  componentProduct   Product  @relation("BomMaterial", fields: [componentProductId], references: [id], onDelete: Cascade)
+  quantity           Float    @default(1) // định mức cho 1 thành phẩm
+  createdAt          DateTime @default(now())
+
+  @@unique([productId, componentProductId])
+}
+
+model PurchaseInvoice {
+  id          String                @id @default(cuid())
+  code        String                @unique
+  partnerId   String?
+  partner     Partner?              @relation(fields: [partnerId], references: [id])
+  invoiceDate DateTime              @default(now())
+  subtotal    Float                 @default(0)
+  vatRate     Float                 @default(8)
+  vatAmount   Float                 @default(0)
+  total       Float                 @default(0)
+  status      String                @default("POSTED") // POSTED | CANCELLED
+  note        String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  items       PurchaseInvoiceItem[]
+}
+
+model PurchaseInvoiceItem {
+  id        String          @id @default(cuid())
+  invoiceId String
+  invoice   PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation("PurchaseItems", fields: [productId], references: [id])
+  quantity  Float           @default(1)
+  unitPrice Float           @default(0)
+  amount    Float           @default(0)
+}
+
+model SalesInvoice {
+  id          String             @id @default(cuid())
+  code        String             @unique
+  orderId     String?
+  partnerId   String?
+  partner     Partner?           @relation(fields: [partnerId], references: [id])
+  invoiceDate DateTime           @default(now())
+  subtotal    Float              @default(0)
+  vatRate     Float              @default(8)
+  vatAmount   Float              @default(0)
+  total       Float              @default(0)
+  status      String             @default("POSTED") // POSTED | CANCELLED
+  note        String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  items       SalesInvoiceItem[]
+}
+
+model SalesInvoiceItem {
+  id        String       @id @default(cuid())
+  invoiceId String
+  invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product      @relation("SalesItems", fields: [productId], references: [id])
+  quantity  Float        @default(1)
+  unitPrice Float        @default(0)
+  amount    Float        @default(0)
+}
+
+model AccountingPeriod {
+  id        String    @id @default(cuid())
+  year      Int
+  quarter   Int
+  status    String    @default("OPEN") // OPEN | CLOSED
+  closedAt  DateTime?
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([year, quarter])
+}
+
+model AppSetting {
+  key       String   @id // gemini_api_key | company_name | company_tax | company_address | vat_default
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ===== Sau bán hàng: Đổi trả / Bảo hành =====
+
+model AfterSalesCase {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type         String // RETURN | EXCHANGE | WARRANTY
+  status       String   @default("OPEN") // OPEN | PROCESSING | RESOLVED | REJECTED
+  reason       String
+  resolution   String?
+  refundAmount Float    @default(0)
+  handledBy    String   @default("OPERATOR") // OPERATOR | AGENT
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ===== API & Webhook — tích hợp hai chiều =====
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  key        String    @unique
+  secret     String
+  active     Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  name       String
+  url        String
+  secret     String
+  events     String // chuỗi phân tách dấu phẩy, * = tất cả
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id           String          @id @default(cuid())
+  endpointId   String
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event        String
+  payload      String
+  signature    String
+  status       String          @default("PENDING") // PENDING | SUCCESS | FAILED
+  attempts     Int             @default(0)
+  responseCode Int?
+  error        String?
+  createdAt    DateTime        @default(now())
+}
+
+model IntegrationCredential {
+  id        String   @id @default(cuid())
+  provider  String // GHN | GHTK | VIETTEL | JT | NINJA | ZALO_OA | PAYOS | GEMINI
+  name      String
+  config    String // JSON
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider])
 }

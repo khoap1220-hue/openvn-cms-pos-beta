@@ -1,0 +1,618 @@
+     1→   456→  const hasFilter = search !== '' || statusFilter !== 'ALL' || channelFilter !== 'ALL'
+     2→   457→  const nextStatuses = detail ? allowedNextStatuses(detail.status) : []
+     3→   458→
+     4→   459→  return (
+     5→   460→    <div>
+     6→   461→      <PageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn hàng từ tất cả các kênh bán">
+     7→   462→        <Button onClick={openCreate}>
+     8→   463→          <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+     9→   464→        </Button>
+    10→   465→      </PageHeader>
+    11→   466→
+    12→   467→      {/* Toolbar */}
+    13→   468→      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+    14→   469→        <div className="relative w-full sm:w-64">
+    15→   470→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    16→   471→          <Input
+    17→   472→            value={searchInput}
+    18→   473→            onChange={(e) => setSearchInput(e.target.value)}
+    19→   474→            placeholder="Tìm mã đơn, tên hoặc SĐT khách..."
+    20→   475→            className="pl-8"
+    21→   476→            aria-label="Tìm kiếm đơn hàng"
+    22→   477→          />
+    23→   478→        </div>
+    24→   479→        <Select
+    25→   480→          value={statusFilter}
+    26→   481→          onValueChange={(v) => {
+    27→   482→            setStatusFilter(v)
+    28→   483→            setPage(1)
+    29→   484→          }}
+    30→   485→        >
+    31→   486→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo trạng thái">
+    32→   487→            <SelectValue placeholder="Tất cả trạng thái" />
+    33→   488→          </SelectTrigger>
+    34→   489→          <SelectContent>
+    35→   490→            <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+    36→   491→            {ORDER_STATUSES.map((s) => (
+    37→   492→              <SelectItem key={s} value={s}>
+    38→   493→                {ORDER_STATUS_LABELS[s] ?? s}
+    39→   494→              </SelectItem>
+    40→   495→            ))}
+    41→   496→          </SelectContent>
+    42→   497→        </Select>
+    43→   498→        <Select
+    44→   499→          value={channelFilter}
+    45→   500→          onValueChange={(v) => {
+    46→   501→            setChannelFilter(v)
+    47→   502→            setPage(1)
+    48→   503→          }}
+    49→   504→        >
+    50→   505→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo kênh bán">
+    51→   506→            <SelectValue placeholder="Tất cả kênh" />
+    52→   507→          </SelectTrigger>
+    53→   508→          <SelectContent>
+    54→   509→            <SelectItem value="ALL">Tất cả kênh</SelectItem>
+    55→   510→            {channels.map((c) => (
+    56→   511→              <SelectItem key={c.id} value={c.id}>
+    57→   512→                {c.name}
+    58→   513→              </SelectItem>
+    59→   514→            ))}
+    60→   515→          </SelectContent>
+    61→   516→        </Select>
+    62→   517→      </div>
+    63→   518→
+    64→   519→      {/* Nội dung chính */}
+    65→   520→      {loading ? (
+    66→   521→        <TableSkeleton rows={7} />
+    67→   522→      ) : error ? (
+    68→   523→        <ErrorState message={error} onRetry={() => void fetchOrders()} />
+    69→   524→      ) : orders.length === 0 ? (
+    70→   525→        <EmptyState
+    71→   526→          icon={ShoppingCart}
+    72→   527→          title={hasFilter ? 'Không tìm thấy đơn hàng nào' : 'Chưa có đơn hàng nào'}
+    73→   528→          description={
+    74→   529→            hasFilter
+    75→   530→              ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc.'
+    76→   531→              : 'Các đơn hàng từ mọi kênh bán sẽ hiển thị tại đây.'
+    77→   532→          }
+    78→   533→          action={
+    79→   534→            <Button onClick={openCreate}>
+    80→   535→              <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+    81→   536→            </Button>
+    82→   537→          }
+    83→   538→        />
+    84→   539→      ) : (
+    85→   540→        <>
+    86→   541→          <div className="overflow-x-auto rounded-lg border">
+    87→   542→            <Table className="min-w-[960px]">
+    88→   543→              <TableHeader>
+    89→   544→                <TableRow>
+    90→   545→                  <TableHead>Mã đơn</TableHead>
+    91→   546→                  <TableHead>Kênh</TableHead>
+    92→   547→                  <TableHead>Khách hàng</TableHead>
+    93→   548→                  <TableHead>Sản phẩm</TableHead>
+    94→   549→                  <TableHead className="text-right">Tổng tiền</TableHead>
+    95→   550→                  <TableHead>Thanh toán</TableHead>
+    96→   551→                  <TableHead>Trạng thái</TableHead>
+    97→   552→                  <TableHead>Thời gian</TableHead>
+    98→   553→                  <TableHead className="text-right">Hành động</TableHead>
+    99→   554→                </TableRow>
+   100→   555→              </TableHeader>
+   101→   556→              <TableBody>
+   102→   557→                {orders.map((o) => (
+   103→   558→                  <TableRow key={o.id}>
+   104→   559→                    <TableCell className="font-mono text-sm font-medium">{o.code}</TableCell>
+   105→   560→                    <TableCell>
+   106→   561→                      <ChannelBadge channel={o.channel} className="text-xs" />
+   107→   562→                    </TableCell>
+   108→   563→                    <TableCell>
+   109→   564→                      <p className="text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
+   110→   565→                      {o.customer?.phone && (
+   111→   566→                        <p className="text-xs text-muted-foreground">{o.customer.phone}</p>
+   112→   567→                      )}
+   113→   568→                    </TableCell>
+   114→   569→                    <TableCell className="max-w-[180px] truncate text-sm">{itemsSummary(o)}</TableCell>
+   115→   570→                    <TableCell className="whitespace-nowrap text-right font-semibold">
+   116→   571→                      {formatVND(o.total)}
+   117→   572→                    </TableCell>
+   118→   573→                    <TableCell>
+   119→   574→                      <PaymentStatusBadge status={o.paymentStatus} />
+   120→   575→                    </TableCell>
+   121→   576→                    <TableCell>
+   122→   577→                      <OrderStatusBadge status={o.status} />
+   123→   578→                    </TableCell>
+   124→   579→                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+   125→   580→                      {formatDateTime(o.createdAt)}
+   126→   581→                    </TableCell>
+   127→   582→                    <TableCell className="text-right">
+   128→   583→                      <Button variant="outline" size="sm" onClick={() => openDetail(o.id)}>
+   129→   584→                        <Eye className="mr-1 h-4 w-4" /> Chi tiết
+   130→   585→                      </Button>
+   131→   586→                    </TableCell>
+   132→   587→                  </TableRow>
+   133→   588→                ))}
+   134→   589→              </TableBody>
+   135→   590→            </Table>
+   136→   591→          </div>
+   137→   592→
+   138→   593→          {/* Phân trang server-side */}
+   139→   594→          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+   140→   595→            <p className="text-sm text-muted-foreground">
+   141→   596→              Hiển thị {formatNumber(from)}–{formatNumber(to)} trong {formatNumber(total)} đơn
+   142→   597→            </p>
+   143→   598→            <div className="flex items-center gap-2">
+   144→   599→              <Button
+   145→   600→                variant="outline"
+   146→   601→                size="sm"
+   147→   602→                disabled={page <= 1 || loading}
+   148→   603→                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+   149→   604→              >
+   150→   605→                <ChevronLeft className="mr-1 h-4 w-4" /> Trước
+   151→   606→              </Button>
+   152→   607→              <span className="text-sm text-muted-foreground">
+   153→   608→                Trang {page}/{totalPages}
+   154→   609→              </span>
+   155→   610→              <Button
+   156→   611→                variant="outline"
+   157→   612→                size="sm"
+   158→   613→                disabled={page >= totalPages || loading}
+   159→   614→                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+   160→   615→              >
+   161→   616→                Sau <ChevronRight className="ml-1 h-4 w-4" />
+   162→   617→              </Button>
+   163→   618→            </div>
+   164→   619→          </div>
+   165→   620→        </>
+   166→   621→      )}
+   167→   622→
+   168→   623→      {/* Dialog chi tiết đơn hàng */}
+   169→   624→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+   170→   625→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   171→   626→          <DialogHeader>
+   172→   627→            <DialogTitle className="flex flex-wrap items-center gap-2.5">
+   173→   628→              {detail ? (
+   174→   629→                <>
+   175→   630→                  <span className="font-mono">{detail.code}</span>
+   176→   631→                  <OrderStatusBadge status={detail.status} />
+   177→   632→                </>
+   178→   633→              ) : (
+   179→   634→                'Chi tiết đơn hàng'
+   180→   635→              )}
+   181→   636→            </DialogTitle>
+   182→   637→            <DialogDescription>Thông tin chi tiết và các sản phẩm trong đơn hàng.</DialogDescription>
+   183→   638→          </DialogHeader>
+   184→   639→
+   185→   640→          {detailLoading && !detail ? (
+   186→   641→            <div className="space-y-3">
+   187→   642→              <Skeleton className="h-24 w-full" />
+   188→   643→              <Skeleton className="h-40 w-full" />
+   189→   644→              <Skeleton className="h-12 w-full" />
+   190→   645→            </div>
+   191→   646→          ) : detailError ? (
+   192→   647→            <ErrorState message={detailError} onRetry={() => setDetailReload((k) => k + 1)} />
+   193→   648→          ) : detail ? (
+   194→   649→            <div className="space-y-4">
+   195→   650→              <div className="grid gap-3 sm:grid-cols-2">
+   196→   651→                <InfoField label="Kênh bán">
+   197→   652→                  <ChannelBadge channel={detail.channel} />
+   198→   653→                </InfoField>
+   199→   654→                <InfoField label="Khách hàng">{detail.customer?.name ?? 'Khách lẻ'}</InfoField>
+   200→   655→                <InfoField label="Số điện thoại">{detail.customer?.phone ?? '—'}</InfoField>
+   201→   656→                <InfoField label="Địa chỉ">{detail.address ?? '—'}</InfoField>
+   202→   657→                <InfoField label="Thanh toán">
+   203→   658→                  <span>{PAYMENT_METHOD_LABELS[detail.paymentMethod] ?? detail.paymentMethod}</span>
+   204→   659→                  <PaymentStatusBadge status={detail.paymentStatus} />
+   205→   660→                </InfoField>
+   206→   661→                <InfoField label="Ghi chú">{detail.note ?? '—'}</InfoField>
+   207→   662→              </div>
+   208→   663→
+   209→   664→              <Separator />
+   210→   665→
+   211→   666→              <div className="overflow-x-auto rounded-lg border">
+   212→   667→                <Table className="min-w-[420px]">
+   213→   668→                  <TableHeader>
+   214→   669→                    <TableRow>
+   215→   670→                      <TableHead>Sản phẩm</TableHead>
+   216→   671→                      <TableHead className="text-right">Đơn giá</TableHead>
+   217→   672→                      <TableHead className="text-center">SL</TableHead>
+   218→   673→                      <TableHead className="text-right">Thành tiền</TableHead>
+   219→   674→                    </TableRow>
+   220→   675→                  </TableHeader>
+   221→   676→                  <TableBody>
+   222→   677→                    {detail.items.length === 0 ? (
+   223→   678→                      <TableRow>
+   224→   679→                        <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+   225→   680→                          Đơn hàng không có sản phẩm nào.
+   226→   681→                        </TableCell>
+   227→   682→                      </TableRow>
+   228→   683→                    ) : (
+   229→   684→                      detail.items.map((item) => (
+   230→   685→                        <TableRow key={item.id}>
+   231→   686→                          <TableCell>
+   232→   687→                            <p className="text-sm font-medium">
+   233→   688→                              {item.product?.name ?? 'Sản phẩm đã xóa'}
+   234→   689→                            </p>
+   235→   690→                            {item.product?.sku && (
+   236→   691→                              <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+   237→   692→                            )}
+   238→   693→                          </TableCell>
+   239→   694→                          <TableCell className="whitespace-nowrap text-right text-sm">
+   240→   695→                            {formatVND(item.price)}
+   241→   696→                          </TableCell>
+   242→   697→                          <TableCell className="text-center text-sm">{item.quantity}</TableCell>
+   243→   698→                          <TableCell className="whitespace-nowrap text-right text-sm font-medium">
+   244→   699→                            {formatVND(item.price * item.quantity)}
+   245→   700→                          </TableCell>
+   246→   701→                        </TableRow>
+   247→   702→                      ))
+   248→   703→                    )}
+   249→   704→                  </TableBody>
+   250→   705→                </Table>
+   251→   706→              </div>
+   252→   707→
+   253→   708→              <div className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+   254→   709→                <div className="flex justify-between">
+   255→   710→                  <span className="text-muted-foreground">Tạm tính</span>
+   256→   711→                  <span>{formatVND(detail.subtotal)}</span>
+   257→   712→                </div>
+   258→   713→                <div className="flex justify-between">
+   259→   714→                  <span className="text-muted-foreground">Phí vận chuyển</span>
+   260→   715→                  <span>{formatVND(detail.shippingFee)}</span>
+   261→   716→                </div>
+   262→   717→                <Separator />
+   263→   718→                <div className="flex justify-between text-base font-semibold">
+   264→   719→                  <span>Tổng cộng</span>
+   265→   720→                  <span className="text-primary">{formatVND(detail.total)}</span>
+   266→   721→                </div>
+   267→   722→              </div>
+   268→   723→
+   269→   724→              {detail.shipments && detail.shipments.length > 0 && detail.shipments[0] && (
+   270→   725→                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
+   271→   726→                  <div className="min-w-0">
+   272→   727→                    <p className="text-sm font-medium">
+   273→   728→                      {carrierName(detail.shipments[0].carrier)} —{' '}
+   274→   729→                      <span className="font-mono text-xs">{detail.shipments[0].trackingCode}</span>
+   275→   730→                    </p>
+   276→   731→                    <p className="mt-0.5 text-xs text-muted-foreground">
+   277→   732→                      Báo bởi {detail.shipments[0].dispatchedBy === 'AGENT' ? 'Agent Kho vận (tự động)' : 'Người vận hành'} · Phí {formatVND(detail.shipments[0].fee)}
+   278→   733→                    </p>
+   279→   734→                  </div>
+   280→   735→                  <ShipmentStatusBadge status={detail.shipments[0].status} />
+   281→   736→                </div>
+   282→   737→              )}
+   283→   738→
+   284→   739→              {detail.events && detail.events.length > 0 && (
+   285→   740→                <div>
+   286→   741→                  <p className="mb-3 text-sm font-semibold">Hành trình xử lý (Agent + người vận hành)</p>
+   287→   742→                  <div className="max-h-64 space-y-0 overflow-y-auto pr-1 [scrollbar-width:thin]">
+   288→   743→                    {[...detail.events].reverse().map((ev, idx, arr) => (
+   289→   744→                      <div key={ev.id} className="flex gap-3">
+   290→   745→                        <div className="flex flex-col items-center">
+   291→   746→                          <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_ACTOR_DOTS[ev.actor] ?? 'bg-slate-400'}`} />
+   292→   747→                          {idx < arr.length - 1 && <span className="w-px flex-1 bg-border" />}
+   293→   748→                        </div>
+   294→   749→                        <div className="min-w-0 flex-1 pb-3">
+   295→   750→                          <p className="text-sm leading-snug">{ev.title}</p>
+   296→   751→                          {ev.detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ev.detail}</p>}
+   297→   752→                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+   298→   753→                            {EVENT_ACTOR_LABELS[ev.actor] ?? ev.actor} · {formatDateTime(ev.createdAt)}
+   299→   754→                          </p>
+   300→   755→                        </div>
+   301→   756→                      </div>
+   302→   757→                    ))}
+   303→   758→                  </div>
+   304→   759→                </div>
+   305→   760→              )}
+   306→   761→
+   307→   762→              {typeof detail.reviewRating === 'number' && detail.reviewRating != null && (
+   308→   763→                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+   309→   764→                  <p className="text-sm font-medium text-amber-600">
+   310→   765→                    {'★'.repeat(detail.reviewRating)}
+   311→   766→                    {'☆'.repeat(5 - detail.reviewRating)}
+   312→   767→                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">Khách đánh giá {detail.reviewRating}/5</span>
+   313→   768→                  </p>
+   314→   769→                  {detail.reviewComment && <p className="mt-1 text-sm text-muted-foreground">“{detail.reviewComment}”</p>}
+   315→   770→                </div>
+   316→   771→              )}
+   317→   772→
+   318→   773→              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+   319→   774→                <div className="flex flex-wrap items-center gap-2">
+   320→   775→                  <span className="text-sm text-muted-foreground">Cập nhật trạng thái</span>
+   321→   776→                  <Select
+   322→   777→                    value={statusChoice}
+   323→   778→                    onValueChange={handleStatusSelect}
+   324→   779→                    disabled={updatingStatus || nextStatuses.length === 0}
+   325→   780→                  >
+   326→   781→                    <SelectTrigger className="w-[190px]">
+   327→   782→                      <SelectValue
+   328→   783→                        placeholder={nextStatuses.length === 0 ? 'Không thể cập nhật' : 'Chọn trạng thái'}
+   329→   784→                      />
+   330→   785→                    </SelectTrigger>
+   331→   786→                    <SelectContent>
+   332→   787→                      {nextStatuses.map((s) => (
+   333→   788→                        <SelectItem key={s} value={s}>
+   334→   789→                          {ORDER_STATUS_LABELS[s] ?? s}
+   335→   790→                        </SelectItem>
+   336→   791→                      ))}
+   337→   792→                    </SelectContent>
+   338→   793→                  </Select>
+   339→   794→                </div>
+   340→   795→                {detail.paymentStatus === 'UNPAID' && (
+   341→   796→                  <Button onClick={() => void handleMarkPaid()} disabled={markingPaid}>
+   342→   797→                    {markingPaid ? (
+   343→   798→                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+   344→   799→                    ) : (
+   345→   800→                      <Wallet className="mr-1.5 h-4 w-4" />
+   346→   801→                    )}
+   347→   802→                    Đánh dấu đã thanh toán
+   348→   803→                  </Button>
+   349→   804→                )}
+   350→   805→              </div>
+   351→   806→            </div>
+   352→   807→          ) : null}
+   353→   808→        </DialogContent>
+   354→   809→      </Dialog>
+   355→   810→
+   356→   811→      {/* Dialog xác nhận hủy đơn (cảnh báo hoàn kho) */}
+   357→   812→      <ConfirmDialog
+   358→   813→        open={confirmCancelOpen}
+   359→   814→        onOpenChange={(open) => {
+   360→   815→          setConfirmCancelOpen(open)
+   361→   816→          if (!open) setStatusChoice('')
+   362→   817→        }}
+   363→   818→        title={`Hủy đơn hàng ${detail?.code ?? ''}?`}
+   364→   819→        description="Đơn hàng sẽ chuyển sang trạng thái Đã hủy và số lượng sản phẩm trong đơn sẽ được hoàn lại vào kho. Hành động này không thể hoàn tác."
+   365→   820→        confirmText="Xác nhận hủy đơn"
+   366→   821→        destructive
+   367→   822→        loading={updatingStatus}
+   368→   823→        onConfirm={handleConfirmCancel}
+   369→   824→      />
+   370→   825→
+   371→   826→      {/* Dialog tạo đơn hàng */}
+   372→   827→      <Dialog
+   373→   828→        open={createOpen}
+   374→   829→        onOpenChange={(open) => {
+   375→   830→          if (!submitting) setCreateOpen(open)
+   376→   831→        }}
+   377→   832→      >
+   378→   833→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   379→   834→          <DialogHeader>
+   380→   835→            <DialogTitle>Tạo đơn hàng</DialogTitle>
+   381→   836→            <DialogDescription>
+   382→   837→              Tạo đơn thủ công (POS) — tổng tiền được hệ thống tự tính theo giá hiện tại.
+   383→   838→            </DialogDescription>
+   384→   839→          </DialogHeader>
+   385→   840→
+   386→   841→          <div className="space-y-4 py-1">
+   387→   842→            <div className="space-y-1.5">
+   388→   843→              <Label>
+   389→   844→                Kênh bán <span className="text-destructive">*</span>
+   390→   845→              </Label>
+   391→   846→              <Select
+   392→   847→                value={createForm.channelId}
+   393→   848→                onValueChange={(v) => setCreateForm((f) => ({ ...f, channelId: v }))}
+   394→   849→              >
+   395→   850→                <SelectTrigger className="w-full">
+   396→   851→                  <SelectValue placeholder="Chọn kênh bán" />
+   397→   852→                </SelectTrigger>
+   398→   853→                <SelectContent>
+   399→   854→                  {connectedChannels.length === 0 ? (
+   400→   855→                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+   401→   856→                      Không có kênh nào đã kết nối
+   402→   857→                    </div>
+   403→   858→                  ) : (
+   404→   859→                    connectedChannels.map((c) => (
+   405→   860→                      <SelectItem key={c.id} value={c.id}>
+   406→   861→                        <span className="inline-flex items-center gap-2">
+   407→   862→                          <span
+   408→   863→                            className="h-2.5 w-2.5 rounded-full"
+   409→   864→                            style={{ backgroundColor: c.color }}
+   410→   865→                          />
+   411→   866→                          {c.name}
+   412→   867→                        </span>
+   413→   868→                      </SelectItem>
+   414→   869→                    ))
+   415→   870→                  )}
+   416→   871→                </SelectContent>
+   417→   872→              </Select>
+   418→   873→              {connectedChannels.length === 0 && (
+   419→   874→                <p className="text-xs text-destructive">Chưa có kênh bán nào được kết nối.</p>
+   420→   875→              )}
+   421→   876→            </div>
+   422→   877→
+   423→   878→            <div className="grid gap-3 sm:grid-cols-2">
+   424→   879→              <div className="space-y-1.5">
+   425→   880→                <Label htmlFor="order-customer-name">
+   426→   881→                  Tên khách hàng <span className="text-destructive">*</span>
+   427→   882→                </Label>
+   428→   883→                <Input
+   429→   884→                  id="order-customer-name"
+   430→   885→                  value={createForm.customerName}
+   431→   886→                  onChange={(e) => setCreateForm((f) => ({ ...f, customerName: e.target.value }))}
+   432→   887→                  placeholder="VD: Nguyễn Văn A"
+   433→   888→                />
+   434→   889→              </div>
+   435→   890→              <div className="space-y-1.5">
+   436→   891→                <Label htmlFor="order-customer-phone">Số điện thoại</Label>
+   437→   892→                <Input
+   438→   893→                  id="order-customer-phone"
+   439→   894→                  value={createForm.customerPhone}
+   440→   895→                  onChange={(e) => setCreateForm((f) => ({ ...f, customerPhone: e.target.value }))}
+   441→   896→                  placeholder="VD: 0901234567"
+   442→   897→                />
+   443→   898→              </div>
+   444→   899→              <div className="space-y-1.5 sm:col-span-2">
+   445→   900→                <Label htmlFor="order-address">Địa chỉ giao hàng</Label>
+   446→   901→                <Input
+   447→   902→                  id="order-address"
+   448→   903→                  value={createForm.address}
+   449→   904→                  onChange={(e) => setCreateForm((f) => ({ ...f, address: e.target.value }))}
+   450→   905→                  placeholder="Số nhà, đường, phường/xã, tỉnh/thành phố"
+   451→   906→                />
+   452→   907→              </div>
+   453→   908→            </div>
+   454→   909→
+   455→   910→            <div className="grid gap-3 sm:grid-cols-2">
+   456→   911→              <div className="space-y-1.5">
+   457→   912→                <Label>Phương thức thanh toán</Label>
+   458→   913→                <Select
+   459→   914→                  value={createForm.paymentMethod}
+   460→   915→                  onValueChange={(v) => setCreateForm((f) => ({ ...f, paymentMethod: v }))}
+   461→   916→                >
+   462→   917→                  <SelectTrigger className="w-full">
+   463→   918→                    <SelectValue placeholder="Chọn phương thức" />
+   464→   919→                  </SelectTrigger>
+   465→   920→                  <SelectContent>
+   466→   921→                    {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => (
+   467→   922→                      <SelectItem key={key} value={key}>
+   468→   923→                        {label}
+   469→   924→                      </SelectItem>
+   470→   925→                    ))}
+   471→   926→                  </SelectContent>
+   472→   927→                </Select>
+   473→   928→              </div>
+   474→   929→              <div className="space-y-1.5">
+   475→   930→                <Label htmlFor="order-note">Ghi chú</Label>
+   476→   931→                <Textarea
+   477→   932→                  id="order-note"
+   478→   933→                  rows={1}
+   479→   934→                  value={createForm.note}
+   480→   935→                  onChange={(e) => setCreateForm((f) => ({ ...f, note: e.target.value }))}
+   481→   936→                  placeholder="Ghi chú cho đơn hàng..."
+   482→   937→                />
+   483→   938→              </div>
+   484→   939→            </div>
+   485→   940→
+   486→   941→            <Separator />
+   487→   942→
+   488→   943→            <div className="space-y-2">
+   489→   944→              <Label>Chọn sản phẩm</Label>
+   490→   945→              <div className="flex flex-col gap-2 sm:flex-row">
+   491→   946→                <div className="relative flex-1">
+   492→   947→                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   493→   948→                  <Input
+   494→   949→                    value={productSearch}
+   495→   950→                    onChange={(e) => setProductSearch(e.target.value)}
+   496→   951→                    placeholder="Tìm sản phẩm..."
+   497→   952→                    className="pl-8"
+   498→   953→                    aria-label="Tìm sản phẩm để thêm vào đơn"
+   499→   954→                  />
+   500→   955→                </div>
+   501→   956→                <Select
+   502→   957→                  value={selectedProductId}
+   503→   958→                  onValueChange={setSelectedProductId}
+   504→   959→                  disabled={createLoadingProducts}
+   505→   960→                >
+   506→   961→                  <SelectTrigger className="w-full sm:w-[240px]">
+   507→   962→                    <SelectValue
+   508→   963→                      placeholder={createLoadingProducts ? 'Đang tải...' : 'Chọn sản phẩm'}
+   509→   964→                    />
+   510→   965→                  </SelectTrigger>
+   511→   966→                  <SelectContent>
+   512→   967→                    {filteredCreateProducts.length === 0 ? (
+   513→   968→                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+   514→   969→                        Không có sản phẩm phù hợp
+   515→   970→                      </div>
+   516→   971→                    ) : (
+   517→   972→                      filteredCreateProducts.map((p) => (
+   518→   973→                        <SelectItem key={p.id} value={p.id}>
+   519→   974→                          {p.name} · Tồn {p.stock}
+   520→   975→                        </SelectItem>
+   521→   976→                      ))
+   522→   977→                    )}
+   523→   978→                  </SelectContent>
+   524→   979→                </Select>
+   525→   980→                <Input
+   526→   981→                  type="number"
+   527→   982→                  min={1}
+   528→   983→                  step={1}
+   529→   984→                  className="w-full sm:w-20"
+   530→   985→                  value={selectedQty}
+   531→   986→                  onChange={(e) => setSelectedQty(e.target.value)}
+   532→   987→                  aria-label="Số lượng"
+   533→   988→                />
+   534→   989→                <Button variant="secondary" onClick={handleAddItem}>
+   535→   990→                  <Plus className="mr-1 h-4 w-4" /> Thêm
+   536→   991→                </Button>
+   537→   992→              </div>
+   538→   993→            </div>
+   539→   994→
+   540→   995→            <div className="space-y-2">
+   541→   996→              <Label>Sản phẩm trong đơn</Label>
+   542→   997→              {items.length === 0 ? (
+   543→   998→                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+   544→   999→                  Chưa có sản phẩm nào. Chọn sản phẩm bên trên rồi bấm &quot;Thêm&quot;.
+   545→  1000→                </p>
+   546→  1001→              ) : (
+   547→  1002→                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+   548→  1003→                  {items.map((item) => (
+   549→  1004→                    <div key={item.productId} className="flex items-center gap-2 rounded-lg border p-2">
+   550→  1005→                      <div className="min-w-0 flex-1">
+   551→  1006→                        <p className="truncate text-sm font-medium">{item.name}</p>
+   552→  1007→                        <p className="text-xs text-muted-foreground">
+   553→  1008→                          {formatVND(item.price)} · {item.sku}
+   554→  1009→                        </p>
+   555→  1010→                      </div>
+   556→  1011→                      <div className="flex items-center gap-1">
+   557→  1012→                        <Button
+   558→  1013→                          variant="outline"
+   559→  1014→                          size="icon"
+   560→  1015→                          className="h-7 w-7"
+   561→  1016→                          onClick={() => changeItemQty(item.productId, -1)}
+   562→  1017→                          disabled={item.quantity <= 1}
+   563→  1018→                          aria-label="Giảm số lượng"
+   564→  1019→                        >
+   565→  1020→                          <Minus className="h-3.5 w-3.5" />
+   566→  1021→                        </Button>
+   567→  1022→                        <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+   568→  1023→                        <Button
+   569→  1024→                          variant="outline"
+   570→  1025→                          size="icon"
+   571→  1026→                          className="h-7 w-7"
+   572→  1027→                          onClick={() => changeItemQty(item.productId, 1)}
+   573→  1028→                          aria-label="Tăng số lượng"
+   574→  1029→                        >
+   575→  1030→                          <Plus className="h-3.5 w-3.5" />
+   576→  1031→                        </Button>
+   577→  1032→                      </div>
+   578→  1033→                      <span className="w-24 text-right text-sm font-semibold">
+   579→  1034→                        {formatVND(item.price * item.quantity)}
+   580→  1035→                      </span>
+   581→  1036→                      <Button
+   582→  1037→                        variant="ghost"
+   583→  1038→                        size="icon"
+   584→  1039→                        className="h-7 w-7 text-destructive hover:text-destructive"
+   585→  1040→                        onClick={() => removeItem(item.productId)}
+   586→  1041→                        aria-label="Xóa sản phẩm khỏi đơn"
+   587→  1042→                      >
+   588→  1043→                        <Trash2 className="h-3.5 w-3.5" />
+   589→  1044→                      </Button>
+   590→  1045→                    </div>
+   591→  1046→                  ))}
+   592→  1047→                </div>
+   593→  1048→              )}
+   594→  1049→            </div>
+   595→  1050→          </div>
+   596→  1051→
+   597→  1052→          <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
+   598→  1053→            <p className="text-sm">
+   599→  1054→              Tạm tính:{' '}
+   600→  1055→              <span className="text-base font-semibold text-primary">{formatVND(createTotal)}</span>
+   601→  1056→            </p>
+   602→  1057→            <div className="flex gap-2">
+   603→  1058→              <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={submitting}>
+   604→  1059→                Hủy
+   605→  1060→              </Button>
+   606→  1061→              <Button onClick={() => void submitCreate()} disabled={submitting}>
+   607→  1062→                {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   608→  1063→                <ShoppingCart className="mr-1.5 h-4 w-4" />
+   609→  1064→                Tạo đơn hàng
+   610→  1065→              </Button>
+   611→  1066→            </div>
+   612→  1067→          </DialogFooter>
+   613→  1068→        </DialogContent>
+   614→  1069→      </Dialog>
+   615→  1070→    </div>
+   616→  1071→  )
+   617→  1072→}
+   618→  1073→

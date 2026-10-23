@@ -25,6 +25,7 @@ import {
   zaloKeyOf,
 } from '@/lib/agents'
 import { logActivity, logEvent, sendZalo } from '@/lib/agent-log'
+import { logLedgerAsync } from '@/lib/ledger'
 
 const g = globalThis as unknown as {
   __cmsEngineTimer?: ReturnType<typeof setInterval>
@@ -184,6 +185,16 @@ async function dispatchCarrier(orderId: string) {
       message: `Đóng gói xong → tự động báo ${carrier.name} lấy hàng đơn ${order.code}. Mã vận đơn: ${tracking}`,
       detail: notice,
     })
+    logLedgerAsync({
+      scope: 'AGENT',
+      action: 'NOTIFY_CARRIER',
+      entityType: 'Order',
+      entityId: order.id,
+      entityCode: order.code,
+      title: `Báo ${carrier.name} lấy hàng đơn ${order.code} — mã ${tracking}`,
+      detail: { carrier: carrier.key, trackingCode: tracking },
+      actor: 'AGENT',
+    })
     broadcast('shipment.updated', { id: shipment.id, orderId: order.id, status: 'DISPATCHED', code: order.code })
   })
 }
@@ -257,6 +268,16 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         targetLabel: order.code,
         message: `Giao thành công đơn ${order.code} qua ${carrierName(shipment.carrier)} — hoàn tất vòng đời đơn hàng`,
       })
+      logLedgerAsync({
+        scope: 'AGENT',
+        action: 'DELIVERY_NOTICE',
+        entityType: 'Order',
+        entityId: order.id,
+        entityCode: order.code,
+        title: `Giao thành công đơn ${order.code} qua ${carrierName(shipment.carrier)}`,
+        detail: { carrier: shipment.carrier, shipmentStatus: next },
+        actor: 'AGENT',
+      })
     }
     broadcast('shipment.updated', { id: shipment.id, orderId: order.id, status: next, code: order.code })
     broadcast('order.updated', { id: order.id, status: next === 'DELIVERED' ? 'COMPLETED' : 'SHIPPING', code: order.code })
@@ -298,6 +319,15 @@ async function agentCare(orderId: string) {
       message: `Giao hàng xong → nhắn cảm ơn & hỏi thăm ${order.customer.name} (đơn ${order.code})`,
       detail: content,
     })
+    logLedgerAsync({
+      scope: 'AGENT',
+      action: 'CARE_MESSAGE',
+      entityType: 'Order',
+      entityId: order.id,
+      entityCode: order.code,
+      title: `Gửi tin cảm ơn khách sau giao đơn ${order.code}`,
+      actor: 'AGENT',
+    })
   })
 }
 
@@ -337,6 +367,15 @@ async function requestReview(orderId: string) {
       targetLabel: order.code,
       message: `Gửi yêu cầu đánh giá cho khách ${order.customer.name} (đơn ${order.code})`,
       detail: content,
+    })
+    logLedgerAsync({
+      scope: 'AGENT',
+      action: 'REQUEST_REVIEW',
+      entityType: 'Order',
+      entityId: order.id,
+      entityCode: order.code,
+      title: `Xin đánh giá đơn ${order.code} từ ${order.customer.name}`,
+      actor: 'AGENT',
     })
   })
 }
@@ -420,6 +459,24 @@ async function autoReply(customerId: string, channelKey: string) {
       content,
       agentName: AGENTS.SUPPORT_AGENT.name,
       relatedOrderId: last.relatedOrderId,
+    })
+    logLedgerAsync({
+      scope: 'AGENT',
+      action: 'AUTO_REPLY',
+      entityType: 'Customer',
+      entityId: customerId,
+      title: `Tự động trả lời tin nhắn của ${customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
+      actor: 'AGENT',
+    })
+    logLedgerAsync({
+      scope: 'MESSAGE',
+      action: 'AGENT_REPLY',
+      entityType: 'DirectMessage',
+      entityId: last.relatedOrderId ?? customerId,
+      entityCode: channelKey,
+      title: `Agent phản hồi tin nhắn ${customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
+      detail: { channelKey, relatedOrderId: last.relatedOrderId ?? null },
+      actor: 'AGENT',
     })
     await logActivity({
       agent: 'SUPPORT_AGENT',
