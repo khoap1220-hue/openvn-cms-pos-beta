@@ -620,3 +620,25 @@ Stage Summary:
 - Quy tắc điểm: chỉ đơn hoàn tất sau khi là thành viên mới được tính điểm (điểm tại thời điểm COMPLETED); 1 đơn chỉ cộng 1 lần (Sổ Data là nguồn sự thật)
 - Dữ liệu demo: 2 thành viên sống — TV0001 Lê Thị Hồng Nhung (40 điểm, MEMBER 37%), TV0002 Vũ Ngọc Linh (Hạng Vàng, 0 điểm, cần 618k nữa lên Kim cương)
 - Lưu ý cho task sau: hợp đồng mới — GET /api/customers trả {customers, stats}; GET /api/customers/[id] trả {customer, orders}; POST [id]/member & [id]/points {mode, points, note}; MemberTierInfo không chứa class UI — tra TIER_BY_KEY từ MEMBER_TIERS; Radix Select trong ledger-view cần pointer events thật (CLI click trên option ref hoặc dispatch PointerEvent) — JS .click() trần không ăn
+
+---
+Task ID: 22
+Agent: main (Z.ai Code)
+Task: Dọn tab Tồn kho — xóa SP demo cũ (non-UD), test cảnh báo tồn thấp bằng SP UD thật, tính lại chuỗi "Tồn sau" theo trình tự thời gian
+
+Work Log:
+- Khảo sát DB: 44 SP (32 non-UD demo: thời trang/mỹ phẩm/giày/vải liệu), tham chiếu non-UD: OrderItem=0, StockMovement=0, ChannelListing=0, SalesInvoiceItem=4 (PXK261023-0001, PXK261024-0001/0002/0004 — mỗi HĐ 1 dòng), PurchaseInvoiceItem=2 (PMM261023-0001/0002), BomComponent=1 (AO-NU-001 × VLT-LUA-001)
+- Chẩn đoán gốc rễ "Tồn sau" bị kẹt cột: movement "Nhập tồn đầu kỳ" (seed 10-24 08:57) có createdAt MUỘN hơn các movement xuất kho đơn hàng (09-23→10-23, sinh khi migrate đơn sang SP UD) và toàn bộ stockAfter bị gắn cứng = tồn hiện tại
+- Viết scripts/cleanup-demo-and-recalc.ts (idempotent, có verify + assert):
+  P1: Điều chỉnh kiểm kê UD-QT-002 12→6, UD-QT-001 15→8 (movement ADJUST + LedgerEntry STOCK_ADJUST, actor OPERATOR)
+  P2: Trỏ 6 dòng hàng hóa đơn demo → SP UD thật kèm giá thực + tính lại subtotal/VAT/total: PXK261023-0001→UD-QT-001@450k, PXK261024-0001→UD-SAP-002@95k, PXK261024-0002→UD-SAP-001@85k, PXK261024-0004→UD-DEN-001@189k, PMM261023-0001→UD-TRA-001×3@195k, PMM261023-0002→UD-SAP-001×10@52k (+LedgerEntry *_INVOICE_REPOINTED)
+  P3: Xóa 32 SP demo non-UD (cascade BOM/listing/movement) + 6 danh mục trống (Thời trang nữ/nam, Phụ kiện, Mỹ phẩm, Giày dép, Nhà cửa) (+LedgerEntry PRODUCT_CATALOG_CLEANED)
+  P4: Tính lại chuỗi 11 SP SIMPLE UD: đẩy "Nhập tồn đầu kỳ" về trước biến động sớm nhất 24h, hiệu chỉnh SL đầu kỳ = tồn hiện tại − Σ(biến động khác), đi tuần thời gian ghi stockAfter → 211 dòng cập nhật, assert chuỗi kết thúc đúng tồn thực tế từng SP (+LedgerEntry STOCK_CHAIN_RECALCULATED)
+- Fix trong quá trình chạy: so sánh productId vs SKU (resolve SKU→id), guard idempotent Phase 2, dọn 6 LedgerEntry sai do lần chạy đầu (bản ghi trỏ hóa đơn no-op) — giữ bản ghi đúng mới nhất
+- Xác minh: bun scripts/verify-chain.ts (assert chuỗi 0 vi phạm); API lowstock trả đúng UD-QT-002(6/10)+UD-QT-001(8/10); browser: Tồn kho (cảnh báo 2 SP UD, 60 dòng lịch sử Tồn sau chạy đúng chuỗi từ ADJUST -6→6/-7→8 xuống bản 19-10 vẫn biến thiên), Sản phẩm (12 SP, 0 tên demo, còn combo), Xuất hàng (HĐ render giá UD mới: 189k/85k/95k), Nhập hàng (520k/585k), Sổ Data (5 nhóm entry mới hiển thị), Bảng điều khiển (KPI VAT 129k/4 HĐ), Tổng quan (Sắp hết hàng: 2, top SP toàn UD), dialog "Nhập thêm" prefill đúng SP + hint động "Tồn hiện tại: 6 → sau thao tác: 16", mobile 390px footer đẩy tự nhiên; lint sạch, tsc sạch (scripts/), dev.log không lỗi runtime
+
+Stage Summary:
+- Tab Tồn kho sạch 100% ngữ cảnh Ưu Đàm: 0 SP demo cũ, cảnh báo tồn thấp test được bằng UD-QT-002 (6/10) & UD-QT-001 (8/10)
+- Lịch sử biến động kho 238 dòng nhất quán toán học: 0 → nhập đầu kỳ → xuất/nhập/combo → đúng bằng tồn thực tế từng SP; cột "Tồn sau" không còn kẹt giá trị
+- Toàn bộ thao tác có vết Sổ Data (STOCK_ADJUST ×2, *_INVOICE_REPOINTED ×6, PRODUCT_CATALOG_CLEANED, STOCK_CHAIN_RECALCULATED); 6 hóa đơn mua/bán demo chuyển sang hàng UD thật kèm tổng tiền tính lại
+- Công cụ lưu lại: scripts/cleanup-demo-and-recalc.ts (idempotent), scripts/verify-chain.ts (assert chuỗi kho)
