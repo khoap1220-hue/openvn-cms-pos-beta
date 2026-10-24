@@ -78,6 +78,7 @@ interface ProductFormState {
   description: string
   categoryId: string
   barcode: string
+  image: string
   costPrice: string
   sellPrice: string
   stock: string
@@ -92,6 +93,7 @@ const EMPTY_FORM: ProductFormState = {
   description: '',
   categoryId: 'NONE',
   barcode: '',
+  image: '',
   costPrice: '',
   sellPrice: '',
   stock: '0',
@@ -219,6 +221,7 @@ export function ProductsView() {
       description: p.description ?? '',
       categoryId: p.categoryId ?? 'NONE',
       barcode: p.barcode ?? '',
+      image: p.image ?? '',
       costPrice: String(p.costPrice),
       sellPrice: String(p.sellPrice),
       stock: String(p.stock),
@@ -259,6 +262,7 @@ export function ProductsView() {
         description: form.description.trim(),
         categoryId: form.categoryId === 'NONE' ? null : form.categoryId,
         barcode: form.barcode.trim(),
+        image: form.image.trim(),
         costPrice: Number(form.costPrice) || 0,
         sellPrice: Number(form.sellPrice) || 0,
         lowStockThreshold: Number(form.lowStockThreshold) || 0,
@@ -427,7 +431,7 @@ export function ProductsView() {
                   <TableRow key={p.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <ProductAvatar name={p.name} />
+                        <ProductAvatar name={p.name} image={p.image} />
                         <div className="min-w-0">
                           <p className="max-w-[220px] truncate font-medium">{p.name}</p>
                           <p className="text-xs text-muted-foreground">{p.sku}</p>
@@ -627,6 +631,23 @@ export function ProductsView() {
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="Mô tả ngắn về sản phẩm..."
               />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="product-image">Ảnh sản phẩm (URL)</Label>
+              <div className="flex items-center gap-3">
+                <ProductAvatar name={form.name || '?'} image={form.image.trim() || null} className="h-12 w-12" />
+                <Input
+                  id="product-image"
+                  value={form.image}
+                  onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+                  placeholder="https://... (dán link ảnh Shopee/web)"
+                  maxLength={500}
+                  className="flex-1"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Dán link ảnh http(s) — hiển thị trong danh sách Kho hàng. Bỏ trống sẽ hiện chữ cái đầu.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Danh mục</Label>

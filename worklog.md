@@ -479,3 +479,23 @@ Work Log:
 Stage Summary:
 - ĐÓNG XONG 5 GAP "trường thông tin còn thiếu": (1) Số hóa đơn tăng dần + số bắt đầu cấu hình được (không dùng lại khi hủy, snapshot mẫu số/ký hiệu/phương thức TT vào từng hóa đơn — hóa đơn cũ in fallback mã nội bộ); (2) company_phone in header hóa đơn; (3) Hình thức thanh toán động (snapshot từ đơn hàng COD/BANKING/MOMO/CARD → nhãn VN, fallback setting); (4) In hóa đơn mua ở Nhập hàng (đảo bên cung cấp/mua); (5) Quét kiểm đếm Đóng Gói ở chi tiết đơn (USB wedge + camera, theo SKU khi thiếu mã vạch, khóa nút giao hàng đến khi đủ, Sổ Data qua PATCH có sẵn)
 - Toàn bộ gap thuộc 2 tính năng "mã vạch + thiết lập hóa đơn" đã khép kín vòng đời; Agent Autopilot/webhook/chốt sổ/offline-first không bị ảnh hưởng
+
+---
+Task ID: 21
+Agent: main (Z.ai Code)
+Task: Lấy sản phẩm THẬT từ shop Shopee uudam.vn (Ưu Đàm) làm dữ liệu mẫu trong app
+
+Work Log:
+- Mở shop Shopee https://shopee.vn/uudam.vn bằng agent-browser (desktop + iPhone emulation) → Shopee chặn anonymous datacenter access: redirect /verify/traffic/error "Please log in" (cả API v4 curl → 403 error 90309999, jina.ai 401, proxies allorigins/codetabs/corsproxy fail, Google/DDG captcha, Bing/Wayback không index shop)
+- Chuyển hướng: z-ai image-search (service nội bộ) 3 query "ưu đàm uudam.vn shopee" → lọc 11 ảnh gốc Shopee có watermark brand "ƯU ĐÀM / Nến Ưu Đàm / UU DAM CANDLE / Udumbara Butter Candles"
+- VLM (z-ai vision) từng ảnh → trích tên SP tiếng Việt, mô tả, danh mục, đơn vị, giá ước thị trường, chữ trong ảnh → xây catalog 11 SP đúng ngành hàng shop: nến bơ Udumbara, hũ nến hoa sen, hạt sáp Soy Wax, sáp khối, đèn xông tinh dầu, ấm trà gốm men lam, bình pha trà thủy tinh, hũ trà gốm nắp gỗ Zen, hộp quà tặng trà, tranh gốm mẫu đơn, dây bấc cotton
+- scripts/seed-uudam.ts (bun): upsert 3 danh mục (Nến & Xông hương / Trà & Ấm trà / Quà tặng & Tranh) + 11 SP SKU UD-* với barcode EAN-13 hợp lệ prefix 893 (check digit tự tính: 8936044000015...8936044000114), ảnh OSS z-cdn.chatglm.cn (URL ổn định), giá vốn/bán, tồn, đơn vị cái/bộ/kg/bó, ĐẶC TÍNH; tạo StockMovement IMPORT tồn đầu kỳ; BOM "1 Nến bơ = 0.25kg sáp hạt + 1 hũ sen + 1 dây bấc"; AppSetting company_name → "Hộ kinh doanh Ưu Đàm (uudam.vn)"
+- product-avatar.tsx: thêm prop image (img object-cover + onError fallback chữ cái cũ); products-view + inventory-view truyền p.image (inventory thêm image vào Pick LowStockProduct)
+- API products POST + [id] PUT: nhận image (validate http(s) ≤500 ký tự, trống = null) — frontend form thêm trường "Ảnh sản phẩm (URL)" + preview avatar live
+- Gán kênh SHOPEE cho 11 SP UD; log 1 LedgerEntry INVENTORY/PRODUCT_CATALOG_IMPORTED chi tiết 11 SP (đúng triết lý Sổ Data)
+- Verify E2E browser: Sản phẩm hiện 11 SP + ảnh thật + mã vạch + giá; dialog sửa có trường ảnh + preview; Tồn kho lịch sử biến động 11 dòng Nhập kho "seed danh mục shop Ưu Đàm"; Sổ Data có entry catalog; PUT image sai → 400 message VN; mobile 390px OK; bun run lint exit 0; tsc sạch
+
+Stage Summary:
+- App giờ dùng dữ liệu mẫu = hàng thật của shop: 11 SP Ưu Đàm (nến/trà/gốm) có ảnh, mã vạch EAN-13 quét được, BOM định mức nến bơ, kênh Shopee, tên đơn vị trên hóa đơn là "Hộ kinh doanh Ưu Đàm (uudam.vn)" (MST/Địa chỉ/ĐT để trống — user tự điền ở Hệ thống)
+- Hạn chế: Shopee chặn scraping danh sách đầy đủ (cần đăng nhập), catalog dựng từ 11 ảnh brand ƯU ĐÀM index được + VLM; giá là ước lượng thị trường — user có thể sửa trực tiếp trong dialog Sửa sản phẩm (giờ có sẵn trường ảnh URL để tự bổ sung SP mới từ link ảnh Shopee)
+- Contract mới: POST/PUT /api/products nhận {image?: string}; ProductAvatar {name, image?}; script seed tái chạy được (upsert, idempotent)

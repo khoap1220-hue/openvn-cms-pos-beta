@@ -52,7 +52,7 @@ import { BarcodeScanner } from '@/components/cms/barcode-scanner'
 
 type LowStockProduct = Pick<
   Product,
-  'id' | 'sku' | 'name' | 'stock' | 'lowStockThreshold' | 'sellPrice'
+  'id' | 'sku' | 'name' | 'stock' | 'lowStockThreshold' | 'sellPrice' | 'image'
 >
 
 /** Product của lib/types chưa có barcode — mở rộng cục bộ cho đến khi lib cập nhật */
@@ -275,7 +275,7 @@ export function InventoryView() {
             <div className="max-h-96 divide-y overflow-y-auto">
               {lowStock.map((p) => (
                 <div key={p.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <ProductAvatar name={p.name} className="h-9 w-9" />
+                  <ProductAvatar name={p.name} image={p.image} className="h-9 w-9" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{p.name}</p>
                     <p className="font-mono text-xs text-muted-foreground">{p.sku}</p>

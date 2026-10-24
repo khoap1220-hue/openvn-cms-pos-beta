@@ -74,6 +74,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ẢNH SẢN PHẨM: URL http(s) ≤ 500 ký tự (trống = không có ảnh)
+    let imageInput: string | null = null
+    if (typeof body.image === 'string' && body.image.trim()) {
+      const img = body.image.trim()
+      if (img.length > 500 || !/^https?:\/\//i.test(img)) {
+        return NextResponse.json({ error: 'Ảnh sản phẩm phải là URL http(s) hợp lệ (tối đa 500 ký tự)' }, { status: 400 })
+      }
+      imageInput = img
+    }
+
     const initialStock = Number(stock) || 0
     const product = await db.product.create({
       data: {
@@ -87,6 +97,7 @@ export async function POST(req: NextRequest) {
         stock: initialStock,
         lowStockThreshold: Number(lowStockThreshold) || 5,
         status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+        image: imageInput,
       },
     })
 

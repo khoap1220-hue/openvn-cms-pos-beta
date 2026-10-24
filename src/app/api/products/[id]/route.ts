@@ -59,6 +59,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    // ẢNH SẢN PHẨM: URL http(s) ≤ 500 ký tự (trống = xóa ảnh)
+    let imageInput: string | null | undefined
+    if (body.image !== undefined) {
+      if (typeof body.image === 'string' && body.image.trim()) {
+        const img = body.image.trim()
+        if (img.length > 500 || !/^https?:\/\//i.test(img)) {
+          return NextResponse.json({ error: 'Ảnh sản phẩm phải là URL http(s) hợp lệ (tối đa 500 ký tự)' }, { status: 400 })
+        }
+        imageInput = img
+      } else {
+        imageInput = null
+      }
+    }
+
     const product = await db.product.update({
       where: { id },
       data: {
@@ -73,6 +87,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(sellPrice !== undefined ? { sellPrice: Number(sellPrice) } : {}),
         ...(lowStockThreshold !== undefined ? { lowStockThreshold: Number(lowStockThreshold) || 5 } : {}),
         ...(status !== undefined ? { status } : {}),
+        ...(imageInput !== undefined ? { image: imageInput } : {}),
       },
     })
 
