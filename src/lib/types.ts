@@ -68,11 +68,72 @@ export interface Customer {
   email: string | null
   address: string | null
   createdAt: string
+  /** false = Khách hàng · true = Thành viên (đã đăng ký chương trình thân thiết) */
+  isMember?: boolean
+  /** MÃ THÀNH VIÊN (TV0001...) — chỉ có khi isMember */
+  memberCode?: string | null
+  memberAt?: string | null
+  /** điểm tích lũy hiện có: 1 điểm / 10.000đ đơn hoàn tất */
+  points?: number
+  /** hạng thành viên tính từ tổng chi tiêu (server trả về) */
+  tier?: MemberTierInfo
   stats?: {
     orderCount: number
     totalSpent: number
     lastOrderAt: string | null
   }
+}
+
+// ===== Thành viên & Tích điểm (Khách hàng ⇒ Thành viên) =====
+
+export interface MemberTier {
+  key: 'MEMBER' | 'SILVER' | 'GOLD' | 'DIAMOND'
+  label: string
+  /** ngưỡng tổng chi tiêu tích lũy (đ, từ đơn không hủy) để đạt hạng */
+  threshold: number
+  /** class Badge (outline) cho hạng */
+  badge: string
+  /** màu thanh tiến độ tới hạng kế */
+  bar: string
+}
+
+/** Hạng theo tổng chi tiêu — thấp → cao */
+export const MEMBER_TIERS: MemberTier[] = [
+  { key: 'MEMBER', label: 'Thành viên mới', threshold: 0, badge: 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-900 dark:text-stone-300 dark:border-stone-800', bar: 'bg-stone-400' },
+  { key: 'SILVER', label: 'Hạng Bạc', threshold: 1_000_000, badge: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800', bar: 'bg-slate-400' },
+  { key: 'GOLD', label: 'Hạng Vàng', threshold: 3_000_000, badge: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-900', bar: 'bg-amber-500' },
+  { key: 'DIAMOND', label: 'Hạng Kim cương', threshold: 6_000_000, badge: 'bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-900', bar: 'bg-violet-500' },
+]
+
+export const POINTS_VND_RATE = 10_000 // 1 điểm / 10.000đ giá trị đơn hoàn tất
+
+/** Tính điểm tích lũy cho 1 đơn hoàn tất */
+export function pointsForTotal(total: number): number {
+  return Math.max(0, Math.floor(total / POINTS_VND_RATE))
+}
+
+export interface MemberTierInfo {
+  key: MemberTier['key']
+  label: string
+  threshold: number
+  /** hạng kế tiếp (null nếu đã cao nhất) */
+  nextKey?: string
+  nextLabel?: string
+  nextThreshold?: number
+  /** % tiến độ từ ngưỡng hạng hiện tại tới hạng kế (100 nếu cao nhất) */
+  progressPct?: number
+}
+
+/** Xác định hạng thành viên theo tổng chi tiêu tích lũy */
+export function computeTier(totalSpent: number): MemberTierInfo {
+  const sorted = [...MEMBER_TIERS].sort((a, b) => a.threshold - b.threshold)
+  let current = sorted[0]
+  for (const t of sorted) if (totalSpent >= t.threshold) current = t
+  const next = sorted.find((t) => t.threshold > current.threshold)
+  if (!next) return { key: current.key, label: current.label, threshold: current.threshold, progressPct: 100 }
+  const span = next.threshold - current.threshold
+  const progressPct = Math.max(0, Math.min(100, Math.round(((totalSpent - current.threshold) / span) * 100)))
+  return { key: current.key, label: current.label, threshold: current.threshold, nextKey: next.key, nextLabel: next.label, nextThreshold: next.threshold, progressPct }
 }
 
 export interface OrderItem {

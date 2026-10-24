@@ -71,14 +71,18 @@ model ChannelListing {
 }
 
 model Customer {
-  id        String          @id @default(cuid())
-  name      String
-  phone     String?
-  email     String?
-  address   String?
-  createdAt DateTime        @default(now())
-  orders    Order[]
-  messages  DirectMessage[]
+  id         String          @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  isMember   Boolean         @default(false) // false = Khách hàng · true = Thành viên (chương trình khách hàng thân thiết)
+  memberCode String?         @unique // MÃ THÀNH VIÊN cấp khi đăng ký (TV0001, TV0002, ...)
+  memberAt   DateTime?       // thời điểm nâng cấp thành viên
+  points     Int             @default(0) // điểm tích lũy: 1 điểm / 10.000đ đơn hoàn tất — dùng đổi quà/giảm giá
+  createdAt  DateTime        @default(now())
+  orders     Order[]
+  messages   DirectMessage[]
 }
 
 model Order {

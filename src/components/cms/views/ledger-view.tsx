@@ -142,6 +142,11 @@ const SCOPES: Array<{ value: string; label: string; badge: string }> = [
     badge: 'border-transparent bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-400',
   },
   {
+    value: 'CUSTOMER',
+    label: 'Khách hàng & TV',
+    badge: 'border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
+  },
+  {
     value: 'SYSTEM',
     label: 'Hệ thống',
     badge: 'bg-muted text-muted-foreground',

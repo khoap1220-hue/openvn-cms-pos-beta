@@ -8,6 +8,7 @@
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
 import { llmChat } from '@/lib/llm'
+import { awardPointsForCompletedOrder } from '@/lib/member'
 import {
   AGENTS,
   AUTOMATION_DEFS,
@@ -298,6 +299,8 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         detail: { carrier: shipment.carrier, shipmentStatus: next },
         actor: 'AGENT',
       })
+      // Giao thành công → tự tích điểm cho thành viên (idempotent qua Sổ Data)
+      await awardPointsForCompletedOrder(order.id)
     }
     broadcast('shipment.updated', { id: shipment.id, orderId: order.id, status: next, code: order.code })
     broadcast('order.updated', { id: order.id, status: next === 'DELIVERED' ? 'COMPLETED' : 'SHIPPING', code: order.code })

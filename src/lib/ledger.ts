@@ -18,6 +18,7 @@ export type LedgerScope =
   | 'SETTINGS'
   | 'CHANNEL'
   | 'MESSAGE'
+  | 'CUSTOMER'
   | 'SYSTEM'
 
 export interface LedgerInput {

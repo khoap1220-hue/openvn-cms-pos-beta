@@ -6,6 +6,7 @@ import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/lib/types'
 import { logLedger } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { syncComboStock } from '@/lib/combo'
+import { awardPointsForCompletedOrder } from '@/lib/member'
 
 export const dynamic = 'force-dynamic'
 
@@ -161,6 +162,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           detail: { from: order.status, to: data.status },
           actor: 'OPERATOR',
         })
+      }
+
+      // Đơn hoàn tất → tự tích điểm cho thành viên (1 điểm / 10.000đ, ghi Sổ Data)
+      if (data.status === 'COMPLETED') {
+        await awardPointsForCompletedOrder(id)
       }
 
       // Webhook outbound theo trạng thái mới (kèm paymentStatus khi có đánh dấu thanh toán)

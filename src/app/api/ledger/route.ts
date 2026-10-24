@@ -17,6 +17,7 @@ const VALID_SCOPES = [
   'SETTINGS',
   'CHANNEL',
   'MESSAGE',
+  'CUSTOMER',
   'SYSTEM',
 ] as const
 
