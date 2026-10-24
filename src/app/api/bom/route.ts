@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import { syncComboStock } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +117,18 @@ export async function POST(req: NextRequest) {
       }),
     ])
 
+    // Combo/Set quà tặng: đồng bộ tồn hiển thị = số bộ đóng được từ thành phần
+    // + giá vốn gộp = Σ costPrice thành phần × định mức
+    if (product.type === 'COMBO') {
+      const rows = await db.bomComponent.findMany({
+        where: { productId },
+        include: { componentProduct: { select: { costPrice: true } } },
+      })
+      const comboCost = rows.reduce((s, r) => s + r.quantity * r.componentProduct.costPrice, 0)
+      await syncComboStock(db, productId)
+      await db.product.update({ where: { id: productId }, data: { costPrice: Math.round(comboCost) } })
+    }
+
     await logLedger({
       scope: 'BOM',
       action: 'BOM_UPDATED',
@@ -123,8 +136,8 @@ export async function POST(req: NextRequest) {
       entityType: 'Product',
       entityId: productId,
       entityCode: product.sku,
-      title: `Định mức ${product.name}: ${items.length} VLT`,
-      detail: { components: items },
+      title: product.type === 'COMBO' ? `Thành phần ${product.name}: ${items.length} thành phần` : `Định mức ${product.name}: ${items.length} VLT`,
+      detail: { components: items, productType: product.type },
     })
 
     const components = await db.bomComponent.findMany({

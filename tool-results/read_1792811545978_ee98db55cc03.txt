@@ -1,0 +1,226 @@
+   300→
+   301→Work Log:
+   302→- prisma/schema.prisma: thêm `barcode String? @unique` vào Product (CODE128, in nhãn & quét) → bun run db:push OK, restart dev (kill next-server + rm -rf .next)
+   303→- src/lib/barcode.ts: sinh SVG CODE128 thuần TS không phụ thuộc ngoài — bảng pattern chuẩn 107 giá trị (0..105 + stop), encode tự tối ưu: toàn số → START C (cặp số, lẻ 1 số cuối nhảy B); lẫn chữ → START B, chuỗi số ≥4 (khi i>0) → CODE C + leftover về B; checksum mod 103; tùy chọn height/moduleWidth/showText/quietZone/color; escapeXml an toàn
+   304→- GET /api/barcode?text=&height=&moduleWidth=&showText=1 → image/svg+xml, validate ASCII 32..126 ≤64 ký tự, 400 nếu thiếu/không hợp lệ, Cache-Control 1 ngày — dùng trực tiếp trong <img src> (in nhãn in sắc nét, offline được nhờ SW cache)
+   305→- src/lib/vietnamese.ts: docSoNguyen + docSoTienBangChu — đọc số tiền tiếng Việt đúng chuẩn (mười/mươi/mốt/lăm/lẻ/tư, nhóm nghìn/triệu/tỷ/nghìn tỷ, "không trăm" cho nhóm giữa), "…đồng chẵn"; dùng cho dòng "Số tiền viết bằng chữ" trên hóa đơn
+   306→- src/components/cms/barcode-scanner.tsx: BarcodeScanner dùng chung — Input (ScanLine icon) Enter → onScan (tương thích bút quét USB tự bắn Enter); nút camera qua BarcodeDetector API (code_128/39, ean_13/8, upc, qr), overlay video full-screen + detect loop 300ms, tự dừng stream; trình duyệt không hỗ trợ → nút camera ẩn; lỗi camera → toast; props {onScan, placeholder, className, autoFocus, hint}
+   307→- /api/products: GET thêm ?barcode= tra cứu chính xác + search OR barcode; POST nhận barcode (validate ASCII 1..64 + unique 409 kèm SKU trùng); PUT [id] nhận barcode (trống = xóa), dup check trừ chính nó, đổi barcode → logLedger INVENTORY/PRODUCT_BARCODE_UPDATED (actor OPERATOR)
+   308→- /api/settings: thêm key invoice_title (default "HÓA ĐƠN BÁN HÀNG"), invoice_template_code ("01GTKT0/001"), invoice_series ("AA/26E"), invoice_bank_name/account/holder, invoice_footer_note ("Cảm ơn Quý khách đã mua hàng!"), invoice_default_note, invoice_logo (data URL png/jpg/webp/gif ≤600KB chars); GET trả đủ keys + defaults; PATCH validate độ dài từng trường + logLedger SETTINGS (logo chỉ log mask)
+   309→- Smoke test curl: /api/barcode SVG đúng cấu trúc, thiếu text → 400; PATCH settings invoice_* OK; PUT barcode AO-NU-001 = 8935201001234 OK; GET ?barcode= tra cứu đúng SKU
+   310→
+   311→Stage Summary:
+   312→- Nền tảng mã vạch hoàn chỉnh: sinh SVG server-side (không lib ngoài), tra cứu theo barcode, scanner component dùng chung
+   313→- Settings hóa đơn sẵn sàng cho template in: tiêu đề/mẫu số/ký hiệu/ngân hàng/ghi chú/logo
+   314→- Contract cho frontend: BarcodeScanner (import từ '@/components/cms/barcode-scanner'), <img src="/api/barcode?text=X&height=60&showText=1">, docSoTienBangChu từ '@/lib/vietnamese', product.barcode field, settings mới qua GET/PATCH /api/settings
+   315→
+   316→---
+   317→Task ID: 19-c
+   318→Agent: invoice-print-frontend
+   319→Task: Frontend THIẾT LẬP HÓA ĐƠN + IN HÓA ĐƠN GTGT + quét mã vạch ở Xuất hàng
+   320→
+   321→Work Log:
+   322→- Đọc worklog 17-a/18/19-a + curl xác thực contract: GET /api/settings (đủ invoice_* trừ bank — xem gap bên dưới), GET /api/sales-invoices?year & /{id} (partner FULL + items.product{sku,name,unit}), GET /api/products?status=ACTIVE (có barcode), docSoTienBangChu, BarcodeScanner props
+   323→- TẠO src/components/cms/invoice-print.tsx: InvoicePrintDialog({open,onOpenChange,invoice}) — tự GET /api/settings mỗi lần mở (useState cache, giữ kết quả lần trước khi refetch; lỗi → fallback default); preview A4 trắng chữ đen (bg-white text-slate-900 cả dark mode) trong Dialog sm:max-w-4xl: header 3 cột (logo h-14 object-contain ẩn khi rỗng | company_name uppercase bold + MST + địa chỉ | invoice_title lớn + Mẫu số/Ký hiệu/Số), dòng "Ngày d tháng m năm y", 2 cột Đơn bán/người mua (partner?.address/phone, "Hình thức thanh toán: Tiền mặt / Chuyển khoản", "Theo đơn hàng: {order.code}"), bảng hàng viền đen border-collapse (STT|Tên hàng+ĐVT|ĐVT|SL|Đơn giá|Thành tiền, Intl vi-VN canh phải, footer Cộng tiền hàng/Thuế GTGT(x)%/Tổng cộng bold), "Số tiền viết bằng chữ: docSoTienBangChu(total)" nghiêng đậm, khối ngân hàng chỉ hiện khi bank_account != '', note + invoice_footer_note, 2 cột chữ ký NGƯỜI BÁN/NGƯỜI MUA h-20; CANCELLED → watermark "HÓA ĐƠN ĐÃ HỦY" absolute rotate-12 opacity-20 text-rose-600; nút "In hóa đơn" (Printer) → window.print()
+   324→- Print CSS: dùng nguyên khối @media print theo spec (body * visibility hidden; .invoice-print-area visible; position absolute left/top 0 width 100% padding 10mm; .no-print display none) + bổ sung guard: ẩn display:none toàn bộ body children trừ [data-invoice-print-root] (tránh trang trắng thừa), đưa dialog-overlay/content về static + bỏ translate/animation của Radix để bản in neo góc trên-trái trang, reset shell padding/border
+   325→- system-view.tsx: thêm 1 card full-width "Thiết lập hóa đơn" (ReceiptText emerald, lg:col-span-2) ngay sau card Thông tin đơn vị — grid 2 cột 8 trường (Tiêu đề/Mẫu số/Ký hiệu/Tên NH/Số TK/Chủ TK maxLength đúng limit, Ghi chú cuối + Ghi chú mặc định Textarea 2 rows) + khối logo (input file ẩn + "Tải logo" ImageUp: FileReader.readAsDataURL, chặn client-side type png|jpe?g|webp|gif & ≤400KB & ≤600k chars, thumbnail h-12, "Xóa logo" = ''), KHÔNG tự upload — chỉ PATCH khi bấm "Lưu thiết lập hóa đơn" (Save + loading); mở rộng SettingsData + load() mapping (defaults khi thiếu key/lỗi); hint "Áp dụng cho bản in hóa đơn bán ở module Xuất hàng."; mọi card cũ giữ nguyên
+   326→- sales-view.tsx (chỉ additive): ProductLite +barcode?; SalesInvoice.partner +address?/phone?; type InvoiceDetailForPrint = SalesInvoice; nút "In hóa đơn" (outline, Printer, disabled+Loader2 khi đang fetch) trong DialogFooter chi tiết TRƯỚC nút Hủy (chỉ POSTED) → openPrint() fetch FRESH GET /api/sales-invoices/{id} rồi setPrintInvoice(fresh.invoice) + mở InvoicePrintDialog; BarcodeScanner (className="mb-3", hint "Quét mã vạch để thêm nhanh sản phẩm — quét lại tăng số lượng") đặt trên danh sách dòng tab Tự tạo — handleBarcodeScan: tìm p.barcode===code (fallback p.sku) → dòng trống đầu tiên điền {productId, '1', String(sellPrice)}; SP đã có dòng → quantity String((Number(q)||0)+1); không thấy → append dòng mới; không tìm thấy SP → toast destructive "Không tìm thấy sản phẩm với mã vạch {code}"; GET /api/settings 1 lần lúc mount vào vatDefaultRef + invoiceDefaultNoteRef (tránh stale closure) → openCreate dùng setVatRate(vatDefaultRef.current || '8') + prefill note; ConfirmDialog hủy hóa đơn giữ nguyên
+   327→- Test: curl GET /api/settings & sales-invoices?year & /{id} OK khớp type local; PATCH settings 9 trường invoice_* 200 + xác nhận DB AppSetting lưu đủ (kể cả bank); bunx eslint 3 file → 0 lỗi 0 warning; bunx tsc --noEmit → 0 lỗi ở 3 file; curl / → 200, dev.log không có runtime error (không restart server)
+   328→- ⚠️ GAP BACKEND (không được sửa — ngoài scope): GET /api/settings buildPublicSettings() chỉ trả các key có trong DEFAULTS + company/vat/logo/gemini nên THIẾU invoice_bank_name/invoice_bank_account/invoice_bank_holder dù đã lưu DB và PATCH nhận đủ. Frontend đã chống chịu an toàn: type bank là optional + ?? ''; system-view chỉ gửi trường bank khi GET đã trả về HOẶC người dùng vừa sửa (bankKnownRef/bankDirtyRef) để tránh bấm Lưu vô tình xóa sạch giá trị bank đã lưu; invoice-print chỉ hiện khối ngân hàng khi bank_account khác rỗng. CẦN task chính sửa buildPublicSettings thêm 3 key bank vào `out` (sau đó frontend tự hoạt động đầy đủ, không cần sửa lại)
+   329→
+   330→Stage Summary:
+   331→- Hoàn chỉnh vòng đời hóa đơn bán: tạo (quét mã vạch nhanh, VAT + ghi chú mặc định theo Thiết lập) → xem chi tiết → IN hóa đơn GTGT khổ A4 (header đơn vị + logo, mẫu số/ký hiệu/số, bảng hàng, tiền bằng chữ, ngân hàng, chữ ký, watermark HỦY) từ settings ~ Tiêu đề/Mẫu số/Ký hiệu/Ngân hàng/Ghi chú/Logo trong Hệ thống
+   332→- Print CSS: chỉ .invoice-print-area hiện khi in (đen trên trắng cả dark mode, padding 10mm, neo góc trên trái); app shell + dialog Radix bị triệt tiêu hoàn toàn nên không in trang trắng thừa; giới hạn cố hữu của pattern visibility: hóa đơn dài hơn 1 trang A4 sẽ bị cắt ở trang 2 (hóa đơn hiện tại đều 1 trang)
+   333→- InvoicePrintDialog export kèm type InvoicePrintData (partner optional address/phone, order optional) — tái sử dụng được cho Nhập hàng; settings fetch mỗi lần mở dialog, cache trong useState
+   334→- Số liệu test: PATCH+GET settings OK (bank lưu DB nhưng GET chưa trả — xem gap), eslint/tsc sạch 3 file, dev server 200 không lỗi
+   335→---
+   336→Task ID: 19-b
+   337→Agent: barcode-frontend
+   338→Task: Frontend MÃ VẠCH — in nhãn mã vạch + quét nhanh (products/inventory/purchase)
+   339→
+   340→Work Log:
+   341→- Đọc worklog 19-a/18, đối chiếu contract: BarcodeScanner props, /api/barcode?text=&height=&showText=1 (SVG), products.barcode, GET ?barcode=, search khớp barcode, PUT barcode (trống = xóa), lỗi 400/409 message tiếng Việt
+   342→- curl kiểm chứng backend đang chạy: GET /api/products?search=AO-NU-001 → barcode 8935201001234 có trong payload; GET /api/products?barcode= và search=8935201001234 → đúng AO-NU-001; GET /api/barcode → SVG CODE128; PUT set barcode MP-SON-001 = 8935201005678, GY-NAM-002 = GY-NAM-002 (PUT partial {barcode} OK); POST sản phẩm với barcode:"" → 200 (lưu null) rồi xóa
+   343→- Tạo src/components/cms/label-print-dialog.tsx: export LabelPrintDialog {open, onOpenChange, products: BarcodeProduct[]}; cột trái — checkbox list chọn nhiều SP + "Chọn tất cả" (tự chọn all khi mở dialog, mở từ nút 1 SP → chỉ SP đó), Input "Số nhãn mỗi sản phẩm" (default 1), Select cỡ nhãn 38×25/50×30/70×40mm (barcode height 36/48/64), Switch Hiện tên/Hiện giá; cột phải — preview live flex-wrap nhãn trắng viền: tên truncate, <img /api/barcode?text=encodeURIComponent(barcode||sku)&height=…&showText=1>, SKU mono + formatVND giá; SP chưa có mã vạch → sinh từ SKU + note "Chưa có mã vạch — dùng SKU" (bản in note gọn "SKU"); nút "In nhãn" disabled khi không chọn SP hoặc số nhãn < 1
+   344→- Cơ chế in: sheet .barcode-print-sheet portal ra document.body (fixed left:-10000px khi xem), <style> trong dialog: @media print ẩn body * bằng visibility, hiện riêng .barcode-print-sheet (position absolute left 0 top 0, flex flex-wrap, gap 2mm), .no-print display:none; mỗi nhãn inline width theo mm (38/50/70) + break-inside: avoid — đã verify bằng print-to-PDF: nhãn in từ góc trên trái, chỉ sheet hiển thị
+   345→- products-view.tsx: type cục bộ ProductRow = Product & {barcode?}; form thêm barcode (default '') + prefill khi sửa; body POST/PUT thêm barcode: form.barcode.trim(); dialog thêm ô "Mã vạch (CODE128)" cạnh SKU + nút outline "Tự sinh" (BC + Date.now().toString(36).toUpperCase()) + helper text; bảng thêm cột "Mã vạch" (mono hoặc —) + nút icon Barcode mở LabelPrintDialog chọn sẵn đúng SP đó; PageHeader thêm nút outline "In nhãn mã vạch" mở dialog với danh sách đã lọc; placeholder search → "Tìm theo tên, SKU hoặc mã vạch..."; lỗi 400/409 đi qua toast destructive hiện có
+   346→- inventory-view.tsx: Card "Quét mã vạch nhanh" (ScanLine emerald) với BarcodeScanner hint "Quét mã vạch → tự mở phiếu nhập/xuất cho sản phẩm tương ứng" đặt trên các bảng; onScan: tra products state theo barcode hoặc fallback GET /api/products?barcode=, không thấy → toast destructive "Không tìm thấy sản phẩm với mã vạch X"; thấy → merge SP vào state (để Select hiển thị), openDialog({productId, type:'IMPORT'}), toast "Đã chọn sản phẩm {sku} — {name}", setTimeout focus ô Số lượng qua ref
+   347→- purchase-view.tsx: ProductLite thêm barcode?: string | null; trong dialog tạo hóa đơn mua thêm BarcodeScanner (hint "Quét mã vạch để thêm nhanh dòng sản phẩm", className mb-3) phía trên các dòng; onScan: khớp barcode rồi sku trong products (?status=ACTIVE) → nếu dòng đã có SP thì +1 số lượng, nếu dòng đầu trống thì điền vào, ngược lại thêm dòng {productId, quantity:'1', unitPrice: String(costPrice)}; không thấy → toast destructive
+   348→- Fix lint/tsc: products state useState<ProductRow[]> (barcode không tồn tại trên Product của lib/types nên mở rộng cục bộ, KHÔNG sửa lib); label-print-dialog bỏ useEffect reset selection → pattern "adjust state during render" (rule react-hooks/set-state-in-effect); inventory openDialog bọc useCallback cho deps đúng
+   349→- E2E browser thật (dev server đang chạy): Products — cột Mã vạch + nút per-row + nút PageHeader mở dialog, sheet portal 32 nhãn offscreen, CSSOM chứa 4 rule @media print, PDF in ra 51KB có nội dung nhãn từ góc trên trái; Inventory — quét 8935201005678 mở "Thao tác kho" chọn sẵn MP-SON-001, focus Số lượng, quét mã lạ hiện toast đúng; Purchase — quét GY-NAM-002 điền dòng đầu (SL 1, đơn giá 285000), quét lại SL → 2, quét 8935201001234 thêm dòng AO-NU-001 (145000), mã lạ → toast; 0 console error
+   350→- bunx eslint 4 file → 0 lỗi 0 warning; bunx tsc --noEmit → 0 lỗi ở 4 file (chỉ còn lỗi có sẵn ở examples/, skills/)
+   351→
+   352→Stage Summary:
+   353→- UI MÃ VẠCH hoàn chỉnh: in nhãn CODE128 (preview + window.print với sheet portal + @media print visibility trick), nhập barcode khi thêm/sửa SP (+tự sinh BCxxx), cột mã vạch + in nhãn nhanh theo SP, quét nhanh mở phiếu kho (inventory) và thêm dòng hàng mua (purchase)
+   354→- Contract dùng đúng 19-a: <img src="/api/barcode?text=&height=&showText=1">, BarcodeScanner {onScan, placeholder, className, autoFocus, hint}, product.barcode (string|null), GET /api/products?barcode=, POST/PUT nhận barcode (trống = xóa, 409 trùng kèm SKU)
+   355→- Lưu ý cho task sau: lib/types Product chưa có barcode — 3 view đang mở rộng cục bộ (ProductRow/ProductWithBarcode, ProductLite.barcode?); khi lib cập nhật barcode: string|null có thể bỏ các type cục bộ này
+   356→
+   357→---
+   358→Task ID: 19-final
+   359→Agent: main (Z.ai Code)
+   360→Task: Tổng hợp & kiểm thử E2E tính năng MÃ VẠCH + THIẾT LẬP HÓA ĐƠN
+   361→
+   362→Work Log:
+   363→- Fix gap từ 19-c: buildPublicSettings() thiếu invoice_bank_name/account/holder trong GET /api/settings → đã trả đủ (curl xác nhận 14 keys)
+   364→- lib/types.ts: Product thêm `barcode: string | null` đồng bộ contract API
+   365→- barcode-scanner.tsx: gỡ eslint-disable thừa + feature-detect BarcodeDetector qua setTimeout 0 (rule set-state-in-effect)
+   366→- Kiểm thử browser E2E (agent-browser, realtime xanh):
+   367→  • Sản phẩm: cột "Mã vạch" + nút in nhãn từng dòng + nút "In nhãn mã vạch" trên header; form thêm SP có "Mã vạch (CODE128)" + nút "Tự sinh" (BC+base36); tạo BC-TEST-19 barcode 8935201999901 → tra cứu ?barcode= đúng
+   368→  • In nhãn: dialog chọn SP (checkbox + chọn tất cả), số nhãn, 3 size (38×25/50×30/70×40mm), switch hiện tên/giá; preview CODE128 SVG sắc nét; in qua portal document.body + @media print chỉ hiện .barcode-print-sheet (subagent đã verify print-to-PDF 51KB)
+   369→  • Tồn kho: quét "8935201999901" vào BarcodeScanner → dialog phiếu kho tự mở đúng sản phẩm "Sản phẩm test mã vạch (BC-TEST-19)" + loại "Nhập kho"
+   370→  • Xuất hàng: chi tiết HĐ có nút "In hóa đơn" (fetch fresh detail) → dialog in GTGT khổ A4: logo + company/MST/địa chỉ + "HÓA ĐƠN BÁN HÀNG" + Mẫu số 01GTKT0/001 + Ký hiệu AA/26E + Số + ngày vn + người mua + bảng hàng viền đen + VAT + "Số tiền viết bằng chữ: Sáu trăm hai mươi bốn nghìn hai trăm bốn mươi đồng chẵn" (đọc chuẩn) + chữ ký 2 cột + watermark "HÓA ĐƠN ĐÃ HỦY" khi CANCELLED
+   371→  • Xuất hàng (Tự tạo): quét 2 lần mã 8935201999901 → dòng BC-TEST-19, số lượng tự tăng 1→2, đơn giá tự điền 125.000; VAT mặc định & ghi chú mặc định lấy từ settings
+   372→  • Hệ thống: card "Thiết lập hóa đơn" full-width — 8 trường + Tải logo (DataTransfer simulate upload → toast "Đã chọn logo" → Lưu → invoice_logo data URL persist, Xóa logo OK), Lưu → Sổ Data SETTINGS_UPDATED
+   373→  • Sổ Data ghi đầy đủ: PRODUCT_BARCODE_UPDATED (3 lần) + SETTINGS_UPDATED (invoice_*)
+   374→- Dọn demo: xóa BC-TEST-19, xóa logo test (invoice_logo=''), giữ barcode 3 SP (AO-NU-001/MP-SON-001/GY-NAM-002) làm demo quét
+   375→- Mobile 390px: off-canvas sidebar + bảng scroll ngang OK; console 0 error; dev.log sạch (chỉ log test delete 2 lần chủ đích)
+   376→- bunx eslint src --max-warnings 0 → exit 0; tsc --noEmit → sạch vùng src
+   377→
+   378→Stage Summary:
+   379→- HOÀN THÀNH "mã vạch": sinh CODE128 SVG server-side (không lib ngoài), field barcode trên Product (unique), tra cứu ?barcode=, BarcodeScanner (USB+wedge+camera BarcodeDetector), in nhãn 3 khổ giấy cấu hình số lượng/tên/giá, quét nhanh ở Tồn kho (mở phiếu kho), Nhập hàng & Xuất hàng (thêm/tăng dòng tự điền giá)
+   380→- HOÀN THÀNH "thiết lập hóa đơn": card cấu hình (tiêu đề/mẫu số/ký hiệu/3 trường ngân hàng/ghi chú cuối/ghi chú mặc định/logo ≤400KB) + bản in hóa đơn bán GTGT khổ A4 chuẩn Việt Nam (viền bảng đen, số tiền bằng chữ, chữ ký, watermark hủy) + nút In ở chi tiết HĐ bán
+   381→- Toàn bộ thao tác ghi Sổ Data; không đụng Agent Autopilot/webhook/chốt sổ/offline-first; 0 lỗi lint/tsc/runtime
+   382→
+   383→---
+   384→Task ID: 20-a
+   385→Agent: main (Z.ai Code)
+   386→Task: AUDIT trường thông tin thiếu + backend "SỐ HÓA ĐƠN, SĐT đơn vị, hình thức thanh toán, barcode đóng gói"
+   387→
+   388→Work Log:
+   389→- Audit 5 gap so với yêu cầu mã vạch + thiết lập hóa đơn: (1) thiếu Số bắt đầu hóa đơn + ghi số tăng dần (bản in đang hiện mã nội bộ PXK... làm Số); (2) thiếu company_phone trên header hóa đơn; (3) Hình thức thanh toán hardcode "Tiền mặt / Chuyển khoản"; (4) thiếu quét mã vạch Đóng Gói/Kiểm đếm ở đơn hàng; (5) thiếu In hóa đơn mua (chỉ Xuất hàng có In)
+   390→- prisma/schema.prisma: SalesInvoice thêm invoiceNo Int? @index + series String? + templateCode String? + paymentMethod String? (snapshot mẫu in lúc tạo, hóa đơn cũ không đổi) → db:push OK, restart dev (kill next-server + rm -rf .next)
+   391→- invoice-service.ts: nextInvoiceNumber() = max(max invoiceNo, start-1)+1 với start = setting invoice_number_start (mặc định 1) — số KHÔNG dùng lại kể cả khi hủy; readInvoiceSeriesSettings() đọc invoice_series/invoice_template_code (fallback AA/26E, 01GTKT0/001); createSalesInvoice chụp invoiceNo + series + templateCode + paymentMethod (từ order.paymentMethod khi lập từ đơn) + ghi đủ vào ledger detail; fix thiếu import getSetting
+   392→- /api/settings: PUBLIC_KEYS + DEFAULTS + MAX_LENGTHS + PATCH thêm company_phone (≤40), invoice_payment_method (≤120, default "Tiền mặt / Chuyển khoản"), invoice_number_start (số nguyên ≥1, default 1)
+   393→- /api/orders/[id] GET: include product thêm barcode (chuẩn bị cho quét kiểm đếm đóng gói)
+   394→- Smoke test curl: settings 17 keys trả đủ; PATCH 3 key mới OK; tạo 2 HĐ test → invoiceNo 5→6 (đúng setting start=5 lúc test); hủy HĐ → số không dùng lại; HĐ cũ invoiceNo=null (print fallback mã nội bộ); đã hủy 2 HĐ test + reset settings (start=1, payment mặc định), giữ company_phone demo; lint backend exit 0
+   395→
+   396→Stage Summary:
+   397→- Backend ghi số hóa đơn hoàn chỉnh: invoiceNo tăng dần toàn cục không dùng lại + snapshot mẫu số/ký hiệu/phương thức thanh toán vào từng hóa đơn
+   398→- Contract cho frontend: SalesInvoice mới có {invoiceNo: number|null, series, templateCode, paymentMethod: 'COD'|'BANKING'|'MOMO'|'CARD'|null}; settings GET trả thêm company_phone, invoice_number_start (string), invoice_payment_method; /api/orders/[id] items.product có barcode
+   399→- Còn lại cho 20-b (in hóa đơn mua + số HĐ + SĐT + hình thức TT + Thiết lập 3 trường mới) và 20-c (quét kiểm đếm PACKING)
+   400→
+   401→---
+   402→Task ID: 20-b
+   403→Agent: invoice-frontend
+   404→Task: Frontend HÓA ĐƠN — số hóa đơn + SĐT đơn vị + hình thức thanh toán trên bản in, In hóa đơn MUA, 3 trường mới ở Thiết lập
+   405→
+   406→Work Log:
+   407→- Đọc worklog 20-a/19-final, curl verify contract đang chạy: GET /api/settings trả đủ 17 keys (thêm company_phone, invoice_number_start, invoice_payment_method); GET /api/purchase-invoices/{id} trả partner FULL (address/phone/email) + items.product{sku,name,unit}; GET /api/sales-invoices/{id} có 4 trường mới (hóa đơn cũ → null hết, dùng fallback)
+   408→- (A) invoice-print.tsx — nâng cấp InvoicePrintDialog hỗ trợ 2 loại bản in:
+   409→  • Export type InvoicePrintKind = 'sales' | 'purchase'; prop kind? mặc định 'sales'
+   410→  • InvoicePrintData thêm optional: invoiceNo?: number|null, series?, templateCode?, paymentMethod? (snapshot Task 20-a; hóa đơn cũ null hết → optional nên sales-view cũ không vỡ type)
+   411→  • InvoiceSettings + SETTINGS_FALLBACK + normalizeSettings thêm: companyPhone (company_phone), paymentMethod (invoice_payment_method, fallback 'Tiền mặt / Chuyển khoản'), numberStart (invoice_number_start, fallback '1' — chỉ hint, không render trên hóa đơn)
+   412→  • Header trái: thêm dòng "Điện thoại: {companyPhone}" khi khác rỗng
+   413→  • Header phải kind='sales': "Mẫu số: {invoice.templateCode ?? settings.templateCode}", "Ký hiệu: {invoice.series ?? settings.series}", "Số: {invoice.invoiceNo != null ? invoice.invoiceNo : invoice.code}" (hóa đơn mới hiện số trần tăng dần, hóa đơn cũ fallback mã PXK...); kind='purchase': tiêu đề cố định "HÓA ĐƠN MUA HÀNG", KHÔNG in Mẫu số/Ký hiệu, "Số: {invoice.code}" (mã PMM...)
+   414→  • Khối bên bán/mua kind='sales' giữ cấu trúc, dòng "Hình thức thanh toán" thay hardcode: invoice.paymentMethod ? (PAYMENT_METHOD_LABELS[paymentMethod] ?? raw) : settings.paymentMethod (import PAYMENT_METHOD_LABELS từ '@/lib/types'); kind='purchase' đảo vai trò: cột trái NGƯỜI BÁN = NCC (Đơn cung cấp + MST + Địa chỉ + Điện thoại), cột phải NGƯỜI MUA = đơn vị mình (Đơn mua + MST + Địa chỉ + Điện thoại khi có + Hình thức thanh toán từ settings), KHÔNG hiện "Theo đơn hàng"
+   415→  • Watermark HỦY, PRINT_CSS, cơ chế fetch settings + DialogFooter giữ nguyên; DialogTitle/Description đổi theo kind ('In hóa đơn mua'/'In hóa đơn bán')
+   416→- (B) purchase-view.tsx — In hóa đơn mua trong dialog chi tiết:
+   417→  • Thêm interface PurchaseInvoiceDetail (partner FULL address/phone optional), state printOpen/printInvoice/printLoading theo đúng pattern sales-view (chỉ tham khảo, không sửa sales-view)
+   418→  • openPrint(): fetch FRESH GET /api/purchase-invoices/{id} → map thủ công sang InvoicePrintData (partner normalize address/phone ?? null) → mở InvoicePrintDialog kind="purchase"; lỗi qua toast destructive hiện có; nút disabled + Loader2 khi đang fetch
+   419→  • Nút outline "In hóa đơn" (icon Printer) trong DialogFooter chi tiết, CHỈ khi detail.status === 'POSTED' — không thêm nút ở dòng bảng; <InvoicePrintDialog ... kind="purchase" /> render cạnh ConfirmDialog
+   420→- (C) system-view.tsx — bổ sung 3 trường cấu hình:
+   421→  • SettingsData thêm optional company_phone/invoice_number_start/invoice_payment_method; state companyPhone + invoiceNumberStart ('1') + invoicePaymentMethod ('Tiền mặt / Chuyển khoản'); load() map với ?? fallback
+   422→  • Card "Thông tin đơn vị": input "Điện thoại" (id company-phone, placeholder 0901234567, maxLength 40) dưới Địa chỉ; saveCompany() gửi thêm company_phone: companyPhone.trim()
+   423→  • Card "Thiết lập hóa đơn" grid 2 cột: "Số bắt đầu hóa đơn" (id invoice-number-start, type number min 1 step 1) cạnh Ký hiệu + hint text-xs "Số hóa đơn bán tiếp theo — tăng dần, không dùng lại (áp dụng từ hóa đơn mới)"; "Hình thức thanh toán mặc định" (id invoice-payment-method, maxLength 120, placeholder "Tiền mặt / Chuyển khoản") cạnh đó; saveInvoiceSettings() body đổi Record<string, string|number> gửi invoice_number_start: Math.floor(Number(...)) || 1 (server 400 khi <1 → toast lỗi hiện có xử lý) + invoice_payment_method: trim(); sau PATCH sync lại 2 state từ response
+   424→  • CardDescription + hint cuối card cập nhật: "Áp dụng cho bản in hóa đơn bán ở module Xuất hàng và hóa đơn mua ở module Nhập hàng."
+   425→- Verify: bunx eslint 3 file --max-warnings 0 → exit 0; bunx tsc --noEmit → 0 lỗi ở src/ (chỉ còn lỗi có sẵn examples/, skills/); curl PATCH 3 key mới OK + PATCH invoice_number_start=0 → HTTP 400 với message tiếng Việt (frontend toast hiện đúng); GET / → 200; bundle client phục vụ chứa "HÓA ĐƠN MUA HÀNG", "Số bắt đầu hóa đơn", "Đơn cung cấp:"; dev.log: panic Turbopack tạm thời do cache nội bộ (missing sst file) ngay lúc hot-reload purchase-view nhưng server tự phục hồi "✓ Compiled in 697ms" — KHÔNG phải lỗi code, không cần restart
+   426→
+   427→Stage Summary:
+   428→- HOÀN THÀNH 3 gap frontend hóa đơn: (A) bản in hóa đơn bán có Số hóa đơn tăng dần (invoiceNo snapshot, fallback mã nội bộ cho HĐ cũ), SĐT đơn vị trên header, Hình thức thanh toán động (snapshot đơn hàng COD/BANKING/MOMO/CARD qua PAYMENT_METHOD_LABELS, fallback settings); (B) In hóa đơn MUA khổ A4 từ dialog chi tiết Nhập hàng (chỉ HĐ POSTED, fetch fresh partner FULL, bên bán=NCC / bên mua=đơn vị, tiêu đề HÓA ĐƠN MUA HÀNG, số = mã PMM...); (C) Hệ thống có Điện thoại đơn vị + Số bắt đầu hóa đơn + Hình thức thanh toán mặc định, tất cả persist qua PATCH /api/settings
+   429→- Contract cho task sau: InvoicePrintDialog {open, onOpenChange, invoice, kind?: InvoicePrintKind ('sales' mặc định)}; InvoicePrintData có thêm invoiceNo/series/templateCode/paymentMethod optional; khi 20-c làm quét kiểm đếm PACKING không cần đụng 3 file này
+   430→- Rủi ro còn lại: (1) Turbopack panic cache 1 lần trong dev.log (đã tự phục hồi, HTTP 200, bundle đúng — nếu gặp lại chỉ cần reload, KHÔNG restart); (2) HĐ bán tạo TRƯỚC Task 20-a in "Số: PXK..." (mã nội bộ) là hành vi chấp nhận được theo thiết kế fallback; (3) pattern visibility khi in giới hạn 1 trang A4/hoá đơn (giới hạn cố hữu từ 19-final)
+   431→
+   432→---
+   433→Task ID: 20-c
+   434→Agent: orders-packing-scan
+   435→Task: Frontend ĐƠN HÀNG — Card "Kiểm đếm đóng gói bằng mã vạch" trong dialog chi tiết đơn (PACKING/CONFIRMED)
+   436→
+   437→Work Log:
+   438→- Đọc worklog 19-a/19-b/19-final/20-a/20-b + đối chiếu contract: BarcodeScanner props {onScan, placeholder, className, autoFocus, hint}, GET /api/orders/[id] items[].product đã có barcode (20-a), STATUS_FLOW PENDING→CONFIRMED→PACKING→SHIPPING→COMPLETED
+   439→- curl xác thực contract: GET /api/orders/{id} trả items[].product.barcode (GY-NAM-002 = "GY-NAM-002", AO-NU-001 = 8935201001234 qua GET /api/products?barcode=); GET /api/orders (list) không cần barcode — chỉ detail dùng
+   440→- Chỉ sửa src/components/cms/views/orders-view.tsx (additive, không đụng invoice-print/system-view/purchase-view của 20-b, không sửa lib/types):
+   441→  • Type cục bộ: DetailOrderItem = OrderItem & {product?: Pick<Product,'id'|'sku'|'name'|'barcode'>|null}, DetailOrder = Omit<Order,'items'> & {items} — detail state + apiGet detail đổi sang DetailOrder (list Order giữ nguyên)
+   442→  • State `scannedCounts: Record<string, number>` (key = productId) đặt cạnh state detail; reset {} trong openDetail (mỗi lần mở dialog chi tiết); KHÔNG lưu server — state phiên
+   443→  • handleUpdateStatus đổi thành return Promise<boolean> (return true/false) — các caller cũ không đổi (void handleUpdateStatus), tái sử dụng nguyên logic PATCH + toast + detailReload + refreshKey (timeline/Sổ Data/webhook như bấm tay)
+   444→  • handlePackingScan: trim mã → khớp product.barcode === code (chính xác) trước, fallback product.sku.toLowerCase() === code.toLowerCase(); không khớp dòng nào → toast destructive "Không thuộc đơn hàng {code}: mã quét..."; còn thiếu → +1 + toast success "{sku}: {đã quét}/{cần}"; đã đủ mà quét nữa → toast cảnh báo "«{sku}» đã đủ {SL} — quét thừa" (vẫn setScannedCounts +1 để dòng hiện badge "Thừa X", KHÔNG tính vào tổng đủ)
+   445→  • handlePackingConfirm: tính tổng món trước, await handleUpdateStatus('SHIPPING'), nếu ok → setScannedCounts({}) + toast "Đã kiểm đếm đủ {tổng món} món — đơn {code} chuyển Đang giao"
+   446→  • Render trong dialog chi tiết (đặt NGAY TRÊN khối "Cập nhật trạng thái"): Card viền emerald chỉ hiện khi status CONFIRMED hoặc PACKING. CONFIRMED → rút gọn (title ScanLine emerald + hint "Chuyển đơn sang «Đang đóng gói» để bắt đầu kiểm đếm", không scanner). PACKING → đầy đủ: BarcodeScanner (autoFocus, hint "quét 1 lần = 1 món đã bỏ vào thùng") + bảng 3 cột (Sản phẩm: tên+SKU+barcode mono / note nghiêng "chưa có mã vạch — chọn thủ công"; Tiến độ: "{scanned}/{needed}" + Progress bar h-1.5 amber→emerald; Trạng thái: badge Đủ emerald / Còn X amber / Thừa X rose) + overview badge lớn ("Đã đủ X/Y dòng" emerald khi hết / "Còn thiếu X/Y dòng" amber) + nút emerald "Xác nhận đủ — Chuyển Đang giao" (disabled khi chưa đủ hoặc updatingStatus, Loader2 khi đang gọi) + ghi chú "Việc quét chỉ là kiểm đếm phiên làm việc — dữ liệu chính thức ghi Sổ Data khi chuyển trạng thái."; bảng bọc overflow-x-auto min-w-[440px] cho mobile 390px
+   447→  • Import thêm: BarcodeScanner, Card/CardContent/CardDescription/CardHeader/CardTitle, Progress, icons PackageCheck + ScanLine, type OrderItem — không đổi import có sẵn
+   448→- Kiểm thử E2E browser thật (agent-browser 390x844, tạo đơn test DH261024-2516 3 dòng: AO-NU-001 ×2, GY-NAM-002 ×1, PK-DAY-001 ×1 → PATCH CONFIRMED → PACKING, tắt Agent Autopilot tạm thời để agent không tự nhảy trạng thái):
+   449→  • PACKING: card hiện đủ scanner + 3 dòng (dòng PK-DAY-001 có note "chưa có mã vạch — chọn thủ công"), nút confirm disabled
+   450→  • Quét 8935201001234 lần 1 → 1/2 "Còn 1"; lần 2 → "Đủ"; lần 3 → "Thừa 1" (không tính tổng đủ); quét "gy-nam-002" (thường) → khớp SKU → "Đủ"; quét "NOPE-999" → toast destructive đúng; quét "PK-DAY-001" (SP không barcode) → khớp SKU fallback → "Đủ"
+   451→  • Đủ 3/3 dòng → badge "Đã đủ" + nút bật → bấm confirm → PATCH SHIPPING thành công, timeline hiện "Người vận hành chuyển trạng thái: Đang đóng gói → Đang giao" (Sổ Data/webhook đi theo PATCH có sẵn), card tự ẩn khi đã qua PACKING
+   452→  • CONFIRMED (đơn test 2): card rút gọn hiện đúng hint, KHÔNG có ô quét (eval kiểm tra input[aria-label="Mã vạch"] = false)
+   453→  • Dọn dẹp: HỦY (CANCELLED) 2 đơn test → kho hoàn lại đúng (AO-NU-001 stock 123 như cũ); BẬT LẠI Agent Autopilot (checked=true); không xóa/đổi barcode SP nào
+   454→- bunx eslint orders-view.tsx --max-warnings 0 → exit 0; bunx tsc --noEmit → 0 lỗi vùng src; dev.log: GET / 200, GET /api/orders 200, KHÔNG có lỗi runtime ở orders-view (panic Turbopack duy nhất là purchase-view.tsx của 20-b do HMR song song — đã tự phục hồi "✓ Compiled", không phải file của 20-c)
+   455→
+   456→Stage Summary:
+   457→- HOÀN THÀNH gap cuối của chuỗi mã vạch: Đóng Gói/Kiểm đếm — đơn đa kênh ở trạng thái Đang đóng gói giờ có card quét mã vạch kiểm đếm từng món bỏ vào thùng (bút USB/camera/nhập tay), tiến độ theo dòng (Đủ/Còn X/Thừa X), chặn chuyển giao khi thiếu, cảnh báo quét thừa, và xác nhận đủ → PACKING→SHIPPING tái sử dụng đúng pipeline PATCH (timeline + Sổ Data STATUS_CHANGED + webhook như thao tác tay)
+   458→- Contract: state kiểm đếm thuần phiên (scannedCounts, reset khi mở dialog); khớp mã barcode chính xác trước rồi SKU (case-insensitive); SP không barcode vẫn kiểm đếm được bằng cách quét/nhập SKU hoặc chọn thủ công
+   459→- Lưu ý cho task sau: nếu muốn giữ tiến độ quét khi reload/dialog reopen thì cần lưu server (hiện theo spec là state phiên); lib/types OrderItem.product là Pick không có barcode — orders-view dùng type cục bộ DetailOrderItem/DetailOrder, khi lib thêm barcode vào Pick có thể bỏ 2 type này
+   460→
+   461→---
+   462→Task ID: 20-final
+   463→Agent: main (Z.ai Code)
+   464→Task: Tổng hợp & kiểm thử E2E "bổ sung trường thông tin còn thiếu" (số hóa đơn, SĐT đơn vị, hình thức thanh toán, in hóa đơn mua, quét kiểm đếm đóng gói)
+   465→
+   466→Work Log:
+   467→- Restart dev server sạch (kill next-server + rm -rf .next) sau khi 2 agent sửa xong → GET / 200, settings 17 keys đủ (company_phone, invoice_number_start, invoice_payment_method)
+   468→- Turbopack panic (purchase-view hot-reload do 2 agent sửa song song) đã tự phục hồi; restart sạch loại bỏ hẳn cache
+   469→- E2E browser (agent-browser):
+   470→  • Xuất hàng → PXK261024-0003 (HĐ mới) → In hóa đơn: header có "Điện thoại: 0903123456", "Mẫu số: 01GTKT0/001", "Ký hiệu: AA/26E", "Số: 7" (invoiceNo), "Hình thức thanh toán: Tiền mặt / Chuyển khoản" (động theo settings, invoice tự tạo paymentMethod=null); số tiền bằng chữ OK
+   471→  • Nhập hàng → chi tiết PMM → nút "In hóa đơn" (chỉ POSTED) → dialog "In hóa đơn mua": tiêu đề HÓA ĐƠN MUA HÀNG, KHÔNG có Mẫu số/Ký hiệu, "Số: PMM261023-0003", cột trái "Đơn cung cấp: Công ty TNHH Vật tư Minh Phát" + MST + ĐT, cột phải "Đơn mua: Công ty TNHH OmniSales" + MST + SĐT + hình thức thanh toán
+   472→  • Hệ thống: card Thông tin đơn vị có "Điện thoại"; card Thiết lập hóa đơn có "Số bắt đầu hóa đơn" (spinbutton) + "Hình thức thanh toán mặc định"; sửa start=1→100 → Lưu → server nhận 100; tạo HĐ mới → invoiceNo=100 (đúng start); hủy → số không dùng lại; reset start=1 → HĐ tiếp theo sẽ là 101 (max-based, đúng semantics)
+   473→  • Đơn hàng: mô phỏng đơn Zalo DH261024-3787 → PACKING → chi tiết hiện card "Kiểm đếm đóng gói bằng mã vạch" (BarcodeScanner + bảng tiến độ + note "chưa có mã vạch — chọn thủ công"); quét SKU AO-NU-003 ×2 → 2/2 badge Đủ; AO-NAM-003 ×2 → nút "Xác nhận đủ — Chuyển Đang giao" mở khóa; bấm → đơn sang SHIPPING; Sổ Data ghi STATUS_CHANGED; SP thiếu barcode vẫn quét theo SKU; quét mã lạ → toast destructive; bật lại Autopilot (đã tắt tạm khi test)
+   474→  • Mobile 390px: off-canvas sidebar, card Cấu hình đủ 3 trường mới, không vỡ layout, 0 page error
+   475→- Realtime: xác nhận qua Caddy gateway :81 badge "Realtime" xanh (Mất kết nối chỉ xuất hiện khi truy cập trực tiếp :3000 bỏ qua gateway — không phải bug, người dùng luôn vào qua gateway)
+   476→- Dọn dẹp test: hủy 2 HĐ test (PXK261024-0001/0002 — số 5,6 không dùng lại), giữ PXK261024-0003 (Số 7) làm demo, giữ đơn 3787 SHIPPING; autopilot master ON
+   477→- lint toàn src exit 0; tsc vùng src sạch; dev.log không có runtime error
+   478→
+   479→Stage Summary:
+   480→- ĐÓNG XONG 5 GAP "trường thông tin còn thiếu": (1) Số hóa đơn tăng dần + số bắt đầu cấu hình được (không dùng lại khi hủy, snapshot mẫu số/ký hiệu/phương thức TT vào từng hóa đơn — hóa đơn cũ in fallback mã nội bộ); (2) company_phone in header hóa đơn; (3) Hình thức thanh toán động (snapshot từ đơn hàng COD/BANKING/MOMO/CARD → nhãn VN, fallback setting); (4) In hóa đơn mua ở Nhập hàng (đảo bên cung cấp/mua); (5) Quét kiểm đếm Đóng Gói ở chi tiết đơn (USB wedge + camera, theo SKU khi thiếu mã vạch, khóa nút giao hàng đến khi đủ, Sổ Data qua PATCH có sẵn)
+   481→- Toàn bộ gap thuộc 2 tính năng "mã vạch + thiết lập hóa đơn" đã khép kín vòng đời; Agent Autopilot/webhook/chốt sổ/offline-first không bị ảnh hưởng
+   482→
+   483→---
+   484→Task ID: 21
+   485→Agent: main (Z.ai Code)
+   486→Task: Lấy sản phẩm THẬT từ shop Shopee uudam.vn (Ưu Đàm) làm dữ liệu mẫu trong app
+   487→
+   488→Work Log:
+   489→- Mở shop Shopee https://shopee.vn/uudam.vn bằng agent-browser (desktop + iPhone emulation) → Shopee chặn anonymous datacenter access: redirect /verify/traffic/error "Please log in" (cả API v4 curl → 403 error 90309999, jina.ai 401, proxies allorigins/codetabs/corsproxy fail, Google/DDG captcha, Bing/Wayback không index shop)
+   490→- Chuyển hướng: z-ai image-search (service nội bộ) 3 query "ưu đàm uudam.vn shopee" → lọc 11 ảnh gốc Shopee có watermark brand "ƯU ĐÀM / Nến Ưu Đàm / UU DAM CANDLE / Udumbara Butter Candles"
+   491→- VLM (z-ai vision) từng ảnh → trích tên SP tiếng Việt, mô tả, danh mục, đơn vị, giá ước thị trường, chữ trong ảnh → xây catalog 11 SP đúng ngành hàng shop: nến bơ Udumbara, hũ nến hoa sen, hạt sáp Soy Wax, sáp khối, đèn xông tinh dầu, ấm trà gốm men lam, bình pha trà thủy tinh, hũ trà gốm nắp gỗ Zen, hộp quà tặng trà, tranh gốm mẫu đơn, dây bấc cotton
+   492→- scripts/seed-uudam.ts (bun): upsert 3 danh mục (Nến & Xông hương / Trà & Ấm trà / Quà tặng & Tranh) + 11 SP SKU UD-* với barcode EAN-13 hợp lệ prefix 893 (check digit tự tính: 8936044000015...8936044000114), ảnh OSS z-cdn.chatglm.cn (URL ổn định), giá vốn/bán, tồn, đơn vị cái/bộ/kg/bó, ĐẶC TÍNH; tạo StockMovement IMPORT tồn đầu kỳ; BOM "1 Nến bơ = 0.25kg sáp hạt + 1 hũ sen + 1 dây bấc"; AppSetting company_name → "Hộ kinh doanh Ưu Đàm (uudam.vn)"
+   493→- product-avatar.tsx: thêm prop image (img object-cover + onError fallback chữ cái cũ); products-view + inventory-view truyền p.image (inventory thêm image vào Pick LowStockProduct)
+   494→- API products POST + [id] PUT: nhận image (validate http(s) ≤500 ký tự, trống = null) — frontend form thêm trường "Ảnh sản phẩm (URL)" + preview avatar live
+   495→- Gán kênh SHOPEE cho 11 SP UD; log 1 LedgerEntry INVENTORY/PRODUCT_CATALOG_IMPORTED chi tiết 11 SP (đúng triết lý Sổ Data)
+   496→- Verify E2E browser: Sản phẩm hiện 11 SP + ảnh thật + mã vạch + giá; dialog sửa có trường ảnh + preview; Tồn kho lịch sử biến động 11 dòng Nhập kho "seed danh mục shop Ưu Đàm"; Sổ Data có entry catalog; PUT image sai → 400 message VN; mobile 390px OK; bun run lint exit 0; tsc sạch
+   497→
+   498→Stage Summary:
+   499→- App giờ dùng dữ liệu mẫu = hàng thật của shop: 11 SP Ưu Đàm (nến/trà/gốm) có ảnh, mã vạch EAN-13 quét được, BOM định mức nến bơ, kênh Shopee, tên đơn vị trên hóa đơn là "Hộ kinh doanh Ưu Đàm (uudam.vn)" (MST/Địa chỉ/ĐT để trống — user tự điền ở Hệ thống)
+   500→- Hạn chế: Shopee chặn scraping danh sách đầy đủ (cần đăng nhập), catalog dựng từ 11 ảnh brand ƯU ĐÀM index được + VLM; giá là ước lượng thị trường — user có thể sửa trực tiếp trong dialog Sửa sản phẩm (giờ có sẵn trường ảnh URL để tự bổ sung SP mới từ link ảnh Shopee)
+   501→- Contract mới: POST/PUT /api/products nhận {image?: string}; ProductAvatar {name, image?}; script seed tái chạy được (upsert, idempotent)
+   502→
+   503→---
+   504→Task ID: 22-A
+   505→Agent: main (Z.ai Code)
+   506→Task: Nền tảng backend cho 4 yêu cầu: phiếu gửi hàng A6 + đối soát COD; phí sàn TMĐT; Combo/Set quà tặng; chuyển dữ liệu mẫu sang SP Ưu Đàm
+   507→
+   508→Work Log:
+   509→- prisma/schema.prisma + db:push: Product thêm type ("SIMPLE"|"COMBO") + fragile (Boolean); Order thêm platformFeePct + platformFee (snapshot lúc tạo đơn); Shipment thêm codStatus ("PENDING"|"RECEIVED"|"RECONCILED") + codAmount + codReceived + codReceivedAt + codNote
+   510→- scripts/convert-uudam-data.ts: phí sàn SHOPEE 8.5 / LAZADA 8 / TIKTOK 6 / TIKI 7 (%); fragile=true cho 8 SP gốm/nến/thủy tinh; tạo combo UD-COMBO-001 "Set quà tặng Ưu Đàm — Nến bơ + Hũ trà Zen" (BOM 1×UD-NEN-001 + 1×UD-TRA-003, giá vốn gộp 103.000, bán 219.000, barcode 8936044000121); chuyển 163 đơn hàng + 4 HĐ bán POSTED + 2 HĐ mua POSTED sang SP UD (tính lại subtotal/VAT/total + snapshot phí sàn); backfill 45 vận đơn COD (11 RECEIVED, 34 RECONCILED "không thu hộ"); 11 SP UD (kèm combo) đã trên đủ 10 kênh; đã chỉnh lại 2 HĐ mua số lượng hợp lý (mua 858k < bán 1.610k → lợi nhuận mẫu +752k); LedgerEntry SAMPLE_DATA_MIGRATED
+   511→- src/lib/combo.ts (mới): comboCostFromRows, comboAvailableFromRows, getComboRows, syncComboStock (đồng bộ combo.stock = số bộ đóng được), issueComboComponents (trừ kho thành phần có clamp 0 + warning)
+   512→- order-service.ts: snapshot platformFeePct/platformFee lúc tạo đơn; COMBO — chặn tạo khi thiếu thành phần (gộp demand toàn đơn), bỏ qua trừ kho combo, trừ kho thành phần type COMBO_ISSUE + syncComboStock + cảnh báo Sổ Data
+   513→- invoice-service.ts: hóa đơn thủ công KHÔNG trừ kho combo (thành phần trừ ở khối BOM); khối BOM phân biệt COMBO (type COMBO_ISSUE, note "Trừ thành phần combo") và skip khi hóa đơn lập từ đơn (đã trừ lúc tạo đơn — tránh trừ 2 lần); sau trừ xong syncComboStock
+   514→- accounting.ts: thêm platformFee (Σ Order.platformFee, status != CANCELLED, theo createdAt trong kỳ) + netProfit = profit − platformFee → invoice-dashboard tự trả thêm 2 field này
+   515→- shipments API: GET thêm ?codStatus= filter, order.items(product fragile) + paymentMethod + address, stats thêm codPendingCount/codPendingAmount/codReceivedToday; POST ghi codAmount/codStatus khi tạo; agent-engine tạo vận đơn cũng ghi COD + khi DELIVERED với COD → tự RECEIVED + ledger COD_RECEIVED; route MỚI [id] PATCH {status?, codStatus?, codReceived?, codNote?} → map ledger COD_RECEIVED/COD_RECONCILED + broadcast
+   516→- channels API: GET stats thêm platformFee + netRevenue (revenue − phí); PATCH nhận feePercent (0–100, validate 400 nếu sai)
+   517→- products API: GET trả components/comboCostPrice/comboAvailable cho COMBO (include bomFinished); POST/PUT nhận type; bom POST: khi COMBO → syncComboStock + costPrice = giá vốn gộp + ledger "Thành phần ..."; orders/[id] GET product select thêm costPrice/type/fragile/image
+   518→- lib/types.ts: Product (type, fragile, components, comboCostPrice, comboAvailable), Order (platformFeePct, platformFee), Shipment (cod*, order.items/paymentMethod/address), Channel.stats (platformFee, netRevenue)
+   519→- Restart dev server sạch (kill + rm .next) vì Prisma client cũ; smoke test curl: combo type/cost/available OK, shipments stats COD OK, channels fee OK, invoice-dashboard platformFee/netProfit OK; tsc vùng src/app+lib sạch; lint toàn repo exit 0
+   520→
+   521→Stage Summary:
+   522→- Backend khép kín: phí sàn snapshot trên từng đơn → netProfit; COD lifecycle PENDING→RECEIVED (tự khi giao)→RECONCILED (operator) có Sổ Data; combo trừ kho thành phần cả ở đơn lẫn hóa đơn thủ công (chống trừ 2 lần), stock combo = derived
+   523→- Contract cho frontend: xem lib/types.ts (Shipment.cod*, Order.platformFee*, Product.type/fragile/components/comboCostPrice/comboAvailable, Channel.stats.platformFee/netRevenue); PATCH /api/shipments/[id]; PATCH /api/channels/[id] {feePercent}; barcode image: /api/barcode?text=&height=&showText=1; apiPatch có sẵn trong lib/api
+   524→- Dữ liệu mẫu giờ 100% Ưu Đàm: 163 đơn + 45 vận đơn + 4 HĐ bán + 2 HĐ mua + combo set quà tặng; profit mẫu +752k, phí sàn kỳ ~1,8tr (snapshot trên 163 đơn)
+   525→

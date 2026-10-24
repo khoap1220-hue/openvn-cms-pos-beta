@@ -31,6 +31,8 @@ model Product {
   status            String           @default("ACTIVE")
   attributes        String? // ĐẶC TÍNH (Invoice Pro: mô tả thuộc tính SP)
   unit              String           @default("sp")
+  type              String           @default("SIMPLE") // SIMPLE | COMBO — Combo/Set quà tặng: thành phần khai báo ở Định mức (BomComponent), xuất bán tự trừ kho thành phần
+  fragile           Boolean          @default(false) // hàng dễ vỡ (gốm sứ / nến / thủy tinh) — in cảnh báo trên phiếu gửi hàng A6
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   orderItems        OrderItem[]
@@ -92,6 +94,8 @@ model Order {
   subtotal      Float       @default(0)
   shippingFee   Float       @default(0)
   total         Float       @default(0)
+  platformFeePct Float      @default(0) // snapshot % phí sàn TMĐT lúc tạo đơn (từ Channel.feePercent)
+  platformFee    Float      @default(0) // snapshot tiền phí sàn (subtotal × pct/100) — trừ khi đối soát để tính lợi nhuận thực nhận
   note          String?
   address       String?
   reviewRating  Int?
@@ -135,6 +139,11 @@ model Shipment {
   trackingCode String   @unique
   status       String   @default("DISPATCHED") // DISPATCHED | PICKED_UP | IN_TRANSIT | DELIVERED | RETURNED
   fee          Float    @default(0)
+  codStatus    String   @default("PENDING") // PENDING (chờ đối soát) | RECEIVED (đã nhận COD) | RECONCILED (đã đối soát vào sổ)
+  codAmount    Float    @default(0) // tiền thu hộ dự kiến (COD)
+  codReceived  Float    @default(0) // tiền COD thực nhận từ ĐVVC chuyển về
+  codReceivedAt DateTime?
+  codNote      String?
   dispatchedBy String   @default("AGENT") // AGENT | OPERATOR
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

@@ -11,6 +11,7 @@ import { broadcast } from '@/lib/realtime'
 import { logLedger } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { getSetting, getSettings } from '@/lib/settings'
+import { syncComboStock } from '@/lib/combo'
 
 type Tx = Prisma.TransactionClient
 
@@ -327,9 +328,10 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
   // Tên thành phẩm để ghi note movement BOM theo đúng format "... cho {qty} {tên TP} (HĐ {code})"
   const productsForName = await db.product.findMany({
     where: { id: { in: items.map((it) => it.productId) } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, type: true },
   })
   const productNameById = new Map(productsForName.map((p) => [p.id, p.name]))
+  const productTypeById = new Map(productsForName.map((p) => [p.id, p.type]))
 
   const created = await db.$transaction(async (tx) => {
     const invoice = await tx.salesInvoice.create({
@@ -359,16 +361,23 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
       },
     })
 
-    // Tạo thủ công (không qua đơn hàng) → trừ kho thành phẩm
+    // Tạo thủ công (không qua đơn hàng) → trừ kho thành phẩm.
+    // COMBO/SET quà tặng KHÔNG trừ kho gộp — thành phần được trừ ở khối Định mức bên dưới.
     if (!order) {
       for (const it of items) {
+        if (productTypeById.get(it.productId) === 'COMBO') continue
         await applyStockChange(tx, it.productId, -Math.round(it.quantity), 'SALE_EXPORT', `Xuất bán theo hóa đơn ${code}`)
       }
     }
 
-    // BOM trừ định mức nguyên vật liệu cho mọi thành phẩm trong items có khai báo định mức
+    // BOM trừ định mức nguyên vật liệu cho mọi thành phẩm trong items có khai báo định mức.
+    // COMBO/SET quà tặng: thành phần combo — khi hóa đơn lập TỪ ĐƠN thì thành phần đã bị trừ
+    // lúc tạo đơn (order-service) → bỏ qua để tránh trừ 2 lần; lập thủ công thì trừ ở đây.
     const bomIssued: BomIssuedRecord[] = []
+    const comboIdsIssued: string[] = []
     for (const it of items) {
+      const isCombo = productTypeById.get(it.productId) === 'COMBO'
+      if (isCombo && order) continue // đã trừ lúc tạo đơn
       const finishedName = productNameById.get(it.productId) ?? 'Thành phẩm'
       const bomRows = await tx.bomComponent.findMany({
         where: { productId: it.productId },
@@ -377,8 +386,10 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
       for (const bom of bomRows) {
         const deduct = Math.round(bom.quantity * it.quantity)
         if (deduct <= 0) continue
-        const note = `Định mức ${bom.quantity} ${bom.componentProduct.unit} ${bom.componentProduct.name} cho ${it.quantity} ${finishedName} (HĐ ${code})`
-        const deducted = await applyClampedIssue(tx, bom.componentProductId, deduct, 'BOM_ISSUE', note)
+        const note = isCombo
+          ? `Trừ thành phần combo ${bom.quantity} ${bom.componentProduct.unit} ${bom.componentProduct.name} cho ${it.quantity} ${finishedName} (HĐ ${code})`
+          : `Định mức ${bom.quantity} ${bom.componentProduct.unit} ${bom.componentProduct.name} cho ${it.quantity} ${finishedName} (HĐ ${code})`
+        const deducted = await applyClampedIssue(tx, bom.componentProductId, deduct, isCombo ? 'COMBO_ISSUE' : 'BOM_ISSUE', note)
         if (deducted >= deduct) {
           bomIssued.push({
             componentProductId: bom.componentProductId,
@@ -399,6 +410,11 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
           })
         }
       }
+      if (isCombo && bomRows.length > 0) comboIdsIssued.push(it.productId)
+    }
+    // Đồng bộ tồn hiển thị của các combo vừa trừ thành phần
+    for (const comboId of [...new Set(comboIdsIssued)]) {
+      await syncComboStock(tx, comboId)
     }
     return { invoice, bomIssued }
   })

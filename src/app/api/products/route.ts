@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { comboAvailableFromRows, comboCostFromRows } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,10 +37,37 @@ export async function GET(req: NextRequest) {
         listings: {
           include: { channel: { select: { id: true, key: true, name: true, color: true } } },
         },
+        bomFinished: {
+          include: { componentProduct: { select: { id: true, sku: true, name: true, unit: true, costPrice: true, stock: true } } },
+        },
       },
     })
 
-    return NextResponse.json({ products })
+    // COMBO/SET quà tặng: trả kèm thành phần + giá vốn gộp + số bộ có thể đóng được
+    const withCombo = products.map((p) => {
+      if (p.type !== 'COMBO') {
+        const { bomFinished: _bc, ...rest } = p
+        return rest
+      }
+      const components = p.bomFinished.map((row) => ({
+        productId: row.componentProduct.id,
+        sku: row.componentProduct.sku,
+        name: row.componentProduct.name,
+        quantity: row.quantity,
+        unit: row.componentProduct.unit,
+        costPrice: row.componentProduct.costPrice,
+        stock: row.componentProduct.stock,
+      }))
+      const { bomFinished, ...rest } = p
+      return {
+        ...rest,
+        components,
+        comboCostPrice: comboCostFromRows(bomFinished),
+        comboAvailable: comboAvailableFromRows(bomFinished),
+      }
+    })
+
+    return NextResponse.json({ products: withCombo })
   } catch (error) {
     console.error('Products GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh sách sản phẩm' }, { status: 500 })
@@ -50,6 +78,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { sku, name, description, categoryId, costPrice, sellPrice, stock, lowStockThreshold, status, listingChannelIds } = body
+    const productType = body.type === 'COMBO' ? 'COMBO' : 'SIMPLE'
 
     if (!sku?.trim() || !name?.trim()) {
       return NextResponse.json({ error: 'Vui lòng nhập SKU và tên sản phẩm' }, { status: 400 })
@@ -98,6 +127,7 @@ export async function POST(req: NextRequest) {
         lowStockThreshold: Number(lowStockThreshold) || 5,
         status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
         image: imageInput,
+        type: productType,
       },
     })
 

@@ -1,0 +1,651 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useMemo, useState } from 'react'
+     4→import { apiGet, apiPatch, apiPost } from '@/lib/api'
+     5→import { formatNumber, formatVND } from '@/lib/format'
+     6→import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/cms/page-header'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    10→import { Input } from '@/components/ui/input'
+    11→import { Label } from '@/components/ui/label'
+    12→import {
+    13→  Dialog,
+    14→  DialogContent,
+    15→  DialogDescription,
+    16→  DialogFooter,
+    17→  DialogHeader,
+    18→  DialogTitle,
+    19→} from '@/components/ui/dialog'
+    20→import {
+    21→  Select,
+    22→  SelectContent,
+    23→  SelectItem,
+    24→  SelectTrigger,
+    25→  SelectValue,
+    26→} from '@/components/ui/select'
+    27→import {
+    28→  Table,
+    29→  TableBody,
+    30→  TableCell,
+    31→  TableHead,
+    32→  TableHeader,
+    33→  TableRow,
+    34→} from '@/components/ui/table'
+    35→import { cn } from '@/lib/utils'
+    36→import { useToast } from '@/hooks/use-toast'
+    37→import {
+    38→  Boxes,
+    39→  Layers,
+    40→  ListTree,
+    41→  Loader2,
+    42→  PackageSearch,
+    43→  Plus,
+    44→  Save,
+    45→  Search,
+    46→  Tags,
+    47→  Trash2,
+    48→  X,
+    49→} from 'lucide-react'
+    50→
+    51→interface ProductLite {
+    52→  id: string
+    53→  sku: string
+    54→  name: string
+    55→  unit: string | null
+    56→  costPrice: number
+    57→  sellPrice: number
+    58→  stock: number
+    59→  attributes: string | null
+    60→}
+    61→
+    62→interface BomComponentProduct {
+    63→  id: string
+    64→  sku: string
+    65→  name: string
+    66→  unit: string
+    67→  stock: number
+    68→  costPrice: number
+    69→}
+    70→
+    71→interface BomComponent {
+    72→  quantity: number
+    73→  componentProduct: BomComponentProduct
+    74→}
+    75→
+    76→interface BomGroup {
+    77→  productId: string
+    78→  productSku: string
+    79→  productName: string
+    80→  unit: string
+    81→  stock: number
+    82→  components: BomComponent[]
+    83→}
+    84→
+    85→interface BomRow {
+    86→  componentProductId: string
+    87→  quantity: string
+    88→}
+    89→
+    90→const ATTR_PLACEHOLDER = 'Size M; Lụa; Màu trắng'
+    91→
+    92→export function BomView() {
+    93→  const [groups, setGroups] = useState<BomGroup[] | null>(null)
+    94→  const [products, setProducts] = useState<ProductLite[] | null>(null)
+    95→  const [loading, setLoading] = useState(true)
+    96→  const [error, setError] = useState<string | null>(null)
+    97→
+    98→  const [selectedId, setSelectedId] = useState<string | null>(null)
+    99→
+   100→  const [dialogOpen, setDialogOpen] = useState(false)
+   101→  const [dialogProductId, setDialogProductId] = useState('')
+   102→  const [rows, setRows] = useState<BomRow[]>([])
+   103→  const [submitting, setSubmitting] = useState(false)
+   104→
+   105→  const [attrSearch, setAttrSearch] = useState('')
+   106→  const [attrEdits, setAttrEdits] = useState<Record<string, { attributes: string; unit: string }>>({})
+   107→  const [savingAttrId, setSavingAttrId] = useState<string | null>(null)
+   108→  const { toast } = useToast()
+   109→
+   110→  const load = useCallback(async () => {
+   111→    setLoading(true)
+   112→    setError(null)
+   113→    try {
+   114→      const [bomRes, productsRes] = await Promise.all([
+   115→        apiGet<{ groups: BomGroup[] }>('/api/bom'),
+   116→        apiGet<{ products: ProductLite[] }>('/api/products?status=ACTIVE'),
+   117→      ])
+   118→      setGroups(bomRes.groups)
+   119→      setProducts(productsRes.products)
+   120→      setSelectedId((prev) => prev ?? bomRes.groups[0]?.productId ?? null)
+   121→    } catch (e) {
+   122→      const message = e instanceof Error ? e.message : 'Không thể tải dữ liệu kho & định mức'
+   123→      setError(message)
+   124→    } finally {
+   125→      setLoading(false)
+   126→    }
+   127→  }, [])
+   128→
+   129→  useEffect(() => {
+   130→    void load()
+   131→  }, [load])
+   132→
+   133→  const selectedGroup = useMemo(
+   134→    () => (groups ?? []).find((g) => g.productId === selectedId) ?? null,
+   135→    [groups, selectedId]
+   136→  )
+   137→  const selectedProduct = useMemo(
+   138→    () => (products ?? []).find((p) => p.id === selectedId) ?? null,
+   139→    [products, selectedId]
+   140→  )
+   141→
+   142→  const totalBomCost = useMemo(
+   143→    () =>
+   144→      (selectedGroup?.components ?? []).reduce(
+   145→        (sum, c) => sum + c.componentProduct.costPrice * c.quantity,
+   146→        0
+   147→      ),
+   148→    [selectedGroup]
+   149→  )
+   150→  const finishedCost = selectedProduct?.costPrice ?? 0
+   151→  const bomMargin = finishedCost - totalBomCost
+   152→
+   153→  const openConfig = (productId?: string) => {
+   154→    const targetId = productId ?? selectedId ?? ''
+   155→    const existing = (groups ?? []).find((g) => g.productId === targetId)
+   156→    setDialogProductId(targetId)
+   157→    setRows(
+   158→      existing && existing.components.length > 0
+   159→        ? existing.components.map((c) => ({ componentProductId: c.componentProduct.id, quantity: String(c.quantity) }))
+   160→        : [{ componentProductId: '', quantity: '' }]
+   161→    )
+   162→    setDialogOpen(true)
+   163→  }
+   164→
+   165→  const addRow = () => setRows((prev) => [...prev, { componentProductId: '', quantity: '' }])
+   166→
+   167→  const updateRow = (index: number, patch: Partial<BomRow>) =>
+   168→    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+   169→
+   170→  const removeRow = (index: number) => setRows((prev) => prev.filter((_, i) => i !== index))
+   171→
+   172→  const handleSaveBom = async () => {
+   173→    if (!dialogProductId) {
+   174→      toast({ title: 'Vui lòng chọn thành phẩm', variant: 'destructive' })
+   175→      return
+   176→    }
+   177→    const items: Array<{ componentProductId: string; quantity: number }> = []
+   178→    for (const row of rows) {
+   179→      const qty = Number(row.quantity)
+   180→      if (!row.componentProductId) {
+   181→        toast({ title: 'Vui lòng chọn nguyên vật liệu cho mọi dòng', variant: 'destructive' })
+   182→        return
+   183→      }
+   184→      if (!Number.isFinite(qty) || qty <= 0) {
+   185→        toast({ title: 'Định mức phải là số lớn hơn 0', variant: 'destructive' })
+   186→        return
+   187→      }
+   188→      items.push({ componentProductId: row.componentProductId, quantity: qty })
+   189→    }
+   190→    if (items.length === 0) {
+   191→      toast({ title: 'Cần ít nhất 1 nguyên vật liệu trong định mức', variant: 'destructive' })
+   192→      return
+   193→    }
+   194→    setSubmitting(true)
+   195→    try {
+   196→      await apiPost('/api/bom', { productId: dialogProductId, items })
+   197→      toast({
+   198→        title: 'Đã lưu định mức BOM',
+   199→        description: 'Định mức mới thay thế toàn bộ cấu hình cũ. Xuất bán thành phẩm sẽ tự trừ VLT.',
+   200→      })
+   201→      setDialogOpen(false)
+   202→      setSelectedId(dialogProductId)
+   203→      await load()
+   204→    } catch (e) {
+   205→      toast({
+   206→        title: 'Lưu định mức thất bại',
+   207→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   208→        variant: 'destructive',
+   209→      })
+   210→    } finally {
+   211→      setSubmitting(false)
+   212→    }
+   213→  }
+   214→
+   215→  const getAttrEdit = (p: ProductLite) =>
+   216→    attrEdits[p.id] ?? { attributes: p.attributes ?? '', unit: p.unit ?? '' }
+   217→
+   218→  const setAttrEdit = (id: string, patch: Partial<{ attributes: string; unit: string }>) =>
+   219→    setAttrEdits((prev) => ({
+   220→      ...prev,
+   221→      [id]: { ...(prev[id] ?? { attributes: '', unit: '' }), ...patch },
+   222→    }))
+   223→
+   224→  const attrDirty = (p: ProductLite) => {
+   225→    const edit = attrEdits[p.id]
+   226→    if (!edit) return false
+   227→    return edit.attributes !== (p.attributes ?? '') || edit.unit !== (p.unit ?? '')
+   228→  }
+   229→
+   230→  const handleSaveAttr = async (p: ProductLite) => {
+   231→    const edit = getAttrEdit(p)
+   232→    setSavingAttrId(p.id)
+   233→    try {
+   234→      await apiPatch('/api/product-attributes', {
+   235→        id: p.id,
+   236→        attributes: edit.attributes.trim() || null,
+   237→        unit: edit.unit.trim() || null,
+   238→      })
+   239→      toast({ title: 'Đã lưu thuộc tính', description: `${p.name} — ĐẶC TÍNH & đơn vị tính cập nhật` })
+   240→      setAttrEdits((prev) => {
+   241→        const next = { ...prev }
+   242→        delete next[p.id]
+   243→        return next
+   244→      })
+   245→      await load()
+   246→    } catch (e) {
+   247→      toast({
+   248→        title: 'Lưu thuộc tính thất bại',
+   249→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   250→        variant: 'destructive',
+   251→      })
+   252→    } finally {
+   253→      setSavingAttrId(null)
+   254→    }
+   255→  }
+   256→
+   257→  const attrQuery = attrSearch.trim().toLowerCase()
+   258→  const attrRows = (products ?? [])
+   259→    .filter((p) => !attrQuery || p.name.toLowerCase().includes(attrQuery) || p.sku.toLowerCase().includes(attrQuery))
+   260→    .slice(0, 20)
+   261→
+   262→  return (
+   263→    <div>
+   264→      <PageHeader
+   265→        title="Kho hàng & Định mức"
+   266→        description="Định mức nguyên vật liệu (BOM) — khi xuất bán thành phẩm, hệ thống tự động trừ định mức VLT"
+   267→      />
+   268→
+   269→      {error ? (
+   270→        <ErrorState message={error} onRetry={() => void load()} />
+   271→      ) : (
+   272→        <>
+   273→          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+   274→            {/* Danh sách thành phẩm có định mức */}
+   275→            <div className="lg:col-span-2">
+   276→              <Card className="border-border/70 shadow-sm">
+   277→                <CardHeader className="pb-3">
+   278→                  <CardTitle className="flex items-center gap-2 text-base">
+   279→                    <ListTree className="h-5 w-5 text-amber-500" />
+   280→                    Thành phẩm có định mức
+   281→                  </CardTitle>
+   282→                  <CardDescription>{groups?.length ?? 0} sản phẩm đã cấu hình BOM</CardDescription>
+   283→                </CardHeader>
+   284→                <CardContent className="p-0">
+   285→                  {loading ? (
+   286→                    <div className="p-4">
+   287→                      <TableSkeleton rows={4} />
+   288→                    </div>
+   289→                  ) : !groups || groups.length === 0 ? (
+   290→                    <div className="p-4">
+   291→                      <EmptyState
+   292→                        icon={Layers}
+   293→                        title="Chưa có định mức nào"
+   294→                        description="Cấu hình định mức để tự động trừ nguyên vật liệu khi bán thành phẩm."
+   295→                        action={
+   296→                          <Button onClick={() => openConfig()}>
+   297→                            <Plus className="h-4 w-4" />
+   298→                            Cấu hình định mức
+   299→                          </Button>
+   300→                        }
+   301→                      />
+   302→                    </div>
+   303→                  ) : (
+   304→                    <div className="max-h-96 space-y-2 overflow-y-auto p-3">
+   305→                      {groups.map((g) => (
+   306→                        <button
+   307→                          key={g.productId}
+   308→                          type="button"
+   309→                          onClick={() => setSelectedId(g.productId)}
+   310→                          className={cn(
+   311→                            'w-full rounded-xl border p-3 text-left transition-colors',
+   312→                            g.productId === selectedId
+   313→                              ? 'border-primary bg-primary/5'
+   314→                              : 'border-border/70 hover:bg-muted/60'
+   315→                          )}
+   316→                        >
+   317→                          <div className="flex items-start justify-between gap-2">
+   318→                            <div className="min-w-0">
+   319→                              <p className="truncate font-medium">{g.productName}</p>
+   320→                              <p className="font-mono text-xs text-muted-foreground">{g.productSku}</p>
+   321→                            </div>
+   322→                            <Badge
+   323→                              variant="outline"
+   324→                              className="shrink-0 border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+   325→                            >
+   326→                              Tồn {formatNumber(g.stock)}
+   327→                            </Badge>
+   328→                          </div>
+   329→                          <p className="mt-1.5 text-xs text-muted-foreground">
+   330→                            {g.components.length} nguyên vật liệu trong định mức
+   331→                          </p>
+   332→                        </button>
+   333→                      ))}
+   334→                    </div>
+   335→                  )}
+   336→                </CardContent>
+   337→              </Card>
+   338→            </div>
+   339→
+   340→            {/* Chi tiết định mức của thành phẩm đang chọn */}
+   341→            <div className="lg:col-span-3">
+   342→              <Card className="border-border/70 shadow-sm">
+   343→                <CardHeader className="pb-3">
+   344→                  <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+   345→                    <span className="flex items-center gap-2">
+   346→                      <Boxes className="h-5 w-5 text-sky-500" />
+   347→                      {selectedGroup ? `Định mức — ${selectedGroup.productName}` : 'Chi tiết định mức'}
+   348→                    </span>
+   349→                    <Button size="sm" variant="outline" onClick={() => openConfig()}>
+   350→                      <Plus className="h-4 w-4" />
+   351→                      Cấu hình định mức
+   352→                    </Button>
+   353→                  </CardTitle>
+   354→                  {selectedGroup && (
+   355→                    <CardDescription>
+   356→                      Mỗi 1 {selectedGroup.unit} {selectedGroup.productName} xuất bán sẽ tự trừ các VLT bên dưới
+   357→                    </CardDescription>
+   358→                  )}
+   359→                </CardHeader>
+   360→                <CardContent className="p-0">
+   361→                  {loading ? (
+   362→                    <div className="p-4">
+   363→                      <TableSkeleton rows={4} />
+   364→                    </div>
+   365→                  ) : !selectedGroup || selectedGroup.components.length === 0 ? (
+   366→                    <div className="p-4">
+   367→                      <EmptyState
+   368→                        icon={Boxes}
+   369→                        title="Chưa chọn thành phẩm hoặc chưa có định mức"
+   370→                        description="Chọn một thành phẩm bên trái hoặc tạo định mức mới."
+   371→                      />
+   372→                    </div>
+   373→                  ) : (
+   374→                    <>
+   375→                      <div className="overflow-x-auto">
+   376→                        <Table>
+   377→                          <TableHeader>
+   378→                            <TableRow>
+   379→                              <TableHead className="font-mono">Mã VLT</TableHead>
+   380→                              <TableHead>Tên nguyên vật liệu</TableHead>
+   381→                              <TableHead className="text-right">Định mức/sp</TableHead>
+   382→                              <TableHead className="text-right">Tồn VLT</TableHead>
+   383→                              <TableHead className="text-right">Vốn VLT</TableHead>
+   384→                            </TableRow>
+   385→                          </TableHeader>
+   386→                          <TableBody>
+   387→                            {selectedGroup.components.map((c) => (
+   388→                              <TableRow key={c.componentProduct.id}>
+   389→                                <TableCell className="whitespace-nowrap font-mono text-xs">
+   390→                                  {c.componentProduct.sku}
+   391→                                </TableCell>
+   392→                                <TableCell>
+   393→                                  <p className="max-w-[200px] truncate font-medium">{c.componentProduct.name}</p>
+   394→                                  <p className="text-xs text-muted-foreground">{c.componentProduct.unit}</p>
+   395→                                </TableCell>
+   396→                                <TableCell className="whitespace-nowrap text-right tabular-nums">
+   397→                                  {formatNumber(c.quantity)} {c.componentProduct.unit}
+   398→                                </TableCell>
+   399→                                <TableCell
+   400→                                  className={cn(
+   401→                                    'whitespace-nowrap text-right tabular-nums',
+   402→                                    c.componentProduct.stock <= 0 && 'font-semibold text-rose-600 dark:text-rose-400'
+   403→                                  )}
+   404→                                >
+   405→                                  {formatNumber(c.componentProduct.stock)}
+   406→                                </TableCell>
+   407→                                <TableCell className="whitespace-nowrap text-right tabular-nums">
+   408→                                  {formatVND(c.componentProduct.costPrice * c.quantity)}
+   409→                                </TableCell>
+   410→                              </TableRow>
+   411→                            ))}
+   412→                          </TableBody>
+   413→                        </Table>
+   414→                      </div>
+   415→                      <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4">
+   416→                        <div>
+   417→                          <p className="text-xs text-muted-foreground">Tổng vốn định mức / sp</p>
+   418→                          <p className="text-lg font-bold tabular-nums">{formatVND(totalBomCost)}</p>
+   419→                        </div>
+   420→                        <div
+   421→                          className={cn(
+   422→                            'rounded-xl border px-4 py-2 text-right',
+   423→                            bomMargin > 0
+   424→                              ? 'border-emerald-200/70 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-emerald-950/30'
+   425→                              : bomMargin === 0
+   426→                                ? 'border-border bg-muted/50'
+   427→                                : 'border-rose-200/70 bg-rose-50/60 dark:border-rose-900/50 dark:bg-rose-950/30'
+   428→                          )}
+   429→                        >
+   430→                          <p className="text-xs text-muted-foreground">
+   431→                            {bomMargin > 0 ? 'Lãi định mức / sp' : bomMargin === 0 ? 'Cân bằng định mức' : 'Vượt vốn định mức'}
+   432→                          </p>
+   433→                          <p
+   434→                            className={cn(
+   435→                              'text-lg font-bold tabular-nums',
+   436→                              bomMargin > 0
+   437→                                ? 'text-emerald-700 dark:text-emerald-400'
+   438→                                : bomMargin === 0
+   439→                                  ? 'text-muted-foreground'
+   440→                                  : 'text-rose-700 dark:text-rose-400'
+   441→                            )}
+   442→                          >
+   443→                            {bomMargin > 0 ? '+' : ''}
+   444→                            {formatVND(bomMargin)}
+   445→                          </p>
+   446→                          <p className="text-xs text-muted-foreground">
+   447→                            Giá vốn TP: {formatVND(finishedCost)}
+   448→                          </p>
+   449→                        </div>
+   450→                      </div>
+   451→                    </>
+   452→                  )}
+   453→                </CardContent>
+   454→              </Card>
+   455→            </div>
+   456→          </div>
+   457→
+   458→          {/* Thuộc tính sản phẩm */}
+   459→          <Card className="mt-4 border-border/70 shadow-sm">
+   460→            <CardHeader className="pb-3">
+   461→              <CardTitle className="flex items-center gap-2 text-base">
+   462→                <Tags className="h-5 w-5 text-violet-500" />
+   463→                Thuộc tính sản phẩm (ĐẶC TÍNH)
+   464→              </CardTitle>
+   465→              <CardDescription>
+   466→                Gợi ý viết: &quot;{ATTR_PLACEHOLDER}&quot; — phân tách bằng dấu chấm phẩy, hiển thị trên hóa đơn & phiếu kho
+   467→              </CardDescription>
+   468→            </CardHeader>
+   469→            <CardContent className="p-0">
+   470→              <div className="flex flex-wrap items-center gap-3 border-b p-4">
+   471→                <div className="relative w-full max-w-xs">
+   472→                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   473→                  <Input
+   474→                    value={attrSearch}
+   475→                    onChange={(e) => setAttrSearch(e.target.value)}
+   476→                    placeholder="Tìm sản phẩm theo tên hoặc mã..."
+   477→                    className="pl-8"
+   478→                  />
+   479→                </div>
+   480→                <p className="text-xs text-muted-foreground">Hiển thị tối đa 20 dòng — sửa trực tiếp rồi bấm Lưu</p>
+   481→              </div>
+   482→              {loading ? (
+   483→                <div className="p-4">
+   484→                  <TableSkeleton rows={5} />
+   485→                </div>
+   486→              ) : attrRows.length === 0 ? (
+   487→                <div className="p-4">
+   488→                  <EmptyState icon={PackageSearch} title="Không tìm thấy sản phẩm" description="Thử từ khóa khác." />
+   489→                </div>
+   490→              ) : (
+   491→                <div className="max-h-96 overflow-auto">
+   492→                  <Table>
+   493→                    <TableHeader className="sticky top-0 bg-background">
+   494→                      <TableRow>
+   495→                        <TableHead className="font-mono">Mã SP</TableHead>
+   496→                        <TableHead>Tên sản phẩm</TableHead>
+   497→                        <TableHead className="w-24">Đơn vị</TableHead>
+   498→                        <TableHead>ĐẶC TÍNH</TableHead>
+   499→                        <TableHead className="w-12" />
+   500→                      </TableRow>
+   501→                    </TableHeader>
+   502→                    <TableBody>
+   503→                      {attrRows.map((p) => {
+   504→                        const edit = getAttrEdit(p)
+   505→                        const dirty = attrDirty(p)
+   506→                        return (
+   507→                          <TableRow key={p.id}>
+   508→                            <TableCell className="whitespace-nowrap font-mono text-xs">{p.sku}</TableCell>
+   509→                            <TableCell>
+   510→                              <p className="max-w-[180px] truncate font-medium">{p.name}</p>
+   511→                            </TableCell>
+   512→                            <TableCell>
+   513→                              <Input
+   514→                                value={edit.unit}
+   515→                                onChange={(e) => setAttrEdit(p.id, { unit: e.target.value })}
+   516→                                placeholder="cái"
+   517→                                className="h-8 w-20 text-sm"
+   518→                              />
+   519→                            </TableCell>
+   520→                            <TableCell>
+   521→                              <Input
+   522→                                value={edit.attributes}
+   523→                                onChange={(e) => setAttrEdit(p.id, { attributes: e.target.value })}
+   524→                                placeholder={ATTR_PLACEHOLDER}
+   525→                                className="h-8 text-sm"
+   526→                              />
+   527→                            </TableCell>
+   528→                            <TableCell>
+   529→                              <Button
+   530→                                size="icon"
+   531→                                variant={dirty ? 'default' : 'ghost'}
+   532→                                className="h-8 w-8"
+   533→                                disabled={!dirty || savingAttrId !== null}
+   534→                                onClick={() => void handleSaveAttr(p)}
+   535→                                title="Lưu thuộc tính"
+   536→                              >
+   537→                                {savingAttrId === p.id ? (
+   538→                                  <Loader2 className="h-4 w-4 animate-spin" />
+   539→                                ) : (
+   540→                                  <Save className="h-4 w-4" />
+   541→                                )}
+   542→                              </Button>
+   543→                            </TableCell>
+   544→                          </TableRow>
+   545→                        )
+   546→                      })}
+   547→                    </TableBody>
+   548→                  </Table>
+   549→                </div>
+   550→              )}
+   551→            </CardContent>
+   552→          </Card>
+   553→        </>
+   554→      )}
+   555→
+   556→      {/* Dialog cấu hình định mức BOM */}
+   557→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   558→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   559→          <DialogHeader>
+   560→            <DialogTitle>Cấu hình định mức (BOM)</DialogTitle>
+   561→            <DialogDescription>
+   562→              Định mức sẽ thay thế toàn bộ cấu hình cũ của thành phẩm. Mỗi dòng là 1 nguyên vật liệu trừ theo số lượng
+   563→              thành phẩm xuất.
+   564→            </DialogDescription>
+   565→          </DialogHeader>
+   566→          <div className="grid gap-4 py-2">
+   567→            <div className="grid gap-2">
+   568→              <Label htmlFor="bom-product">
+   569→                Thành phẩm <span className="text-destructive">*</span>
+   570→              </Label>
+   571→              <Select
+   572→                value={dialogProductId || undefined}
+   573→                onValueChange={(value) => setDialogProductId(value)}
+   574→              >
+   575→                <SelectTrigger id="bom-product" className="w-full">
+   576→                  <SelectValue placeholder="Chọn thành phẩm" />
+   577→                </SelectTrigger>
+   578→                <SelectContent>
+   579→                  {(products ?? []).map((p) => (
+   580→                    <SelectItem key={p.id} value={p.id}>
+   581→                      {p.sku} — {p.name} (tồn {formatNumber(p.stock)})
+   582→                    </SelectItem>
+   583→                  ))}
+   584→                </SelectContent>
+   585→              </Select>
+   586→            </div>
+   587→
+   588→            <div className="space-y-2">
+   589→              <Label>Nguyên vật liệu & định mức</Label>
+   590→              {rows.map((row, index) => (
+   591→                <div key={index} className="flex flex-wrap items-center gap-2">
+   592→                  <Select
+   593→                    value={row.componentProductId || undefined}
+   594→                    onValueChange={(value) => updateRow(index, { componentProductId: value })}
+   595→                  >
+   596→                    <SelectTrigger className="min-w-[220px] flex-1">
+   597→                      <SelectValue placeholder="Chọn nguyên vật liệu" />
+   598→                    </SelectTrigger>
+   599→                    <SelectContent>
+   600→                      {(products ?? [])
+   601→                        .filter((p) => p.id !== dialogProductId)
+   602→                        .map((p) => (
+   603→                          <SelectItem key={p.id} value={p.id}>
+   604→                            {p.sku} — {p.name} (tồn {formatNumber(p.stock)})
+   605→                          </SelectItem>
+   606→                        ))}
+   607→                    </SelectContent>
+   608→                  </Select>
+   609→                  <Input
+   610→                    type="number"
+   611→                    step={0.5}
+   612→                    min={0.1}
+   613→                    value={row.quantity}
+   614→                    onChange={(e) => updateRow(index, { quantity: e.target.value })}
+   615→                    placeholder="Định mức"
+   616→                    className="w-28"
+   617→                  />
+   618→                  <Button
+   619→                    type="button"
+   620→                    variant="ghost"
+   621→                    size="icon"
+   622→                    className="h-9 w-9 text-muted-foreground hover:text-destructive"
+   623→                    onClick={() => removeRow(index)}
+   624→                    disabled={rows.length === 1}
+   625→                  >
+   626→                    <X className="h-4 w-4" />
+   627→                  </Button>
+   628→                </div>
+   629→              ))}
+   630→              <Button type="button" variant="outline" size="sm" onClick={addRow}>
+   631→                <Plus className="h-4 w-4" />
+   632→                Thêm nguyên liệu
+   633→              </Button>
+   634→            </div>
+   635→          </div>
+   636→          <DialogFooter>
+   637→            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+   638→              Hủy
+   639→            </Button>
+   640→            <Button onClick={() => void handleSaveBom()} disabled={submitting}>
+   641→              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+   642→              <Save className="h-4 w-4" />
+   643→              Lưu định mức
+   644→            </Button>
+   645→          </DialogFooter>
+   646→        </DialogContent>
+   647→      </Dialog>
+   648→    </div>
+   649→  )
+   650→}
+   651→

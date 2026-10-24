@@ -160,6 +160,8 @@ async function dispatchCarrier(orderId: string) {
         trackingCode: tracking,
         status: 'DISPATCHED',
         fee: order.shippingFee,
+        codAmount: order.paymentMethod === 'COD' ? order.total : 0,
+        codStatus: 'PENDING',
         dispatchedBy: 'AGENT',
       },
     })
@@ -211,6 +213,24 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
     const order = shipment.order
 
     await db.shipment.update({ where: { id: shipment.id }, data: { status: next } })
+
+    // Đơn COD giao thành công → tiền thu hộ chuyển sang "đã nhận, chờ ĐVVC đối soát chuyển về"
+    if (next === 'DELIVERED' && shipment.codStatus === 'PENDING' && shipment.codAmount > 0) {
+      await db.shipment.update({
+        where: { id: shipment.id },
+        data: { codStatus: 'RECEIVED', codReceived: shipment.codAmount, codReceivedAt: new Date() },
+      })
+      logLedgerAsync({
+        scope: 'ORDER',
+        action: 'COD_RECEIVED',
+        entityType: 'Shipment',
+        entityId: shipment.id,
+        entityCode: shipment.trackingCode,
+        title: `Nhận COD đơn ${order.code} — ${carrierName(shipment.carrier)} thu hộ ${(shipment.codAmount).toLocaleString('vi-VN')}đ`,
+        detail: { orderId: order.id, orderCode: order.code, codAmount: shipment.codAmount },
+        actor: 'AGENT',
+      })
+    }
 
     if (next === 'PICKED_UP') {
       await db.order.update({ where: { id: order.id }, data: { status: 'SHIPPING' } })

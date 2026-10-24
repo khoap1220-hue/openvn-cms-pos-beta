@@ -10,12 +10,14 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
+    const codStatus = searchParams.get('codStatus')
     const where: Record<string, unknown> = {}
     if (status && status !== 'ALL') where.status = status
+    if (codStatus && codStatus !== 'ALL') where.codStatus = codStatus
 
     const startOfDay = new Date(new Date().setHours(0, 0, 0, 0))
 
-    const [shipments, active, deliveredToday, dispatchedToday] = await Promise.all([
+    const [shipments, active, deliveredToday, dispatchedToday, codPendingAgg, codReceivedAgg] = await Promise.all([
       db.shipment.findMany({
         where,
         orderBy: { updatedAt: 'desc' },
@@ -26,8 +28,11 @@ export async function GET(req: NextRequest) {
               code: true,
               total: true,
               status: true,
+              paymentMethod: true,
+              address: true,
               customer: { select: { id: true, name: true, phone: true } },
               channel: { select: { id: true, key: true, name: true, color: true } },
+              items: { select: { quantity: true, product: { select: { sku: true, name: true, fragile: true } } } },
             },
           },
         },
@@ -35,11 +40,28 @@ export async function GET(req: NextRequest) {
       db.shipment.count({ where: { status: { in: ['DISPATCHED', 'PICKED_UP', 'IN_TRANSIT'] } } }),
       db.shipment.count({ where: { status: 'DELIVERED', updatedAt: { gte: startOfDay } } }),
       db.shipment.count({ where: { createdAt: { gte: startOfDay } } }),
+      // Đối soát COD: tiền chờ ĐVVC chuyển về + số vận đơn chờ
+      db.shipment.aggregate({
+        where: { codStatus: 'PENDING' },
+        _count: true,
+        _sum: { codAmount: true },
+      }),
+      db.shipment.aggregate({
+        where: { codStatus: { in: ['RECEIVED', 'RECONCILED'] }, codReceivedAt: { gte: startOfDay } },
+        _sum: { codReceived: true },
+      }),
     ])
 
     return NextResponse.json({
       shipments,
-      stats: { active, deliveredToday, dispatchedToday },
+      stats: {
+        active,
+        deliveredToday,
+        dispatchedToday,
+        codPendingCount: codPendingAgg._count,
+        codPendingAmount: codPendingAgg._sum.codAmount ?? 0,
+        codReceivedToday: codReceivedAgg._sum.codReceived ?? 0,
+      },
     })
   } catch (error) {
     console.error('Shipments GET error:', error)
@@ -73,6 +95,8 @@ export async function POST(req: NextRequest) {
         trackingCode: tracking,
         status: 'DISPATCHED',
         fee: order.shippingFee,
+        codAmount: order.paymentMethod === 'COD' ? order.total : 0,
+        codStatus: 'PENDING',
         dispatchedBy: 'OPERATOR',
       },
       include: { order: true },

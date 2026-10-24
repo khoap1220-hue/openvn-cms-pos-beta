@@ -36,6 +36,10 @@ export interface InvoiceDashboard {
   vatInput: number
   profit: number
   profitMargin: number
+  /** tổng phí sàn TMĐT snapshot trên đơn hàng trong kỳ (status != CANCELLED) */
+  platformFee: number
+  /** lợi nhuận thực nhận = profit − platformFee (đã trừ phí sàn khi đối soát) */
+  netProfit: number
   stockNow: number
   stockIn: number
   stockOut: number
@@ -66,7 +70,7 @@ export async function getInvoiceDashboard({ year, quarter }: InvoiceDashboardInp
   const start = new Date(year, (Math.min(...quarters) - 1) * 3, 1)
   const end = new Date(year, Math.max(...quarters) * 3, 1)
 
-  const [salesRows, purchaseRows, stockAgg, movementsInPeriod, movementsAfter, products] = await Promise.all([
+  const [salesRows, purchaseRows, stockAgg, movementsInPeriod, movementsAfter, products, orderFeeAgg] = await Promise.all([
     db.salesInvoice.findMany({
       where: { status: 'POSTED', invoiceDate: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } },
       select: { invoiceDate: true, subtotal: true, vatAmount: true, total: true },
@@ -87,6 +91,11 @@ export async function getInvoiceDashboard({ year, quarter }: InvoiceDashboardInp
     db.product.findMany({
       select: { id: true, sku: true, name: true, attributes: true, unit: true, stock: true },
     }),
+    // Phí sàn TMĐT: snapshot trên từng đơn (kể cả đơn chưa lập hóa đơn) — đối soát theo thời điểm tạo đơn
+    db.order.aggregate({
+      where: { status: { not: 'CANCELLED' }, createdAt: { gte: start, lt: end } },
+      _sum: { platformFee: true },
+    }),
   ])
 
   // FR-DB-01~04: doanh thu / chi phí / VAT trong kỳ đã chọn
@@ -98,6 +107,9 @@ export async function getInvoiceDashboard({ year, quarter }: InvoiceDashboardInp
   const vatInput = periodPurchases.reduce((s, r) => s + r.vatAmount, 0)
   const profit = revenue - expense
   const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0
+  // Lợi nhuận thực nhận: trừ phí sàn TMĐT (snapshot trên đơn hàng) khi đối soát
+  const platformFee = orderFeeAgg._sum.platformFee ?? 0
+  const netProfit = profit - platformFee
 
   // FR-DB-05~06: tồn kho hiện tại + biến động kho trong kỳ
   const stockNow = stockAgg._sum.stock ?? 0
@@ -136,23 +148,25 @@ export async function getInvoiceDashboard({ year, quarter }: InvoiceDashboardInp
     afterByProduct.set(mv.productId, row)
   }
 
-  const inventory: DashboardInventoryRow[] = products.map((p) => {
-    const period = inPeriodByProduct.get(p.id) ?? { in: 0, out: 0 }
-    const after = afterByProduct.get(p.id) ?? { in: 0, out: 0 }
-    const closing = p.stock - after.in + after.out
-    return {
-      id: p.id,
-      sku: p.sku,
-      name: p.name,
-      attributes: p.attributes,
-      unit: p.unit,
-      stock: p.stock,
-      in: period.in,
-      out: period.out,
-      closing,
-      movement: period.in + period.out,
-    }
-  })
+  const inventory: DashboardInventoryRow[] = products
+    .map((p) => {
+      const period = inPeriodByProduct.get(p.id) ?? { in: 0, out: 0 }
+      const after = afterByProduct.get(p.id) ?? { in: 0, out: 0 }
+      const closing = p.stock - after.in + after.out
+      return {
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        attributes: p.attributes,
+        unit: p.unit,
+        stock: p.stock,
+        in: period.in,
+        out: period.out,
+        closing,
+        movement: period.in + period.out,
+      }
+    })
+    .filter((row) => row.movement > 0) // bảng "Chi tiết biến động" chỉ liệt kê SP có nhập/xuất trong kỳ
   inventory.sort((a, b) => b.out - a.out || b.in - a.in || a.name.localeCompare(b.name))
 
   return {
@@ -166,6 +180,8 @@ export async function getInvoiceDashboard({ year, quarter }: InvoiceDashboardInp
     vatInput,
     profit,
     profitMargin,
+    platformFee,
+    netProfit,
     stockNow,
     stockIn,
     stockOut,

@@ -10,24 +10,31 @@ export async function GET() {
       orderBy: { createdAt: 'asc' },
       include: {
         _count: { select: { orders: true, listings: true } },
-        orders: { where: { status: { not: 'CANCELLED' } }, select: { total: true } },
+        orders: { where: { status: { not: 'CANCELLED' } }, select: { total: true, subtotal: true, platformFee: true } },
       },
     })
 
-    const data: Channel[] = channels.map((c) => ({
-      id: c.id,
-      key: c.key,
-      name: c.name,
-      color: c.color,
-      connected: c.connected,
-      feePercent: c.feePercent,
-      syncedAt: c.syncedAt?.toISOString() ?? null,
-      stats: {
-        orders: c._count.orders,
-        revenue: c.orders.reduce((s, o) => s + o.total, 0),
-        listings: c._count.listings,
-      },
-    }))
+    const data: Channel[] = channels.map((c) => {
+      const revenue = c.orders.reduce((s, o) => s + o.total, 0)
+      const platformFee = c.orders.reduce((s, o) => s + o.platformFee, 0)
+      return {
+        id: c.id,
+        key: c.key,
+        name: c.name,
+        color: c.color,
+        connected: c.connected,
+        feePercent: c.feePercent,
+        syncedAt: c.syncedAt?.toISOString() ?? null,
+        stats: {
+          orders: c._count.orders,
+          revenue,
+          listings: c._count.listings,
+          // Đối soát phí sàn TMĐT: phí snapshot trên từng đơn + doanh thu thực nhận sau phí
+          platformFee,
+          netRevenue: revenue - platformFee,
+        },
+      }
+    })
 
     return NextResponse.json({ channels: data })
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import { comboAvailableFromRows, comboCostFromRows } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,10 +14,35 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         category: { select: { id: true, name: true, slug: true } },
         listings: { include: { channel: { select: { id: true, key: true, name: true, color: true } } } },
         stockMovements: { orderBy: { createdAt: 'desc' }, take: 20 },
+        bomFinished: {
+          include: { componentProduct: { select: { id: true, sku: true, name: true, unit: true, costPrice: true, stock: true } } },
+        },
       },
     })
     if (!product) return NextResponse.json({ error: 'Không tìm thấy sản phẩm' }, { status: 404 })
-    return NextResponse.json({ product })
+
+    if (product.type !== 'COMBO') {
+      const { bomFinished: _bc, ...rest } = product
+      return NextResponse.json({ product: rest })
+    }
+    const components = product.bomFinished.map((row) => ({
+      productId: row.componentProduct.id,
+      sku: row.componentProduct.sku,
+      name: row.componentProduct.name,
+      quantity: row.quantity,
+      unit: row.componentProduct.unit,
+      costPrice: row.componentProduct.costPrice,
+      stock: row.componentProduct.stock,
+    }))
+    const { bomFinished, ...rest } = product
+    return NextResponse.json({
+      product: {
+        ...rest,
+        components,
+        comboCostPrice: comboCostFromRows(product.bomFinished),
+        comboAvailable: comboAvailableFromRows(product.bomFinished),
+      },
+    })
   } catch (error) {
     console.error('Product GET error:', error)
     return NextResponse.json({ error: 'Không thể tải sản phẩm' }, { status: 500 })
@@ -73,6 +99,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    // Loại sản phẩm: SIMPLE | COMBO (Set quà tặng — thành phần khai báo ở Định mức)
+    let nextType: string | undefined
+    if (body.type !== undefined) {
+      nextType = body.type === 'COMBO' ? 'COMBO' : 'SIMPLE'
+    }
+
     const product = await db.product.update({
       where: { id },
       data: {
@@ -88,6 +120,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(lowStockThreshold !== undefined ? { lowStockThreshold: Number(lowStockThreshold) || 5 } : {}),
         ...(status !== undefined ? { status } : {}),
         ...(imageInput !== undefined ? { image: imageInput } : {}),
+        ...(nextType !== undefined ? { type: nextType } : {}),
       },
     })
 

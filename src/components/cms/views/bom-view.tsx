@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import {
   Boxes,
+  Gift,
   Layers,
   ListTree,
   Loader2,
@@ -57,6 +58,7 @@ interface ProductLite {
   sellPrice: number
   stock: number
   attributes: string | null
+  type?: string
 }
 
 interface BomComponentProduct {
@@ -88,6 +90,18 @@ interface BomRow {
 }
 
 const ATTR_PLACEHOLDER = 'Size M; Lụa; Màu trắng'
+
+/** Badge nhỏ đánh dấu sản phẩm Combo/Set quà tặng */
+function ComboBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="shrink-0 border-violet-300 text-[10px] font-medium text-violet-600 dark:border-violet-800 dark:text-violet-400"
+    >
+      Combo
+    </Badge>
+  )
+}
 
 export function BomView() {
   const [groups, setGroups] = useState<BomGroup[] | null>(null)
@@ -139,6 +153,15 @@ export function BomView() {
     [products, selectedId]
   )
 
+  // Map loại sản phẩm (SIMPLE/COMBO) theo productId — group BOM không trả type nên tra từ danh sách products
+  const productTypeById = useMemo(() => {
+    const map = new Map<string, string>()
+    ;(products ?? []).forEach((p) => map.set(p.id, p.type ?? 'SIMPLE'))
+    return map
+  }, [products])
+  const selectedIsCombo = productTypeById.get(selectedId ?? '') === 'COMBO'
+  const dialogIsCombo = productTypeById.get(dialogProductId) === 'COMBO'
+
   const totalBomCost = useMemo(
     () =>
       (selectedGroup?.components ?? []).reduce(
@@ -178,7 +201,10 @@ export function BomView() {
     for (const row of rows) {
       const qty = Number(row.quantity)
       if (!row.componentProductId) {
-        toast({ title: 'Vui lòng chọn nguyên vật liệu cho mọi dòng', variant: 'destructive' })
+        toast({
+          title: dialogIsCombo ? 'Vui lòng chọn thành phần cho mọi dòng' : 'Vui lòng chọn nguyên vật liệu cho mọi dòng',
+          variant: 'destructive',
+        })
         return
       }
       if (!Number.isFinite(qty) || qty <= 0) {
@@ -188,15 +214,20 @@ export function BomView() {
       items.push({ componentProductId: row.componentProductId, quantity: qty })
     }
     if (items.length === 0) {
-      toast({ title: 'Cần ít nhất 1 nguyên vật liệu trong định mức', variant: 'destructive' })
+      toast({
+        title: dialogIsCombo ? 'Cần ít nhất 1 thành phần trong combo' : 'Cần ít nhất 1 nguyên vật liệu trong định mức',
+        variant: 'destructive',
+      })
       return
     }
     setSubmitting(true)
     try {
       await apiPost('/api/bom', { productId: dialogProductId, items })
       toast({
-        title: 'Đã lưu định mức BOM',
-        description: 'Định mức mới thay thế toàn bộ cấu hình cũ. Xuất bán thành phẩm sẽ tự trừ VLT.',
+        title: dialogIsCombo ? 'Đã lưu thành phần combo' : 'Đã lưu định mức BOM',
+        description: dialogIsCombo
+          ? 'Thành phần thay thế toàn bộ cấu hình cũ — tồn combo và giá vốn gộp đã được đồng bộ tự động.'
+          : 'Định mức mới thay thế toàn bộ cấu hình cũ. Xuất bán thành phẩm sẽ tự trừ VLT.',
       })
       setDialogOpen(false)
       setSelectedId(dialogProductId)
@@ -316,7 +347,10 @@ export function BomView() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="truncate font-medium">{g.productName}</p>
+                              <p className="flex items-center gap-1.5 font-medium">
+                                <span className="truncate">{g.productName}</span>
+                                {productTypeById.get(g.productId) === 'COMBO' && <ComboBadge />}
+                              </p>
                               <p className="font-mono text-xs text-muted-foreground">{g.productSku}</p>
                             </div>
                             <Badge
@@ -327,7 +361,10 @@ export function BomView() {
                             </Badge>
                           </div>
                           <p className="mt-1.5 text-xs text-muted-foreground">
-                            {g.components.length} nguyên vật liệu trong định mức
+                            {g.components.length}{' '}
+                            {productTypeById.get(g.productId) === 'COMBO'
+                              ? 'thành phần combo'
+                              : 'nguyên vật liệu trong định mức'}
                           </p>
                         </button>
                       ))}
@@ -343,8 +380,14 @@ export function BomView() {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                     <span className="flex items-center gap-2">
-                      <Boxes className="h-5 w-5 text-sky-500" />
-                      {selectedGroup ? `Định mức — ${selectedGroup.productName}` : 'Chi tiết định mức'}
+                      {selectedIsCombo ? (
+                        <Gift className="h-5 w-5 text-violet-500" />
+                      ) : (
+                        <Boxes className="h-5 w-5 text-sky-500" />
+                      )}
+                      {selectedGroup
+                        ? `${selectedIsCombo ? 'Thành phần combo' : 'Định mức'} — ${selectedGroup.productName}`
+                        : 'Chi tiết định mức'}
                     </span>
                     <Button size="sm" variant="outline" onClick={() => openConfig()}>
                       <Plus className="h-4 w-4" />
@@ -353,7 +396,9 @@ export function BomView() {
                   </CardTitle>
                   {selectedGroup && (
                     <CardDescription>
-                      Mỗi 1 {selectedGroup.unit} {selectedGroup.productName} xuất bán sẽ tự trừ các VLT bên dưới
+                      {selectedIsCombo
+                        ? 'Combo xuất bán sẽ tự trừ kho từng thành phần theo số lượng dưới đây; giá vốn gộp = Σ giá vốn thành phần × định mức.'
+                        : `Mỗi 1 ${selectedGroup.unit} ${selectedGroup.productName} xuất bán sẽ tự trừ các VLT bên dưới`}
                     </CardDescription>
                   )}
                 </CardHeader>
@@ -376,11 +421,15 @@ export function BomView() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="font-mono">Mã VLT</TableHead>
-                              <TableHead>Tên nguyên vật liệu</TableHead>
-                              <TableHead className="text-right">Định mức/sp</TableHead>
-                              <TableHead className="text-right">Tồn VLT</TableHead>
-                              <TableHead className="text-right">Vốn VLT</TableHead>
+                              <TableHead className="font-mono">
+                                {selectedIsCombo ? 'Mã thành phần' : 'Mã VLT'}
+                              </TableHead>
+                              <TableHead>{selectedIsCombo ? 'Tên thành phần' : 'Tên nguyên vật liệu'}</TableHead>
+                              <TableHead className="text-right">
+                                {selectedIsCombo ? `Định mức/${selectedGroup?.unit ?? 'bộ'}` : 'Định mức/sp'}
+                              </TableHead>
+                              <TableHead className="text-right">{selectedIsCombo ? 'Tồn thành phần' : 'Tồn VLT'}</TableHead>
+                              <TableHead className="text-right">{selectedIsCombo ? 'Vốn thành phần' : 'Vốn VLT'}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -414,7 +463,9 @@ export function BomView() {
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4">
                         <div>
-                          <p className="text-xs text-muted-foreground">Tổng vốn định mức / sp</p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedIsCombo ? 'Giá vốn gộp 1 combo' : 'Tổng vốn định mức / sp'}
+                          </p>
                           <p className="text-lg font-bold tabular-nums">{formatVND(totalBomCost)}</p>
                         </div>
                         <div
@@ -428,7 +479,17 @@ export function BomView() {
                           )}
                         >
                           <p className="text-xs text-muted-foreground">
-                            {bomMargin > 0 ? 'Lãi định mức / sp' : bomMargin === 0 ? 'Cân bằng định mức' : 'Vượt vốn định mức'}
+                            {bomMargin > 0
+                              ? selectedIsCombo
+                                ? 'Lãi gộp / bộ'
+                                : 'Lãi định mức / sp'
+                              : bomMargin === 0
+                                ? selectedIsCombo
+                                  ? 'Giá vốn khớp'
+                                  : 'Cân bằng định mức'
+                                : selectedIsCombo
+                                  ? 'Giá vốn TP chưa khớp'
+                                  : 'Vượt vốn định mức'}
                           </p>
                           <p
                             className={cn(
@@ -444,7 +505,8 @@ export function BomView() {
                             {formatVND(bomMargin)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Giá vốn TP: {formatVND(finishedCost)}
+                            {selectedIsCombo ? 'Giá vốn combo (tự đồng bộ): ' : 'Giá vốn TP: '}
+                            {formatVND(finishedCost)}
                           </p>
                         </div>
                       </div>
@@ -557,10 +619,11 @@ export function BomView() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Cấu hình định mức (BOM)</DialogTitle>
+            <DialogTitle>{dialogIsCombo ? 'Cấu hình thành phần combo' : 'Cấu hình định mức (BOM)'}</DialogTitle>
             <DialogDescription>
-              Định mức sẽ thay thế toàn bộ cấu hình cũ của thành phẩm. Mỗi dòng là 1 nguyên vật liệu trừ theo số lượng
-              thành phẩm xuất.
+              {dialogIsCombo
+                ? 'Thành phần combo sẽ thay thế toàn bộ cấu hình cũ — combo xuất bán tự trừ kho từng thành phần; tồn combo và giá vốn gộp được đồng bộ tự động.'
+                : 'Định mức sẽ thay thế toàn bộ cấu hình cũ của thành phẩm. Mỗi dòng là 1 nguyên vật liệu trừ theo số lượng thành phẩm xuất.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -578,15 +641,25 @@ export function BomView() {
                 <SelectContent>
                   {(products ?? []).map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.sku} — {p.name} (tồn {formatNumber(p.stock)})
+                      <span className="flex items-center gap-1.5">
+                        <span>
+                          {p.sku} — {p.name} (tồn {formatNumber(p.stock)})
+                        </span>
+                        {p.type === 'COMBO' && <ComboBadge />}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {dialogIsCombo && (
+                <p className="text-xs text-violet-600 dark:text-violet-400">
+                  Sản phẩm này là COMBO — các dòng dưới đây là thành phần cấu thành bộ combo.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label>Nguyên vật liệu & định mức</Label>
+              <Label>{dialogIsCombo ? 'Thành phần combo & định mức' : 'Nguyên vật liệu & định mức'}</Label>
               {rows.map((row, index) => (
                 <div key={index} className="flex flex-wrap items-center gap-2">
                   <Select
@@ -594,7 +667,7 @@ export function BomView() {
                     onValueChange={(value) => updateRow(index, { componentProductId: value })}
                   >
                     <SelectTrigger className="min-w-[220px] flex-1">
-                      <SelectValue placeholder="Chọn nguyên vật liệu" />
+                      <SelectValue placeholder={dialogIsCombo ? 'Chọn thành phần combo' : 'Chọn nguyên vật liệu'} />
                     </SelectTrigger>
                     <SelectContent>
                       {(products ?? [])
@@ -629,7 +702,7 @@ export function BomView() {
               ))}
               <Button type="button" variant="outline" size="sm" onClick={addRow}>
                 <Plus className="h-4 w-4" />
-                Thêm nguyên liệu
+                {dialogIsCombo ? 'Thêm thành phần' : 'Thêm nguyên liệu'}
               </Button>
             </div>
           </div>

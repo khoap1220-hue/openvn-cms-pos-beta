@@ -5,6 +5,7 @@ import { broadcast } from '@/lib/realtime'
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/lib/types'
 import { logLedger } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
+import { syncComboStock } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       include: {
         channel: { select: { id: true, key: true, name: true, color: true } },
         customer: { select: { id: true, name: true, phone: true } },
-        items: { include: { product: { select: { id: true, sku: true, name: true, barcode: true } } } },
+        items: { include: { product: { select: { id: true, sku: true, name: true, barcode: true, costPrice: true, type: true, fragile: true, image: true } } } },
         shipments: true,
         events: { orderBy: { createdAt: 'asc' } },
       },
@@ -70,16 +71,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const updated = await db.order.update({ where: { id }, data })
 
     if (restocking) {
+      // Combo/Set quà tặng: hoàn kho TỪNG THÀNH PHẦN (đơn lúc tạo đã trừ thành phần, không trừ combo)
+      const comboIdsToSync = new Set<string>()
       for (const item of order.items) {
         const product = await db.product.findUnique({ where: { id: item.productId } })
-        if (product) {
-          const after = product.stock + item.quantity
-          await db.product.update({ where: { id: product.id }, data: { stock: after } })
-          await db.stockMovement.create({
-            data: { productId: product.id, type: 'IMPORT', quantity: item.quantity, stockAfter: after, note: `Hoàn kho do hủy đơn ${order.code}` },
+        if (!product) continue
+        if (product.type === 'COMBO') {
+          const components = await db.bomComponent.findMany({
+            where: { productId: product.id },
+            include: { componentProduct: { select: { id: true, name: true } } },
           })
+          for (const row of components) {
+            const qty = Math.round(row.quantity * item.quantity)
+            if (qty <= 0) continue
+            const comp = await db.product.findUnique({ where: { id: row.componentProductId } })
+            if (!comp) continue
+            const after = comp.stock + qty
+            await db.product.update({ where: { id: row.componentProductId }, data: { stock: after } })
+            await db.stockMovement.create({
+              data: { productId: row.componentProductId, type: 'IMPORT', quantity: qty, stockAfter: after, note: `Hoàn thành phần combo "${product.name}" × ${item.quantity} do hủy đơn ${order.code}` },
+            })
+          }
+          comboIdsToSync.add(product.id)
+          continue
         }
+        const after = product.stock + item.quantity
+        await db.product.update({ where: { id: product.id }, data: { stock: after } })
+        await db.stockMovement.create({
+          data: { productId: product.id, type: 'IMPORT', quantity: item.quantity, stockAfter: after, note: `Hoàn kho do hủy đơn ${order.code}` },
+        })
       }
+      for (const comboId of comboIdsToSync) await syncComboStock(db, comboId)
     }
 
     // Đơn hoàn thành → tự đánh dấu đã thanh toán (nếu chưa)

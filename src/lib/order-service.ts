@@ -5,6 +5,7 @@ import { broadcast } from '@/lib/realtime'
 import { logActivity, logEvent } from '@/lib/agent-log'
 import { logLedgerAsync } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
+import { issueComboComponents, syncComboStock } from '@/lib/combo'
 
 export interface CreateOrderInput {
   channelId: string
@@ -27,13 +28,32 @@ export async function createOrder(input: CreateOrderInput) {
   const channel = await db.channel.findUnique({ where: { id: input.channelId } })
   if (!channel) throw new Error('Kênh bán không tồn tại')
 
-  const orderItems: Array<{ productId: string; quantity: number; price: number }> = []
+  const orderItems: Array<{ productId: string; quantity: number; price: number; isCombo: boolean }> = []
   let subtotal = 0
+  // (COMBO) gộp nhu cầu thành phần của toàn bộ combo trong đơn để kiểm tra kho 1 lần
+  const comboDemands = new Map<string, { required: number; comboNames: Set<string> }>()
   for (const it of input.items) {
     const qty = Math.max(1, Number(it.quantity) || 1)
     const product = await db.product.findUnique({ where: { id: it.productId } })
     if (!product) throw new Error('Sản phẩm không tồn tại')
-    if (product.stock < qty) {
+    const isCombo = product.type === 'COMBO'
+    if (isCombo) {
+      const rows = await db.bomComponent.findMany({
+        where: { productId: product.id },
+        include: { componentProduct: { select: { id: true, name: true, stock: true } } },
+      })
+      if (rows.length === 0) throw new Error(`Combo "${product.name}" chưa khai báo thành phần ở Định mức`)
+      for (const row of rows) {
+        const required = row.quantity * qty
+        const entry = comboDemands.get(row.componentProductId) ?? { required: 0, comboNames: new Set<string>() }
+        entry.required += required
+        entry.comboNames.add(product.name)
+        comboDemands.set(row.componentProductId, entry)
+        if (row.componentProduct.stock < required) {
+          throw new Error(`Combo "${product.name}" không thể đóng — "${row.componentProduct.name}" chỉ còn ${row.componentProduct.stock}`)
+        }
+      }
+    } else if (product.stock < qty) {
       throw new Error(`Sản phẩm "${product.name}" chỉ còn ${product.stock} trong kho`)
     }
     const listing = await db.channelListing.findUnique({
@@ -41,7 +61,7 @@ export async function createOrder(input: CreateOrderInput) {
     })
     const price = listing?.price ?? product.sellPrice
     subtotal += price * qty
-    orderItems.push({ productId: product.id, quantity: qty, price })
+    orderItems.push({ productId: product.id, quantity: qty, price, isCombo })
   }
 
   let finalCustomerId: string | null = input.customerId || null
@@ -58,6 +78,9 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   const shippingFee = subtotal >= 500000 ? 0 : 30000
+  // Phí sàn TMĐT: snapshot lúc tạo đơn (từ cấu hình % của kênh) — trừ khi đối soát để tính lợi nhuận thực nhận
+  const platformFeePct = channel.feePercent
+  const platformFee = Math.round((subtotal * platformFeePct) / 100)
   const now = new Date()
   const code = `DH${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
 
@@ -72,9 +95,11 @@ export async function createOrder(input: CreateOrderInput) {
       subtotal,
       shippingFee,
       total: subtotal + shippingFee,
+      platformFeePct,
+      platformFee,
       note: input.note?.trim() || null,
       address: input.address?.trim() || null,
-      items: { create: orderItems },
+      items: { create: orderItems.map(({ isCombo, ...rest }) => rest) },
     },
     include: {
       channel: { select: { id: true, key: true, name: true, color: true } },
@@ -85,6 +110,7 @@ export async function createOrder(input: CreateOrderInput) {
 
   // Trừ kho + ghi biến động (lưu trữ vĩnh viễn)
   for (const it of orderItems) {
+    if (it.isCombo) continue // COMBO: trừ kho thành phần (dưới), không trừ kho gộp
     const product = await db.product.findUnique({ where: { id: it.productId } })
     if (product) {
       const after = product.stock - it.quantity
@@ -93,6 +119,31 @@ export async function createOrder(input: CreateOrderInput) {
         data: { productId: product.id, type: 'EXPORT', quantity: -it.quantity, stockAfter: after, note: `Xuất kho cho đơn ${code}` },
       })
     }
+  }
+
+  // COMBO/SET quà tặng: trừ kho từng thành phần × định mức + đồng bộ tồn hiển thị của combo
+  if (comboDemands.size > 0) {
+    await db.$transaction(async (tx) => {
+      const issued = await issueComboComponents(
+        tx,
+        new Map([...comboDemands.entries()].map(([pid, e]) => [pid, e.required])),
+        (componentName, qty) => `Trừ thành phần combo ${qty} ${componentName} cho đơn ${code}`
+      )
+      const comboIds = [...new Set(orderItems.filter((it) => it.isCombo).map((it) => it.productId))]
+      for (const comboId of comboIds) await syncComboStock(tx, comboId)
+      const warnings = issued.filter((r) => r.warning)
+      if (warnings.length > 0) {
+        await logLedgerAsync({
+          scope: 'INVENTORY',
+          action: 'COMBO_ISSUE_WARNING',
+          entityType: 'Order',
+          entityCode: code,
+          title: `Đơn ${code}: trừ kho thành phần combo có cảnh báo`,
+          detail: { warnings: warnings.map((w) => w.warning) },
+          actor: 'SYSTEM',
+        })
+      }
+    })
   }
 
   await logEvent(order.id, 'CREATED', 'SYSTEM', `Nhận đơn mới qua ${channel.name}`)

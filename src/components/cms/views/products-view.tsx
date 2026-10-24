@@ -73,6 +73,7 @@ const PAGE_SIZE = 20
 type ProductRow = Product & { barcode?: string | null }
 
 interface ProductFormState {
+  type: string
   sku: string
   name: string
   description: string
@@ -88,6 +89,7 @@ interface ProductFormState {
 }
 
 const EMPTY_FORM: ProductFormState = {
+  type: 'SIMPLE',
   sku: '',
   name: '',
   description: '',
@@ -104,6 +106,18 @@ const EMPTY_FORM: ProductFormState = {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Đã xảy ra lỗi'
+}
+
+/** Badge nhỏ đánh dấu sản phẩm Combo/Set quà tặng */
+function ComboBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="shrink-0 border-violet-300 text-[10px] font-medium text-violet-600 dark:border-violet-800 dark:text-violet-400"
+    >
+      Combo
+    </Badge>
+  )
 }
 
 export function ProductsView() {
@@ -216,6 +230,7 @@ export function ProductsView() {
   const openEdit = (p: ProductRow) => {
     setEditing(p)
     setForm({
+      type: p.type ?? 'SIMPLE',
       sku: p.sku,
       name: p.name,
       description: p.description ?? '',
@@ -257,6 +272,7 @@ export function ProductsView() {
     setSaving(true)
     try {
       const base = {
+        type: form.type,
         sku: form.sku.trim(),
         name: form.name.trim(),
         description: form.description.trim(),
@@ -433,7 +449,10 @@ export function ProductsView() {
                       <div className="flex items-center gap-3">
                         <ProductAvatar name={p.name} image={p.image} />
                         <div className="min-w-0">
-                          <p className="max-w-[220px] truncate font-medium">{p.name}</p>
+                          <p className="flex max-w-[220px] items-center gap-1.5 font-medium">
+                            <span className="truncate">{p.name}</span>
+                            {p.type === 'COMBO' && <ComboBadge />}
+                          </p>
                           <p className="text-xs text-muted-foreground">{p.sku}</p>
                         </div>
                       </div>
@@ -462,7 +481,14 @@ export function ProductsView() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-sm">{formatVND(p.sellPrice)}</TableCell>
                     <TableCell>
-                      {p.stock <= p.lowStockThreshold ? (
+                      {p.type === 'COMBO' ? (
+                        <div className="space-y-0.5" title="Số bộ đóng được từ tồn thành phần">
+                          <span className="text-sm tabular-nums">
+                            {formatNumber(p.comboAvailable ?? p.stock)}
+                          </span>
+                          <p className="text-xs text-muted-foreground">bộ (tự động)</p>
+                        </div>
+                      ) : p.stock <= p.lowStockThreshold ? (
                         <div className="space-y-0.5">
                           <Badge
                             variant="outline"
@@ -649,6 +675,24 @@ export function ProductsView() {
                 Dán link ảnh http(s) — hiển thị trong danh sách Kho hàng. Bỏ trống sẽ hiện chữ cái đầu.
               </p>
             </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="product-type">Loại sản phẩm</Label>
+              <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
+                <SelectTrigger id="product-type" className="w-full">
+                  <SelectValue placeholder="Chọn loại sản phẩm" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SIMPLE">Sản phẩm thường</SelectItem>
+                  <SelectItem value="COMBO">Combo · Set quà tặng (gộp nhiều thành phẩm)</SelectItem>
+                </SelectContent>
+              </Select>
+              {form.type === 'COMBO' && (
+                <p className="text-xs text-violet-600 dark:text-violet-400">
+                  Xuất bán sẽ tự trừ kho các sản phẩm thành phần khai báo ở mục Kho &amp; Định mức — giá vốn gộp tính
+                  tự động.
+                </p>
+              )}
+            </div>
             <div className="space-y-1.5">
               <Label>Danh mục</Label>
               <Select
@@ -680,6 +724,9 @@ export function ProductsView() {
                   onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))}
                   placeholder="0"
                 />
+                {form.type === 'COMBO' && (
+                  <p className="text-xs text-muted-foreground">Combo: giá vốn gộp tự tính từ thành phần.</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="product-sell">

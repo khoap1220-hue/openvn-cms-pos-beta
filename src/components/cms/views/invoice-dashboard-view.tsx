@@ -52,6 +52,7 @@ import {
   Receipt,
   Settings2,
   Sparkles,
+  TrendingDown,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
@@ -85,6 +86,10 @@ interface DashboardData {
   vatInput: number
   profit: number
   profitMargin: number
+  /** tổng phí sàn TMĐT snapshot của các đơn trong kỳ (không hủy) */
+  platformFee: number
+  /** profit − platformFee — lợi nhuận sau khi trừ phí sàn */
+  netProfit: number
   stockNow: number
   stockIn: number
   stockOut: number
@@ -240,8 +245,8 @@ export function InvoiceDashboardView({ onNavigate }: { onNavigate?: (view: strin
         <ErrorState message={error} onRetry={() => void load()} />
       ) : (
         <>
-          {/* FR-DB-02→05: 5 thẻ KPI */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {/* FR-DB-02→05: 6 thẻ KPI (gồm Lợi nhuận thực nhận sau phí sàn) */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
             <StatCard
               title="Doanh thu"
               value={data ? formatCompactVND(data.revenue) : '—'}
@@ -285,6 +290,14 @@ export function InvoiceDashboardView({ onNavigate }: { onNavigate?: (view: strin
                   : undefined
               }
               iconClassName="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+            />
+            <StatCard
+              title="Lợi nhuận thực nhận"
+              value={data ? formatCompactVND(data.netProfit) : '—'}
+              icon={TrendingDown}
+              loading={loading}
+              hint={data ? `Sau phí sàn ${formatCompactVND(data.platformFee)}` : undefined}
+              iconClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
             />
           </div>
 

@@ -6,15 +6,24 @@ import { formatCompactVND, formatNumber, formatVND } from '@/lib/format'
 import type { Channel } from '@/lib/types'
 import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/cms/page-header'
 import { StatCard } from '@/components/cms/stat-card'
-import { ConnectedDot, SyncInfo } from '@/components/cms/channel-badge'
+import { ChannelBadge, ConnectedDot, SyncInfo } from '@/components/cms/channel-badge'
 import { ConfirmDialog } from '@/components/cms/confirm-dialog'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useToast } from '@/hooks/use-toast'
-import { Store, RefreshCw, ShoppingCart, Wallet } from 'lucide-react'
+import { Calculator, Loader2, RefreshCw, Save, Store, ShoppingCart, Wallet } from 'lucide-react'
 
 export function ChannelsView() {
   const [channels, setChannels] = useState<Channel[] | null>(null)
@@ -23,6 +32,9 @@ export function ChannelsView() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [pendingDisconnect, setPendingDisconnect] = useState<Channel | null>(null)
+  // Cấu hình phí sàn TMĐT: bản nháp % phí theo kênh (key = channel.id) — lưu xong xóa nháp để hiện giá trị server
+  const [feeDrafts, setFeeDrafts] = useState<Record<string, string>>({})
+  const [savingFeeId, setSavingFeeId] = useState<string | null>(null)
   const { toast } = useToast()
 
   const load = useCallback(async () => {
@@ -105,6 +117,57 @@ export function ChannelsView() {
   const totalOrders = channels?.reduce((s, c) => s + (c.stats?.orders ?? 0), 0) ?? 0
   const totalRevenue = channels?.reduce((s, c) => s + (c.stats?.revenue ?? 0), 0) ?? 0
 
+  // ===== Phí sàn TMĐT: nhập % phí + lưu (PATCH /api/channels/[id]) =====
+  const feeDraftFor = (channel: Channel) => feeDrafts[channel.id] ?? String(channel.feePercent)
+  const feeChanged = (channel: Channel) => {
+    const raw = feeDraftFor(channel).trim()
+    if (raw === '') return false
+    const value = Number(raw)
+    return Number.isFinite(value) && value !== channel.feePercent
+  }
+
+  const handleSaveFee = async (channel: Channel) => {
+    const raw = feeDraftFor(channel).trim()
+    const value = Number(raw)
+    if (raw === '' || !Number.isFinite(value)) return
+    setSavingFeeId(channel.id)
+    try {
+      await apiPatch<{ channel: Channel }>(`/api/channels/${channel.id}`, { feePercent: value })
+      toast({
+        title: `Đã lưu phí sàn ${channel.name}: ${value}%`,
+        description: 'Đơn hàng mới trên kênh này sẽ được ghi nhận phí sàn này.',
+      })
+      setFeeDrafts((prev) => {
+        const next = { ...prev }
+        delete next[channel.id]
+        return next
+      })
+      await load()
+    } catch (e) {
+      toast({
+        title: 'Lưu phí sàn thất bại',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingFeeId(null)
+    }
+  }
+
+  // Đối soát sàn TMĐT: chỉ hiển thị kênh có cấu hình phí > 0, sắp theo tiền phí giảm dần
+  const reconChannels = (channels ?? [])
+    .filter((c) => c.feePercent > 0)
+    .sort((a, b) => (b.stats?.platformFee ?? 0) - (a.stats?.platformFee ?? 0))
+  const reconTotals = reconChannels.reduce(
+    (acc, c) => ({
+      orders: acc.orders + (c.stats?.orders ?? 0),
+      revenue: acc.revenue + (c.stats?.revenue ?? 0),
+      platformFee: acc.platformFee + (c.stats?.platformFee ?? 0),
+      netRevenue: acc.netRevenue + (c.stats?.netRevenue ?? 0),
+    }),
+    { orders: 0, revenue: 0, platformFee: 0, netRevenue: 0 }
+  )
+
   return (
     <div>
       <PageHeader title="Kênh bán" description="Kết nối và đồng bộ sản phẩm tới các sàn thương mại điện tử" />
@@ -145,13 +208,14 @@ export function ChannelsView() {
           action={<Button onClick={load}>Tải lại</Button>}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {channels.map((channel) => {
-            const busy = togglingId === channel.id
-            const syncing = syncingId === channel.id
-            return (
-              <Card key={channel.id} className="border-border/70 shadow-sm">
-                <CardContent className="flex h-full flex-col gap-4 p-5">
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {channels.map((channel) => {
+              const busy = togglingId === channel.id
+              const syncing = syncingId === channel.id
+              return (
+                <Card key={channel.id} className="border-border/70 shadow-sm">
+                  <CardContent className="flex h-full flex-col gap-4 p-5">
                   {/* Header: logo + tên + trạng thái */}
                   <div className="flex items-start gap-3">
                     <div
@@ -177,6 +241,51 @@ export function ChannelsView() {
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Cấu hình % phí sàn — snapshot vào từng đơn mới của kênh này */}
+                  <div className="rounded-lg border border-dashed p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor={`channel-fee-${channel.id}`}
+                        className="shrink-0 text-xs font-medium text-muted-foreground"
+                      >
+                        Phí sàn (%)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id={`channel-fee-${channel.id}`}
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          className="h-8 w-20 text-right text-sm"
+                          value={feeDraftFor(channel)}
+                          onChange={(e) =>
+                            setFeeDrafts((prev) => ({ ...prev, [channel.id]: e.target.value }))
+                          }
+                          aria-label={`Phí sàn (%) của kênh ${channel.name}`}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3"
+                          disabled={!feeChanged(channel) || savingFeeId === channel.id}
+                          onClick={() => void handleSaveFee(channel)}
+                        >
+                          {savingFeeId === channel.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                          Lưu
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      Tự động trừ khi đối soát đơn hàng mới trên kênh này
+                    </p>
                   </div>
 
                   {/* Stats hàng ngang */}
@@ -233,7 +342,77 @@ export function ChannelsView() {
               </Card>
             )
           })}
-        </div>
+          </div>
+
+          {/* Đối soát sàn TMĐT — các kênh có cấu hình phí > 0 */}
+          <Card className="mt-6 border-border/70 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Calculator className="h-5 w-5 text-emerald-500" />
+                Đối soát sàn TMĐT
+              </CardTitle>
+              <CardDescription>
+                Phí sàn được snapshot trên từng đơn lúc tạo — tự động trừ khi đối soát để tính đúng lợi nhuận thực nhận.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reconChannels.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Chưa cấu hình phí sàn cho kênh nào.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[640px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Kênh</TableHead>
+                        <TableHead className="text-right">Đơn hàng</TableHead>
+                        <TableHead className="text-right">Doanh thu</TableHead>
+                        <TableHead className="text-right">Phí sàn</TableHead>
+                        <TableHead className="text-right">Thực nhận</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {reconChannels.map((channel) => (
+                        <TableRow key={channel.id}>
+                          <TableCell>
+                            <ChannelBadge channel={channel} />
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatNumber(channel.stats?.orders ?? 0)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatVND(channel.stats?.revenue ?? 0)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-right tabular-nums">
+                            <span className="text-xs text-muted-foreground">{channel.feePercent}%</span>{' '}
+                            <span className="font-medium text-rose-600 dark:text-rose-400">
+                              −{formatVND(channel.stats?.platformFee ?? 0)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                            {formatVND(channel.stats?.netRevenue ?? 0)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-muted/40 font-semibold">
+                        <TableCell>Tổng cộng</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumber(reconTotals.orders)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatVND(reconTotals.revenue)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-rose-600 dark:text-rose-400">
+                          −{formatVND(reconTotals.platformFee)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                          {formatVND(reconTotals.netRevenue)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <ConfirmDialog

@@ -12,6 +12,10 @@ export interface Channel {
     orders: number
     revenue: number
     listings: number
+    /** tiền phí sàn snapshot của các đơn không hủy (đối soát TMĐT) */
+    platformFee: number
+    /** revenue − platformFee — doanh thu thực nhận sau phí */
+    netRevenue: number
   }
 }
 
@@ -45,6 +49,14 @@ export interface Product {
   lowStockThreshold: number
   image: string | null
   status: string
+  /** SIMPLE | COMBO — Combo/Set quà tặng: thành phần khai báo ở Định mức (BomComponent) */
+  type?: string
+  /** hàng dễ vỡ (gốm sứ / nến / thủy tinh) — in cảnh báo trên phiếu gửi hàng */
+  fragile?: boolean
+  /** (COMBO) thành phần + giá vốn gộp tính từ Định mức — do API trả về khi có */
+  components?: Array<{ productId: string; sku: string; name: string; quantity: number; unit: string; costPrice: number; stock: number }>
+  comboCostPrice?: number
+  comboAvailable?: number
   createdAt: string
   listings?: ProductListing[]
 }
@@ -85,6 +97,10 @@ export interface Order {
   subtotal: number
   shippingFee: number
   total: number
+  /** snapshot % phí sàn TMĐT lúc tạo đơn (từ kênh) */
+  platformFeePct?: number
+  /** snapshot tiền phí sàn (subtotal × pct/100) — trừ khi đối soát để tính lợi nhuận thực nhận */
+  platformFee?: number
   note: string | null
   address: string | null
   reviewRating?: number | null
@@ -181,6 +197,14 @@ export interface Shipment {
   trackingCode: string
   status: string
   fee: number
+  /** PENDING (chờ đối soát) | RECEIVED (đã nhận COD) | RECONCILED (đã đối soát vào sổ) */
+  codStatus: string
+  /** tiền thu hộ dự kiến (COD) */
+  codAmount: number
+  /** tiền COD thực nhận từ ĐVVC */
+  codReceived: number
+  codReceivedAt: string | null
+  codNote: string | null
   dispatchedBy: string
   createdAt: string
   updatedAt: string
@@ -188,8 +212,11 @@ export interface Shipment {
     code: string
     total: number
     status: string
+    paymentMethod: string
+    address?: string | null
     customer?: { id: string; name: string; phone: string | null } | null
     channel?: { id: string; key: string; name: string; color: string } | null
+    items?: Array<{ quantity: number; product: { sku: string; name: string; fragile: boolean } } | null>
   } | null
 }
 

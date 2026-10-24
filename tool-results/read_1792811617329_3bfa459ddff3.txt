@@ -1,0 +1,802 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+     4→     4→import {
+     5→     5→  ChevronLeft,
+     6→     6→  ChevronRight,
+     7→     7→  Eye,
+     8→     8→  LifeBuoy,
+     9→     9→  Loader2,
+    10→    10→  Minus,
+    11→    11→  MoreHorizontal,
+    12→    12→  PackageCheck,
+    13→    13→  Plus,
+    14→    14→  ScanLine,
+    15→    15→  Search,
+    16→    16→  ShoppingCart,
+    17→    17→  Trash2,
+    18→    18→  Wallet,
+    19→    19→} from 'lucide-react'
+    20→    20→
+    21→    21→import { apiGet, apiPatch, apiPost } from '@/lib/api'
+    22→    22→import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
+    23→    23→import { ORDER_STATUSES, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/types'
+    24→    24→import type { Channel, Order, OrderItem, Product } from '@/lib/types'
+    25→    25→import { useToast } from '@/hooks/use-toast'
+    26→    26→
+    27→    27→import { BarcodeScanner } from '@/components/cms/barcode-scanner'
+    28→    28→
+    29→    29→import { Badge } from '@/components/ui/badge'
+    30→    30→import { Button } from '@/components/ui/button'
+    31→    31→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    32→    32→import {
+    33→    33→  Dialog,
+    34→    34→  DialogContent,
+    35→    35→  DialogDescription,
+    36→    36→  DialogFooter,
+    37→    37→  DialogHeader,
+    38→    38→  DialogTitle,
+    39→    39→} from '@/components/ui/dialog'
+    40→    40→import {
+    41→    41→  DropdownMenu,
+    42→    42→  DropdownMenuContent,
+    43→    43→  DropdownMenuItem,
+    44→    44→  DropdownMenuTrigger,
+    45→    45→} from '@/components/ui/dropdown-menu'
+    46→    46→import { Input } from '@/components/ui/input'
+    47→    47→import { Label } from '@/components/ui/label'
+    48→    48→import { Progress } from '@/components/ui/progress'
+    49→    49→import {
+    50→    50→  Select,
+    51→    51→  SelectContent,
+    52→    52→  SelectItem,
+    53→    53→  SelectTrigger,
+    54→    54→  SelectValue,
+    55→    55→} from '@/components/ui/select'
+    56→    56→import { Separator } from '@/components/ui/separator'
+    57→    57→import { Skeleton } from '@/components/ui/skeleton'
+    58→    58→import {
+    59→    59→  Table,
+    60→    60→  TableBody,
+    61→    61→  TableCell,
+    62→    62→  TableHead,
+    63→    63→  TableHeader,
+    64→    64→  TableRow,
+    65→    65→} from '@/components/ui/table'
+    66→    66→import { Textarea } from '@/components/ui/textarea'
+    67→    67→
+    68→    68→import { ChannelBadge } from '@/components/cms/channel-badge'
+    69→    69→import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+    70→    70→import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
+    71→    71→import { OrderStatusBadge, PaymentStatusBadge } from '@/components/cms/status-badge'
+    72→    72→import { ShipmentStatusBadge } from '@/components/cms/agent-badge'
+    73→    73→import { useRealtime } from '@/hooks/use-realtime'
+    74→    74→import { carrierName } from '@/lib/agents'
+    75→    75→
+    76→    76→const PAGE_SIZE = 10
+    77→    77→// Luồng xử lý đơn: PENDING → CONFIRMED → PACKING → SHIPPING → COMPLETED (CANCELLED từ mọi trạng thái)
+    78→    78→const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PACKING', 'SHIPPING', 'COMPLETED'] as const
+    79→    79→
+    80→    80→// Kiểm đếm đóng gói: GET /api/orders/[id] trả items[].product kèm barcode —
+    81→    81→// mở rộng type cục bộ (không sửa lib/types) để dùng barcode khi quét kiểm đếm
+    82→    82→type DetailOrderItem = OrderItem & {
+    83→    83→  product?: Pick<Product, 'id' | 'sku' | 'name' | 'barcode'> | null
+    84→    84→}
+    85→    85→type DetailOrder = Omit<Order, 'items'> & { items: DetailOrderItem[] }
+    86→    86→
+    87→    87→interface CreateOrderItem {
+    88→    88→  productId: string
+    89→    89→  name: string
+    90→    90→  sku: string
+    91→    91→  price: number
+    92→    92→  quantity: number
+    93→    93→}
+    94→    94→
+    95→    95→interface CreateOrderFormState {
+    96→    96→  channelId: string
+    97→    97→  customerName: string
+    98→    98→  customerPhone: string
+    99→    99→  address: string
+   100→   100→  note: string
+   101→   101→  paymentMethod: string
+   102→   102→}
+   103→   103→
+   104→   104→const EMPTY_CREATE_FORM: CreateOrderFormState = {
+   105→   105→  channelId: '',
+   106→   106→  customerName: '',
+   107→   107→  customerPhone: '',
+   108→   108→  address: '',
+   109→   109→  note: '',
+   110→   110→  paymentMethod: 'COD',
+   111→   111→}
+   112→   112→
+   113→   113→const EVENT_ACTOR_LABELS: Record<string, string> = {
+   114→   114→  AGENT: 'Agent tự động',
+   115→   115→  OPERATOR: 'Người vận hành',
+   116→   116→  SYSTEM: 'Hệ thống',
+   117→   117→  CUSTOMER: 'Khách hàng',
+   118→   118→}
+   119→   119→
+   120→   120→const EVENT_ACTOR_DOTS: Record<string, string> = {
+   121→   121→  AGENT: 'bg-emerald-500',
+   122→   122→  OPERATOR: 'bg-violet-500',
+   123→   123→  SYSTEM: 'bg-slate-400',
+   124→   124→  CUSTOMER: 'bg-amber-500',
+   125→   125→}
+   126→   126→
+   127→   127→// ===== Sau bán hàng: đổi trả / bảo hành =====
+   128→   128→interface AfterSalesCase {
+   129→   129→  id: string
+   130→   130→  code: string
+   131→   131→  type: string
+   132→   132→  status: string
+   133→   133→  reason: string
+   134→   134→  resolution: string | null
+   135→   135→  refundAmount: number
+   136→   136→  handledBy: string
+   137→   137→  createdAt: string
+   138→   138→  order?: { id: string; code: string }
+   139→   139→}
+   140→   140→
+   141→   141→const CASE_TYPE_BADGES: Record<string, { label: string; className: string }> = {
+   142→   142→  RETURN: {
+   143→   143→    label: 'Đổi trả',
+   144→   144→    className: 'border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
+   145→   145→  },
+   146→   146→  EXCHANGE: {
+   147→   147→    label: 'Đổi hàng',
+   148→   148→    className: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+   149→   149→  },
+   150→   150→  WARRANTY: {
+   151→   151→    label: 'Bảo hành',
+   152→   152→    className: 'border-transparent bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+   153→   153→  },
+   154→   154→}
+   155→   155→
+   156→   156→const CASE_STATUS_BADGES: Record<string, { label: string; className: string }> = {
+   157→   157→  OPEN: {
+   158→   158→    label: 'Mới',
+   159→   159→    className: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+   160→   160→  },
+   161→   161→  PROCESSING: {
+   162→   162→    label: 'Đang xử lý',
+   163→   163→    className: 'border-transparent bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400',
+   164→   164→  },
+   165→   165→  RESOLVED: {
+   166→   166→    label: 'Đã giải quyết',
+   167→   167→    className: 'border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+   168→   168→  },
+   169→   169→  REJECTED: { label: 'Từ chối', className: 'border-transparent bg-muted text-muted-foreground' },
+   170→   170→}
+   171→   171→
+   172→   172→const CASE_STATUS_ACTIONS: Array<{ status: string; label: string }> = [
+   173→   173→  { status: 'PROCESSING', label: 'Đang xử lý' },
+   174→   174→  { status: 'RESOLVED', label: 'Đã giải quyết' },
+   175→   175→  { status: 'REJECTED', label: 'Từ chối' },
+   176→   176→]
+   177→   177→
+   178→   178→function errorMessage(err: unknown): string {
+   179→   179→  return err instanceof Error ? err.message : 'Đã xảy ra lỗi'
+   180→   180→}
+   181→   181→
+   182→   182→// Các trạng thái đích hợp lệ từ trạng thái hiện tại (chỉ tiến theo luồng + có thể hủy)
+   183→   183→function allowedNextStatuses(current: string): string[] {
+   184→   184→  if (current === 'CANCELLED') return []
+   185→   185→  const idx = STATUS_FLOW.indexOf(current as (typeof STATUS_FLOW)[number])
+   186→   186→  const forward = idx >= 0 ? STATUS_FLOW.slice(idx + 1) : STATUS_FLOW
+   187→   187→  return [...forward, 'CANCELLED']
+   188→   188→}
+   189→   189→
+   190→   190→function itemsSummary(order: Order): string {
+   191→   191→  if (order.items.length === 0) return '—'
+   192→   192→  if (order.items.length === 1) {
+   193→   193→    const item = order.items[0]
+   194→   194→    return `${item.quantity} × ${item.product?.name ?? 'Sản phẩm'}`
+   195→   195→  }
+   196→   196→  return `${order.items.length} sản phẩm`
+   197→   197→}
+   198→   198→
+   199→   199→function InfoField({ label, children }: { label: string; children: ReactNode }) {
+   200→   200→  return (
+   201→   201→    <div>
+   202→   202→      <p className="text-xs text-muted-foreground">{label}</p>
+   203→   203→      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm font-medium">{children}</div>
+   204→   204→    </div>
+   205→   205→  )
+   206→   206→}
+   207→   207→
+   208→   208→export function OrdersView() {
+   209→   209→  const { toast } = useToast()
+   210→   210→
+   211→   211→  // ===== Danh sách đơn hàng + bộ lọc + phân trang server-side =====
+   212→   212→  const [orders, setOrders] = useState<Order[]>([])
+   213→   213→  const [total, setTotal] = useState(0)
+   214→   214→  const [page, setPage] = useState(1)
+   215→   215→  const [totalPages, setTotalPages] = useState(1)
+   216→   216→  const [loading, setLoading] = useState(true)
+   217→   217→  const [error, setError] = useState<string | null>(null)
+   218→   218→  const [refreshKey, setRefreshKey] = useState(0)
+   219→   219→
+   220→   220→  const [searchInput, setSearchInput] = useState('')
+   221→   221→  const [search, setSearch] = useState('')
+   222→   222→  const [statusFilter, setStatusFilter] = useState('ALL')
+   223→   223→  const [channelFilter, setChannelFilter] = useState('ALL')
+   224→   224→  const [channels, setChannels] = useState<Channel[]>([])
+   225→   225→
+   226→   226→  // Realtime: Agent tự cập nhật đơn → tự refresh danh sách + dialog chi tiết
+   227→   227→  const realtimeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+   228→   228→  useRealtime((e) => {
+   229→   229→    if (!['order.created', 'order.updated', 'review.received'].includes(e.type)) return
+   230→   230→    if (realtimeTimer.current) clearTimeout(realtimeTimer.current)
+   231→   231→    realtimeTimer.current = setTimeout(() => {
+   232→   232→      setRefreshKey((k) => k + 1)
+   233→   233→      if (detailOpen && detailId) setDetailReload((k) => k + 1)
+   234→   234→    }, 600)
+   235→   235→  })
+   236→   236→
+   237→   237→  // ===== Dialog chi tiết đơn hàng =====
+   238→   238→  const [detailOpen, setDetailOpen] = useState(false)
+   239→   239→  const [detailId, setDetailId] = useState<string | null>(null)
+   240→   240→  const [detail, setDetail] = useState<DetailOrder | null>(null)
+   241→   241→  const [detailLoading, setDetailLoading] = useState(false)
+   242→   242→  const [detailError, setDetailError] = useState<string | null>(null)
+   243→   243→  const [detailReload, setDetailReload] = useState(0)
+   244→   244→  const [statusChoice, setStatusChoice] = useState('')
+   245→   245→  const [updatingStatus, setUpdatingStatus] = useState(false)
+   246→   246→  const [markingPaid, setMarkingPaid] = useState(false)
+   247→   247→  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+   248→   248→  // Kiểm đếm đóng gói: số món đã quét theo từng dòng (key = productId) — chỉ là state phiên, không lưu server
+   249→   249→  const [scannedCounts, setScannedCounts] = useState<Record<string, number>>({})
+   250→   250→
+   251→   251→  // ===== Sau bán hàng: đổi trả / bảo hành =====
+   252→   252→  const [cases, setCases] = useState<AfterSalesCase[]>([])
+   253→   253→  const [casesLoading, setCasesLoading] = useState(false)
+   254→   254→  const [caseActionId, setCaseActionId] = useState<string | null>(null)
+   255→   255→  const [createCaseOpen, setCreateCaseOpen] = useState(false)
+   256→   256→  const [caseType, setCaseType] = useState('RETURN')
+   257→   257→  const [caseReason, setCaseReason] = useState('')
+   258→   258→  const [caseRefund, setCaseRefund] = useState('')
+   259→   259→  const [caseHandledBy, setCaseHandledBy] = useState('OPERATOR')
+   260→   260→  const [caseSubmitting, setCaseSubmitting] = useState(false)
+   261→   261→
+   262→   262→  // ===== Dialog tạo đơn =====
+   263→   263→  const [createOpen, setCreateOpen] = useState(false)
+   264→   264→  const [createForm, setCreateForm] = useState<CreateOrderFormState>(EMPTY_CREATE_FORM)
+   265→   265→  const [createProducts, setCreateProducts] = useState<Product[]>([])
+   266→   266→  const [createLoadingProducts, setCreateLoadingProducts] = useState(false)
+   267→   267→  const [productSearch, setProductSearch] = useState('')
+   268→   268→  const [selectedProductId, setSelectedProductId] = useState('')
+   269→   269→  const [selectedQty, setSelectedQty] = useState('1')
+   270→   270→  const [items, setItems] = useState<CreateOrderItem[]>([])
+   271→   271→  const [submitting, setSubmitting] = useState(false)
+   272→   272→
+   273→   273→  // ===== Tìm kiếm debounce =====
+   274→   274→  useEffect(() => {
+   275→   275→    const timer = setTimeout(() => {
+   276→   276→      setSearch(searchInput.trim())
+   277→   277→      setPage(1)
+   278→   278→    }, 400)
+   279→   279→    return () => clearTimeout(timer)
+   280→   280→  }, [searchInput])
+   281→   281→
+   282→   282→  const fetchOrders = useCallback(async () => {
+   283→   283→    setLoading(true)
+   284→   284→    setError(null)
+   285→   285→    try {
+   286→   286→      const params = new URLSearchParams()
+   287→   287→      if (search) params.set('search', search)
+   288→   288→      if (statusFilter !== 'ALL') params.set('status', statusFilter)
+   289→   289→      if (channelFilter !== 'ALL') params.set('channelId', channelFilter)
+   290→   290→      params.set('page', String(page))
+   291→   291→      params.set('pageSize', String(PAGE_SIZE))
+   292→   292→      const data = await apiGet<{
+   293→   293→        orders: Order[]
+   294→   294→        total: number
+   295→   295→        page: number
+   296→   296→        pageSize: number
+   297→   297→        totalPages: number
+   298→   298→      }>(`/api/orders?${params.toString()}`)
+   299→   299→      setOrders(data.orders)
+   300→   300→      setTotal(data.total)
+   301→   301→      setTotalPages(Math.max(1, data.totalPages))
+   302→   302→    } catch (err) {
+   303→   303→      setError(errorMessage(err))
+   304→   304→    } finally {
+   305→   305→      setLoading(false)
+   306→   306→    }
+   307→   307→  }, [search, statusFilter, channelFilter, page, refreshKey])
+   308→   308→
+   309→   309→  useEffect(() => {
+   310→   310→    void fetchOrders()
+   311→   311→  }, [fetchOrders])
+   312→   312→
+   313→   313→  const fetchChannels = useCallback(async () => {
+   314→   314→    try {
+   315→   315→      const data = await apiGet<{ channels: Channel[] }>('/api/channels')
+   316→   316→      setChannels(data.channels)
+   317→   317→    } catch (err) {
+   318→   318→      toast({
+   319→   319→        title: 'Không thể tải danh sách kênh bán',
+   320→   320→        description: errorMessage(err),
+   321→   321→        variant: 'destructive',
+   322→   322→      })
+   323→   323→    }
+   324→   324→  }, [toast])
+   325→   325→
+   326→   326→  useEffect(() => {
+   327→   327→    void fetchChannels()
+   328→   328→  }, [fetchChannels])
+   329→   329→
+   330→   330→  const connectedChannels = useMemo(() => channels.filter((c) => c.connected), [channels])
+   331→   331→
+   332→   332→  // ===== Chi tiết đơn hàng =====
+   333→   333→  const openDetail = (id: string) => {
+   334→   334→    setDetailId(id)
+   335→   335→    setDetail(null)
+   336→   336→    setDetailError(null)
+   337→   337→    setStatusChoice('')
+   338→   338→    setCases([])
+   339→   339→    setScannedCounts({})
+   340→   340→    setDetailOpen(true)
+   341→   341→  }
+   342→   342→
+   343→   343→  useEffect(() => {
+   344→   344→    if (!detailOpen || !detailId) return
+   345→   345→    let cancelled = false
+   346→   346→    setDetailLoading(true)
+   347→   347→    setDetailError(null)
+   348→   348→    apiGet<{ order: DetailOrder }>(`/api/orders/${detailId}`)
+   349→   349→      .then((data) => {
+   350→   350→        if (!cancelled) setDetail(data.order)
+   351→   351→      })
+   352→   352→      .catch((err) => {
+   353→   353→        if (!cancelled) setDetailError(errorMessage(err))
+   354→   354→      })
+   355→   355→      .finally(() => {
+   356→   356→        if (!cancelled) setDetailLoading(false)
+   357→   357→      })
+   358→   358→    return () => {
+   359→   359→      cancelled = true
+   360→   360→    }
+   361→   361→  }, [detailOpen, detailId, detailReload])
+   362→   362→
+   363→   363→  // ===== Fetch vụ sau bán hàng của đơn (reload cùng detailReload) =====
+   364→   364→  useEffect(() => {
+   365→   365→    if (!detailOpen || !detailId) return
+   366→   366→    let cancelled = false
+   367→   367→    setCasesLoading(true)
+   368→   368→    apiGet<{ cases: AfterSalesCase[] }>(`/api/aftersales?orderId=${detailId}`)
+   369→   369→      .then((data) => {
+   370→   370→        if (!cancelled) setCases(data.cases)
+   371→   371→      })
+   372→   372→      .catch(() => {
+   373→   373→        if (!cancelled) setCases([])
+   374→   374→      })
+   375→   375→      .finally(() => {
+   376→   376→        if (!cancelled) setCasesLoading(false)
+   377→   377→      })
+   378→   378→    return () => {
+   379→   379→      cancelled = true
+   380→   380→    }
+   381→   381→  }, [detailOpen, detailId, detailReload])
+   382→   382→
+   383→   383→  const handleUpdateStatus = async (target: string): Promise<boolean> => {
+   384→   384→    if (!detail) return false
+   385→   385→    setUpdatingStatus(true)
+   386→   386→    try {
+   387→   387→      await apiPatch<{ order: Order }>(`/api/orders/${detail.id}`, { status: target })
+   388→   388→      toast({
+   389→   389→        title: 'Đã cập nhật trạng thái',
+   390→   390→        description: `${detail.code} → ${ORDER_STATUS_LABELS[target] ?? target}`,
+   391→   391→      })
+   392→   392→      setDetailReload((k) => k + 1)
+   393→   393→      setRefreshKey((k) => k + 1)
+   394→   394→      return true
+   395→   395→    } catch (err) {
+   396→   396→      toast({
+   397→   397→        title: 'Không thể cập nhật trạng thái',
+   398→   398→        description: errorMessage(err),
+   399→   399→        variant: 'destructive',
+   400→   400→      })
+   401→   401→      return false
+   402→   402→    } finally {
+   403→   403→      setUpdatingStatus(false)
+   404→   404→      setStatusChoice('')
+   405→   405→    }
+   406→   406→  }
+   407→   407→
+   408→   408→  const handleStatusSelect = (target: string) => {
+   409→   409→    setStatusChoice(target)
+   410→   410→    if (target === 'CANCELLED') {
+   411→   411→      setConfirmCancelOpen(true)
+   412→   412→      return
+   413→   413→    }
+   414→   414→    void handleUpdateStatus(target)
+   415→   415→  }
+   416→   416→
+   417→   417→  const handleConfirmCancel = () => {
+   418→   418→    setConfirmCancelOpen(false)
+   419→   419→    setStatusChoice('')
+   420→   420→    void handleUpdateStatus('CANCELLED')
+   421→   421→  }
+   422→   422→
+   423→   423→  // ===== Kiểm đếm đóng gói bằng mã vạch (đơn đang PACKING) =====
+   424→   424→  const handlePackingScan = (raw: string) => {
+   425→   425→    if (!detail || detail.status !== 'PACKING') return
+   426→   426→    const code = raw.trim()
+   427→   427→    if (!code) return
+   428→   428→    const lower = code.toLowerCase()
+   429→   429→    // So khớp mã vạch chính xác trước, không thấy thì so SKU (không phân biệt hoa thường)
+   430→   430→    const item =
+   431→   431→      detail.items.find((it) => it.product?.barcode != null && it.product.barcode === code) ??
+   432→   432→      detail.items.find((it) => it.product?.sku != null && it.product.sku.toLowerCase() === lower)
+   433→   433→    if (!item) {
+   434→   434→      toast({
+   435→   435→        title: `Không thuộc đơn hàng ${detail.code}`,
+   436→   436→        description: `Mã quét "${code}" không khớp sản phẩm nào trong đơn.`,
+   437→   437→        variant: 'destructive',
+   438→   438→      })
+   439→   439→      return
+   440→   440→    }
+   441→   441→    const sku = item.product?.sku ?? item.productId
+   442→   442→    const needed = item.quantity
+   443→   443→    const scanned = scannedCounts[item.productId] ?? 0
+   444→   444→    if (scanned >= needed) {
+   445→   445→      // Đã đủ số lượng — vẫn ghi nhận quét thừa (badge "Thừa") nhưng không tính vào tổng đủ
+   446→   446→      toast({
+   447→   447→        title: `«${sku}» đã đủ ${needed} — quét thừa`,
+   448→   448→        description: 'Kiểm tra lại thùng hàng: có thể quét nhầm hoặc bỏ thừa món.',
+   449→   449→      })
+   450→   450→    } else {
+   451→   451→      toast({ title: `${sku}: ${scanned + 1}/${needed}` })
+   452→   452→    }
+   453→   453→    setScannedCounts((prev) => ({ ...prev, [item.productId]: (prev[item.productId] ?? 0) + 1 }))
+   454→   454→  }
+   455→   455→
+   456→   456→  const handlePackingConfirm = async () => {
+   457→   457→    if (!detail) return
+   458→   458→    const totalUnits = detail.items.reduce((sum, it) => sum + it.quantity, 0)
+   459→   459→    const code = detail.code
+   460→   460→    // Tái sử dụng hàm PATCH trạng thái hiện có → giữ nguyên timeline + Sổ Data + webhook như bấm tay
+   461→   461→    const ok = await handleUpdateStatus('SHIPPING')
+   462→   462→    if (ok) {
+   463→   463→      setScannedCounts({})
+   464→   464→      toast({ title: `Đã kiểm đếm đủ ${totalUnits} món — đơn ${code} chuyển Đang giao` })
+   465→   465→    }
+   466→   466→  }
+   467→   467→
+   468→   468→  const handleMarkPaid = async () => {
+   469→   469→    if (!detail) return
+   470→   470→    setMarkingPaid(true)
+   471→   471→    try {
+   472→   472→      await apiPatch<{ order: Order }>(`/api/orders/${detail.id}`, { paymentStatus: 'PAID' })
+   473→   473→      toast({ title: 'Đã xác nhận thanh toán', description: `${detail.code} đã được đánh dấu đã thanh toán.` })
+   474→   474→      setDetailReload((k) => k + 1)
+   475→   475→      setRefreshKey((k) => k + 1)
+   476→   476→    } catch (err) {
+   477→   477→      toast({
+   478→   478→        title: 'Không thể cập nhật thanh toán',
+   479→   479→        description: errorMessage(err),
+   480→   480→        variant: 'destructive',
+   481→   481→      })
+   482→   482→    } finally {
+   483→   483→      setMarkingPaid(false)
+   484→   484→    }
+   485→   485→  }
+   486→   486→
+   487→   487→  // ===== Sau bán hàng: xử lý nhanh trạng thái + tạo yêu cầu =====
+   488→   488→  const handleCaseStatus = async (caseId: string, status: string, label: string) => {
+   489→   489→    setCaseActionId(caseId)
+   490→   490→    try {
+   491→   491→      await apiPatch<{ case: AfterSalesCase }>(`/api/aftersales/${caseId}`, {
+   492→   492→        status,
+   493→   493→        resolution: `Đã ${label.toLowerCase()} bởi người vận hành`,
+   494→   494→      })
+   495→   495→      toast({ title: `Đã chuyển yêu cầu sang "${label}"` })
+   496→   496→      setDetailReload((k) => k + 1)
+   497→   497→    } catch (err) {
+   498→   498→      toast({
+   499→   499→        title: 'Không thể cập nhật yêu cầu sau bán hàng',
+   500→   500→        description: errorMessage(err),
+   501→   501→        variant: 'destructive',
+   502→   502→      })
+   503→   503→    } finally {
+   504→   504→      setCaseActionId(null)
+   505→   505→    }
+   506→   506→  }
+   507→   507→
+   508→   508→  const openCreateCase = () => {
+   509→   509→    setCaseType('RETURN')
+   510→   510→    setCaseReason('')
+   511→   511→    setCaseRefund(detail ? String(Math.round(detail.total)) : '0')
+   512→   512→    setCaseHandledBy('OPERATOR')
+   513→   513→    setCreateCaseOpen(true)
+   514→   514→  }
+   515→   515→
+   516→   516→  const submitCreateCase = async () => {
+   517→   517→    if (!detail) return
+   518→   518→    if (!caseReason.trim()) {
+   519→   519→      toast({ title: 'Vui lòng nhập lý do đổi trả / bảo hành', variant: 'destructive' })
+   520→   520→      return
+   521→   521→    }
+   522→   522→    setCaseSubmitting(true)
+   523→   523→    try {
+   524→   524→      const data = await apiPost<{ case: AfterSalesCase }>('/api/aftersales', {
+   525→   525→        orderId: detail.id,
+   526→   526→        type: caseType,
+   527→   527→        reason: caseReason.trim(),
+   528→   528→        refundAmount: caseType === 'WARRANTY' ? 0 : Math.max(0, Number(caseRefund) || 0),
+   529→   529→        handledBy: caseHandledBy,
+   530→   530→      })
+   531→   531→      toast({
+   532→   532→        title: `Đã tạo yêu cầu ${data.case.code}`,
+   533→   533→        description: 'Yêu cầu sau bán hàng đã được ghi vào Sổ Data.',
+   534→   534→      })
+   535→   535→      setCreateCaseOpen(false)
+   536→   536→      setDetailReload((k) => k + 1)
+   537→   537→    } catch (err) {
+   538→   538→      toast({
+   539→   539→        title: 'Không thể tạo yêu cầu sau bán hàng',
+   540→   540→        description: errorMessage(err),
+   541→   541→        variant: 'destructive',
+   542→   542→      })
+   543→   543→    } finally {
+   544→   544→      setCaseSubmitting(false)
+   545→   545→    }
+   546→   546→  }
+   547→   547→
+   548→   548→  // ===== Tạo đơn hàng =====
+   549→   549→  const openCreate = () => {
+   550→   550→    setCreateForm(EMPTY_CREATE_FORM)
+   551→   551→    setItems([])
+   552→   552→    setSelectedProductId('')
+   553→   553→    setSelectedQty('1')
+   554→   554→    setProductSearch('')
+   555→   555→    setCreateOpen(true)
+   556→   556→  }
+   557→   557→
+   558→   558→  useEffect(() => {
+   559→   559→    if (!createOpen) return
+   560→   560→    let cancelled = false
+   561→   561→    setCreateLoadingProducts(true)
+   562→   562→    apiGet<{ products: Product[] }>('/api/products?status=ACTIVE')
+   563→   563→      .then((data) => {
+   564→   564→        if (!cancelled) setCreateProducts(data.products)
+   565→   565→      })
+   566→   566→      .catch((err) => {
+   567→   567→        if (!cancelled) {
+   568→   568→          toast({
+   569→   569→            title: 'Không thể tải danh sách sản phẩm',
+   570→   570→            description: errorMessage(err),
+   571→   571→            variant: 'destructive',
+   572→   572→          })
+   573→   573→        }
+   574→   574→      })
+   575→   575→      .finally(() => {
+   576→   576→        if (!cancelled) setCreateLoadingProducts(false)
+   577→   577→      })
+   578→   578→    return () => {
+   579→   579→      cancelled = true
+   580→   580→    }
+   581→   581→  }, [createOpen, toast])
+   582→   582→
+   583→   583→  const filteredCreateProducts = useMemo(() => {
+   584→   584→    const keyword = productSearch.trim().toLowerCase()
+   585→   585→    if (!keyword) return createProducts
+   586→   586→    return createProducts.filter(
+   587→   587→      (p) => p.name.toLowerCase().includes(keyword) || p.sku.toLowerCase().includes(keyword)
+   588→   588→    )
+   589→   589→  }, [createProducts, productSearch])
+   590→   590→
+   591→   591→  const createTotal = useMemo(
+   592→   592→    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+   593→   593→    [items]
+   594→   594→  )
+   595→   595→
+   596→   596→  const handleAddItem = () => {
+   597→   597→    const product = createProducts.find((p) => p.id === selectedProductId)
+   598→   598→    if (!product) {
+   599→   599→      toast({ title: 'Vui lòng chọn một sản phẩm', variant: 'destructive' })
+   600→   600→      return
+   601→   601→    }
+   602→   602→    const qty = Math.max(1, Math.floor(Number(selectedQty) || 1))
+   603→   603→    setItems((prev) => {
+   604→   604→      const existing = prev.find((i) => i.productId === product.id)
+   605→   605→      if (existing) {
+   606→   606→        return prev.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + qty } : i))
+   607→   607→      }
+   608→   608→      return [
+   609→   609→        ...prev,
+   610→   610→        { productId: product.id, name: product.name, sku: product.sku, price: product.sellPrice, quantity: qty },
+   611→   611→      ]
+   612→   612→    })
+   613→   613→    setSelectedProductId('')
+   614→   614→    setSelectedQty('1')
+   615→   615→  }
+   616→   616→
+   617→   617→  const changeItemQty = (productId: string, delta: number) => {
+   618→   618→    setItems((prev) =>
+   619→   619→      prev.map((i) =>
+   620→   620→        i.productId === productId ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i
+   621→   621→      )
+   622→   622→    )
+   623→   623→  }
+   624→   624→
+   625→   625→  const removeItem = (productId: string) => {
+   626→   626→    setItems((prev) => prev.filter((i) => i.productId !== productId))
+   627→   627→  }
+   628→   628→
+   629→   629→  const submitCreate = async () => {
+   630→   630→    if (!createForm.channelId) {
+   631→   631→      toast({ title: 'Vui lòng chọn kênh bán', variant: 'destructive' })
+   632→   632→      return
+   633→   633→    }
+   634→   634→    if (!createForm.customerName.trim()) {
+   635→   635→      toast({ title: 'Vui lòng nhập tên khách hàng', variant: 'destructive' })
+   636→   636→      return
+   637→   637→    }
+   638→   638→    if (items.length === 0) {
+   639→   639→      toast({ title: 'Vui lòng thêm ít nhất một sản phẩm vào đơn', variant: 'destructive' })
+   640→   640→      return
+   641→   641→    }
+   642→   642→    setSubmitting(true)
+   643→   643→    try {
+   644→   644→      const data = await apiPost<{ order: Order }>('/api/orders', {
+   645→   645→        channelId: createForm.channelId,
+   646→   646→        customerName: createForm.customerName.trim(),
+   647→   647→        customerPhone: createForm.customerPhone.trim(),
+   648→   648→        address: createForm.address.trim(),
+   649→   649→        note: createForm.note.trim(),
+   650→   650→        paymentMethod: createForm.paymentMethod,
+   651→   651→        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+   652→   652→      })
+   653→   653→      toast({ title: 'Đã tạo đơn hàng', description: `Mã đơn ${data.order.code}` })
+   654→   654→      setCreateOpen(false)
+   655→   655→      setPage(1)
+   656→   656→      setRefreshKey((k) => k + 1)
+   657→   657→    } catch (err) {
+   658→   658→      // Lỗi 400: hết hàng hoặc dữ liệu không hợp lệ — hiển thị message từ server
+   659→   659→      toast({
+   660→   660→        title: 'Không thể tạo đơn hàng',
+   661→   661→        description: errorMessage(err),
+   662→   662→        variant: 'destructive',
+   663→   663→      })
+   664→   664→    } finally {
+   665→   665→      setSubmitting(false)
+   666→   666→    }
+   667→   667→  }
+   668→   668→
+   669→   669→  // ===== Phân trang hiển thị =====
+   670→   670→  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+   671→   671→  const to = Math.min(page * PAGE_SIZE, total)
+   672→   672→  const hasFilter = search !== '' || statusFilter !== 'ALL' || channelFilter !== 'ALL'
+   673→   673→  const nextStatuses = detail ? allowedNextStatuses(detail.status) : []
+   674→   674→
+   675→   675→  // Kiểm đếm đóng gói: tiến độ theo từng dòng (dòng "đủ" = đã quét >= SL cần đóng, quét thừa không tính thêm)
+   676→   676→  const packingItems = detail?.items ?? []
+   677→   677→  const packingDoneLines = packingItems.filter((it) => (scannedCounts[it.productId] ?? 0) >= it.quantity).length
+   678→   678→  const packingAllDone = packingItems.length > 0 && packingDoneLines === packingItems.length
+   679→   679→
+   680→   680→  return (
+   681→   681→    <div>
+   682→   682→      <PageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn hàng từ tất cả các kênh bán">
+   683→   683→        <Button onClick={openCreate}>
+   684→   684→          <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+   685→   685→        </Button>
+   686→   686→      </PageHeader>
+   687→   687→
+   688→   688→      {/* Toolbar */}
+   689→   689→      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+   690→   690→        <div className="relative w-full sm:w-64">
+   691→   691→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   692→   692→          <Input
+   693→   693→            value={searchInput}
+   694→   694→            onChange={(e) => setSearchInput(e.target.value)}
+   695→   695→            placeholder="Tìm mã đơn, tên hoặc SĐT khách..."
+   696→   696→            className="pl-8"
+   697→   697→            aria-label="Tìm kiếm đơn hàng"
+   698→   698→          />
+   699→   699→        </div>
+   700→   700→        <Select
+   701→   701→          value={statusFilter}
+   702→   702→          onValueChange={(v) => {
+   703→   703→            setStatusFilter(v)
+   704→   704→            setPage(1)
+   705→   705→          }}
+   706→   706→        >
+   707→   707→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo trạng thái">
+   708→   708→            <SelectValue placeholder="Tất cả trạng thái" />
+   709→   709→          </SelectTrigger>
+   710→   710→          <SelectContent>
+   711→   711→            <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+   712→   712→            {ORDER_STATUSES.map((s) => (
+   713→   713→              <SelectItem key={s} value={s}>
+   714→   714→                {ORDER_STATUS_LABELS[s] ?? s}
+   715→   715→              </SelectItem>
+   716→   716→            ))}
+   717→   717→          </SelectContent>
+   718→   718→        </Select>
+   719→   719→        <Select
+   720→   720→          value={channelFilter}
+   721→   721→          onValueChange={(v) => {
+   722→   722→            setChannelFilter(v)
+   723→   723→            setPage(1)
+   724→   724→          }}
+   725→   725→        >
+   726→   726→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo kênh bán">
+   727→   727→            <SelectValue placeholder="Tất cả kênh" />
+   728→   728→          </SelectTrigger>
+   729→   729→          <SelectContent>
+   730→   730→            <SelectItem value="ALL">Tất cả kênh</SelectItem>
+   731→   731→            {channels.map((c) => (
+   732→   732→              <SelectItem key={c.id} value={c.id}>
+   733→   733→                {c.name}
+   734→   734→              </SelectItem>
+   735→   735→            ))}
+   736→   736→          </SelectContent>
+   737→   737→        </Select>
+   738→   738→      </div>
+   739→   739→
+   740→   740→      {/* Nội dung chính */}
+   741→   741→      {loading ? (
+   742→   742→        <TableSkeleton rows={7} />
+   743→   743→      ) : error ? (
+   744→   744→        <ErrorState message={error} onRetry={() => void fetchOrders()} />
+   745→   745→      ) : orders.length === 0 ? (
+   746→   746→        <EmptyState
+   747→   747→          icon={ShoppingCart}
+   748→   748→          title={hasFilter ? 'Không tìm thấy đơn hàng nào' : 'Chưa có đơn hàng nào'}
+   749→   749→          description={
+   750→   750→            hasFilter
+   751→   751→              ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc.'
+   752→   752→              : 'Các đơn hàng từ mọi kênh bán sẽ hiển thị tại đây.'
+   753→   753→          }
+   754→   754→          action={
+   755→   755→            <Button onClick={openCreate}>
+   756→   756→              <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+   757→   757→            </Button>
+   758→   758→          }
+   759→   759→        />
+   760→   760→      ) : (
+   761→   761→        <>
+   762→   762→          <div className="overflow-x-auto rounded-lg border">
+   763→   763→            <Table className="min-w-[960px]">
+   764→   764→              <TableHeader>
+   765→   765→                <TableRow>
+   766→   766→                  <TableHead>Mã đơn</TableHead>
+   767→   767→                  <TableHead>Kênh</TableHead>
+   768→   768→                  <TableHead>Khách hàng</TableHead>
+   769→   769→                  <TableHead>Sản phẩm</TableHead>
+   770→   770→                  <TableHead className="text-right">Tổng tiền</TableHead>
+   771→   771→                  <TableHead>Thanh toán</TableHead>
+   772→   772→                  <TableHead>Trạng thái</TableHead>
+   773→   773→                  <TableHead>Thời gian</TableHead>
+   774→   774→                  <TableHead className="text-right">Hành động</TableHead>
+   775→   775→                </TableRow>
+   776→   776→              </TableHeader>
+   777→   777→              <TableBody>
+   778→   778→                {orders.map((o) => (
+   779→   779→                  <TableRow key={o.id}>
+   780→   780→                    <TableCell className="font-mono text-sm font-medium">{o.code}</TableCell>
+   781→   781→                    <TableCell>
+   782→   782→                      <ChannelBadge channel={o.channel} className="text-xs" />
+   783→   783→                    </TableCell>
+   784→   784→                    <TableCell>
+   785→   785→                      <p className="text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
+   786→   786→                      {o.customer?.phone && (
+   787→   787→                        <p className="text-xs text-muted-foreground">{o.customer.phone}</p>
+   788→   788→                      )}
+   789→   789→                    </TableCell>
+   790→   790→                    <TableCell className="max-w-[180px] truncate text-sm">{itemsSummary(o)}</TableCell>
+   791→   791→                    <TableCell className="whitespace-nowrap text-right font-semibold">
+   792→   792→                      {formatVND(o.total)}
+   793→   793→                    </TableCell>
+   794→   794→                    <TableCell>
+   795→   795→                      <PaymentStatusBadge status={o.paymentStatus} />
+   796→   796→                    </TableCell>
+   797→   797→                    <TableCell>
+   798→   798→                      <OrderStatusBadge status={o.status} />
+   799→   799→                    </TableCell>
+   800→   800→                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+   801→
+   802→[showing lines 1-800 of 1591; use offset=801 with limit to continue reading]

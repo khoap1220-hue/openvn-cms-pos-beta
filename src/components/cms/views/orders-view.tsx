@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  Calculator,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -77,10 +78,10 @@ const PAGE_SIZE = 10
 // Luồng xử lý đơn: PENDING → CONFIRMED → PACKING → SHIPPING → COMPLETED (CANCELLED từ mọi trạng thái)
 const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PACKING', 'SHIPPING', 'COMPLETED'] as const
 
-// Kiểm đếm đóng gói: GET /api/orders/[id] trả items[].product kèm barcode —
-// mở rộng type cục bộ (không sửa lib/types) để dùng barcode khi quét kiểm đếm
+// Kiểm đếm đóng gói + đối soát: GET /api/orders/[id] trả items[].product kèm barcode + costPrice —
+// mở rộng type cục bộ (không sửa lib/types) để dùng barcode khi quét và giá vốn khi hạch toán
 type DetailOrderItem = OrderItem & {
-  product?: Pick<Product, 'id' | 'sku' | 'name' | 'barcode'> | null
+  product?: Pick<Product, 'id' | 'sku' | 'name' | 'barcode' | 'costPrice'> | null
 }
 type DetailOrder = Omit<Order, 'items'> & { items: DetailOrderItem[] }
 
@@ -677,6 +678,11 @@ export function OrdersView() {
   const packingDoneLines = packingItems.filter((it) => (scannedCounts[it.productId] ?? 0) >= it.quantity).length
   const packingAllDone = packingItems.length > 0 && packingDoneLines === packingItems.length
 
+  // Đối soát đơn: phí sàn snapshot lúc tạo + giá vốn từ snapshot costPrice từng dòng (thiếu costPrice tính 0)
+  const platformFee = detail?.platformFee ?? 0
+  const costTotal = detail ? detail.items.reduce((sum, it) => sum + it.quantity * (it.product?.costPrice ?? 0), 0) : 0
+  const netProfit = detail ? detail.subtotal - platformFee - costTotal : 0
+
   return (
     <div>
       <PageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn hàng từ tất cả các kênh bán">
@@ -939,6 +945,47 @@ export function OrdersView() {
                 <div className="flex justify-between text-base font-semibold">
                   <span>Tổng cộng</span>
                   <span className="text-primary">{formatVND(detail.total)}</span>
+                </div>
+              </div>
+
+              {/* Đối soát — tóm tắt tài chính: phí sàn snapshot + giá vốn → lợi nhuận thực nhận */}
+              <div className="ml-auto w-full max-w-xs space-y-1.5 border-t pt-3 text-sm">
+                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Calculator className="h-3.5 w-3.5" />
+                  Đối soát
+                </p>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tạm thu (hàng)</span>
+                  <span>{formatVND(detail.subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Phí ship</span>
+                  <span>{formatVND(detail.shippingFee)}</span>
+                </div>
+                {platformFee > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Phí sàn</span>
+                    <span className="text-rose-600 dark:text-rose-400">
+                      {formatVND(platformFee)} ({detail.platformFeePct ?? 0}%)
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Giá vốn</span>
+                  <span>{formatVND(costTotal)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Lợi nhuận thực nhận</span>
+                  <span
+                    className={
+                      netProfit >= 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-600 dark:text-rose-400'
+                    }
+                  >
+                    {formatVND(netProfit)}
+                  </span>
                 </div>
               </div>
 
