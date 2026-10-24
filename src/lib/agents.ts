@@ -112,51 +112,54 @@ export const DEFAULT_SETTINGS: Record<string, boolean> = {
   auto_reply: true,
 }
 
-// ===== Mẫu tin nhắn Zalo (dự phòng khi LLM không khả dụng) =====
+// ===== Mẫu tin nhắn Zalo (dự phòng khi LLM không khả dụng) — giọng chủ tiệm Ưu Đàm =====
+// Toàn bộ template đi qua bộ lọc Anti-AI (sanitizeVoice) ở agent-voice.ts.
 
-function vnd(value: number): string {
-  return new Intl.NumberFormat('vi-VN').format(value) + 'đ'
+import {
+  buildVoiceContext,
+  vAutoReplyByKind,
+  vCare,
+  vCarrier,
+  vConfirm,
+  vPickup,
+  vReviewRequest,
+  vTransit,
+  type VoiceContext,
+} from '@/lib/agent-voice'
+
+export type { VoiceContext }
+export { buildVoiceContext, sanitizeVoice, friendlyProductName, friendlyItemsText, analyzeCustomerName, classifySentiment, reactionForSentiment, detectReplyKind } from '@/lib/agent-voice'
+
+export function tConfirm(ctx: VoiceContext, total: number): string {
+  return vConfirm(ctx, total)
 }
 
-export function tConfirm(name: string, code: string, items: string, total: number): string {
-  return `Chào ${name} 🌿 OmniSales xác nhận đơn ${code} của anh/chị: ${items}. Tổng thanh toán: ${vnd(total)}. Shop sẽ đóng gói và bàn giao đơn vị vận chuyển trong hôm nay ạ!`
+export function tCarrier(ctx: VoiceContext, carrier: string, tracking: string): string {
+  return vCarrier(ctx, carrier, tracking)
 }
 
-export function tCarrier(code: string, carrier: string, tracking: string): string {
-  return `Đơn ${code} của mình đã được đóng gói xong và bàn giao cho ${carrier} 🚚 Mã vận đơn: ${tracking}. Anh/chị theo dõi hành trình đơn hàng trong ứng dụng nhé!`
+export function tPickup(ctx: VoiceContext, carrier: string): string {
+  return vPickup(ctx, carrier)
 }
 
-export function tPickup(code: string, carrier: string): string {
-  return `🚗 ${carrier} đã đến lấy hàng đơn ${code}. Dự kiến giao trong 1–2 ngày tới, anh/chị vui lòng nghe máy khi shipper gọi ạ!`
+export function tTransit(ctx: VoiceContext): string {
+  return vTransit(ctx)
 }
 
-export function tTransit(code: string): string {
-  return `📦 Đơn ${code} đang trên đường giao đến anh/chị. Cảm ơn anh/chị đã chờ shop ạ!`
+export function tCare(ctx: VoiceContext): string {
+  return vCare(ctx)
 }
 
-export function tCare(name: string, code: string): string {
-  return `Anh/chị ${name} ơi, đơn ${code} đã giao thành công 🎉 OmniSales cảm ơn anh/chị rất nhiều. Nếu cần hỗ trợ gì thêm, anh/chị cứ nhắn shop bất cứ lúc nào nhé!`
+export function tReviewRequest(ctx: VoiceContext): string {
+  return vReviewRequest(ctx)
 }
 
-export function tReviewRequest(code: string): string {
-  return `Anh/chị ơi, đơn ${code} đã được giao 💌 Nếu được, anh/chị dành 10 giây đánh giá sản phẩm & dịch vụ của shop (1–5⭐) giúp mình nhé. Ý kiến của anh/chị rất quan trọng với OmniSales!`
-}
-
-export function tAutoReply(content: string, name: string): string {
-  const c = content.toLowerCase()
-  if (c.includes('size') || c.includes('còn không') || c.includes('hàng không')) {
-    return `Dạ ${name} ơi, sản phẩm của shop vẫn còn hàng đầy đủ size ạ. Anh/chị chọn mẫu rồi đặt đơn ngay trên Zalo, shop sẽ xác nhận và giao nhanh trong 1–2 ngày ạ! 🌿`
-  }
-  if (c.includes('đơn') || c.includes('giao') || c.includes('nhận được')) {
-    return `Dạ đơn của ${name} đang được giao trong 1–2 ngày tới ạ. Shipper sẽ gọi trước khi đến, anh/chị để ý điện thoại giúp shop nhé!`
-  }
-  if (c.includes('freeship') || c.includes('giảm giá') || c.includes('khuyến mãi')) {
-    return `Dạ shop đang có freeship cho đơn từ 500k ạ. ${name} ơi thêm vài món nữa để được miễn phí giao hàng luôn nhé!`
-  }
-  if (c.includes('đổi') || c.includes('trả')) {
-    return `Dạ shop hỗ trợ đổi trả trong 7 ngày kể từ khi nhận hàng ạ. ${name} cứ nhắn shop kèm ảnh sản phẩm để được hỗ trợ nhanh nhất nhé!`
-  }
-  return `Dạ cảm ơn ${name} đã nhắn tin cho OmniSales 🌿 Anh/chị cần tư vấn sản phẩm hay kiểm tra đơn hàng thì nói rõ giúp shop, shop hỗ trợ ngay ạ!`
+export function tAutoReply(
+  kind: 'order' | 'stock' | 'promo' | 'return' | 'image_praise' | 'image_defect' | 'image_similar' | 'general',
+  ctx: VoiceContext,
+  extra?: { analysis?: string | null; productName?: string },
+): string {
+  return vAutoReplyByKind(kind, ctx, extra)
 }
 
 export function zaloKeyOf(channelKey: string): string {

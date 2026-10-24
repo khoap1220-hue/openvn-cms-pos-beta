@@ -10,6 +10,7 @@ export type CmsEventType =
   | 'agent.activity'
   | 'shipment.updated'
   | 'message.new'
+  | 'message.reaction'
   | 'review.received'
   | 'settings.updated'
   | 'ledger.new'

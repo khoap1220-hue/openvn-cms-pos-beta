@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
 import { logActivity, logEvent, sendZalo } from '@/lib/agent-log'
-import { AGENTS, CARRIERS, makeTrackingCode, tCarrier, zaloKeyOf } from '@/lib/agents'
+import { AGENTS, CARRIERS, makeTrackingCode, tCarrier, buildVoiceContext, zaloKeyOf } from '@/lib/agents'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     const order = await db.order.findUnique({
       where: { id: body.orderId },
-      include: { channel: true, customer: true },
+      include: { channel: true, customer: true, items: { include: { product: true } } },
     })
     if (!order) return NextResponse.json({ error: 'Không tìm thấy đơn hàng' }, { status: 404 })
     if (['CANCELLED', 'COMPLETED'].includes(order.status)) {
@@ -104,10 +104,20 @@ export async function POST(req: NextRequest) {
 
     await logEvent(order.id, 'CARRIER_DISPATCHED', 'OPERATOR', `Người vận hành báo ${carrier.name} lấy hàng — mã vận đơn ${tracking}`)
     if (order.customer) {
+      const { getMemorySnapshot } = await import('@/lib/memory-engine')
+      const mem = await getMemorySnapshot(order.customer.id).catch(() => null)
+      const ctx = buildVoiceContext({
+        name: order.customer.name,
+        salutation: mem?.salutation,
+        orderCount: mem?.isReturning ? 2 : 1,
+        items: order.items.map((i) => ({ quantity: i.quantity, product: i.product })),
+        preferences: mem?.preferences,
+        painPoints: mem?.painPoints,
+      })
       await sendZalo({
         customerId: order.customer.id,
         channelKey: zaloKeyOf(order.channel.key),
-        content: tCarrier(order.code, carrier.name, tracking),
+        content: tCarrier(ctx, carrier.name, tracking),
         agentName: AGENTS.LOGISTICS_AGENT.name,
         relatedOrderId: order.id,
       })

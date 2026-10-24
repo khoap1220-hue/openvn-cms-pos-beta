@@ -76,35 +76,85 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: người vận hành trả lời tin nhắn (thay Agent)
+// POST: người vận hành trả lời tin nhắn (thay Agent) — hoặc giả lập khách gửi tin (kèm ảnh)
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { customerId?: string; channelKey?: string; content?: string }
-    if (!body.customerId || !body.channelKey || !body.content?.trim()) {
+    const body = (await req.json()) as {
+      customerId?: string
+      channelKey?: string
+      content?: string
+      sender?: 'OPERATOR' | 'CUSTOMER'
+      imageUrl?: string
+      imageAnalysis?: string
+    }
+    if (!body.customerId || !body.channelKey || (!body.content?.trim() && !body.imageUrl)) {
       return NextResponse.json({ error: 'Thiếu thông tin tin nhắn' }, { status: 400 })
     }
+    // Giới hạn ảnh: URL http(s) hoặc dataURL ≤ 400KB
+    let imageUrl: string | null = null
+    if (body.imageUrl && body.imageUrl.trim()) {
+      const url = body.imageUrl.trim()
+      const isHttp = /^https?:\/\//.test(url) && url.length <= 500
+      const isData = url.startsWith('data:image/') && url.length <= 400 * 1024
+      if (!isHttp && !isData) {
+        return NextResponse.json({ error: 'Ảnh không hợp lệ (URL http(s) hoặc ảnh ≤ 400KB)' }, { status: 400 })
+      }
+      imageUrl = url
+    }
+
+    const sender = body.sender === 'CUSTOMER' ? 'CUSTOMER' : 'OPERATOR'
+    const customer = await db.customer.findUnique({ where: { id: body.customerId }, select: { id: true, name: true, phone: true } })
+    if (!customer) return NextResponse.json({ error: 'Không tìm thấy khách hàng' }, { status: 404 })
+
+    // Ảnh khách gửi → AI đọc ảnh (Vision). Ưu tiên analysis gửi sẵn (kịch bản test), nếu không thì gọi VLM.
+    let imageAnalysis = body.imageAnalysis?.trim() || null
+    if (imageUrl && !imageAnalysis) {
+      const { llmVision } = await import('@/lib/llm')
+      imageAnalysis = await llmVision(
+        'Mô tả ngắn (1–2 câu tiếng Việt) bức ảnh khách gửi cho tiệm nến & trà gốm Ưu Đàm: có gì trong ảnh, sản phẩm nào, có lỗi gì (nắp hở, mẻ, vỡ, cháy xấu) hay đẹp/tổ chức góc đẹp. Nếu khách hỏi tìm sản phẩm tương tự thì ghi rõ.',
+        imageUrl,
+      )
+    }
+
     const message = await db.directMessage.create({
       data: {
         customerId: body.customerId,
         channelKey: body.channelKey,
-        sender: 'OPERATOR',
-        content: body.content.trim(),
+        sender,
+        content: body.content?.trim() || '[Ảnh khách gửi]',
         isAuto: false,
+        imageUrl,
+        imageAnalysis,
       },
       include: { customer: { select: { id: true, name: true, phone: true } } },
     })
     broadcast('message.new', message)
 
-    // Sổ Data: người vận hành trả lời khách
+    // Tin nhắn khách → chắt lọc trí nhớ dài hạn (pain point từ lời nhắn/ảnh)
+    if (sender === 'CUSTOMER') {
+      const { refreshCustomerMemory } = await import('@/lib/memory-engine')
+      refreshCustomerMemory(body.customerId, 'MESSAGE', (body.content || imageAnalysis || '').slice(0, 140)).catch(() => null)
+    }
+
+    // Sổ Data
     await logLedger({
       scope: 'MESSAGE',
-      action: 'OPERATOR_REPLY',
+      action: sender === 'CUSTOMER' ? 'CUSTOMER_MESSAGE' : 'OPERATOR_REPLY',
       entityType: 'DirectMessage',
       entityId: message.id,
       entityCode: body.channelKey,
-      title: `Người vận hành trả lời ${message.customer?.name ?? 'khách hàng'} trên ${body.channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
-      detail: { customerId: body.customerId, channelKey: body.channelKey, content: body.content.trim().slice(0, 200) },
-      actor: 'OPERATOR',
+      title:
+        sender === 'CUSTOMER'
+          ? `${customer.name} nhắn tin${imageUrl ? ' kèm ảnh' : ''} trên ${body.channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`
+          : `Người vận hành trả lời ${customer.name} trên ${body.channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
+      detail: {
+        customerId: body.customerId,
+        channelKey: body.channelKey,
+        content: (body.content ?? '').trim().slice(0, 200),
+        hasImage: !!imageUrl,
+        imageAnalysis,
+      },
+      actor: sender === 'CUSTOMER' ? 'CUSTOMER' : 'OPERATOR',
     })
 
     return NextResponse.json({ message }, { status: 201 })

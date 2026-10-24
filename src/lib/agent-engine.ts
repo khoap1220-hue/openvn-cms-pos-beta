@@ -7,8 +7,9 @@
 
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
-import { llmChat } from '@/lib/llm'
+import { llmChat, llmVision } from '@/lib/llm'
 import { awardPointsForCompletedOrder } from '@/lib/member'
+import { refreshCustomerMemory, getMemorySnapshot } from '@/lib/memory-engine'
 import {
   AGENTS,
   AUTOMATION_DEFS,
@@ -23,7 +24,13 @@ import {
   tPickup,
   tReviewRequest,
   tTransit,
+  buildVoiceContext,
   zaloKeyOf,
+  classifySentiment,
+  reactionForSentiment,
+  detectReplyKind,
+  sanitizeVoice,
+  friendlyItemsText,
 } from '@/lib/agents'
 import { logActivity, logEvent, sendZalo } from '@/lib/agent-log'
 import { logLedgerAsync } from '@/lib/ledger'
@@ -72,8 +79,31 @@ export async function setSetting(key: string, enabled: boolean) {
   }
 }
 
-const LLM_SYS_ZALO =
-  'Bạn là nhân viên chăm sóc khách hàng của shop thời trang & phụ kiện OmniSales tại Việt Nam. Hãy viết tin nhắn Zalo gửi khách bằng tiếng Việt, thân thiện, tự nhiên, 2–3 câu, dùng 1–2 emoji vừa phải, KHÔNG dùng markdown, KHÔNG đặt trong ngoặc kép. Chỉ xuất nội dung tin nhắn.'
+// ===== Bộ quy tắc giọng văn 100% Anti-AI — Ưu Đàm (gắn vào mọi LLM prompt) =====
+const VOICE_RULES = `Bạn là nhân viên bán hàng tại tiệm nến & trà gốm "Ưu Đàm" (uudam.vn), nhắn tin Zalo cho khách như người thật của tiệm.
+QUY TẮC GIỌNG VĂN BẮT BUỘC:
+- Tự xưng "tụi em" hoặc "em" hoặc "Ưu Đàm". TUYỆT ĐỐI không nói "shop OmniSales", "quý khách", "kính chào", "hân hạnh phục vụ".
+- CẤM TUYỆT ĐỐI các câu sáo rỗng: "vô cùng quý giá", "nguồn động lực quý báu", "cải thiện chất lượng dịch vụ", "trải nghiệm tuyệt vời", "mong sớm được phục vụ".
+- KHÔNG đọc mã đơn hàng (kiểu DH261024-1234) trong lời thoại — chỉ được gửi mã vận đơn khi khách cần theo dõi. Gọi tên món hàng rút gọn gần gũi: "2 hũ trà Zen", "bịch sáp đậu nành", "set quà nến bơ".
+- Câu ngắn, đời thường, ấm áp như nhắn tin với người quen: dùng "dạ", "nha", "nhé", "đó ạ". Tối đa 1 emoji (hoặc không dùng).
+- Xưng hô theo cách ghi sẵn trong ngữ cảnh (vd "Chị Trân", "Anh Quân"). Có trí nhớ khách thì lồng ghép TỰ NHIÊN (hỏi thăm góp ý cũ, khen khách quen), đừng liệt kê máy móc.
+- Chỉ xuất nội dung tin nhắn, không markdown, không ngoặc kép.`
+
+const LLM_SYS_ZALO = VOICE_RULES
+
+/** Ngữ cảnh trí nhớ cho prompt LLM của 1 khách. */
+async function memoryPromptBlock(customerId: string, extra?: { imageAnalysis?: string | null }): Promise<string> {
+  const mem = await getMemorySnapshot(customerId)
+  if (!mem) return ''
+  const lines = [
+    `Xưng hô với khách: "${mem.displayName}".`,
+    mem.contextSummary ? `Tóm tắt ngữ cảnh tích lũy: ${mem.contextSummary}` : '',
+    mem.preferences.length > 0 ? `Sở thích/nhu cầu: ${mem.preferences.join('; ')}.` : '',
+    mem.painPoints.length > 0 ? `Khách từng góp ý (PHẢI hỏi thăm + xin lỗi/rút kinh nghiệm nếu liên quan): ${mem.painPoints.join('; ')}.` : '',
+    extra?.imageAnalysis ? `Khách vừa gửi ảnh — AI nhận diện: ${extra.imageAnalysis}. Trả lời đúng trọng tâm bức ảnh.` : '',
+  ].filter(Boolean)
+  return `\nTRÍ NHỚ KHÁCH HÀNG:\n${lines.join('\n')}\n`
+}
 
 // ===== 1. Agent Tư vấn: xác nhận đơn + nhắn Zalo =====
 async function agentConfirm(orderId: string) {
@@ -86,12 +116,22 @@ async function agentConfirm(orderId: string) {
     })
     if (!order || order.status !== 'PENDING' || !order.customer) return
 
-    const itemsText = order.items.map((i) => `${i.quantity}× ${i.product?.name ?? ''}`).join(', ')
+    await refreshCustomerMemory(order.customer.id, 'ORDER', `Đơn mới ${order.code}`).catch(() => null)
+    const mem = await getMemorySnapshot(order.customer.id)
+    const ctx = buildVoiceContext({
+      name: order.customer.name,
+      salutation: mem?.salutation,
+      orderCount: mem?.isReturning ? 2 : 1,
+      items: order.items.map((i) => ({ quantity: i.quantity, product: i.product })),
+      preferences: mem?.preferences,
+      painPoints: mem?.painPoints,
+    })
+    const itemsText = friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))
     const ai = await llmChat(
       LLM_SYS_ZALO,
-      `Viết tin nhắn xác nhận đơn hàng cho khách ${order.customer.name}. Mã đơn: ${order.code}. Sản phẩm: ${itemsText}. Tổng tiền: ${order.total}đ. ${order.address ? `Địa chỉ giao: ${order.address}.` : ''} Nội dung: chào khách, xác nhận đã nhận đơn, nêu sản phẩm + tổng tiền, hẹn đóng gói giao sớm.`,
+      `${await memoryPromptBlock(order.customer.id)}\nViết tin nhắn xác nhận đơn cho khách. Món hàng: ${itemsText}. Tổng tiền: ${order.total}đ. ${order.address ? `Giao đến: ${order.address}.` : ''} Nội dung: chào khách quen/tân khách đúng kiểu, xác nhận đã chốt đơn, nêu món hàng + tổng tiền, hẹn gói giao sớm.`,
     )
-    const content = ai ?? tConfirm(order.customer.name, order.code, itemsText, order.total)
+    const content = sanitizeVoice(ai ?? tConfirm(ctx, order.total))
 
     await db.order.update({ where: { id: order.id }, data: { status: 'CONFIRMED' } })
     await logEvent(order.id, 'CONFIRMED', 'AGENT', 'Agent Tư vấn xác nhận đơn', content)
@@ -109,7 +149,7 @@ async function agentConfirm(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Tự động xác nhận đơn ${order.code} (${order.customer.name}) và nhắn tin Zalo cho khách`,
+      message: `Chốt ${itemsText} cho ${mem?.displayName ?? order.customer.name} — nhắn Zalo xác nhận xong, gói hàng liền ${order.code}`,
       detail: content,
     })
     broadcast('order.updated', { id: order.id, status: 'CONFIRMED', code: order.code })
@@ -121,11 +161,16 @@ async function startPacking(orderId: string) {
   once(`packing:${orderId}`, async () => {
     const settings = await getSettingsMap()
     if (!settings.master) return
-    const order = await db.order.findUnique({ where: { id: orderId } })
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { product: true } }, customer: true },
+    })
     if (!order || order.status !== 'CONFIRMED') return
 
     await db.order.update({ where: { id: order.id }, data: { status: 'PACKING' } })
     await logEvent(order.id, 'PACKING', 'AGENT', 'Agent Kho vận soạn hàng & đóng gói')
+    const itemsText = friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))
+    const hasFragile = order.items.some((i) => i.product?.fragile)
     await logActivity({
       agent: 'LOGISTICS_AGENT',
       action: 'START_PACKING',
@@ -133,7 +178,7 @@ async function startPacking(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Soạn hàng & đóng gói đơn ${order.code}`,
+      message: `Vào gói ${itemsText} cho ${order.customer?.name ?? 'khách'}${hasFragile ? ' — bọc mút kỹ mấy món gốm/nến dễ vỡ' : ''} (${order.code})`,
     })
     broadcast('order.updated', { id: order.id, status: 'PACKING', code: order.code })
   })
@@ -146,7 +191,7 @@ async function dispatchCarrier(orderId: string) {
     if (!settings.master || !settings.auto_carrier) return
     const order = await db.order.findUnique({
       where: { id: orderId },
-      include: { channel: true, customer: true },
+      include: { channel: true, customer: true, items: { include: { product: true } } },
     })
     if (!order || order.status !== 'PACKING') return
     const existing = await db.shipment.findUnique({ where: { orderId: order.id } })
@@ -167,7 +212,17 @@ async function dispatchCarrier(orderId: string) {
       },
     })
 
-    const notice = tCarrier(order.code, carrier.name, tracking)
+    const mem = order.customer ? await getMemorySnapshot(order.customer.id) : null
+    const ctx = buildVoiceContext({
+      name: order.customer?.name ?? '',
+      salutation: mem?.salutation,
+      orderCount: mem?.isReturning ? 2 : 1,
+      items: order.items.map((i) => ({ quantity: i.quantity, product: i.product })),
+      preferences: mem?.preferences,
+      painPoints: mem?.painPoints,
+    })
+    const itemsText = friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))
+    const notice = tCarrier(ctx, carrier.name, tracking)
     await logEvent(order.id, 'CARRIER_DISPATCHED', 'AGENT', `Báo ${carrier.name} đến lấy hàng — mã vận đơn ${tracking}`)
     if (order.customer) {
       await sendZalo({
@@ -185,7 +240,7 @@ async function dispatchCarrier(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Đóng gói xong → tự động báo ${carrier.name} lấy hàng đơn ${order.code}. Mã vận đơn: ${tracking}`,
+      message: `Gói xong ${itemsText} → gọi ${carrier.name} qua lấy luôn cho ${mem?.displayName ?? order.customer?.name ?? 'khách'}, mã vận đơn ${tracking}`,
       detail: notice,
     })
     logLedgerAsync({
@@ -243,13 +298,15 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         targetType: 'ORDER',
         targetId: order.id,
         targetLabel: order.code,
-        message: `${carrierName(shipment.carrier)} đã nhận đơn ${order.code} — chuyển trạng thái đang giao`,
+        message: `${carrierName(shipment.carrier)} nhận hàng rồi — đơn ${order.code} của ${order.customer?.name ?? 'khách'} lên đường giao`,
       })
       if (settings.master && settings.auto_care && order.customer) {
+        const mem = await getMemorySnapshot(order.customer.id)
+        const ctx = buildVoiceContext({ name: order.customer.name, salutation: mem?.salutation, orderCount: mem?.isReturning ? 2 : 1, preferences: mem?.preferences, painPoints: mem?.painPoints })
         await sendZalo({
           customerId: order.customer.id,
           channelKey: zaloKeyOf(order.channel.key),
-          content: tPickup(order.code, carrierName(shipment.carrier)),
+          content: tPickup(ctx, carrierName(shipment.carrier)),
           agentName: AGENTS.CARE_AGENT.name,
           relatedOrderId: order.id,
         })
@@ -263,13 +320,15 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         targetType: 'ORDER',
         targetId: order.id,
         targetLabel: order.code,
-        message: `Đơn ${order.code} đang trên đường giao đến khách`,
+        message: `Hàng đang lăn bánh tới nhà ${order.customer?.name ?? 'khách'} (${order.code}) — có cập nhật là báo ngay`,
       })
       if (settings.master && settings.auto_care && order.customer) {
+        const mem = await getMemorySnapshot(order.customer.id)
+        const ctx = buildVoiceContext({ name: order.customer.name, salutation: mem?.salutation, orderCount: mem?.isReturning ? 2 : 1, preferences: mem?.preferences, painPoints: mem?.painPoints })
         await sendZalo({
           customerId: order.customer.id,
           channelKey: zaloKeyOf(order.channel.key),
-          content: tTransit(order.code),
+          content: tTransit(ctx),
           agentName: AGENTS.CARE_AGENT.name,
           relatedOrderId: order.id,
         })
@@ -287,7 +346,7 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         targetType: 'ORDER',
         targetId: order.id,
         targetLabel: order.code,
-        message: `Giao thành công đơn ${order.code} qua ${carrierName(shipment.carrier)} — hoàn tất vòng đời đơn hàng`,
+        message: `Tới nơi rồi! Giao thành công ${order.code} cho ${order.customer?.name ?? 'khách'} qua ${carrierName(shipment.carrier)} — COD về sạch, hoàn tất vòng đời đơn`,
       })
       logLedgerAsync({
         scope: 'AGENT',
@@ -314,16 +373,27 @@ async function agentCare(orderId: string) {
     if (!settings.master || !settings.auto_care) return
     const order = await db.order.findUnique({
       where: { id: orderId },
-      include: { channel: true, customer: true, events: { orderBy: { createdAt: 'desc' }, take: 20 } },
+      include: { channel: true, customer: true, events: { orderBy: { createdAt: 'desc' }, take: 20 }, items: { include: { product: true } } },
     })
     if (!order || order.status !== 'COMPLETED' || !order.customer) return
     if (order.events.some((e) => e.type === 'CARE_SENT')) return
 
+    await refreshCustomerMemory(order.customer.id, 'ORDER', `Giao thành công ${order.code}`).catch(() => null)
+    const mem = await getMemorySnapshot(order.customer.id)
+    const ctx = buildVoiceContext({
+      name: order.customer.name,
+      salutation: mem?.salutation,
+      orderCount: mem?.isReturning ? 2 : 1,
+      items: order.items.map((i) => ({ quantity: i.quantity, product: i.product })),
+      preferences: mem?.preferences,
+      painPoints: mem?.painPoints,
+    })
+    const itemsText = friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))
     const ai = await llmChat(
       LLM_SYS_ZALO,
-      `Viết tin nhắn cảm ơn khách ${order.customer.name} sau khi đơn ${order.code} giao thành công. Nội dung: cảm ơn, hỏi thăm trải nghiệm, mời quay lại shop.`,
+      `${await memoryPromptBlock(order.customer.id)}\nViết tin cảm ơn sau khi giao thành công. Món hàng: ${itemsText}. Nếu khách từng góp ý thì hỏi thăm nhẹ nhàng đã ổn chưa. Mời ghé lại tiệm.`,
     )
-    const content = ai ?? tCare(order.customer.name, order.code)
+    const content = sanitizeVoice(ai ?? tCare(ctx))
     await logEvent(order.id, 'CARE_SENT', 'AGENT', 'Agent CSKH gửi tin cảm ơn sau bán', content)
     await sendZalo({
       customerId: order.customer.id,
@@ -339,7 +409,7 @@ async function agentCare(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Giao hàng xong → nhắn cảm ơn & hỏi thăm ${order.customer.name} (đơn ${order.code})`,
+      message: `Nhắn thăm ${mem?.displayName ?? order.customer.name} sau khi ${itemsText} tới nhà (${order.code})`,
       detail: content,
     })
     logLedgerAsync({
@@ -361,7 +431,12 @@ async function requestReview(orderId: string) {
     if (!settings.master || !settings.auto_review) return
     const order = await db.order.findUnique({
       where: { id: orderId },
-      include: { channel: true, customer: true, events: { orderBy: { createdAt: 'desc' }, take: 20 } },
+      include: {
+        channel: true,
+        customer: true,
+        events: { orderBy: { createdAt: 'desc' }, take: 20 },
+        items: { include: { product: true } },
+      },
     })
     if (!order || order.status !== 'COMPLETED' || !order.customer) return
     if (order.reviewRating != null) return
@@ -370,9 +445,15 @@ async function requestReview(orderId: string) {
 
     const ai = await llmChat(
       LLM_SYS_ZALO,
-      `Viết tin nhắn gửi khách ${order.customer.name} xin đánh giá (sao) cho đơn ${order.code} sau khi giao thành công. Ngắn gọn, lịch sự, nhấn mạnh ý kiến của khách rất quan trọng với shop.`,
+      `${await memoryPromptBlock(order.customer.id)}\nViết tin nhờ khách chấm vài sao đánh giá. Giọng nhẹ nhàng như chủ tiệm nhờ vả người quen, KHÔNG nói "ý kiến quý giá/động lực".`,
     )
-    const content = ai ?? tReviewRequest(order.code)
+    const ctx = buildVoiceContext({
+      name: order.customer.name,
+      salutation: (await getMemorySnapshot(order.customer.id))?.salutation,
+      orderCount: 1,
+      items: order.items.map((i) => ({ quantity: i.quantity, product: i.product })),
+    })
+    const content = sanitizeVoice(ai ?? tReviewRequest(ctx))
     await logEvent(order.id, 'REVIEW_REQUESTED', 'AGENT', 'Agent Đánh giá gửi yêu cầu đánh giá', content)
     await sendZalo({
       customerId: order.customer.id,
@@ -388,7 +469,7 @@ async function requestReview(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Gửi yêu cầu đánh giá cho khách ${order.customer.name} (đơn ${order.code})`,
+      message: `Nhờ ${order.customer.name} chấm sao cho ${friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))} (${order.code})`,
       detail: content,
     })
     logLedgerAsync({
@@ -415,15 +496,15 @@ async function submitReview(orderId: string) {
 
     const ratingPool = [5, 5, 5, 5, 4, 4, 5, 4, 3, 5]
     const rating = ratingPool[Math.floor(Math.random() * ratingPool.length)]
-    const productNames = order.items.map((i) => i.product?.name ?? '').filter(Boolean).join(', ')
+    const productNames = friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))
     const ai = await llmChat(
-      'Bạn viết giả lập đánh giá của một khách hàng Việt Nam trên sàn thương mại điện tử. Chỉ xuất nội dung đánh giá, tiếng Việt tự nhiên, 1–2 câu, không markdown, không ngoặc kép.',
-      `Viết đánh giá ${rating}/5 sao của khách về sản phẩm: ${productNames} (đơn ${order.code}). ${rating >= 4 ? 'Khách hài lòng về chất lượng và tốc độ giao hàng.' : 'Khách khá hài lòng nhưng góp ý giao hàng hơi chậm.'}`,
+      'Bạn viết giả lập đánh giá của một khách hàng Việt Nam trên sàn thương mại điện tử cho tiệm nến & trà gốm. Chỉ xuất nội dung đánh giá, tiếng Việt đời thường, 1–2 câu, không markdown, không ngoặc kép, không nói "shop OmniSales".',
+      `Viết đánh giá ${rating}/5 sao của khách về: ${productNames}. ${rating >= 4 ? 'Khách hài lòng về chất lượng, đóng gói, mùi hương.' : 'Khách khá hài lòng nhưng góp ý giao hàng hơi chậm.'}`,
     )
     const comment =
       ai ??
       (rating >= 4
-        ? `Sản phẩm đẹp đúng hình, giao hàng nhanh. Sẽ ủng hộ shop tiếp ạ!`
+        ? `Hàng đẹp đúng hình, đóng gói cẩn thận, nến cháy thơm. Sẽ ghé tiếp ạ!`
         : `Đồ ổn trong tầm giá, giao hơi chậm một chút nhưng tổng thể ok ạ.`)
 
     await db.order.update({ where: { id: order.id }, data: { reviewRating: rating, reviewComment: comment } })
@@ -435,14 +516,18 @@ async function submitReview(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Nhận đánh giá ${rating}⭐ từ ${order.customer?.name ?? 'khách hàng'} cho đơn ${order.code}`,
+      message: `${order.customer?.name ?? 'Khách'} thả ${rating}⭐ khen ${productNames} (${order.code})`,
       detail: comment,
     })
+    // Đánh giá mới → chắt lọc lại trí nhớ khách (pain point nếu có góp ý)
+    if (order.customerId) {
+      await refreshCustomerMemory(order.customerId, 'REVIEW', `${rating}⭐: ${comment}`).catch(() => null)
+    }
     broadcast('review.received', { orderId: order.id, code: order.code, rating, comment })
   })
 }
 
-// ===== 10. Agent Hỗ trợ 24/7: trả lời tin nhắn Zalo =====
+// ===== 10. Agent Hỗ trợ 24/7: trả lời tin nhắn Zalo (đa phương thức + trí nhớ + reaction) =====
 async function autoReply(customerId: string, channelKey: string) {
   once(`reply:${customerId}|${channelKey}`, async () => {
     const settings = await getSettingsMap()
@@ -460,14 +545,25 @@ async function autoReply(customerId: string, channelKey: string) {
     const customer = await db.customer.findUnique({ where: { id: customerId } })
     if (!customer) return
 
+    await refreshCustomerMemory(customerId, 'MESSAGE', last.content.slice(0, 120)).catch(() => null)
+    const mem = await getMemorySnapshot(customerId)
+    const ctx = buildVoiceContext({
+      name: customer.name,
+      salutation: mem?.salutation,
+      orderCount: mem?.isReturning ? 2 : 1,
+      preferences: mem?.preferences,
+      painPoints: mem?.painPoints,
+    })
+
     // Chỉ trả lời tin nhắn mới nhất (tránh reply chồng)
-    const convo = [...history].reverse().map((m) => `${m.sender === 'CUSTOMER' ? 'Khách' : 'Shop'}: ${m.content}`).join('\n')
+    const convo = [...history].reverse().map((m) => `${m.sender === 'CUSTOMER' ? 'Khách' : 'Ưu Đàm'}: ${m.content}`).join('\n')
+    const kind = detectReplyKind(last.content, last.imageAnalysis)
     const ai = await llmChat(
-      'Bạn là Agent hỗ trợ khách hàng 24/7 của shop OmniSales (thời trang & phụ kiện, freeship đơn từ 500k, giao hàng 1–3 ngày, hỗ trợ đổi trả trong 7 ngày). Trả lời tin nhắn khách Zalo bằng tiếng Việt, ngắn gọn tự nhiên 1–3 câu, có thể dùng 1 emoji, KHÔNG markdown. Nếu khách hỏi đơn hàng thì hướng dẫn theo dõi; nếu hỏi sản phẩm thì tư vấn nhiệt tình.',
-      `Lịch sử hội thoại:\n${convo}\n\nHãy trả lời tin nhắn mới nhất của khách.`,
+      LLM_SYS_ZALO,
+      `${await memoryPromptBlock(customerId, { imageAnalysis: last.imageAnalysis })}\nTiệm: freeship đơn từ 500k, giao 1–3 ngày, đổi trả trong 7 ngày.\nLịch sử hội thoại:\n${convo}\n\nHãy trả lời tin nhắn mới nhất của khách${last.imageUrl ? ' (nhớ nhắc đúng nội dung bức ảnh khách vừa gửi)' : ''}.`,
     )
-    // LLM quá tải → dùng template thông minh theo từ khóa, Agent không bao giờ im lặng
-    const content = ai ?? tAutoReply(last.content, customer.name)
+    // LLM quá tải → dùng template thông minh theo từ khóa + trí nhớ, Agent không bao giờ im lặng
+    const content = sanitizeVoice(ai ?? tAutoReply(kind, ctx, { analysis: last.imageAnalysis }))
 
     // Re-check: khách nhắn thêm trong lúc LLM chạy thì bỏ lượt này
     const newest = await db.directMessage.findFirst({
@@ -475,6 +571,32 @@ async function autoReply(customerId: string, channelKey: string) {
       orderBy: { createdAt: 'desc' },
     })
     if (!newest || newest.id !== last.id) return
+
+    // Thả cảm xúc tự động lên bong bóng tin nhắn khách (tích cực ❤️ / lỗi 😢 / trung tính 🙏)
+    const reaction = reactionForSentiment(classifySentiment(last.content, last.imageAnalysis))
+    const prevReactions = (() => {
+      try {
+        return JSON.parse(last.reactions ?? '[]') as Array<{ emoji: string; agent: string }>
+      } catch {
+        return []
+      }
+    })()
+    if (!prevReactions.some((r) => r.agent === 'SUPPORT_AGENT')) {
+      await db.directMessage.update({
+        where: { id: last.id },
+        data: { reactions: JSON.stringify([...prevReactions, { emoji: reaction.emoji, agent: 'SUPPORT_AGENT', at: new Date().toISOString() }]) },
+      })
+      broadcast('message.reaction', { messageId: last.id, customerId, channelKey, emoji: reaction.emoji })
+      await logActivity({
+        agent: 'SUPPORT_AGENT',
+        action: 'REACTION',
+        level: 'info',
+        targetType: 'CONVERSATION',
+        targetId: `${customerId}|${channelKey}`,
+        targetLabel: customer.name,
+        message: `${reaction.note} của ${mem?.displayName ?? customer.name}`,
+      })
+    }
 
     await sendZalo({
       customerId,
@@ -498,7 +620,7 @@ async function autoReply(customerId: string, channelKey: string) {
       entityId: last.relatedOrderId ?? customerId,
       entityCode: channelKey,
       title: `Agent phản hồi tin nhắn ${customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
-      detail: { channelKey, relatedOrderId: last.relatedOrderId ?? null },
+      detail: { channelKey, relatedOrderId: last.relatedOrderId ?? null, kind },
       actor: 'AGENT',
     })
     await logActivity({
@@ -508,7 +630,9 @@ async function autoReply(customerId: string, channelKey: string) {
       targetType: 'CONVERSATION',
       targetId: `${customerId}|${channelKey}`,
       targetLabel: customer.name,
-      message: `Tự động trả lời tin nhắn của ${customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
+      message: last.imageUrl
+        ? `Xem ảnh khách gửi rồi trả lời ${mem?.displayName ?? customer.name} đúng trọng tâm (${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'})`
+        : `Tự động trả lời ${mem?.displayName ?? customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
       detail: content,
     })
   })

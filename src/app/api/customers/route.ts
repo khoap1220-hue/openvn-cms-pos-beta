@@ -89,6 +89,9 @@ export async function POST(req: NextRequest) {
         address: address?.trim() || null,
       },
     })
+    // Khách mới → dựng ngay chân dung: xưng hô + avatar + nhận diện tên
+    const { ensureCustomerProfile } = await import('@/lib/memory-engine')
+    await ensureCustomerProfile(customer.id).catch(() => null)
     return NextResponse.json({ customer }, { status: 201 })
   } catch (error) {
     console.error('Customers POST error:', error)

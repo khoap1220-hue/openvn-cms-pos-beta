@@ -37,6 +37,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         memberCode: customer.memberCode,
         memberAt: customer.memberAt,
         points: customer.points,
+        // Trí nhớ dài hạn + chân dung
+        avatarUrl: customer.avatarUrl,
+        salutation: customer.salutation,
+        inferredProfile: customer.inferredProfile,
+        contextSummary: customer.contextSummary,
+        preferences: customer.preferences,
+        painPoints: customer.painPoints,
+        nextFollowUp: customer.nextFollowUp,
+        memoryUpdatedAt: customer.memoryUpdatedAt,
         tier: customer.isMember ? computeTier(totalSpent) : null,
         stats: {
           orderCount,

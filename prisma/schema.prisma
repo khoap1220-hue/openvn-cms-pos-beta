@@ -80,6 +80,15 @@ model Customer {
   memberCode String?         @unique // MÃ THÀNH VIÊN cấp khi đăng ký (TV0001, TV0002, ...)
   memberAt   DateTime?       // thời điểm nâng cấp thành viên
   points     Int             @default(0) // điểm tích lũy: 1 điểm / 10.000đ đơn hoàn tất — dùng đổi quà/giảm giá
+  // ===== TRÍ NHỚ DÀI HẠN + CHÂN DUNG KHÁCH HÀNG (Long-term Context Summary) =====
+  avatarUrl       String?    // ảnh đại diện (DiceBear/URL) — null thì render chữ cái đầu
+  salutation      String?    // cách xưng hô cố định: "Em - Chị Nhung", "Em - Anh Quân"
+  inferredProfile String?    // JSON nhận diện từ tên + avatar: {gender, ageHint, style, note}
+  contextSummary  String?    // tóm tắt ngữ cảnh tích lũy qua đơn/chat/đánh giá
+  preferences     String?    // JSON mảng sở thích/nhu cầu: gu mùi hương, mua dùng/biếu, DIY...
+  painPoints      String?    // JSON mảng vấn đề từng gặp/góp ý: "nắp gỗ chưa khít"...
+  nextFollowUp    String?    // gợi ý thời điểm/nhu cầu chăm sóc tiếp theo
+  memoryUpdatedAt DateTime?  // lần chắt lọc trí nhớ gần nhất
   createdAt  DateTime        @default(now())
   orders     Order[]
   messages   DirectMessage[]
@@ -188,6 +197,10 @@ model DirectMessage {
   relatedOrderId String?
   isAuto         Boolean   @default(false)
   readAt         DateTime?
+  // ===== MULTIMODAL + REACTIONS =====
+  imageUrl       String?   // ảnh khách đính kèm (URL/dataURL)
+  imageAnalysis  String?   // AI mô tả/nhận diện nội dung ảnh
+  reactions      String?   // JSON mảng reaction Agent thả: [{emoji:"❤️", agent:"SUPPORT_AGENT", at}]
   createdAt      DateTime  @default(now())
 }
 

@@ -45,3 +45,30 @@ export async function llmChat(system: string, user: string, timeoutMs = 20000): 
     return null
   }
 }
+
+// ===== VISION — đọc ảnh khách gửi (multimodal) =====
+export async function llmVision(prompt: string, imageUrl: string, timeoutMs = 25000): Promise<string | null> {
+  try {
+    const zai = await getZai()
+    const result = (await Promise.race([
+      zai.chat.completions.create({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: imageUrl } },
+            ],
+          },
+        ],
+        thinking: { type: 'disabled' },
+      }),
+      new Promise((_resolve, reject) => setTimeout(() => reject(new Error('Vision timeout')), timeoutMs)),
+    ])) as { choices?: Array<{ message?: { content?: string | null } }> }
+
+    const text = result?.choices?.[0]?.message?.content?.trim()
+    return text && text.length > 0 ? text : null
+  } catch {
+    return null
+  }
+}

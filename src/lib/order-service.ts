@@ -6,6 +6,7 @@ import { logActivity, logEvent } from '@/lib/agent-log'
 import { logLedgerAsync } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { issueComboComponents, syncComboStock } from '@/lib/combo'
+import { friendlyItemsText } from '@/lib/agents'
 
 export interface CreateOrderInput {
   channelId: string
@@ -147,6 +148,8 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   await logEvent(order.id, 'CREATED', 'SYSTEM', `Nhận đơn mới qua ${channel.name}`)
+  const friendlyOrderItems = order.items.map((i) => ({ quantity: i.quantity, product: i.product }))
+  const itemsSummary = friendlyItemsText(friendlyOrderItems)
   await logActivity({
     agent: 'SYSTEM',
     action: 'ORDER_RECEIVED',
@@ -154,9 +157,15 @@ export async function createOrder(input: CreateOrderInput) {
     targetType: 'ORDER',
     targetId: order.id,
     targetLabel: order.code,
-    message: `Nhận đơn mới ${order.code} qua ${channel.name} — ${order.customer?.name ?? 'Khách lẻ'}, tổng ${(order.total).toLocaleString('vi-VN')}đ`,
+    message: `Khách ${order.customer?.name ?? 'lẻ'} vừa chốt ${itemsSummary} qua ${channel.name} — tổng ${(order.total).toLocaleString('vi-VN')}đ (${order.code})`,
   })
   broadcast('order.created', order)
+
+  // Trí nhớ dài hạn: đơn mới → chắt lọc lại hồ sơ khách (contextSummary/preferences/painPoints)
+  if (finalCustomerId) {
+    const { refreshCustomerMemory } = await import('@/lib/memory-engine')
+    refreshCustomerMemory(finalCustomerId, 'ORDER', `Đơn mới ${order.code}`).catch(() => null)
+  }
 
   // Sổ Data + Webhook outbound (fire-and-forget)
   logLedgerAsync({

@@ -57,6 +57,8 @@ export interface ZaloMessageInput {
   agentName?: string | null
   relatedOrderId?: string | null
   isAuto?: boolean
+  imageUrl?: string | null // ảnh khách đính kèm (multimodal)
+  imageAnalysis?: string | null // AI nhận diện ảnh
 }
 
 export async function sendZalo(input: ZaloMessageInput) {
@@ -70,6 +72,8 @@ export async function sendZalo(input: ZaloMessageInput) {
         content: input.content,
         relatedOrderId: input.relatedOrderId ?? null,
         isAuto: input.isAuto ?? true,
+        imageUrl: input.imageUrl ?? null,
+        imageAnalysis: input.imageAnalysis ?? null,
       },
     })
     broadcast('message.new', message)

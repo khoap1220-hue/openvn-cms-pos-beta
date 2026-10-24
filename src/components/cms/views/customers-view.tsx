@@ -57,6 +57,8 @@ import {
   History,
   BadgeCheck,
   Gift,
+  RefreshCw,
+  Brain,
 } from 'lucide-react'
 
 interface CustomerFormState {
@@ -92,6 +94,37 @@ interface CustomerDetail {
 // Tra cấu hình hạng (badge/bar class) theo key — server trả MemberTierInfo (key/label/ngưỡng)
 const TIER_BY_KEY = Object.fromEntries(MEMBER_TIERS.map((t) => [t.key, t])) as Record<string, MemberTier>
 const tierBar = (key: string): string => TIER_BY_KEY[key]?.bar ?? 'bg-stone-400'
+
+function parseJsonArray(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const v = JSON.parse(raw)
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function parseJsonObject(raw: string | null | undefined): { gender?: string; ageHint?: string; style?: string; note?: string } | null {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+// Avatar khách: ưu tiên avatarUrl (DiceBear) — lỗi/ẩn thì về chữ cái đầu
+function CustomerAvatar({ name, avatarUrl, className }: { name: string; avatarUrl?: string | null; className?: string }) {
+  const [broken, setBroken] = useState(false)
+  if (avatarUrl && !broken) {
+    return (
+       
+      <img src={avatarUrl} alt={`Avatar ${name}`} className={`${className ?? 'h-9 w-9'} shrink-0 rounded-full object-cover`} onError={() => setBroken(true)} />
+    )
+  }
+  return <ProductAvatar name={name} className={className} />
+}
 
 // ===== Badge hạng thành viên (cục bộ) =====
 function TierBadge({ tier, className }: { tier?: MemberTierInfo | null; className?: string }) {
@@ -133,6 +166,9 @@ export function CustomersView() {
   const [pointsInput, setPointsInput] = useState('')
   const [pointsNote, setPointsNote] = useState('')
   const [pointsSubmitting, setPointsSubmitting] = useState(false)
+
+  // Tóm tắt lại trí nhớ khách
+  const [memorySummarizing, setMemorySummarizing] = useState(false)
 
   // Debounce ô tìm kiếm 400ms
   useEffect(() => {
@@ -222,6 +258,25 @@ export function CustomersView() {
       setDetailOpen(false)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  // ===== Tóm tắt lại trí nhớ (memory engine chạy lại cho khách này) =====
+  const handleSummarizeMemory = async () => {
+    if (!detail || memorySummarizing) return
+    setMemorySummarizing(true)
+    try {
+      await apiPost(`/api/customers/${detail.customer.id}/memory`, {})
+      await refreshDetail(detail.customer.id)
+      toast({ title: 'Đã tóm tắt lại trí nhớ', description: `Hồ sơ của ${detail.customer.name} được chắt lọc lại từ toàn bộ đơn/chat/đánh giá.` })
+    } catch (e) {
+      toast({
+        title: 'Không tóm tắt được trí nhớ',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setMemorySummarizing(false)
     }
   }
 
@@ -576,7 +631,7 @@ export function CustomersView() {
               <DialogHeader>
                 <DialogTitle className="sr-only">Chi tiết khách hàng</DialogTitle>
                 <div className="flex items-start gap-3 pt-1">
-                  <ProductAvatar name={detail.customer.name} className="h-12 w-12 text-lg" />
+                  <CustomerAvatar name={detail.customer.name} avatarUrl={detail.customer.avatarUrl} className="h-12 w-12 text-lg" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-base font-bold leading-tight">{detail.customer.name}</p>
                     <p className="truncate text-sm text-muted-foreground">
@@ -584,6 +639,11 @@ export function CustomersView() {
                       {detail.customer.email ? ` · ${detail.customer.email}` : ''}
                     </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      {detail.customer.salutation && (
+                        <Badge variant="outline" className="border-emerald-300 bg-emerald-50 font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">
+                          {detail.customer.salutation}
+                        </Badge>
+                      )}
                       {detail.customer.isMember ? (
                         <>
                           <TierBadge tier={detailTier} />
@@ -596,6 +656,76 @@ export function CustomersView() {
                   </div>
                 </div>
               </DialogHeader>
+
+              {/* ===== Chân dung & Trí nhớ AI (Long-term Context Summary) ===== */}
+              <div className="rounded-xl border border-emerald-200 bg-gradient-to-b from-emerald-50/60 to-transparent p-4 dark:border-emerald-900 dark:from-emerald-950/30">
+                <div className="mb-2.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-400">
+                    <Brain className="h-3.5 w-3.5" aria-hidden />
+                    Chân dung & Trí nhớ AI
+                  </p>
+                  <Button size="sm" variant="outline" className="h-7 gap-1 border-emerald-300 px-2 text-[11px] dark:border-emerald-800" disabled={memorySummarizing} onClick={() => void handleSummarizeMemory()}>
+                    <RefreshCw className={memorySummarizing ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
+                    Tóm tắt lại
+                  </Button>
+                </div>
+
+                {(() => {
+                  const profile = parseJsonObject(detail.customer.inferredProfile)
+                  const prefs = parseJsonArray(detail.customer.preferences)
+                  const pains = parseJsonArray(detail.customer.painPoints)
+                  return (
+                    <div className="space-y-2.5">
+                      {profile && (profile.gender || profile.ageHint || profile.style) && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {profile.gender && <Badge variant="outline" className="text-[11px] font-normal">{profile.gender}</Badge>}
+                          {profile.ageHint && <Badge variant="outline" className="text-[11px] font-normal">{profile.ageHint}</Badge>}
+                          {profile.style && <Badge variant="outline" className="text-[11px] font-normal">{profile.style}</Badge>}
+                        </div>
+                      )}
+
+                      {detail.customer.contextSummary ? (
+                        <p className="text-xs leading-relaxed text-foreground/90">{detail.customer.contextSummary}</p>
+                      ) : (
+                        <p className="text-xs italic text-muted-foreground">Chưa có tóm tắt — bấm «Tóm tắt lại» để AI chắt lọc từ toàn bộ đơn/chat/đánh giá.</p>
+                      )}
+
+                      {prefs.length > 0 && (
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-muted-foreground">Sở thích / Nhu cầu</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {prefs.map((p, i) => (
+                              <Badge key={i} variant="outline" className="bg-background text-[11px] font-normal">{p}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {pains.length > 0 && (
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-muted-foreground">Lưu ý / Góp ý cũ</p>
+                          <div className="space-y-1">
+                            {pains.map((p, i) => (
+                              <p key={i} className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">{p}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {detail.customer.nextFollowUp && (
+                        <div className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-2 dark:border-violet-900 dark:bg-violet-950">
+                          <p className="text-[11px] font-semibold text-violet-700 dark:text-violet-400">Gợi ý chăm sóc tiếp theo</p>
+                          <p className="mt-0.5 text-xs leading-relaxed text-violet-900 dark:text-violet-300">{detail.customer.nextFollowUp}</p>
+                        </div>
+                      )}
+
+                      <p className="text-[10px] text-muted-foreground">
+                        {detail.customer.memoryUpdatedAt ? `Chắt lọc lần cuối: ${formatDate(detail.customer.memoryUpdatedAt)}` : 'Chưa chắt lọc'} · tự chạy khi có đơn mới, tin nhắn Zalo, đánh giá sao
+                      </p>
+                    </div>
+                  )
+                })()}
+              </div>
 
               {/* Khối thành viên: điểm + hạng / mời gia nhập */}
               {detail.customer.isMember ? (

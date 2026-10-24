@@ -77,6 +77,15 @@ export interface Customer {
   points?: number
   /** hạng thành viên tính từ tổng chi tiêu (server trả về) */
   tier?: MemberTierInfo
+  // ===== TRÍ NHỚ DÀI HẠN + CHÂN DUNG (Long-term Context Summary) =====
+  avatarUrl?: string | null
+  salutation?: string | null
+  inferredProfile?: string | null
+  contextSummary?: string | null
+  preferences?: string | null
+  painPoints?: string | null
+  nextFollowUp?: string | null
+  memoryUpdatedAt?: string | null
   stats?: {
     orderCount: number
     totalSpent: number
@@ -315,6 +324,11 @@ export interface DirectMessage {
   isAuto: boolean
   readAt: string | null
   createdAt: string
+  /** ảnh khách đính kèm (multimodal) + AI nhận diện */
+  imageUrl?: string | null
+  imageAnalysis?: string | null
+  /** reactions Agent thả: [{emoji:"❤️", agent:"SUPPORT_AGENT", at}] */
+  reactions?: string | null
   customer?: { id: string; name: string; phone: string | null } | null
 }
 

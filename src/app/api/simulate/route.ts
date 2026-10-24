@@ -15,12 +15,12 @@ const NEW_CUSTOMERS = [
 const ADDRESSES = ['25 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh', '88 Trần Hưng Đạo, Hải An, Hải Phòng', '12 Phạm Ngũ Lão, Hoàn Kiếm, Hà Nội', '305 Cách Mạng Tháng Tám, Quận 10, TP. Hồ Chí Minh']
 
 const QUESTIONS = [
-  'Chào shop, cho mình hỏi mẫu áo sơ mi lụa còn size M không ạ?',
-  'Đơn của mình bao giờ thì nhận được vậy shop?',
-  'Shop có freeship không ạ, mình mua thêm vài món nữa?',
-  'Mình nhận hàng rồi mà muốn đổi size thì làm thế nào ạ?',
-  'Sản phẩm của shop có phải hàng chính hãng không ạ?',
-  'Shop ơi, đơn của mình đang giao đến đâu rồi ạ?',
+  'Chào Ưu Đàm, cho mình hỏi hũ nến hoa sen còn hàng không ạ?',
+  'Đơn của mình bao giờ thì nhận được vậy tiệm?',
+  'Tiệm có freeship không ạ, mình mua thêm hũ trà nữa?',
+  'Mình nhận nến rồi nhưng muốn đổi mùi hương thì làm thế nào ạ?',
+  'Nến của tiệm thắp được bao nhiêu tiếng vậy ạ?',
+  'Tiệm ơi, mình đang tự đổ nến thì nên dùng sáp nào ạ?',
 ]
 
 export async function POST(req: NextRequest) {
@@ -104,6 +104,58 @@ export async function POST(req: NextRequest) {
         content: QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)],
         sender: 'CUSTOMER',
         isAuto: false,
+      })
+      return NextResponse.json({ message }, { status: 201 })
+    }
+
+    // ===== Khách gửi ảnh kèm tin nhắn (kịch bản test multimodal) =====
+    if (type === 'zalo_image') {
+      const scenario = (body as { scenario?: string }).scenario ?? 'praise_burn'
+      const forcedId = (body as { customerId?: string }).customerId
+      const customers = await db.customer.findMany({ take: 30, orderBy: { createdAt: 'desc' } })
+      if (customers.length === 0) {
+        return NextResponse.json({ error: 'Chưa có khách hàng nào' }, { status: 400 })
+      }
+      // Ưu tiên khách đúng kịch bản: nắp hở → khách từng góp ý nắp (Trân); còn lại khách quen bất kỳ
+      const byName = (name: string) => customers.find((c) => c.name === name)
+      const forced = forcedId ? customers.find((c) => c.id === forcedId) : undefined
+      const customer =
+        forced ??
+        (scenario === 'lid_defect'
+          ? byName('Ngô Bảo Trân') ?? customers[0]
+          : scenario === 'diy_wax'
+            ? byName('Hà Minh Quân') ?? customers[0]
+            : customers[Math.floor(Math.random() * customers.length)])
+      const channelKey = Math.random() < 0.6 ? 'ZALO_OA' : 'ZALO_PERSONAL'
+
+      const OSS = (hash: string) => `https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/${hash}.jpg`
+      const scenarios: Record<string, { imageUrl: string; content: string; analysis: string }> = {
+        praise_burn: {
+          imageUrl: OSS('a1aaeeb81709'), // hũ nến hoa sen đang thắp — góc đốt đẹp
+          content: 'Nhìn góc đốt nến tối qua đẹp xỉu luôn á, bóng nến vàng ấm cả bàn ơi là xinh 😍',
+          analysis: 'Ảnh chụp hũ nến hoa sen đang thắp trong góc decor tối, bóng nến vàng ấm lan trên mặt bàn gỗ, toàn cảnh ấm cúng, không có lỗi gì — khách chụp khoe góc đốt nến đẹp.',
+        },
+        lid_defect: {
+          imageUrl: OSS('ecba3f9b86ea'), // hũ trà gốm nắp gỗ — kịch bản nắp chưa khít
+          content: 'Mình vừa kiểm tra cái hũ trà thì thấy nắp gỗ nó bị hở một mạch, đóng lại không khít, có kẽ hở nhìn rõ luôn ấy ạ 😔',
+          analysis: 'Ảnh chụp cận hũ trà gốm nắp gỗ: nắp gỗ đóng lệch, có kẽ hở rõ giữa nắp và miệng hũ — lỗi nắp chưa khít trên chính sản phẩm khách mua.',
+        },
+        find_similar: {
+          imageUrl: OSS('4869e1f68625'), // bộ ấm trà gốm men lam — hỏi tìm mẫu tương tự
+          content: 'Mình thấy cái ấm gốm như trong ảnh này xinh quá, shop có mẫu tương tự nào không ạ?',
+          analysis: 'Ảnh chụp bộ ấm trà gốm men lam hoa văn cổ điển đặt cạnh chén trà — khách chụp mẫu tham khảo và muốn tiệm tư vấn sản phẩm tương tự đang bán.',
+        },
+      }
+      const sc = scenarios[scenario] ?? scenarios.praise_burn
+
+      const message = await sendZalo({
+        customerId: customer.id,
+        channelKey,
+        content: sc.content,
+        sender: 'CUSTOMER',
+        isAuto: false,
+        imageUrl: sc.imageUrl,
+        imageAnalysis: sc.analysis,
       })
       return NextResponse.json({ message }, { status: 201 })
     }
