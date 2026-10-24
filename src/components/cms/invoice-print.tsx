@@ -1,14 +1,20 @@
 'use client'
 
-// IN HÓA ĐƠN GTGT — dialog xem trước bản in hóa đơn bán (khổ A4, đen trắng trên nền trắng).
-// • Khi dialog mở → tự GET /api/settings lấy tiêu đề, mẫu số, ký hiệu, ngân hàng, logo, ghi chú cuối.
+// IN HÓA ĐƠN — dialog xem trước bản in khổ A4 (đen trắng trên nền trắng), 2 loại:
+// • kind='sales' (mặc định): hóa đơn bán GTGT — tiêu đề/mẫu số/ký hiệu lấy từ Thiết lập hóa đơn,
+//   số hóa đơn dùng invoiceNo tăng dần (hóa đơn cũ không có → fallback mã nội bộ PXK...).
+// • kind='purchase': hóa đơn mua hàng — tiêu đề cố định HÓA ĐƠN MUA HÀNG, bên bán = nhà cung cấp,
+//   bên mua = đơn vị mình (không in mẫu số/ký hiệu — đó là của hóa đơn bán GTGT).
+// • Khi dialog mở → tự GET /api/settings lấy thông tin đơn vị, mẫu in, ngân hàng, logo, ghi chú cuối.
 // • Nút "In hóa đơn" → window.print(): CSS @media print ẩn toàn trang, chỉ hiện .invoice-print-area.
 // • Hóa đơn trạng thái CANCELLED in kèm watermark "HÓA ĐƠN ĐÃ HỦY".
-// Lưu ý: GET /api/settings hiện có thể không trả invoice_bank_* (backend cũ) → mọi trường bank coi là tùy chọn.
+// Lưu ý: hóa đơn bán tạo từ Task 20-a trở đi có snapshot invoiceNo/series/templateCode/paymentMethod;
+// hóa đơn CŨ có thể null hết 4 trường → mọi trường đều có fallback từ settings/mã nội bộ.
 
 import { useEffect, useState } from 'react'
 import { apiGet } from '@/lib/api'
 import { formatNumber } from '@/lib/format'
+import { PAYMENT_METHOD_LABELS } from '@/lib/types'
 import { docSoTienBangChu } from '@/lib/vietnamese'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,6 +34,8 @@ export interface InvoicePrintItem {
   product: { sku: string; name: string; unit: string }
 }
 
+export type InvoicePrintKind = 'sales' | 'purchase'
+
 export interface InvoicePrintData {
   id: string
   code: string
@@ -41,15 +49,24 @@ export interface InvoicePrintData {
   partner: { name: string; taxCode: string | null; address?: string | null; phone?: string | null } | null
   order?: { code: string } | null
   items: InvoicePrintItem[]
+  // Snapshot chụp lúc tạo hóa đơn bán (Task 20-a) — hóa đơn cũ có thể null hết
+  invoiceNo?: number | null
+  series?: string | null
+  templateCode?: string | null
+  paymentMethod?: string | null
 }
 
 interface InvoiceSettings {
   companyName: string
   companyTax: string
   companyAddress: string
+  companyPhone: string
   title: string
   templateCode: string
   series: string
+  paymentMethod: string
+  /** Số bắt đầu ghi số hóa đơn — chỉ dùng hiển thị hint, số thật do backend tự tăng */
+  numberStart: string
   bankName: string
   bankAccount: string
   bankHolder: string
@@ -61,9 +78,12 @@ const SETTINGS_FALLBACK: InvoiceSettings = {
   companyName: '',
   companyTax: '',
   companyAddress: '',
+  companyPhone: '',
   title: 'HÓA ĐƠN BÁN HÀNG',
   templateCode: '01GTKT0/001',
   series: 'AA/26E',
+  paymentMethod: 'Tiền mặt / Chuyển khoản',
+  numberStart: '1',
   bankName: '',
   bankAccount: '',
   bankHolder: '',
@@ -80,9 +100,13 @@ function normalizeSettings(raw: Record<string, unknown> | null): InvoiceSettings
     companyName: str('company_name'),
     companyTax: str('company_tax'),
     companyAddress: str('company_address'),
+    companyPhone: str('company_phone'),
     title: str('invoice_title', SETTINGS_FALLBACK.title) || SETTINGS_FALLBACK.title,
     templateCode: str('invoice_template_code', SETTINGS_FALLBACK.templateCode) || SETTINGS_FALLBACK.templateCode,
     series: str('invoice_series', SETTINGS_FALLBACK.series) || SETTINGS_FALLBACK.series,
+    paymentMethod:
+      str('invoice_payment_method', SETTINGS_FALLBACK.paymentMethod) || SETTINGS_FALLBACK.paymentMethod,
+    numberStart: str('invoice_number_start', '1') || '1',
     bankName: str('invoice_bank_name'),
     bankAccount: str('invoice_bank_account'),
     bankHolder: str('invoice_bank_holder'),
@@ -144,10 +168,12 @@ export function InvoicePrintDialog({
   open,
   onOpenChange,
   invoice,
+  kind = 'sales',
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   invoice: InvoicePrintData | null
+  kind?: InvoicePrintKind
 }) {
   const [settings, setSettings] = useState<InvoiceSettings | null>(null)
 
@@ -182,10 +208,11 @@ export function InvoicePrintDialog({
         className="max-h-[90vh] overflow-y-auto sm:max-w-4xl"
       >
         <DialogHeader className="no-print">
-          <DialogTitle>In hóa đơn bán</DialogTitle>
+          <DialogTitle>{kind === 'purchase' ? 'In hóa đơn mua' : 'In hóa đơn bán'}</DialogTitle>
           <DialogDescription>
-            Xem trước bản in hóa đơn GTGT khổ A4 — cấu hình mẫu in lấy từ &quot;Thiết lập hóa đơn&quot; ở module Hệ
-            thống.
+            {kind === 'purchase'
+              ? 'Xem trước bản in hóa đơn mua hàng khổ A4 — thông tin người bán lấy từ nhà cung cấp của hóa đơn.'
+              : 'Xem trước bản in hóa đơn GTGT khổ A4 — cấu hình mẫu in lấy từ &quot;Thiết lập hóa đơn&quot; ở module Hệ thống.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -226,33 +253,79 @@ export function InvoicePrintDialog({
                         <p className="font-bold uppercase">{settings.companyName || '(Tên đơn vị)'}</p>
                         <p>Mã số thuế: {settings.companyTax || '………………………………'}</p>
                         <p>Địa chỉ: {settings.companyAddress || '………………………………'}</p>
+                        {settings.companyPhone ? <p>Điện thoại: {settings.companyPhone}</p> : null}
                       </div>
                     </div>
                     <div className="min-w-[200px] text-center">
-                      <p className="text-lg font-bold uppercase leading-tight sm:text-xl">{settings.title}</p>
-                      <p className="mt-1 text-sm">Mẫu số: {settings.templateCode}</p>
-                      <p className="text-sm">Ký hiệu: {settings.series}</p>
-                      <p className="text-sm font-semibold">Số: {invoice.code}</p>
+                      {kind === 'purchase' ? (
+                        <>
+                          <p className="text-lg font-bold uppercase leading-tight sm:text-xl">
+                            HÓA ĐƠN MUA HÀNG
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">Số: {invoice.code}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold uppercase leading-tight sm:text-xl">{settings.title}</p>
+                          <p className="mt-1 text-sm">
+                            Mẫu số: {invoice.templateCode ?? settings.templateCode}
+                          </p>
+                          <p className="text-sm">Ký hiệu: {invoice.series ?? settings.series}</p>
+                          <p className="text-sm font-semibold">
+                            Số: {invoice.invoiceNo != null ? invoice.invoiceNo : invoice.code}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   <p className="mt-4 text-center text-sm font-medium">{dateLine}</p>
 
-                  {/* Bên bán / bên mua */}
+                  {/* Bên bán / bên mua — sales: đơn vị bán cho khách; purchase: NCC bán cho đơn vị */}
                   <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                      <p className="font-semibold">Đơn bán: {settings.companyName || '(Khách lẻ)'}</p>
-                    </div>
-                    <div className="leading-relaxed">
-                      <p>
-                        Họ tên người mua hàng: <span className="font-medium">{invoice.partner?.name ?? 'Khách lẻ'}</span>
-                      </p>
-                      <p>Mã số thuế: {invoice.partner?.taxCode ?? ''}</p>
-                      <p>Địa chỉ: {invoice.partner?.address ?? ''}</p>
-                      <p>Điện thoại: {invoice.partner?.phone ?? ''}</p>
-                      <p>Hình thức thanh toán: Tiền mặt / Chuyển khoản</p>
-                      {invoice.order ? <p>Theo đơn hàng: {invoice.order.code}</p> : null}
-                    </div>
+                    {kind === 'purchase' ? (
+                      <>
+                        {/* Cột trái: NGƯỜI BÁN = nhà cung cấp */}
+                        <div className="leading-relaxed">
+                          <p className="font-semibold">
+                            Đơn cung cấp: {invoice.partner?.name ?? '(Không có nhà cung cấp)'}
+                          </p>
+                          <p>Mã số thuế: {invoice.partner?.taxCode ?? ''}</p>
+                          <p>Địa chỉ: {invoice.partner?.address ?? ''}</p>
+                          <p>Điện thoại: {invoice.partner?.phone ?? ''}</p>
+                        </div>
+                        {/* Cột phải: NGƯỜI MUA = đơn vị mình */}
+                        <div className="leading-relaxed">
+                          <p className="font-semibold">Đơn mua: {settings.companyName || '(Tên đơn vị)'}</p>
+                          <p>Mã số thuế: {settings.companyTax}</p>
+                          <p>Địa chỉ: {settings.companyAddress}</p>
+                          {settings.companyPhone ? <p>Điện thoại: {settings.companyPhone}</p> : null}
+                          <p>Hình thức thanh toán: {settings.paymentMethod}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="font-semibold">Đơn bán: {settings.companyName || '(Khách lẻ)'}</p>
+                        </div>
+                        <div className="leading-relaxed">
+                          <p>
+                            Họ tên người mua hàng:{' '}
+                            <span className="font-medium">{invoice.partner?.name ?? 'Khách lẻ'}</span>
+                          </p>
+                          <p>Mã số thuế: {invoice.partner?.taxCode ?? ''}</p>
+                          <p>Địa chỉ: {invoice.partner?.address ?? ''}</p>
+                          <p>Điện thoại: {invoice.partner?.phone ?? ''}</p>
+                          <p>
+                            Hình thức thanh toán:{' '}
+                            {invoice.paymentMethod
+                              ? (PAYMENT_METHOD_LABELS[invoice.paymentMethod] ?? invoice.paymentMethod)
+                              : settings.paymentMethod}
+                          </p>
+                          {invoice.order ? <p>Theo đơn hàng: {invoice.order.code}</p> : null}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Bảng hàng hóa */}

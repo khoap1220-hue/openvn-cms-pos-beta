@@ -1,0 +1,1398 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+     4→import {
+     5→  ChevronLeft,
+     6→  ChevronRight,
+     7→  Eye,
+     8→  LifeBuoy,
+     9→  Loader2,
+    10→  Minus,
+    11→  MoreHorizontal,
+    12→  Plus,
+    13→  Search,
+    14→  ShoppingCart,
+    15→  Trash2,
+    16→  Wallet,
+    17→} from 'lucide-react'
+    18→
+    19→import { apiGet, apiPatch, apiPost } from '@/lib/api'
+    20→import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
+    21→import { ORDER_STATUSES, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/types'
+    22→import type { Channel, Order, Product } from '@/lib/types'
+    23→import { useToast } from '@/hooks/use-toast'
+    24→
+    25→import { Badge } from '@/components/ui/badge'
+    26→import { Button } from '@/components/ui/button'
+    27→import {
+    28→  Dialog,
+    29→  DialogContent,
+    30→  DialogDescription,
+    31→  DialogFooter,
+    32→  DialogHeader,
+    33→  DialogTitle,
+    34→} from '@/components/ui/dialog'
+    35→import {
+    36→  DropdownMenu,
+    37→  DropdownMenuContent,
+    38→  DropdownMenuItem,
+    39→  DropdownMenuTrigger,
+    40→} from '@/components/ui/dropdown-menu'
+    41→import { Input } from '@/components/ui/input'
+    42→import { Label } from '@/components/ui/label'
+    43→import {
+    44→  Select,
+    45→  SelectContent,
+    46→  SelectItem,
+    47→  SelectTrigger,
+    48→  SelectValue,
+    49→} from '@/components/ui/select'
+    50→import { Separator } from '@/components/ui/separator'
+    51→import { Skeleton } from '@/components/ui/skeleton'
+    52→import {
+    53→  Table,
+    54→  TableBody,
+    55→  TableCell,
+    56→  TableHead,
+    57→  TableHeader,
+    58→  TableRow,
+    59→} from '@/components/ui/table'
+    60→import { Textarea } from '@/components/ui/textarea'
+    61→
+    62→import { ChannelBadge } from '@/components/cms/channel-badge'
+    63→import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+    64→import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
+    65→import { OrderStatusBadge, PaymentStatusBadge } from '@/components/cms/status-badge'
+    66→import { ShipmentStatusBadge } from '@/components/cms/agent-badge'
+    67→import { useRealtime } from '@/hooks/use-realtime'
+    68→import { carrierName } from '@/lib/agents'
+    69→
+    70→const PAGE_SIZE = 10
+    71→// Luồng xử lý đơn: PENDING → CONFIRMED → PACKING → SHIPPING → COMPLETED (CANCELLED từ mọi trạng thái)
+    72→const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PACKING', 'SHIPPING', 'COMPLETED'] as const
+    73→
+    74→interface CreateOrderItem {
+    75→  productId: string
+    76→  name: string
+    77→  sku: string
+    78→  price: number
+    79→  quantity: number
+    80→}
+    81→
+    82→interface CreateOrderFormState {
+    83→  channelId: string
+    84→  customerName: string
+    85→  customerPhone: string
+    86→  address: string
+    87→  note: string
+    88→  paymentMethod: string
+    89→}
+    90→
+    91→const EMPTY_CREATE_FORM: CreateOrderFormState = {
+    92→  channelId: '',
+    93→  customerName: '',
+    94→  customerPhone: '',
+    95→  address: '',
+    96→  note: '',
+    97→  paymentMethod: 'COD',
+    98→}
+    99→
+   100→const EVENT_ACTOR_LABELS: Record<string, string> = {
+   101→  AGENT: 'Agent tự động',
+   102→  OPERATOR: 'Người vận hành',
+   103→  SYSTEM: 'Hệ thống',
+   104→  CUSTOMER: 'Khách hàng',
+   105→}
+   106→
+   107→const EVENT_ACTOR_DOTS: Record<string, string> = {
+   108→  AGENT: 'bg-emerald-500',
+   109→  OPERATOR: 'bg-violet-500',
+   110→  SYSTEM: 'bg-slate-400',
+   111→  CUSTOMER: 'bg-amber-500',
+   112→}
+   113→
+   114→// ===== Sau bán hàng: đổi trả / bảo hành =====
+   115→interface AfterSalesCase {
+   116→  id: string
+   117→  code: string
+   118→  type: string
+   119→  status: string
+   120→  reason: string
+   121→  resolution: string | null
+   122→  refundAmount: number
+   123→  handledBy: string
+   124→  createdAt: string
+   125→  order?: { id: string; code: string }
+   126→}
+   127→
+   128→const CASE_TYPE_BADGES: Record<string, { label: string; className: string }> = {
+   129→  RETURN: {
+   130→    label: 'Đổi trả',
+   131→    className: 'border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
+   132→  },
+   133→  EXCHANGE: {
+   134→    label: 'Đổi hàng',
+   135→    className: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+   136→  },
+   137→  WARRANTY: {
+   138→    label: 'Bảo hành',
+   139→    className: 'border-transparent bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+   140→  },
+   141→}
+   142→
+   143→const CASE_STATUS_BADGES: Record<string, { label: string; className: string }> = {
+   144→  OPEN: {
+   145→    label: 'Mới',
+   146→    className: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+   147→  },
+   148→  PROCESSING: {
+   149→    label: 'Đang xử lý',
+   150→    className: 'border-transparent bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400',
+   151→  },
+   152→  RESOLVED: {
+   153→    label: 'Đã giải quyết',
+   154→    className: 'border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+   155→  },
+   156→  REJECTED: { label: 'Từ chối', className: 'border-transparent bg-muted text-muted-foreground' },
+   157→}
+   158→
+   159→const CASE_STATUS_ACTIONS: Array<{ status: string; label: string }> = [
+   160→  { status: 'PROCESSING', label: 'Đang xử lý' },
+   161→  { status: 'RESOLVED', label: 'Đã giải quyết' },
+   162→  { status: 'REJECTED', label: 'Từ chối' },
+   163→]
+   164→
+   165→function errorMessage(err: unknown): string {
+   166→  return err instanceof Error ? err.message : 'Đã xảy ra lỗi'
+   167→}
+   168→
+   169→// Các trạng thái đích hợp lệ từ trạng thái hiện tại (chỉ tiến theo luồng + có thể hủy)
+   170→function allowedNextStatuses(current: string): string[] {
+   171→  if (current === 'CANCELLED') return []
+   172→  const idx = STATUS_FLOW.indexOf(current as (typeof STATUS_FLOW)[number])
+   173→  const forward = idx >= 0 ? STATUS_FLOW.slice(idx + 1) : STATUS_FLOW
+   174→  return [...forward, 'CANCELLED']
+   175→}
+   176→
+   177→function itemsSummary(order: Order): string {
+   178→  if (order.items.length === 0) return '—'
+   179→  if (order.items.length === 1) {
+   180→    const item = order.items[0]
+   181→    return `${item.quantity} × ${item.product?.name ?? 'Sản phẩm'}`
+   182→  }
+   183→  return `${order.items.length} sản phẩm`
+   184→}
+   185→
+   186→function InfoField({ label, children }: { label: string; children: ReactNode }) {
+   187→  return (
+   188→    <div>
+   189→      <p className="text-xs text-muted-foreground">{label}</p>
+   190→      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm font-medium">{children}</div>
+   191→    </div>
+   192→  )
+   193→}
+   194→
+   195→export function OrdersView() {
+   196→  const { toast } = useToast()
+   197→
+   198→  // ===== Danh sách đơn hàng + bộ lọc + phân trang server-side =====
+   199→  const [orders, setOrders] = useState<Order[]>([])
+   200→  const [total, setTotal] = useState(0)
+   201→  const [page, setPage] = useState(1)
+   202→  const [totalPages, setTotalPages] = useState(1)
+   203→  const [loading, setLoading] = useState(true)
+   204→  const [error, setError] = useState<string | null>(null)
+   205→  const [refreshKey, setRefreshKey] = useState(0)
+   206→
+   207→  const [searchInput, setSearchInput] = useState('')
+   208→  const [search, setSearch] = useState('')
+   209→  const [statusFilter, setStatusFilter] = useState('ALL')
+   210→  const [channelFilter, setChannelFilter] = useState('ALL')
+   211→  const [channels, setChannels] = useState<Channel[]>([])
+   212→
+   213→  // Realtime: Agent tự cập nhật đơn → tự refresh danh sách + dialog chi tiết
+   214→  const realtimeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+   215→  useRealtime((e) => {
+   216→    if (!['order.created', 'order.updated', 'review.received'].includes(e.type)) return
+   217→    if (realtimeTimer.current) clearTimeout(realtimeTimer.current)
+   218→    realtimeTimer.current = setTimeout(() => {
+   219→      setRefreshKey((k) => k + 1)
+   220→      if (detailOpen && detailId) setDetailReload((k) => k + 1)
+   221→    }, 600)
+   222→  })
+   223→
+   224→  // ===== Dialog chi tiết đơn hàng =====
+   225→  const [detailOpen, setDetailOpen] = useState(false)
+   226→  const [detailId, setDetailId] = useState<string | null>(null)
+   227→  const [detail, setDetail] = useState<Order | null>(null)
+   228→  const [detailLoading, setDetailLoading] = useState(false)
+   229→  const [detailError, setDetailError] = useState<string | null>(null)
+   230→  const [detailReload, setDetailReload] = useState(0)
+   231→  const [statusChoice, setStatusChoice] = useState('')
+   232→  const [updatingStatus, setUpdatingStatus] = useState(false)
+   233→  const [markingPaid, setMarkingPaid] = useState(false)
+   234→  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+   235→
+   236→  // ===== Sau bán hàng: đổi trả / bảo hành =====
+   237→  const [cases, setCases] = useState<AfterSalesCase[]>([])
+   238→  const [casesLoading, setCasesLoading] = useState(false)
+   239→  const [caseActionId, setCaseActionId] = useState<string | null>(null)
+   240→  const [createCaseOpen, setCreateCaseOpen] = useState(false)
+   241→  const [caseType, setCaseType] = useState('RETURN')
+   242→  const [caseReason, setCaseReason] = useState('')
+   243→  const [caseRefund, setCaseRefund] = useState('')
+   244→  const [caseHandledBy, setCaseHandledBy] = useState('OPERATOR')
+   245→  const [caseSubmitting, setCaseSubmitting] = useState(false)
+   246→
+   247→  // ===== Dialog tạo đơn =====
+   248→  const [createOpen, setCreateOpen] = useState(false)
+   249→  const [createForm, setCreateForm] = useState<CreateOrderFormState>(EMPTY_CREATE_FORM)
+   250→  const [createProducts, setCreateProducts] = useState<Product[]>([])
+   251→  const [createLoadingProducts, setCreateLoadingProducts] = useState(false)
+   252→  const [productSearch, setProductSearch] = useState('')
+   253→  const [selectedProductId, setSelectedProductId] = useState('')
+   254→  const [selectedQty, setSelectedQty] = useState('1')
+   255→  const [items, setItems] = useState<CreateOrderItem[]>([])
+   256→  const [submitting, setSubmitting] = useState(false)
+   257→
+   258→  // ===== Tìm kiếm debounce =====
+   259→  useEffect(() => {
+   260→    const timer = setTimeout(() => {
+   261→      setSearch(searchInput.trim())
+   262→      setPage(1)
+   263→    }, 400)
+   264→    return () => clearTimeout(timer)
+   265→  }, [searchInput])
+   266→
+   267→  const fetchOrders = useCallback(async () => {
+   268→    setLoading(true)
+   269→    setError(null)
+   270→    try {
+   271→      const params = new URLSearchParams()
+   272→      if (search) params.set('search', search)
+   273→      if (statusFilter !== 'ALL') params.set('status', statusFilter)
+   274→      if (channelFilter !== 'ALL') params.set('channelId', channelFilter)
+   275→      params.set('page', String(page))
+   276→      params.set('pageSize', String(PAGE_SIZE))
+   277→      const data = await apiGet<{
+   278→        orders: Order[]
+   279→        total: number
+   280→        page: number
+   281→        pageSize: number
+   282→        totalPages: number
+   283→      }>(`/api/orders?${params.toString()}`)
+   284→      setOrders(data.orders)
+   285→      setTotal(data.total)
+   286→      setTotalPages(Math.max(1, data.totalPages))
+   287→    } catch (err) {
+   288→      setError(errorMessage(err))
+   289→    } finally {
+   290→      setLoading(false)
+   291→    }
+   292→  }, [search, statusFilter, channelFilter, page, refreshKey])
+   293→
+   294→  useEffect(() => {
+   295→    void fetchOrders()
+   296→  }, [fetchOrders])
+   297→
+   298→  const fetchChannels = useCallback(async () => {
+   299→    try {
+   300→      const data = await apiGet<{ channels: Channel[] }>('/api/channels')
+   301→      setChannels(data.channels)
+   302→    } catch (err) {
+   303→      toast({
+   304→        title: 'Không thể tải danh sách kênh bán',
+   305→        description: errorMessage(err),
+   306→        variant: 'destructive',
+   307→      })
+   308→    }
+   309→  }, [toast])
+   310→
+   311→  useEffect(() => {
+   312→    void fetchChannels()
+   313→  }, [fetchChannels])
+   314→
+   315→  const connectedChannels = useMemo(() => channels.filter((c) => c.connected), [channels])
+   316→
+   317→  // ===== Chi tiết đơn hàng =====
+   318→  const openDetail = (id: string) => {
+   319→    setDetailId(id)
+   320→    setDetail(null)
+   321→    setDetailError(null)
+   322→    setStatusChoice('')
+   323→    setCases([])
+   324→    setDetailOpen(true)
+   325→  }
+   326→
+   327→  useEffect(() => {
+   328→    if (!detailOpen || !detailId) return
+   329→    let cancelled = false
+   330→    setDetailLoading(true)
+   331→    setDetailError(null)
+   332→    apiGet<{ order: Order }>(`/api/orders/${detailId}`)
+   333→      .then((data) => {
+   334→        if (!cancelled) setDetail(data.order)
+   335→      })
+   336→      .catch((err) => {
+   337→        if (!cancelled) setDetailError(errorMessage(err))
+   338→      })
+   339→      .finally(() => {
+   340→        if (!cancelled) setDetailLoading(false)
+   341→      })
+   342→    return () => {
+   343→      cancelled = true
+   344→    }
+   345→  }, [detailOpen, detailId, detailReload])
+   346→
+   347→  // ===== Fetch vụ sau bán hàng của đơn (reload cùng detailReload) =====
+   348→  useEffect(() => {
+   349→    if (!detailOpen || !detailId) return
+   350→    let cancelled = false
+   351→    setCasesLoading(true)
+   352→    apiGet<{ cases: AfterSalesCase[] }>(`/api/aftersales?orderId=${detailId}`)
+   353→      .then((data) => {
+   354→        if (!cancelled) setCases(data.cases)
+   355→      })
+   356→      .catch(() => {
+   357→        if (!cancelled) setCases([])
+   358→      })
+   359→      .finally(() => {
+   360→        if (!cancelled) setCasesLoading(false)
+   361→      })
+   362→    return () => {
+   363→      cancelled = true
+   364→    }
+   365→  }, [detailOpen, detailId, detailReload])
+   366→
+   367→  const handleUpdateStatus = async (target: string) => {
+   368→    if (!detail) return
+   369→    setUpdatingStatus(true)
+   370→    try {
+   371→      await apiPatch<{ order: Order }>(`/api/orders/${detail.id}`, { status: target })
+   372→      toast({
+   373→        title: 'Đã cập nhật trạng thái',
+   374→        description: `${detail.code} → ${ORDER_STATUS_LABELS[target] ?? target}`,
+   375→      })
+   376→      setDetailReload((k) => k + 1)
+   377→      setRefreshKey((k) => k + 1)
+   378→    } catch (err) {
+   379→      toast({
+   380→        title: 'Không thể cập nhật trạng thái',
+   381→        description: errorMessage(err),
+   382→        variant: 'destructive',
+   383→      })
+   384→    } finally {
+   385→      setUpdatingStatus(false)
+   386→      setStatusChoice('')
+   387→    }
+   388→  }
+   389→
+   390→  const handleStatusSelect = (target: string) => {
+   391→    setStatusChoice(target)
+   392→    if (target === 'CANCELLED') {
+   393→      setConfirmCancelOpen(true)
+   394→      return
+   395→    }
+   396→    void handleUpdateStatus(target)
+   397→  }
+   398→
+   399→  const handleConfirmCancel = () => {
+   400→    setConfirmCancelOpen(false)
+   401→    setStatusChoice('')
+   402→    void handleUpdateStatus('CANCELLED')
+   403→  }
+   404→
+   405→  const handleMarkPaid = async () => {
+   406→    if (!detail) return
+   407→    setMarkingPaid(true)
+   408→    try {
+   409→      await apiPatch<{ order: Order }>(`/api/orders/${detail.id}`, { paymentStatus: 'PAID' })
+   410→      toast({ title: 'Đã xác nhận thanh toán', description: `${detail.code} đã được đánh dấu đã thanh toán.` })
+   411→      setDetailReload((k) => k + 1)
+   412→      setRefreshKey((k) => k + 1)
+   413→    } catch (err) {
+   414→      toast({
+   415→        title: 'Không thể cập nhật thanh toán',
+   416→        description: errorMessage(err),
+   417→        variant: 'destructive',
+   418→      })
+   419→    } finally {
+   420→      setMarkingPaid(false)
+   421→    }
+   422→  }
+   423→
+   424→  // ===== Sau bán hàng: xử lý nhanh trạng thái + tạo yêu cầu =====
+   425→  const handleCaseStatus = async (caseId: string, status: string, label: string) => {
+   426→    setCaseActionId(caseId)
+   427→    try {
+   428→      await apiPatch<{ case: AfterSalesCase }>(`/api/aftersales/${caseId}`, {
+   429→        status,
+   430→        resolution: `Đã ${label.toLowerCase()} bởi người vận hành`,
+   431→      })
+   432→      toast({ title: `Đã chuyển yêu cầu sang "${label}"` })
+   433→      setDetailReload((k) => k + 1)
+   434→    } catch (err) {
+   435→      toast({
+   436→        title: 'Không thể cập nhật yêu cầu sau bán hàng',
+   437→        description: errorMessage(err),
+   438→        variant: 'destructive',
+   439→      })
+   440→    } finally {
+   441→      setCaseActionId(null)
+   442→    }
+   443→  }
+   444→
+   445→  const openCreateCase = () => {
+   446→    setCaseType('RETURN')
+   447→    setCaseReason('')
+   448→    setCaseRefund(detail ? String(Math.round(detail.total)) : '0')
+   449→    setCaseHandledBy('OPERATOR')
+   450→    setCreateCaseOpen(true)
+   451→  }
+   452→
+   453→  const submitCreateCase = async () => {
+   454→    if (!detail) return
+   455→    if (!caseReason.trim()) {
+   456→      toast({ title: 'Vui lòng nhập lý do đổi trả / bảo hành', variant: 'destructive' })
+   457→      return
+   458→    }
+   459→    setCaseSubmitting(true)
+   460→    try {
+   461→      const data = await apiPost<{ case: AfterSalesCase }>('/api/aftersales', {
+   462→        orderId: detail.id,
+   463→        type: caseType,
+   464→        reason: caseReason.trim(),
+   465→        refundAmount: caseType === 'WARRANTY' ? 0 : Math.max(0, Number(caseRefund) || 0),
+   466→        handledBy: caseHandledBy,
+   467→      })
+   468→      toast({
+   469→        title: `Đã tạo yêu cầu ${data.case.code}`,
+   470→        description: 'Yêu cầu sau bán hàng đã được ghi vào Sổ Data.',
+   471→      })
+   472→      setCreateCaseOpen(false)
+   473→      setDetailReload((k) => k + 1)
+   474→    } catch (err) {
+   475→      toast({
+   476→        title: 'Không thể tạo yêu cầu sau bán hàng',
+   477→        description: errorMessage(err),
+   478→        variant: 'destructive',
+   479→      })
+   480→    } finally {
+   481→      setCaseSubmitting(false)
+   482→    }
+   483→  }
+   484→
+   485→  // ===== Tạo đơn hàng =====
+   486→  const openCreate = () => {
+   487→    setCreateForm(EMPTY_CREATE_FORM)
+   488→    setItems([])
+   489→    setSelectedProductId('')
+   490→    setSelectedQty('1')
+   491→    setProductSearch('')
+   492→    setCreateOpen(true)
+   493→  }
+   494→
+   495→  useEffect(() => {
+   496→    if (!createOpen) return
+   497→    let cancelled = false
+   498→    setCreateLoadingProducts(true)
+   499→    apiGet<{ products: Product[] }>('/api/products?status=ACTIVE')
+   500→      .then((data) => {
+   501→        if (!cancelled) setCreateProducts(data.products)
+   502→      })
+   503→      .catch((err) => {
+   504→        if (!cancelled) {
+   505→          toast({
+   506→            title: 'Không thể tải danh sách sản phẩm',
+   507→            description: errorMessage(err),
+   508→            variant: 'destructive',
+   509→          })
+   510→        }
+   511→      })
+   512→      .finally(() => {
+   513→        if (!cancelled) setCreateLoadingProducts(false)
+   514→      })
+   515→    return () => {
+   516→      cancelled = true
+   517→    }
+   518→  }, [createOpen, toast])
+   519→
+   520→  const filteredCreateProducts = useMemo(() => {
+   521→    const keyword = productSearch.trim().toLowerCase()
+   522→    if (!keyword) return createProducts
+   523→    return createProducts.filter(
+   524→      (p) => p.name.toLowerCase().includes(keyword) || p.sku.toLowerCase().includes(keyword)
+   525→    )
+   526→  }, [createProducts, productSearch])
+   527→
+   528→  const createTotal = useMemo(
+   529→    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+   530→    [items]
+   531→  )
+   532→
+   533→  const handleAddItem = () => {
+   534→    const product = createProducts.find((p) => p.id === selectedProductId)
+   535→    if (!product) {
+   536→      toast({ title: 'Vui lòng chọn một sản phẩm', variant: 'destructive' })
+   537→      return
+   538→    }
+   539→    const qty = Math.max(1, Math.floor(Number(selectedQty) || 1))
+   540→    setItems((prev) => {
+   541→      const existing = prev.find((i) => i.productId === product.id)
+   542→      if (existing) {
+   543→        return prev.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + qty } : i))
+   544→      }
+   545→      return [
+   546→        ...prev,
+   547→        { productId: product.id, name: product.name, sku: product.sku, price: product.sellPrice, quantity: qty },
+   548→      ]
+   549→    })
+   550→    setSelectedProductId('')
+   551→    setSelectedQty('1')
+   552→  }
+   553→
+   554→  const changeItemQty = (productId: string, delta: number) => {
+   555→    setItems((prev) =>
+   556→      prev.map((i) =>
+   557→        i.productId === productId ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i
+   558→      )
+   559→    )
+   560→  }
+   561→
+   562→  const removeItem = (productId: string) => {
+   563→    setItems((prev) => prev.filter((i) => i.productId !== productId))
+   564→  }
+   565→
+   566→  const submitCreate = async () => {
+   567→    if (!createForm.channelId) {
+   568→      toast({ title: 'Vui lòng chọn kênh bán', variant: 'destructive' })
+   569→      return
+   570→    }
+   571→    if (!createForm.customerName.trim()) {
+   572→      toast({ title: 'Vui lòng nhập tên khách hàng', variant: 'destructive' })
+   573→      return
+   574→    }
+   575→    if (items.length === 0) {
+   576→      toast({ title: 'Vui lòng thêm ít nhất một sản phẩm vào đơn', variant: 'destructive' })
+   577→      return
+   578→    }
+   579→    setSubmitting(true)
+   580→    try {
+   581→      const data = await apiPost<{ order: Order }>('/api/orders', {
+   582→        channelId: createForm.channelId,
+   583→        customerName: createForm.customerName.trim(),
+   584→        customerPhone: createForm.customerPhone.trim(),
+   585→        address: createForm.address.trim(),
+   586→        note: createForm.note.trim(),
+   587→        paymentMethod: createForm.paymentMethod,
+   588→        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+   589→      })
+   590→      toast({ title: 'Đã tạo đơn hàng', description: `Mã đơn ${data.order.code}` })
+   591→      setCreateOpen(false)
+   592→      setPage(1)
+   593→      setRefreshKey((k) => k + 1)
+   594→    } catch (err) {
+   595→      // Lỗi 400: hết hàng hoặc dữ liệu không hợp lệ — hiển thị message từ server
+   596→      toast({
+   597→        title: 'Không thể tạo đơn hàng',
+   598→        description: errorMessage(err),
+   599→        variant: 'destructive',
+   600→      })
+   601→    } finally {
+   602→      setSubmitting(false)
+   603→    }
+   604→  }
+   605→
+   606→  // ===== Phân trang hiển thị =====
+   607→  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+   608→  const to = Math.min(page * PAGE_SIZE, total)
+   609→  const hasFilter = search !== '' || statusFilter !== 'ALL' || channelFilter !== 'ALL'
+   610→  const nextStatuses = detail ? allowedNextStatuses(detail.status) : []
+   611→
+   612→  return (
+   613→    <div>
+   614→      <PageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn hàng từ tất cả các kênh bán">
+   615→        <Button onClick={openCreate}>
+   616→          <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+   617→        </Button>
+   618→      </PageHeader>
+   619→
+   620→      {/* Toolbar */}
+   621→      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+   622→        <div className="relative w-full sm:w-64">
+   623→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   624→          <Input
+   625→            value={searchInput}
+   626→            onChange={(e) => setSearchInput(e.target.value)}
+   627→            placeholder="Tìm mã đơn, tên hoặc SĐT khách..."
+   628→            className="pl-8"
+   629→            aria-label="Tìm kiếm đơn hàng"
+   630→          />
+   631→        </div>
+   632→        <Select
+   633→          value={statusFilter}
+   634→          onValueChange={(v) => {
+   635→            setStatusFilter(v)
+   636→            setPage(1)
+   637→          }}
+   638→        >
+   639→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo trạng thái">
+   640→            <SelectValue placeholder="Tất cả trạng thái" />
+   641→          </SelectTrigger>
+   642→          <SelectContent>
+   643→            <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+   644→            {ORDER_STATUSES.map((s) => (
+   645→              <SelectItem key={s} value={s}>
+   646→                {ORDER_STATUS_LABELS[s] ?? s}
+   647→              </SelectItem>
+   648→            ))}
+   649→          </SelectContent>
+   650→        </Select>
+   651→        <Select
+   652→          value={channelFilter}
+   653→          onValueChange={(v) => {
+   654→            setChannelFilter(v)
+   655→            setPage(1)
+   656→          }}
+   657→        >
+   658→          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo kênh bán">
+   659→            <SelectValue placeholder="Tất cả kênh" />
+   660→          </SelectTrigger>
+   661→          <SelectContent>
+   662→            <SelectItem value="ALL">Tất cả kênh</SelectItem>
+   663→            {channels.map((c) => (
+   664→              <SelectItem key={c.id} value={c.id}>
+   665→                {c.name}
+   666→              </SelectItem>
+   667→            ))}
+   668→          </SelectContent>
+   669→        </Select>
+   670→      </div>
+   671→
+   672→      {/* Nội dung chính */}
+   673→      {loading ? (
+   674→        <TableSkeleton rows={7} />
+   675→      ) : error ? (
+   676→        <ErrorState message={error} onRetry={() => void fetchOrders()} />
+   677→      ) : orders.length === 0 ? (
+   678→        <EmptyState
+   679→          icon={ShoppingCart}
+   680→          title={hasFilter ? 'Không tìm thấy đơn hàng nào' : 'Chưa có đơn hàng nào'}
+   681→          description={
+   682→            hasFilter
+   683→              ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc.'
+   684→              : 'Các đơn hàng từ mọi kênh bán sẽ hiển thị tại đây.'
+   685→          }
+   686→          action={
+   687→            <Button onClick={openCreate}>
+   688→              <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+   689→            </Button>
+   690→          }
+   691→        />
+   692→      ) : (
+   693→        <>
+   694→          <div className="overflow-x-auto rounded-lg border">
+   695→            <Table className="min-w-[960px]">
+   696→              <TableHeader>
+   697→                <TableRow>
+   698→                  <TableHead>Mã đơn</TableHead>
+   699→                  <TableHead>Kênh</TableHead>
+   700→                  <TableHead>Khách hàng</TableHead>
+   701→                  <TableHead>Sản phẩm</TableHead>
+   702→                  <TableHead className="text-right">Tổng tiền</TableHead>
+   703→                  <TableHead>Thanh toán</TableHead>
+   704→                  <TableHead>Trạng thái</TableHead>
+   705→                  <TableHead>Thời gian</TableHead>
+   706→                  <TableHead className="text-right">Hành động</TableHead>
+   707→                </TableRow>
+   708→              </TableHeader>
+   709→              <TableBody>
+   710→                {orders.map((o) => (
+   711→                  <TableRow key={o.id}>
+   712→                    <TableCell className="font-mono text-sm font-medium">{o.code}</TableCell>
+   713→                    <TableCell>
+   714→                      <ChannelBadge channel={o.channel} className="text-xs" />
+   715→                    </TableCell>
+   716→                    <TableCell>
+   717→                      <p className="text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
+   718→                      {o.customer?.phone && (
+   719→                        <p className="text-xs text-muted-foreground">{o.customer.phone}</p>
+   720→                      )}
+   721→                    </TableCell>
+   722→                    <TableCell className="max-w-[180px] truncate text-sm">{itemsSummary(o)}</TableCell>
+   723→                    <TableCell className="whitespace-nowrap text-right font-semibold">
+   724→                      {formatVND(o.total)}
+   725→                    </TableCell>
+   726→                    <TableCell>
+   727→                      <PaymentStatusBadge status={o.paymentStatus} />
+   728→                    </TableCell>
+   729→                    <TableCell>
+   730→                      <OrderStatusBadge status={o.status} />
+   731→                    </TableCell>
+   732→                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+   733→                      {formatDateTime(o.createdAt)}
+   734→                    </TableCell>
+   735→                    <TableCell className="text-right">
+   736→                      <Button variant="outline" size="sm" onClick={() => openDetail(o.id)}>
+   737→                        <Eye className="mr-1 h-4 w-4" /> Chi tiết
+   738→                      </Button>
+   739→                    </TableCell>
+   740→                  </TableRow>
+   741→                ))}
+   742→              </TableBody>
+   743→            </Table>
+   744→          </div>
+   745→
+   746→          {/* Phân trang server-side */}
+   747→          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+   748→            <p className="text-sm text-muted-foreground">
+   749→              Hiển thị {formatNumber(from)}–{formatNumber(to)} trong {formatNumber(total)} đơn
+   750→            </p>
+   751→            <div className="flex items-center gap-2">
+   752→              <Button
+   753→                variant="outline"
+   754→                size="sm"
+   755→                disabled={page <= 1 || loading}
+   756→                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+   757→              >
+   758→                <ChevronLeft className="mr-1 h-4 w-4" /> Trước
+   759→              </Button>
+   760→              <span className="text-sm text-muted-foreground">
+   761→                Trang {page}/{totalPages}
+   762→              </span>
+   763→              <Button
+   764→                variant="outline"
+   765→                size="sm"
+   766→                disabled={page >= totalPages || loading}
+   767→                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+   768→              >
+   769→                Sau <ChevronRight className="ml-1 h-4 w-4" />
+   770→              </Button>
+   771→            </div>
+   772→          </div>
+   773→        </>
+   774→      )}
+   775→
+   776→      {/* Dialog chi tiết đơn hàng */}
+   777→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+   778→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   779→          <DialogHeader>
+   780→            <DialogTitle className="flex flex-wrap items-center gap-2.5">
+   781→              {detail ? (
+   782→                <>
+   783→                  <span className="font-mono">{detail.code}</span>
+   784→                  <OrderStatusBadge status={detail.status} />
+   785→                </>
+   786→              ) : (
+   787→                'Chi tiết đơn hàng'
+   788→              )}
+   789→            </DialogTitle>
+   790→            <DialogDescription>Thông tin chi tiết và các sản phẩm trong đơn hàng.</DialogDescription>
+   791→          </DialogHeader>
+   792→
+   793→          {detailLoading && !detail ? (
+   794→            <div className="space-y-3">
+   795→              <Skeleton className="h-24 w-full" />
+   796→              <Skeleton className="h-40 w-full" />
+   797→              <Skeleton className="h-12 w-full" />
+   798→            </div>
+   799→          ) : detailError ? (
+   800→            <ErrorState message={detailError} onRetry={() => setDetailReload((k) => k + 1)} />
+   801→          ) : detail ? (
+   802→            <div className="space-y-4">
+   803→              <div className="grid gap-3 sm:grid-cols-2">
+   804→                <InfoField label="Kênh bán">
+   805→                  <ChannelBadge channel={detail.channel} />
+   806→                </InfoField>
+   807→                <InfoField label="Khách hàng">{detail.customer?.name ?? 'Khách lẻ'}</InfoField>
+   808→                <InfoField label="Số điện thoại">{detail.customer?.phone ?? '—'}</InfoField>
+   809→                <InfoField label="Địa chỉ">{detail.address ?? '—'}</InfoField>
+   810→                <InfoField label="Thanh toán">
+   811→                  <span>{PAYMENT_METHOD_LABELS[detail.paymentMethod] ?? detail.paymentMethod}</span>
+   812→                  <PaymentStatusBadge status={detail.paymentStatus} />
+   813→                </InfoField>
+   814→                <InfoField label="Ghi chú">{detail.note ?? '—'}</InfoField>
+   815→              </div>
+   816→
+   817→              <Separator />
+   818→
+   819→              <div className="overflow-x-auto rounded-lg border">
+   820→                <Table className="min-w-[420px]">
+   821→                  <TableHeader>
+   822→                    <TableRow>
+   823→                      <TableHead>Sản phẩm</TableHead>
+   824→                      <TableHead className="text-right">Đơn giá</TableHead>
+   825→                      <TableHead className="text-center">SL</TableHead>
+   826→                      <TableHead className="text-right">Thành tiền</TableHead>
+   827→                    </TableRow>
+   828→                  </TableHeader>
+   829→                  <TableBody>
+   830→                    {detail.items.length === 0 ? (
+   831→                      <TableRow>
+   832→                        <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+   833→                          Đơn hàng không có sản phẩm nào.
+   834→                        </TableCell>
+   835→                      </TableRow>
+   836→                    ) : (
+   837→                      detail.items.map((item) => (
+   838→                        <TableRow key={item.id}>
+   839→                          <TableCell>
+   840→                            <p className="text-sm font-medium">
+   841→                              {item.product?.name ?? 'Sản phẩm đã xóa'}
+   842→                            </p>
+   843→                            {item.product?.sku && (
+   844→                              <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+   845→                            )}
+   846→                          </TableCell>
+   847→                          <TableCell className="whitespace-nowrap text-right text-sm">
+   848→                            {formatVND(item.price)}
+   849→                          </TableCell>
+   850→                          <TableCell className="text-center text-sm">{item.quantity}</TableCell>
+   851→                          <TableCell className="whitespace-nowrap text-right text-sm font-medium">
+   852→                            {formatVND(item.price * item.quantity)}
+   853→                          </TableCell>
+   854→                        </TableRow>
+   855→                      ))
+   856→                    )}
+   857→                  </TableBody>
+   858→                </Table>
+   859→              </div>
+   860→
+   861→              <div className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+   862→                <div className="flex justify-between">
+   863→                  <span className="text-muted-foreground">Tạm tính</span>
+   864→                  <span>{formatVND(detail.subtotal)}</span>
+   865→                </div>
+   866→                <div className="flex justify-between">
+   867→                  <span className="text-muted-foreground">Phí vận chuyển</span>
+   868→                  <span>{formatVND(detail.shippingFee)}</span>
+   869→                </div>
+   870→                <Separator />
+   871→                <div className="flex justify-between text-base font-semibold">
+   872→                  <span>Tổng cộng</span>
+   873→                  <span className="text-primary">{formatVND(detail.total)}</span>
+   874→                </div>
+   875→              </div>
+   876→
+   877→              {detail.shipments && detail.shipments.length > 0 && detail.shipments[0] && (
+   878→                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
+   879→                  <div className="min-w-0">
+   880→                    <p className="text-sm font-medium">
+   881→                      {carrierName(detail.shipments[0].carrier)} —{' '}
+   882→                      <span className="font-mono text-xs">{detail.shipments[0].trackingCode}</span>
+   883→                    </p>
+   884→                    <p className="mt-0.5 text-xs text-muted-foreground">
+   885→                      Báo bởi {detail.shipments[0].dispatchedBy === 'AGENT' ? 'Agent Kho vận (tự động)' : 'Người vận hành'} · Phí {formatVND(detail.shipments[0].fee)}
+   886→                    </p>
+   887→                  </div>
+   888→                  <ShipmentStatusBadge status={detail.shipments[0].status} />
+   889→                </div>
+   890→              )}
+   891→
+   892→              {detail.events && detail.events.length > 0 && (
+   893→                <div>
+   894→                  <p className="mb-3 text-sm font-semibold">Hành trình xử lý (Agent + người vận hành)</p>
+   895→                  <div className="max-h-64 space-y-0 overflow-y-auto pr-1 [scrollbar-width:thin]">
+   896→                    {[...detail.events].reverse().map((ev, idx, arr) => (
+   897→                      <div key={ev.id} className="flex gap-3">
+   898→                        <div className="flex flex-col items-center">
+   899→                          <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_ACTOR_DOTS[ev.actor] ?? 'bg-slate-400'}`} />
+   900→                          {idx < arr.length - 1 && <span className="w-px flex-1 bg-border" />}
+   901→                        </div>
+   902→                        <div className="min-w-0 flex-1 pb-3">
+   903→                          <p className="text-sm leading-snug">{ev.title}</p>
+   904→                          {ev.detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ev.detail}</p>}
+   905→                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+   906→                            {EVENT_ACTOR_LABELS[ev.actor] ?? ev.actor} · {formatDateTime(ev.createdAt)}
+   907→                          </p>
+   908→                        </div>
+   909→                      </div>
+   910→                    ))}
+   911→                  </div>
+   912→                </div>
+   913→              )}
+   914→
+   915→              {typeof detail.reviewRating === 'number' && detail.reviewRating != null && (
+   916→                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+   917→                  <p className="text-sm font-medium text-amber-600">
+   918→                    {'★'.repeat(detail.reviewRating)}
+   919→                    {'☆'.repeat(5 - detail.reviewRating)}
+   920→                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">Khách đánh giá {detail.reviewRating}/5</span>
+   921→                  </p>
+   922→                  {detail.reviewComment && <p className="mt-1 text-sm text-muted-foreground">“{detail.reviewComment}”</p>}
+   923→                </div>
+   924→              )}
+   925→
+   926→              {/* Sau bán hàng — Đổi trả / Bảo hành */}
+   927→              <div className="border-t pt-4">
+   928→                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+   929→                  <p className="text-sm font-semibold">Sau bán hàng — Đổi trả / Bảo hành</p>
+   930→                  {detail.status === 'COMPLETED' && (
+   931→                    <Button variant="outline" size="sm" onClick={openCreateCase}>
+   932→                      <LifeBuoy className="mr-1 h-4 w-4" /> Tạo yêu cầu
+   933→                    </Button>
+   934→                  )}
+   935→                </div>
+   936→
+   937→                {detail.status !== 'COMPLETED' ? (
+   938→                  <p className="text-xs text-muted-foreground">
+   939→                    Có thể tạo đổi trả / bảo hành sau khi đơn hoàn tất.
+   940→                  </p>
+   941→                ) : casesLoading && cases.length === 0 ? (
+   942→                  <Skeleton className="h-12 w-full" />
+   943→                ) : cases.length === 0 ? (
+   944→                  <p className="text-xs text-muted-foreground">Đơn chưa có yêu cầu đổi trả / bảo hành nào.</p>
+   945→                ) : (
+   946→                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+   947→                    {cases.map((c) => {
+   948→                      const typeBadge = CASE_TYPE_BADGES[c.type] ?? {
+   949→                        label: c.type,
+   950→                        className: 'border-transparent bg-muted text-muted-foreground',
+   951→                      }
+   952→                      const statusBadge = CASE_STATUS_BADGES[c.status] ?? {
+   953→                        label: c.status,
+   954→                        className: 'border-transparent bg-muted text-muted-foreground',
+   955→                      }
+   956→                      return (
+   957→                        <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5">
+   958→                          <span className="font-mono text-xs font-semibold">{c.code}</span>
+   959→                          <Badge variant="outline" className={`border-transparent ${typeBadge.className}`}>
+   960→                            {typeBadge.label}
+   961→                          </Badge>
+   962→                          <Badge variant="outline" className={`border-transparent ${statusBadge.className}`}>
+   963→                            {statusBadge.label}
+   964→                          </Badge>
+   965→                          <span
+   966→                            className="min-w-0 flex-1 basis-40 truncate text-xs text-muted-foreground"
+   967→                            title={c.reason}
+   968→                          >
+   969→                            {c.reason}
+   970→                          </span>
+   971→                          {c.refundAmount > 0 && (
+   972→                            <span className="whitespace-nowrap text-xs font-medium">{formatVND(c.refundAmount)}</span>
+   973→                          )}
+   974→                          <DropdownMenu>
+   975→                            <DropdownMenuTrigger asChild>
+   976→                              <Button
+   977→                                variant="ghost"
+   978→                                size="icon"
+   979→                                className="h-7 w-7"
+   980→                                disabled={caseActionId === c.id}
+   981→                                aria-label="Xử lý nhanh yêu cầu"
+   982→                              >
+   983→                                {caseActionId === c.id ? (
+   984→                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+   985→                                ) : (
+   986→                                  <MoreHorizontal className="h-3.5 w-3.5" />
+   987→                                )}
+   988→                              </Button>
+   989→                            </DropdownMenuTrigger>
+   990→                            <DropdownMenuContent align="end">
+   991→                              {CASE_STATUS_ACTIONS.map((action) => (
+   992→                                <DropdownMenuItem
+   993→                                  key={action.status}
+   994→                                  disabled={c.status === action.status}
+   995→                                  onClick={() => void handleCaseStatus(c.id, action.status, action.label)}
+   996→                                >
+   997→                                  {action.label}
+   998→                                </DropdownMenuItem>
+   999→                              ))}
+  1000→                            </DropdownMenuContent>
+  1001→                          </DropdownMenu>
+  1002→                        </div>
+  1003→                      )
+  1004→                    })}
+  1005→                  </div>
+  1006→                )}
+  1007→              </div>
+  1008→
+  1009→              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+  1010→                <div className="flex flex-wrap items-center gap-2">
+  1011→                  <span className="text-sm text-muted-foreground">Cập nhật trạng thái</span>
+  1012→                  <Select
+  1013→                    value={statusChoice}
+  1014→                    onValueChange={handleStatusSelect}
+  1015→                    disabled={updatingStatus || nextStatuses.length === 0}
+  1016→                  >
+  1017→                    <SelectTrigger className="w-[190px]">
+  1018→                      <SelectValue
+  1019→                        placeholder={nextStatuses.length === 0 ? 'Không thể cập nhật' : 'Chọn trạng thái'}
+  1020→                      />
+  1021→                    </SelectTrigger>
+  1022→                    <SelectContent>
+  1023→                      {nextStatuses.map((s) => (
+  1024→                        <SelectItem key={s} value={s}>
+  1025→                          {ORDER_STATUS_LABELS[s] ?? s}
+  1026→                        </SelectItem>
+  1027→                      ))}
+  1028→                    </SelectContent>
+  1029→                  </Select>
+  1030→                </div>
+  1031→                {detail.paymentStatus === 'UNPAID' && (
+  1032→                  <Button onClick={() => void handleMarkPaid()} disabled={markingPaid}>
+  1033→                    {markingPaid ? (
+  1034→                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+  1035→                    ) : (
+  1036→                      <Wallet className="mr-1.5 h-4 w-4" />
+  1037→                    )}
+  1038→                    Đánh dấu đã thanh toán
+  1039→                  </Button>
+  1040→                )}
+  1041→              </div>
+  1042→            </div>
+  1043→          ) : null}
+  1044→        </DialogContent>
+  1045→      </Dialog>
+  1046→
+  1047→      {/* Dialog xác nhận hủy đơn (cảnh báo hoàn kho) */}
+  1048→      <ConfirmDialog
+  1049→        open={confirmCancelOpen}
+  1050→        onOpenChange={(open) => {
+  1051→          setConfirmCancelOpen(open)
+  1052→          if (!open) setStatusChoice('')
+  1053→        }}
+  1054→        title={`Hủy đơn hàng ${detail?.code ?? ''}?`}
+  1055→        description="Đơn hàng sẽ chuyển sang trạng thái Đã hủy và số lượng sản phẩm trong đơn sẽ được hoàn lại vào kho. Hành động này không thể hoàn tác."
+  1056→        confirmText="Xác nhận hủy đơn"
+  1057→        destructive
+  1058→        loading={updatingStatus}
+  1059→        onConfirm={handleConfirmCancel}
+  1060→      />
+  1061→
+  1062→      {/* Dialog tạo đơn hàng */}
+  1063→      <Dialog
+  1064→        open={createOpen}
+  1065→        onOpenChange={(open) => {
+  1066→          if (!submitting) setCreateOpen(open)
+  1067→        }}
+  1068→      >
+  1069→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+  1070→          <DialogHeader>
+  1071→            <DialogTitle>Tạo đơn hàng</DialogTitle>
+  1072→            <DialogDescription>
+  1073→              Tạo đơn thủ công (POS) — tổng tiền được hệ thống tự tính theo giá hiện tại.
+  1074→            </DialogDescription>
+  1075→          </DialogHeader>
+  1076→
+  1077→          <div className="space-y-4 py-1">
+  1078→            <div className="space-y-1.5">
+  1079→              <Label>
+  1080→                Kênh bán <span className="text-destructive">*</span>
+  1081→              </Label>
+  1082→              <Select
+  1083→                value={createForm.channelId}
+  1084→                onValueChange={(v) => setCreateForm((f) => ({ ...f, channelId: v }))}
+  1085→              >
+  1086→                <SelectTrigger className="w-full">
+  1087→                  <SelectValue placeholder="Chọn kênh bán" />
+  1088→                </SelectTrigger>
+  1089→                <SelectContent>
+  1090→                  {connectedChannels.length === 0 ? (
+  1091→                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+  1092→                      Không có kênh nào đã kết nối
+  1093→                    </div>
+  1094→                  ) : (
+  1095→                    connectedChannels.map((c) => (
+  1096→                      <SelectItem key={c.id} value={c.id}>
+  1097→                        <span className="inline-flex items-center gap-2">
+  1098→                          <span
+  1099→                            className="h-2.5 w-2.5 rounded-full"
+  1100→                            style={{ backgroundColor: c.color }}
+  1101→                          />
+  1102→                          {c.name}
+  1103→                        </span>
+  1104→                      </SelectItem>
+  1105→                    ))
+  1106→                  )}
+  1107→                </SelectContent>
+  1108→              </Select>
+  1109→              {connectedChannels.length === 0 && (
+  1110→                <p className="text-xs text-destructive">Chưa có kênh bán nào được kết nối.</p>
+  1111→              )}
+  1112→            </div>
+  1113→
+  1114→            <div className="grid gap-3 sm:grid-cols-2">
+  1115→              <div className="space-y-1.5">
+  1116→                <Label htmlFor="order-customer-name">
+  1117→                  Tên khách hàng <span className="text-destructive">*</span>
+  1118→                </Label>
+  1119→                <Input
+  1120→                  id="order-customer-name"
+  1121→                  value={createForm.customerName}
+  1122→                  onChange={(e) => setCreateForm((f) => ({ ...f, customerName: e.target.value }))}
+  1123→                  placeholder="VD: Nguyễn Văn A"
+  1124→                />
+  1125→              </div>
+  1126→              <div className="space-y-1.5">
+  1127→                <Label htmlFor="order-customer-phone">Số điện thoại</Label>
+  1128→                <Input
+  1129→                  id="order-customer-phone"
+  1130→                  value={createForm.customerPhone}
+  1131→                  onChange={(e) => setCreateForm((f) => ({ ...f, customerPhone: e.target.value }))}
+  1132→                  placeholder="VD: 0901234567"
+  1133→                />
+  1134→              </div>
+  1135→              <div className="space-y-1.5 sm:col-span-2">
+  1136→                <Label htmlFor="order-address">Địa chỉ giao hàng</Label>
+  1137→                <Input
+  1138→                  id="order-address"
+  1139→                  value={createForm.address}
+  1140→                  onChange={(e) => setCreateForm((f) => ({ ...f, address: e.target.value }))}
+  1141→                  placeholder="Số nhà, đường, phường/xã, tỉnh/thành phố"
+  1142→                />
+  1143→              </div>
+  1144→            </div>
+  1145→
+  1146→            <div className="grid gap-3 sm:grid-cols-2">
+  1147→              <div className="space-y-1.5">
+  1148→                <Label>Phương thức thanh toán</Label>
+  1149→                <Select
+  1150→                  value={createForm.paymentMethod}
+  1151→                  onValueChange={(v) => setCreateForm((f) => ({ ...f, paymentMethod: v }))}
+  1152→                >
+  1153→                  <SelectTrigger className="w-full">
+  1154→                    <SelectValue placeholder="Chọn phương thức" />
+  1155→                  </SelectTrigger>
+  1156→                  <SelectContent>
+  1157→                    {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => (
+  1158→                      <SelectItem key={key} value={key}>
+  1159→                        {label}
+  1160→                      </SelectItem>
+  1161→                    ))}
+  1162→                  </SelectContent>
+  1163→                </Select>
+  1164→              </div>
+  1165→              <div className="space-y-1.5">
+  1166→                <Label htmlFor="order-note">Ghi chú</Label>
+  1167→                <Textarea
+  1168→                  id="order-note"
+  1169→                  rows={1}
+  1170→                  value={createForm.note}
+  1171→                  onChange={(e) => setCreateForm((f) => ({ ...f, note: e.target.value }))}
+  1172→                  placeholder="Ghi chú cho đơn hàng..."
+  1173→                />
+  1174→              </div>
+  1175→            </div>
+  1176→
+  1177→            <Separator />
+  1178→
+  1179→            <div className="space-y-2">
+  1180→              <Label>Chọn sản phẩm</Label>
+  1181→              <div className="flex flex-col gap-2 sm:flex-row">
+  1182→                <div className="relative flex-1">
+  1183→                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1184→                  <Input
+  1185→                    value={productSearch}
+  1186→                    onChange={(e) => setProductSearch(e.target.value)}
+  1187→                    placeholder="Tìm sản phẩm..."
+  1188→                    className="pl-8"
+  1189→                    aria-label="Tìm sản phẩm để thêm vào đơn"
+  1190→                  />
+  1191→                </div>
+  1192→                <Select
+  1193→                  value={selectedProductId}
+  1194→                  onValueChange={setSelectedProductId}
+  1195→                  disabled={createLoadingProducts}
+  1196→                >
+  1197→                  <SelectTrigger className="w-full sm:w-[240px]">
+  1198→                    <SelectValue
+  1199→                      placeholder={createLoadingProducts ? 'Đang tải...' : 'Chọn sản phẩm'}
+  1200→                    />
+  1201→                  </SelectTrigger>
+  1202→                  <SelectContent>
+  1203→                    {filteredCreateProducts.length === 0 ? (
+  1204→                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+  1205→                        Không có sản phẩm phù hợp
+  1206→                      </div>
+  1207→                    ) : (
+  1208→                      filteredCreateProducts.map((p) => (
+  1209→                        <SelectItem key={p.id} value={p.id}>
+  1210→                          {p.name} · Tồn {p.stock}
+  1211→                        </SelectItem>
+  1212→                      ))
+  1213→                    )}
+  1214→                  </SelectContent>
+  1215→                </Select>
+  1216→                <Input
+  1217→                  type="number"
+  1218→                  min={1}
+  1219→                  step={1}
+  1220→                  className="w-full sm:w-20"
+  1221→                  value={selectedQty}
+  1222→                  onChange={(e) => setSelectedQty(e.target.value)}
+  1223→                  aria-label="Số lượng"
+  1224→                />
+  1225→                <Button variant="secondary" onClick={handleAddItem}>
+  1226→                  <Plus className="mr-1 h-4 w-4" /> Thêm
+  1227→                </Button>
+  1228→              </div>
+  1229→            </div>
+  1230→
+  1231→            <div className="space-y-2">
+  1232→              <Label>Sản phẩm trong đơn</Label>
+  1233→              {items.length === 0 ? (
+  1234→                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+  1235→                  Chưa có sản phẩm nào. Chọn sản phẩm bên trên rồi bấm &quot;Thêm&quot;.
+  1236→                </p>
+  1237→              ) : (
+  1238→                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+  1239→                  {items.map((item) => (
+  1240→                    <div key={item.productId} className="flex items-center gap-2 rounded-lg border p-2">
+  1241→                      <div className="min-w-0 flex-1">
+  1242→                        <p className="truncate text-sm font-medium">{item.name}</p>
+  1243→                        <p className="text-xs text-muted-foreground">
+  1244→                          {formatVND(item.price)} · {item.sku}
+  1245→                        </p>
+  1246→                      </div>
+  1247→                      <div className="flex items-center gap-1">
+  1248→                        <Button
+  1249→                          variant="outline"
+  1250→                          size="icon"
+  1251→                          className="h-7 w-7"
+  1252→                          onClick={() => changeItemQty(item.productId, -1)}
+  1253→                          disabled={item.quantity <= 1}
+  1254→                          aria-label="Giảm số lượng"
+  1255→                        >
+  1256→                          <Minus className="h-3.5 w-3.5" />
+  1257→                        </Button>
+  1258→                        <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+  1259→                        <Button
+  1260→                          variant="outline"
+  1261→                          size="icon"
+  1262→                          className="h-7 w-7"
+  1263→                          onClick={() => changeItemQty(item.productId, 1)}
+  1264→                          aria-label="Tăng số lượng"
+  1265→                        >
+  1266→                          <Plus className="h-3.5 w-3.5" />
+  1267→                        </Button>
+  1268→                      </div>
+  1269→                      <span className="w-24 text-right text-sm font-semibold">
+  1270→                        {formatVND(item.price * item.quantity)}
+  1271→                      </span>
+  1272→                      <Button
+  1273→                        variant="ghost"
+  1274→                        size="icon"
+  1275→                        className="h-7 w-7 text-destructive hover:text-destructive"
+  1276→                        onClick={() => removeItem(item.productId)}
+  1277→                        aria-label="Xóa sản phẩm khỏi đơn"
+  1278→                      >
+  1279→                        <Trash2 className="h-3.5 w-3.5" />
+  1280→                      </Button>
+  1281→                    </div>
+  1282→                  ))}
+  1283→                </div>
+  1284→              )}
+  1285→            </div>
+  1286→          </div>
+  1287→
+  1288→          <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
+  1289→            <p className="text-sm">
+  1290→              Tạm tính:{' '}
+  1291→              <span className="text-base font-semibold text-primary">{formatVND(createTotal)}</span>
+  1292→            </p>
+  1293→            <div className="flex gap-2">
+  1294→              <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={submitting}>
+  1295→                Hủy
+  1296→              </Button>
+  1297→              <Button onClick={() => void submitCreate()} disabled={submitting}>
+  1298→                {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+  1299→                <ShoppingCart className="mr-1.5 h-4 w-4" />
+  1300→                Tạo đơn hàng
+  1301→              </Button>
+  1302→            </div>
+  1303→          </DialogFooter>
+  1304→        </DialogContent>
+  1305→      </Dialog>
+  1306→
+  1307→      {/* Dialog tạo yêu cầu sau bán hàng (đổi trả / bảo hành) */}
+  1308→      <Dialog
+  1309→        open={createCaseOpen}
+  1310→        onOpenChange={(open) => {
+  1311→          if (!caseSubmitting) setCreateCaseOpen(open)
+  1312→        }}
+  1313→      >
+  1314→        <DialogContent className="sm:max-w-md">
+  1315→          <DialogHeader>
+  1316→            <DialogTitle>Tạo yêu cầu sau bán hàng</DialogTitle>
+  1317→            <DialogDescription>
+  1318→              Đổi trả / bảo hành cho đơn <span className="font-mono">{detail?.code}</span>.
+  1319→            </DialogDescription>
+  1320→          </DialogHeader>
+  1321→
+  1322→          <div className="space-y-4 py-1">
+  1323→            <div className="space-y-1.5">
+  1324→              <Label>Loại yêu cầu</Label>
+  1325→              <Select
+  1326→                value={caseType}
+  1327→                onValueChange={(v) => {
+  1328→                  setCaseType(v)
+  1329→                  setCaseRefund(v === 'RETURN' && detail ? String(Math.round(detail.total)) : '0')
+  1330→                }}
+  1331→              >
+  1332→                <SelectTrigger className="w-full">
+  1333→                  <SelectValue />
+  1334→                </SelectTrigger>
+  1335→                <SelectContent>
+  1336→                  <SelectItem value="RETURN">Đổi trả (hoàn tiền)</SelectItem>
+  1337→                  <SelectItem value="EXCHANGE">Đổi hàng</SelectItem>
+  1338→                  <SelectItem value="WARRANTY">Bảo hành</SelectItem>
+  1339→                </SelectContent>
+  1340→              </Select>
+  1341→            </div>
+  1342→
+  1343→            <div className="space-y-1.5">
+  1344→              <Label htmlFor="aftersales-reason">
+  1345→                Lý do <span className="text-destructive">*</span>
+  1346→              </Label>
+  1347→              <Textarea
+  1348→                id="aftersales-reason"
+  1349→                rows={3}
+  1350→                value={caseReason}
+  1351→                onChange={(e) => setCaseReason(e.target.value)}
+  1352→                placeholder="Mô tả vấn đề của khách hàng..."
+  1353→              />
+  1354→            </div>
+  1355→
+  1356→            {caseType !== 'WARRANTY' && (
+  1357→              <div className="space-y-1.5">
+  1358→                <Label htmlFor="aftersales-refund">Số tiền hoàn (VND)</Label>
+  1359→                <Input
+  1360→                  id="aftersales-refund"
+  1361→                  type="number"
+  1362→                  min={0}
+  1363→                  step={1000}
+  1364→                  value={caseRefund}
+  1365→                  onChange={(e) => setCaseRefund(e.target.value)}
+  1366→                />
+  1367→              </div>
+  1368→            )}
+  1369→
+  1370→            <div className="space-y-1.5">
+  1371→              <Label>Người xử lý</Label>
+  1372→              <Select value={caseHandledBy} onValueChange={setCaseHandledBy}>
+  1373→                <SelectTrigger className="w-full">
+  1374→                  <SelectValue />
+  1375→                </SelectTrigger>
+  1376→                <SelectContent>
+  1377→                  <SelectItem value="OPERATOR">Người vận hành</SelectItem>
+  1378→                  <SelectItem value="AGENT">Agent</SelectItem>
+  1379→                </SelectContent>
+  1380→              </Select>
+  1381→            </div>
+  1382→          </div>
+  1383→
+  1384→          <DialogFooter>
+  1385→            <Button variant="outline" onClick={() => setCreateCaseOpen(false)} disabled={caseSubmitting}>
+  1386→              Hủy
+  1387→            </Button>
+  1388→            <Button onClick={() => void submitCreateCase()} disabled={caseSubmitting}>
+  1389→              {caseSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+  1390→              Tạo yêu cầu
+  1391→            </Button>
+  1392→          </DialogFooter>
+  1393→        </DialogContent>
+  1394→      </Dialog>
+  1395→    </div>
+  1396→  )
+  1397→}
+  1398→

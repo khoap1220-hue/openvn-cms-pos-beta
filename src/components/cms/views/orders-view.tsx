@@ -9,7 +9,9 @@ import {
   Loader2,
   Minus,
   MoreHorizontal,
+  PackageCheck,
   Plus,
+  ScanLine,
   Search,
   ShoppingCart,
   Trash2,
@@ -19,11 +21,14 @@ import {
 import { apiGet, apiPatch, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import { ORDER_STATUSES, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/types'
-import type { Channel, Order, Product } from '@/lib/types'
+import type { Channel, Order, OrderItem, Product } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
+
+import { BarcodeScanner } from '@/components/cms/barcode-scanner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -40,6 +45,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -70,6 +76,13 @@ import { carrierName } from '@/lib/agents'
 const PAGE_SIZE = 10
 // Luồng xử lý đơn: PENDING → CONFIRMED → PACKING → SHIPPING → COMPLETED (CANCELLED từ mọi trạng thái)
 const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PACKING', 'SHIPPING', 'COMPLETED'] as const
+
+// Kiểm đếm đóng gói: GET /api/orders/[id] trả items[].product kèm barcode —
+// mở rộng type cục bộ (không sửa lib/types) để dùng barcode khi quét kiểm đếm
+type DetailOrderItem = OrderItem & {
+  product?: Pick<Product, 'id' | 'sku' | 'name' | 'barcode'> | null
+}
+type DetailOrder = Omit<Order, 'items'> & { items: DetailOrderItem[] }
 
 interface CreateOrderItem {
   productId: string
@@ -224,7 +237,7 @@ export function OrdersView() {
   // ===== Dialog chi tiết đơn hàng =====
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<Order | null>(null)
+  const [detail, setDetail] = useState<DetailOrder | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [detailReload, setDetailReload] = useState(0)
@@ -232,6 +245,8 @@ export function OrdersView() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [markingPaid, setMarkingPaid] = useState(false)
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+  // Kiểm đếm đóng gói: số món đã quét theo từng dòng (key = productId) — chỉ là state phiên, không lưu server
+  const [scannedCounts, setScannedCounts] = useState<Record<string, number>>({})
 
   // ===== Sau bán hàng: đổi trả / bảo hành =====
   const [cases, setCases] = useState<AfterSalesCase[]>([])
@@ -321,6 +336,7 @@ export function OrdersView() {
     setDetailError(null)
     setStatusChoice('')
     setCases([])
+    setScannedCounts({})
     setDetailOpen(true)
   }
 
@@ -329,7 +345,7 @@ export function OrdersView() {
     let cancelled = false
     setDetailLoading(true)
     setDetailError(null)
-    apiGet<{ order: Order }>(`/api/orders/${detailId}`)
+    apiGet<{ order: DetailOrder }>(`/api/orders/${detailId}`)
       .then((data) => {
         if (!cancelled) setDetail(data.order)
       })
@@ -364,8 +380,8 @@ export function OrdersView() {
     }
   }, [detailOpen, detailId, detailReload])
 
-  const handleUpdateStatus = async (target: string) => {
-    if (!detail) return
+  const handleUpdateStatus = async (target: string): Promise<boolean> => {
+    if (!detail) return false
     setUpdatingStatus(true)
     try {
       await apiPatch<{ order: Order }>(`/api/orders/${detail.id}`, { status: target })
@@ -375,12 +391,14 @@ export function OrdersView() {
       })
       setDetailReload((k) => k + 1)
       setRefreshKey((k) => k + 1)
+      return true
     } catch (err) {
       toast({
         title: 'Không thể cập nhật trạng thái',
         description: errorMessage(err),
         variant: 'destructive',
       })
+      return false
     } finally {
       setUpdatingStatus(false)
       setStatusChoice('')
@@ -400,6 +418,51 @@ export function OrdersView() {
     setConfirmCancelOpen(false)
     setStatusChoice('')
     void handleUpdateStatus('CANCELLED')
+  }
+
+  // ===== Kiểm đếm đóng gói bằng mã vạch (đơn đang PACKING) =====
+  const handlePackingScan = (raw: string) => {
+    if (!detail || detail.status !== 'PACKING') return
+    const code = raw.trim()
+    if (!code) return
+    const lower = code.toLowerCase()
+    // So khớp mã vạch chính xác trước, không thấy thì so SKU (không phân biệt hoa thường)
+    const item =
+      detail.items.find((it) => it.product?.barcode != null && it.product.barcode === code) ??
+      detail.items.find((it) => it.product?.sku != null && it.product.sku.toLowerCase() === lower)
+    if (!item) {
+      toast({
+        title: `Không thuộc đơn hàng ${detail.code}`,
+        description: `Mã quét "${code}" không khớp sản phẩm nào trong đơn.`,
+        variant: 'destructive',
+      })
+      return
+    }
+    const sku = item.product?.sku ?? item.productId
+    const needed = item.quantity
+    const scanned = scannedCounts[item.productId] ?? 0
+    if (scanned >= needed) {
+      // Đã đủ số lượng — vẫn ghi nhận quét thừa (badge "Thừa") nhưng không tính vào tổng đủ
+      toast({
+        title: `«${sku}» đã đủ ${needed} — quét thừa`,
+        description: 'Kiểm tra lại thùng hàng: có thể quét nhầm hoặc bỏ thừa món.',
+      })
+    } else {
+      toast({ title: `${sku}: ${scanned + 1}/${needed}` })
+    }
+    setScannedCounts((prev) => ({ ...prev, [item.productId]: (prev[item.productId] ?? 0) + 1 }))
+  }
+
+  const handlePackingConfirm = async () => {
+    if (!detail) return
+    const totalUnits = detail.items.reduce((sum, it) => sum + it.quantity, 0)
+    const code = detail.code
+    // Tái sử dụng hàm PATCH trạng thái hiện có → giữ nguyên timeline + Sổ Data + webhook như bấm tay
+    const ok = await handleUpdateStatus('SHIPPING')
+    if (ok) {
+      setScannedCounts({})
+      toast({ title: `Đã kiểm đếm đủ ${totalUnits} món — đơn ${code} chuyển Đang giao` })
+    }
   }
 
   const handleMarkPaid = async () => {
@@ -608,6 +671,11 @@ export function OrdersView() {
   const to = Math.min(page * PAGE_SIZE, total)
   const hasFilter = search !== '' || statusFilter !== 'ALL' || channelFilter !== 'ALL'
   const nextStatuses = detail ? allowedNextStatuses(detail.status) : []
+
+  // Kiểm đếm đóng gói: tiến độ theo từng dòng (dòng "đủ" = đã quét >= SL cần đóng, quét thừa không tính thêm)
+  const packingItems = detail?.items ?? []
+  const packingDoneLines = packingItems.filter((it) => (scannedCounts[it.productId] ?? 0) >= it.quantity).length
+  const packingAllDone = packingItems.length > 0 && packingDoneLines === packingItems.length
 
   return (
     <div>
@@ -1005,6 +1073,131 @@ export function OrdersView() {
                   </div>
                 )}
               </div>
+
+              {/* Kiểm đếm đóng gói bằng mã vạch — hiện khi CONFIRMED (rút gọn) / PACKING (đầy đủ) */}
+              {(detail.status === 'CONFIRMED' || detail.status === 'PACKING') && (
+                <Card className="border-emerald-200/70 dark:border-emerald-900/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <ScanLine className="h-5 w-5 text-emerald-500" />
+                      Kiểm đếm đóng gói bằng mã vạch
+                    </CardTitle>
+                    {detail.status === 'CONFIRMED' ? (
+                      <CardDescription>
+                        Chuyển đơn sang «Đang đóng gói» để bắt đầu kiểm đếm — quét từng sản phẩm bỏ vào thùng.
+                      </CardDescription>
+                    ) : (
+                      <CardDescription>
+                        Quét mã vạch từng sản phẩm bỏ vào thùng — đủ hết các dòng mới chuyển giao vận chuyển.
+                      </CardDescription>
+                    )}
+                  </CardHeader>
+                  {detail.status === 'PACKING' && (
+                    <CardContent className="space-y-3">
+                      <BarcodeScanner
+                        autoFocus
+                        onScan={handlePackingScan}
+                        hint="Quét mã vạch sản phẩm để kiểm đếm — quét 1 lần = 1 món đã bỏ vào thùng"
+                      />
+
+                      <div className="overflow-x-auto rounded-lg border">
+                        <Table className="min-w-[440px]">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Sản phẩm</TableHead>
+                              <TableHead className="text-center">Tiến độ</TableHead>
+                              <TableHead className="text-right">Trạng thái</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {detail.items.map((item) => {
+                              const scanned = scannedCounts[item.productId] ?? 0
+                              const needed = item.quantity
+                              const over = scanned > needed
+                              const done = scanned >= needed
+                              return (
+                                <TableRow key={item.id}>
+                                  <TableCell>
+                                    <p className="text-sm font-medium">
+                                      {item.product?.name ?? 'Sản phẩm đã xóa'}
+                                    </p>
+                                    {item.product?.sku && (
+                                      <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+                                    )}
+                                    {item.product == null ? null : item.product.barcode ? (
+                                      <p className="font-mono text-[11px] text-muted-foreground">{item.product.barcode}</p>
+                                    ) : (
+                                      <p className="text-xs italic text-muted-foreground">chưa có mã vạch — chọn thủ công</p>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="mx-auto flex w-24 flex-col items-center gap-1">
+                                      <span
+                                        className={`text-xs font-medium ${
+                                          done ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                                        }`}
+                                      >
+                                        {scanned}/{needed}
+                                      </span>
+                                      <Progress
+                                        value={needed > 0 ? Math.min(100, (scanned / needed) * 100) : 100}
+                                        className={`h-1.5 ${done ? '[&>div]:bg-emerald-500' : '[&>div]:bg-amber-500'}`}
+                                      />
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {over ? (
+                                      <Badge className="border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+                                        Thừa {scanned - needed}
+                                      </Badge>
+                                    ) : done ? (
+                                      <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                                        Đủ
+                                      </Badge>
+                                    ) : (
+                                      <Badge className="border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                                        Còn {needed - scanned}
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        {packingAllDone ? (
+                          <Badge className="border-transparent bg-emerald-100 px-3 py-1 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                            Đã đủ {packingDoneLines}/{packingItems.length} dòng
+                          </Badge>
+                        ) : (
+                          <Badge className="border-transparent bg-amber-100 px-3 py-1 text-sm text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                            Còn thiếu {packingItems.length - packingDoneLines}/{packingItems.length} dòng
+                          </Badge>
+                        )}
+                        <Button
+                          onClick={() => void handlePackingConfirm()}
+                          disabled={!packingAllDone || updatingStatus}
+                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          {updatingStatus ? (
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                          ) : (
+                            <PackageCheck className="mr-1.5 h-4 w-4" />
+                          )}
+                          Xác nhận đủ — Chuyển Đang giao
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        Việc quét chỉ là kiểm đếm phiên làm việc — dữ liệu chính thức ghi Sổ Data khi chuyển trạng thái.
+                      </p>
+                    </CardContent>
+                  )}
+                </Card>
+              )}
 
               <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">

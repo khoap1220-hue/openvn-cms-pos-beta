@@ -63,6 +63,10 @@ interface SettingsData {
   invoice_footer_note: string
   invoice_default_note: string
   invoice_logo: string
+  // Trường mới từ Task 20-a — GET luôn trả nhưng giữ optional phòng backend cũ
+  company_phone?: string
+  invoice_number_start?: string
+  invoice_payment_method?: string
 }
 
 interface Period {
@@ -88,6 +92,7 @@ export function SystemView() {
   const [companyName, setCompanyName] = useState('')
   const [companyTax, setCompanyTax] = useState('')
   const [companyAddress, setCompanyAddress] = useState('')
+  const [companyPhone, setCompanyPhone] = useState('')
   const [savingCompany, setSavingCompany] = useState(false)
 
   // Chốt sổ
@@ -107,10 +112,12 @@ export function SystemView() {
   const [vatDefault, setVatDefault] = useState('8')
   const [savingVat, setSavingVat] = useState(false)
 
-  // Thiết lập hóa đơn (mẫu in hóa đơn bán ở module Xuất hàng)
+  // Thiết lập hóa đơn (mẫu in hóa đơn bán ở module Xuất hàng + hóa đơn mua ở module Nhập hàng)
   const [invoiceTitle, setInvoiceTitle] = useState('HÓA ĐƠN BÁN HÀNG')
   const [invoiceTemplateCode, setInvoiceTemplateCode] = useState('01GTKT0/001')
   const [invoiceSeries, setInvoiceSeries] = useState('AA/26E')
+  const [invoiceNumberStart, setInvoiceNumberStart] = useState('1')
+  const [invoicePaymentMethod, setInvoicePaymentMethod] = useState('Tiền mặt / Chuyển khoản')
   const [invoiceBankName, setInvoiceBankName] = useState('')
   const [invoiceBankAccount, setInvoiceBankAccount] = useState('')
   const [invoiceBankHolder, setInvoiceBankHolder] = useState('')
@@ -135,11 +142,14 @@ export function SystemView() {
       setCompanyName(res.company_name)
       setCompanyTax(res.company_tax)
       setCompanyAddress(res.company_address)
+      setCompanyPhone(res.company_phone ?? '')
       setVatDefault(String(Number(res.vat_default) || 8))
       // Thiết lập hóa đơn — thiếu key (vd invoice_bank_*) → giữ giá trị mặc định rỗng
       setInvoiceTitle(res.invoice_title || 'HÓA ĐƠN BÁN HÀNG')
       setInvoiceTemplateCode(res.invoice_template_code || '01GTKT0/001')
       setInvoiceSeries(res.invoice_series || 'AA/26E')
+      setInvoiceNumberStart(res.invoice_number_start ?? '1')
+      setInvoicePaymentMethod(res.invoice_payment_method ?? 'Tiền mặt / Chuyển khoản')
       setInvoiceBankName(res.invoice_bank_name ?? '')
       setInvoiceBankAccount(res.invoice_bank_account ?? '')
       setInvoiceBankHolder(res.invoice_bank_holder ?? '')
@@ -188,6 +198,7 @@ export function SystemView() {
         company_name: companyName.trim(),
         company_tax: companyTax.trim(),
         company_address: companyAddress.trim(),
+        company_phone: companyPhone.trim(),
       })
       setSettings(res)
       toast({ title: 'Đã lưu thông tin đơn vị', description: 'Thông tin sẽ dùng cho header hóa đơn.' })
@@ -236,10 +247,13 @@ export function SystemView() {
   const saveInvoiceSettings = async () => {
     setSavingInvoice(true)
     try {
-      const body: Record<string, string> = {
+      const body: Record<string, string | number> = {
         invoice_title: invoiceTitle.trim() || 'HÓA ĐƠN BÁN HÀNG',
         invoice_template_code: invoiceTemplateCode.trim(),
         invoice_series: invoiceSeries.trim(),
+        // Số bắt đầu hóa đơn: gửi số nguyên (fallback 1 khi rỗng/không hợp lệ); server trả 400 nếu < 1
+        invoice_number_start: Math.floor(Number(invoiceNumberStart)) || 1,
+        invoice_payment_method: invoicePaymentMethod.trim(),
         invoice_footer_note: invoiceFooterNote.trim(),
         invoice_default_note: invoiceDefaultNote.trim(),
         invoice_logo: invoiceLogo,
@@ -255,9 +269,11 @@ export function SystemView() {
       const res = await apiPatch<SettingsData>('/api/settings', body)
       setSettings(res)
       setInvoiceLogo(res.invoice_logo ?? invoiceLogo)
+      setInvoiceNumberStart(res.invoice_number_start ?? String(Math.floor(Number(invoiceNumberStart)) || 1))
+      setInvoicePaymentMethod(res.invoice_payment_method ?? invoicePaymentMethod.trim())
       toast({
         title: 'Đã lưu thiết lập hóa đơn',
-        description: 'Bản in hóa đơn bán ở module Xuất hàng sẽ dùng cấu hình mới.',
+        description: 'Bản in hóa đơn bán ở module Xuất hàng và hóa đơn mua ở module Nhập hàng sẽ dùng cấu hình mới.',
       })
     } catch (e) {
       toast({
@@ -415,6 +431,16 @@ export function SystemView() {
                       placeholder="123 Nguyễn Trãi, Q.1, TP. Hồ Chí Minh"
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="company-phone">Điện thoại</Label>
+                    <Input
+                      id="company-phone"
+                      value={companyPhone}
+                      onChange={(e) => setCompanyPhone(e.target.value)}
+                      placeholder="0901234567"
+                      maxLength={40}
+                    />
+                  </div>
                   <div className="flex justify-end">
                     <Button onClick={() => void saveCompany()} disabled={savingCompany}>
                       {savingCompany ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -434,7 +460,7 @@ export function SystemView() {
                 Thiết lập hóa đơn
               </CardTitle>
               <CardDescription>
-                Tiêu đề, mẫu số, ký hiệu, thông tin ngân hàng và ghi chú hiển thị trên bản in hóa đơn bán GTGT
+                Tiêu đề, mẫu số, ký hiệu, số hóa đơn, hình thức thanh toán, ngân hàng và ghi chú hiển thị trên bản in
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -471,6 +497,30 @@ export function SystemView() {
                         onChange={(e) => setInvoiceSeries(e.target.value)}
                         placeholder="AA/26E"
                         maxLength={40}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-number-start">Số bắt đầu hóa đơn</Label>
+                      <Input
+                        id="invoice-number-start"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={invoiceNumberStart}
+                        onChange={(e) => setInvoiceNumberStart(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Số hóa đơn bán tiếp theo — tăng dần, không dùng lại (áp dụng từ hóa đơn mới).
+                      </p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="invoice-payment-method">Hình thức thanh toán mặc định</Label>
+                      <Input
+                        id="invoice-payment-method"
+                        value={invoicePaymentMethod}
+                        onChange={(e) => setInvoicePaymentMethod(e.target.value)}
+                        placeholder="Tiền mặt / Chuyển khoản"
+                        maxLength={120}
                       />
                     </div>
                     <div className="grid gap-2">
@@ -588,7 +638,7 @@ export function SystemView() {
 
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs text-muted-foreground">
-                      Áp dụng cho bản in hóa đơn bán ở module Xuất hàng.
+                      Áp dụng cho bản in hóa đơn bán ở module Xuất hàng và hóa đơn mua ở module Nhập hàng.
                     </p>
                     <Button onClick={() => void saveInvoiceSettings()} disabled={savingInvoice}>
                       {savingInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

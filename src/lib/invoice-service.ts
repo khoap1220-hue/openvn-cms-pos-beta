@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
 import { logLedger } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
+import { getSetting, getSettings } from '@/lib/settings'
 
 type Tx = Prisma.TransactionClient
 
@@ -60,6 +61,27 @@ async function genInvoiceCode(prefix: 'PMM' | 'PXK', date: Date): Promise<string
     if (Number.isFinite(seq) && seq > max) max = seq
   }
   return `${base}${String(max + 1).padStart(4, '0')}`
+}
+
+/**
+ * GHI SỐ HÓA ĐƠN BÁN — số tăng dần toàn cục, bắt đầu từ setting invoice_number_start (mặc định 1).
+ * Số không bao giờ dùng lại (kể cả khi hóa đơn bị hủy) vì lấy max(invoiceNo) hiện có.
+ */
+async function nextInvoiceNumber(): Promise<number> {
+  const startSetting = await getSetting('invoice_number_start')
+  const start = Math.max(1, Math.floor(Number(startSetting) || 1))
+  const agg = await db.salesInvoice.aggregate({ _max: { invoiceNo: true } })
+  const max = agg._max.invoiceNo ?? start - 1
+  return Math.max(max, start - 1) + 1
+}
+
+/** Đọc mẫu số/ký hiệu từ Thiết lập hóa đơn (dùng giá trị mặc định khi chưa cấu hình) */
+async function readInvoiceSeriesSettings(): Promise<{ series: string; templateCode: string }> {
+  const values = await getSettings(['invoice_series', 'invoice_template_code'])
+  return {
+    series: values.invoice_series?.trim() || 'AA/26E',
+    templateCode: values.invoice_template_code?.trim() || '01GTKT0/001',
+  }
 }
 
 /** Cộng/trừ kho trong transaction + ghi StockMovement (delta dương = nhập, âm = xuất) */
@@ -267,7 +289,7 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
 
   const hasExplicitItems = Array.isArray(input.items) && input.items.length > 0
   let items: NormalizedItem[]
-  let order: { id: string; code: string; subtotal: number } | null = null
+  let order: { id: string; code: string; subtotal: number; paymentMethod: string } | null = null
 
   if (input.orderId) {
     const found = await db.order.findUnique({
@@ -275,7 +297,7 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
       include: { items: true },
     })
     if (!found) throw new Error('Đơn hàng không tồn tại')
-    order = { id: found.id, code: found.code, subtotal: found.subtotal }
+    order = { id: found.id, code: found.code, subtotal: found.subtotal, paymentMethod: found.paymentMethod }
     if (hasExplicitItems) {
       items = await normalizeItems(input.items)
     } else {
@@ -300,6 +322,7 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
   const vatAmount = (subtotal * vatRate) / 100
   const total = subtotal + vatAmount
   const code = await genInvoiceCode('PXK', invoiceDate)
+  const [invoiceNo, seriesSettings] = await Promise.all([nextInvoiceNumber(), readInvoiceSeriesSettings()])
 
   // Tên thành phẩm để ghi note movement BOM theo đúng format "... cho {qty} {tên TP} (HĐ {code})"
   const productsForName = await db.product.findMany({
@@ -321,6 +344,10 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
         total,
         status: 'POSTED',
         note: input.note?.trim() || null,
+        invoiceNo,
+        series: seriesSettings.series,
+        templateCode: seriesSettings.templateCode,
+        paymentMethod: order?.paymentMethod ?? null,
         items: {
           create: items.map((it) => ({
             productId: it.productId,
@@ -398,6 +425,10 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
     detail: {
       orderId: order?.id ?? null,
       orderCode: order?.code ?? null,
+      invoiceNo,
+      series: seriesSettings.series,
+      templateCode: seriesSettings.templateCode,
+      paymentMethod: order?.paymentMethod ?? null,
       subtotal,
       vatRate,
       vatAmount,

@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       include: {
         channel: { select: { id: true, key: true, name: true, color: true } },
         customer: { select: { id: true, name: true, phone: true } },
-        items: { include: { product: { select: { id: true, sku: true, name: true } } } },
+        items: { include: { product: { select: { id: true, sku: true, name: true, barcode: true } } } },
         shipments: true,
         events: { orderBy: { createdAt: 'asc' } },
       },

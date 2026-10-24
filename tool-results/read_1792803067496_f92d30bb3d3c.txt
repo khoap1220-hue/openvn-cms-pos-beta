@@ -1,0 +1,869 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+     4→import { apiGet, apiPatch, apiPost } from '@/lib/api'
+     5→import { formatDateTime } from '@/lib/format'
+     6→import { ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
+     7→import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+     8→import { Badge } from '@/components/ui/badge'
+     9→import { Button } from '@/components/ui/button'
+    10→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    11→import { Input } from '@/components/ui/input'
+    12→import { Label } from '@/components/ui/label'
+    13→import { Textarea } from '@/components/ui/textarea'
+    14→import {
+    15→  Select,
+    16→  SelectContent,
+    17→  SelectItem,
+    18→  SelectTrigger,
+    19→  SelectValue,
+    20→} from '@/components/ui/select'
+    21→import {
+    22→  Table,
+    23→  TableBody,
+    24→  TableCell,
+    25→  TableHead,
+    26→  TableHeader,
+    27→  TableRow,
+    28→} from '@/components/ui/table'
+    29→import { useToast } from '@/hooks/use-toast'
+    30→import {
+    31→  BadgeCheck,
+    32→  BookOpenCheck,
+    33→  Building2,
+    34→  Database,
+    35→  Gem,
+    36→  ImageUp,
+    37→  Info,
+    38→  KeyRound,
+    39→  Loader2,
+    40→  LockKeyhole,
+    41→  LockOpen,
+    42→  Percent,
+    43→  ReceiptText,
+    44→  Save,
+    45→  Sparkles,
+    46→  Trash2,
+    47→  WifiOff,
+    48→} from 'lucide-react'
+    49→
+    50→interface SettingsData {
+    51→  company_name: string
+    52→  company_tax: string
+    53→  company_address: string
+    54→  vat_default: string
+    55→  geminiConfigured: boolean
+    56→  // THIẾT LẬP HÓA ĐƠN — invoice_bank_* có thể vắng mặt ở GET (backend chưa trả) → coi là tùy chọn
+    57→  invoice_title: string
+    58→  invoice_template_code: string
+    59→  invoice_series: string
+    60→  invoice_bank_name?: string
+    61→  invoice_bank_account?: string
+    62→  invoice_bank_holder?: string
+    63→  invoice_footer_note: string
+    64→  invoice_default_note: string
+    65→  invoice_logo: string
+    66→}
+    67→
+    68→interface Period {
+    69→  year: number
+    70→  quarter: number
+    71→  status: 'OPEN' | 'CLOSED'
+    72→  closedAt: string | null
+    73→  note: string | null
+    74→}
+    75→
+    76→const FIRST_YEAR = 2024
+    77→const CURRENT_YEAR = new Date().getFullYear()
+    78→const CURRENT_QUARTER = Math.floor(new Date().getMonth() / 3) + 1
+    79→const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR + 2 - FIRST_YEAR }, (_, i) => FIRST_YEAR + i)
+    80→const VAT_RATES = [0, 5, 8, 10]
+    81→
+    82→export function SystemView() {
+    83→  const [settings, setSettings] = useState<SettingsData | null>(null)
+    84→  const [loading, setLoading] = useState(true)
+    85→  const [error, setError] = useState<string | null>(null)
+    86→
+    87→  // Form thông tin đơn vị
+    88→  const [companyName, setCompanyName] = useState('')
+    89→  const [companyTax, setCompanyTax] = useState('')
+    90→  const [companyAddress, setCompanyAddress] = useState('')
+    91→  const [savingCompany, setSavingCompany] = useState(false)
+    92→
+    93→  // Chốt sổ
+    94→  const [periodsYear, setPeriodsYear] = useState<number>(CURRENT_YEAR)
+    95→  const [periods, setPeriods] = useState<Period[] | null>(null)
+    96→  const [periodsLoading, setPeriodsLoading] = useState(true)
+    97→  const [closeQuarter, setCloseQuarter] = useState<number | null>(null)
+    98→  const [reopenQuarter, setReopenQuarter] = useState<number | null>(null)
+    99→  const [periodActionLoading, setPeriodActionLoading] = useState(false)
+   100→
+   101→  // Gemini AI
+   102→  const [apiKeyInput, setApiKeyInput] = useState('')
+   103→  const [savingKey, setSavingKey] = useState(false)
+   104→  const [testingAi, setTestingAi] = useState(false)
+   105→
+   106→  // VAT mặc định
+   107→  const [vatDefault, setVatDefault] = useState('8')
+   108→  const [savingVat, setSavingVat] = useState(false)
+   109→
+   110→  // Thiết lập hóa đơn (mẫu in hóa đơn bán ở module Xuất hàng)
+   111→  const [invoiceTitle, setInvoiceTitle] = useState('HÓA ĐƠN BÁN HÀNG')
+   112→  const [invoiceTemplateCode, setInvoiceTemplateCode] = useState('01GTKT0/001')
+   113→  const [invoiceSeries, setInvoiceSeries] = useState('AA/26E')
+   114→  const [invoiceBankName, setInvoiceBankName] = useState('')
+   115→  const [invoiceBankAccount, setInvoiceBankAccount] = useState('')
+   116→  const [invoiceBankHolder, setInvoiceBankHolder] = useState('')
+   117→  const [invoiceFooterNote, setInvoiceFooterNote] = useState('')
+   118→  const [invoiceDefaultNote, setInvoiceDefaultNote] = useState('')
+   119→  const [invoiceLogo, setInvoiceLogo] = useState('')
+   120→  const [savingInvoice, setSavingInvoice] = useState(false)
+   121→  const invoiceLogoInputRef = useRef<HTMLInputElement | null>(null)
+   122→  // GET /api/settings hiện CHƯA trả invoice_bank_* (đã lưu DB nhưng thiếu ở response).
+   123→  // Chỉ gửi lên PATCH những trường bank mà (a) GET đã trả về hoặc (b) người dùng vừa sửa —
+   124→  // tránh việc bấm Lưu vô tình xóa sạch giá trị bank đã lưu trước đó.
+   125→  const bankKnownRef = useRef<Set<string>>(new Set())
+   126→  const bankDirtyRef = useRef<Set<string>>(new Set())
+   127→  const { toast } = useToast()
+   128→
+   129→  const load = useCallback(async () => {
+   130→    setLoading(true)
+   131→    setError(null)
+   132→    try {
+   133→      const res = await apiGet<SettingsData>('/api/settings')
+   134→      setSettings(res)
+   135→      setCompanyName(res.company_name)
+   136→      setCompanyTax(res.company_tax)
+   137→      setCompanyAddress(res.company_address)
+   138→      setVatDefault(String(Number(res.vat_default) || 8))
+   139→      // Thiết lập hóa đơn — thiếu key (vd invoice_bank_*) → giữ giá trị mặc định rỗng
+   140→      setInvoiceTitle(res.invoice_title || 'HÓA ĐƠN BÁN HÀNG')
+   141→      setInvoiceTemplateCode(res.invoice_template_code || '01GTKT0/001')
+   142→      setInvoiceSeries(res.invoice_series || 'AA/26E')
+   143→      setInvoiceBankName(res.invoice_bank_name ?? '')
+   144→      setInvoiceBankAccount(res.invoice_bank_account ?? '')
+   145→      setInvoiceBankHolder(res.invoice_bank_holder ?? '')
+   146→      bankKnownRef.current = new Set(
+   147→        (['invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder'] as const).filter(
+   148→          (key) => res[key] !== undefined
+   149→        )
+   150→      )
+   151→      bankDirtyRef.current = new Set()
+   152→      setInvoiceFooterNote(res.invoice_footer_note ?? '')
+   153→      setInvoiceDefaultNote(res.invoice_default_note ?? '')
+   154→      setInvoiceLogo(res.invoice_logo ?? '')
+   155→    } catch (e) {
+   156→      const message = e instanceof Error ? e.message : 'Không thể tải cấu hình hệ thống'
+   157→      setError(message)
+   158→    } finally {
+   159→      setLoading(false)
+   160→    }
+   161→  }, [])
+   162→
+   163→  const loadPeriods = useCallback(async () => {
+   164→    setPeriodsLoading(true)
+   165→    try {
+   166→      const res = await apiGet<{ year: number; periods: Period[] }>(`/api/periods?year=${periodsYear}`)
+   167→      setPeriods(res.periods)
+   168→    } catch (e) {
+   169→      const message = e instanceof Error ? e.message : 'Không thể tải kỳ kế toán'
+   170→      toast({ title: 'Lỗi tải kỳ kế toán', description: message, variant: 'destructive' })
+   171→    } finally {
+   172→      setPeriodsLoading(false)
+   173→    }
+   174→  }, [periodsYear, toast])
+   175→
+   176→  useEffect(() => {
+   177→    void load()
+   178→  }, [load])
+   179→
+   180→  useEffect(() => {
+   181→    void loadPeriods()
+   182→  }, [loadPeriods])
+   183→
+   184→  const saveCompany = async () => {
+   185→    setSavingCompany(true)
+   186→    try {
+   187→      const res = await apiPatch<SettingsData>('/api/settings', {
+   188→        company_name: companyName.trim(),
+   189→        company_tax: companyTax.trim(),
+   190→        company_address: companyAddress.trim(),
+   191→      })
+   192→      setSettings(res)
+   193→      toast({ title: 'Đã lưu thông tin đơn vị', description: 'Thông tin sẽ dùng cho header hóa đơn.' })
+   194→    } catch (e) {
+   195→      toast({
+   196→        title: 'Lưu thông tin thất bại',
+   197→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   198→        variant: 'destructive',
+   199→      })
+   200→    } finally {
+   201→      setSavingCompany(false)
+   202→    }
+   203→  }
+   204→
+   205→  /** Chọn logo từ máy — chỉ đọc thành data URL và xem trước, KHÔNG upload; chỉ PATCH khi bấm Lưu */
+   206→  const handleLogoFile = (file: File | undefined) => {
+   207→    if (!file) return
+   208→    if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type)) {
+   209→      toast({
+   210→        title: 'Định dạng logo không hợp lệ',
+   211→        description: 'Chỉ hỗ trợ ảnh PNG, JPG, WebP hoặc GIF.',
+   212→        variant: 'destructive',
+   213→      })
+   214→      return
+   215→    }
+   216→    if (file.size > 400 * 1024) {
+   217→      toast({ title: 'Logo quá lớn', description: 'Dung lượng tối đa 400KB — hãy nén ảnh trước khi tải lên.', variant: 'destructive' })
+   218→      return
+   219→    }
+   220→    const reader = new FileReader()
+   221→    reader.onload = () => {
+   222→      const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+   223→      if (!dataUrl.startsWith('data:image/') || dataUrl.length > 600000) {
+   224→        toast({ title: 'Không đọc được ảnh logo', description: 'Ảnh lỗi hoặc vượt giới hạn 600.000 ký tự data URL.', variant: 'destructive' })
+   225→        return
+   226→      }
+   227→      setInvoiceLogo(dataUrl)
+   228→      toast({ title: 'Đã chọn logo', description: 'Nhớ bấm "Lưu thiết lập hóa đơn" để áp dụng.' })
+   229→    }
+   230→    reader.onerror = () => {
+   231→      toast({ title: 'Không đọc được tệp logo', variant: 'destructive' })
+   232→    }
+   233→    reader.readAsDataURL(file)
+   234→  }
+   235→
+   236→  const saveInvoiceSettings = async () => {
+   237→    setSavingInvoice(true)
+   238→    try {
+   239→      const body: Record<string, string> = {
+   240→        invoice_title: invoiceTitle.trim() || 'HÓA ĐƠN BÁN HÀNG',
+   241→        invoice_template_code: invoiceTemplateCode.trim(),
+   242→        invoice_series: invoiceSeries.trim(),
+   243→        invoice_footer_note: invoiceFooterNote.trim(),
+   244→        invoice_default_note: invoiceDefaultNote.trim(),
+   245→        invoice_logo: invoiceLogo,
+   246→      }
+   247→      const bankValues: Record<string, string> = {
+   248→        invoice_bank_name: invoiceBankName.trim(),
+   249→        invoice_bank_account: invoiceBankAccount.trim(),
+   250→        invoice_bank_holder: invoiceBankHolder.trim(),
+   251→      }
+   252→      for (const [key, value] of Object.entries(bankValues)) {
+   253→        if (bankKnownRef.current.has(key) || bankDirtyRef.current.has(key)) body[key] = value
+   254→      }
+   255→      const res = await apiPatch<SettingsData>('/api/settings', body)
+   256→      setSettings(res)
+   257→      setInvoiceLogo(res.invoice_logo ?? invoiceLogo)
+   258→      toast({
+   259→        title: 'Đã lưu thiết lập hóa đơn',
+   260→        description: 'Bản in hóa đơn bán ở module Xuất hàng sẽ dùng cấu hình mới.',
+   261→      })
+   262→    } catch (e) {
+   263→      toast({
+   264→        title: 'Lưu thiết lập hóa đơn thất bại',
+   265→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   266→        variant: 'destructive',
+   267→      })
+   268→    } finally {
+   269→      setSavingInvoice(false)
+   270→    }
+   271→  }
+   272→
+   273→  const saveApiKey = async () => {
+   274→    if (!apiKeyInput.trim()) {
+   275→      toast({ title: 'Vui lòng nhập API Key', description: 'Lấy key tại Google AI Studio.', variant: 'destructive' })
+   276→      return
+   277→    }
+   278→    setSavingKey(true)
+   279→    try {
+   280→      const res = await apiPatch<SettingsData>('/api/settings', { gemini_api_key: apiKeyInput.trim() })
+   281→      setSettings(res)
+   282→      setApiKeyInput('')
+   283→      toast({ title: 'Đã lưu Gemini API Key', description: 'Có thể dùng "Phân tích chuyên sâu AI" ở Bảng điều khiển.' })
+   284→    } catch (e) {
+   285→      toast({
+   286→        title: 'Lưu API Key thất bại',
+   287→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   288→        variant: 'destructive',
+   289→      })
+   290→    } finally {
+   291→      setSavingKey(false)
+   292→    }
+   293→  }
+   294→
+   295→  const testAi = async () => {
+   296→    setTestingAi(true)
+   297→    try {
+   298→      const res = await apiPost<{ cashForecast: string }>('/api/ai-analysis', {
+   299→        year: CURRENT_YEAR,
+   300→        quarter: CURRENT_QUARTER,
+   301→      })
+   302→      toast({
+   303→        title: `AI hoạt động tốt — Q${CURRENT_QUARTER}/${CURRENT_YEAR}`,
+   304→        description: res.cashForecast.slice(0, 200),
+   305→      })
+   306→    } catch (e) {
+   307→      toast({
+   308→        title: 'Kiểm tra AI thất bại',
+   309→        description: e instanceof Error ? e.message : 'AI không phản hồi',
+   310→        variant: 'destructive',
+   311→      })
+   312→    } finally {
+   313→      setTestingAi(false)
+   314→    }
+   315→  }
+   316→
+   317→  const changeVatDefault = async (value: string) => {
+   318→    setVatDefault(value)
+   319→    setSavingVat(true)
+   320→    try {
+   321→      const res = await apiPatch<SettingsData>('/api/settings', { vat_default: Number(value) })
+   322→      setSettings(res)
+   323→      toast({ title: 'Đã lưu VAT mặc định', description: `Hóa đơn mới mặc định thuế suất ${value}%.` })
+   324→    } catch (e) {
+   325→      toast({
+   326→        title: 'Lưu VAT mặc định thất bại',
+   327→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   328→        variant: 'destructive',
+   329→      })
+   330→    } finally {
+   331→      setSavingVat(false)
+   332→    }
+   333→  }
+   334→
+   335→  const handlePeriodAction = async (action: 'CLOSE' | 'REOPEN', q: number) => {
+   336→    setPeriodActionLoading(true)
+   337→    try {
+   338→      await apiPost<{ period: Period }>('/api/periods', { action, year: periodsYear, quarter: q })
+   339→      toast({
+   340→        title: action === 'CLOSE' ? `Đã chốt sổ Q${q}/${periodsYear}` : `Đã mở lại sổ Q${q}/${periodsYear}`,
+   341→        description:
+   342→          action === 'CLOSE'
+   343→            ? 'Mọi hóa đơn & biến động kho trong kỳ này đã bị khóa.'
+   344→            : 'Kỳ đã mở lại — có thể thêm/sửa/hủy hóa đơn bình thường.',
+   345→      })
+   346→      await loadPeriods()
+   347→    } catch (e) {
+   348→      toast({
+   349→        title: 'Thao tác kỳ kế toán thất bại',
+   350→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   351→        variant: 'destructive',
+   352→      })
+   353→    } finally {
+   354→      setPeriodActionLoading(false)
+   355→      setCloseQuarter(null)
+   356→      setReopenQuarter(null)
+   357→    }
+   358→  }
+   359→
+   360→  const currentQuarterPeriod = useMemo(
+   361→    () => (periods ?? []).find((p) => p.quarter === CURRENT_QUARTER && p.year === CURRENT_YEAR) ?? null,
+   362→    [periods]
+   363→  )
+   364→  const currentQuarterClosed = currentQuarterPeriod?.status === 'CLOSED'
+   365→
+   366→  return (
+   367→    <div>
+   368→      <PageHeader
+   369→        title="Hệ thống"
+   370→        description="Thông tin đơn vị, kỳ kế toán, AI và giá trị mặc định của Invoice Pro"
+   371→      />
+   372→
+   373→      {error ? (
+   374→        <ErrorState message={error} onRetry={() => void load()} />
+   375→      ) : (
+   376→        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+   377→          {/* Thông tin đơn vị */}
+   378→          <Card className="border-border/70 shadow-sm">
+   379→            <CardHeader>
+   380→              <CardTitle className="flex items-center gap-2 text-base">
+   381→                <Building2 className="h-5 w-5 text-sky-500" />
+   382→                Thông tin đơn vị
+   383→              </CardTitle>
+   384→              <CardDescription>Hiển thị trên header hóa đơn bán và báo cáo hạch toán</CardDescription>
+   385→            </CardHeader>
+   386→            <CardContent className="space-y-4">
+   387→              {loading ? (
+   388→                <TableSkeleton rows={3} />
+   389→              ) : (
+   390→                <>
+   391→                  <div className="grid gap-2">
+   392→                    <Label htmlFor="company-name">Tên đơn vị</Label>
+   393→                    <Input
+   394→                      id="company-name"
+   395→                      value={companyName}
+   396→                      onChange={(e) => setCompanyName(e.target.value)}
+   397→                      placeholder="CÔNG TY TNHH THƯƠNG MẠI ABC"
+   398→                    />
+   399→                  </div>
+   400→                  <div className="grid gap-2">
+   401→                    <Label htmlFor="company-tax">Mã số thuế</Label>
+   402→                    <Input
+   403→                      id="company-tax"
+   404→                      value={companyTax}
+   405→                      onChange={(e) => setCompanyTax(e.target.value)}
+   406→                      placeholder="0312345678 (10 số) hoặc 0312345678-001 (13 số)"
+   407→                    />
+   408→                  </div>
+   409→                  <div className="grid gap-2">
+   410→                    <Label htmlFor="company-address">Địa chỉ</Label>
+   411→                    <Input
+   412→                      id="company-address"
+   413→                      value={companyAddress}
+   414→                      onChange={(e) => setCompanyAddress(e.target.value)}
+   415→                      placeholder="123 Nguyễn Trãi, Q.1, TP. Hồ Chí Minh"
+   416→                    />
+   417→                  </div>
+   418→                  <div className="flex justify-end">
+   419→                    <Button onClick={() => void saveCompany()} disabled={savingCompany}>
+   420→                      {savingCompany ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+   421→                      Lưu thông tin
+   422→                    </Button>
+   423→                  </div>
+   424→                </>
+   425→              )}
+   426→            </CardContent>
+   427→          </Card>
+   428→
+   429→          {/* Thiết lập hóa đơn — áp dụng cho bản in ở module Xuất hàng */}
+   430→          <Card className="border-border/70 shadow-sm lg:col-span-2">
+   431→            <CardHeader>
+   432→              <CardTitle className="flex items-center gap-2 text-base">
+   433→                <ReceiptText className="h-5 w-5 text-emerald-500" />
+   434→                Thiết lập hóa đơn
+   435→              </CardTitle>
+   436→              <CardDescription>
+   437→                Tiêu đề, mẫu số, ký hiệu, thông tin ngân hàng và ghi chú hiển thị trên bản in hóa đơn bán GTGT
+   438→              </CardDescription>
+   439→            </CardHeader>
+   440→            <CardContent className="space-y-4">
+   441→              {loading ? (
+   442→                <TableSkeleton rows={4} />
+   443→              ) : (
+   444→                <>
+   445→                  <div className="grid gap-3 sm:grid-cols-2">
+   446→                    <div className="grid gap-2">
+   447→                      <Label htmlFor="invoice-title">Tiêu đề hóa đơn</Label>
+   448→                      <Input
+   449→                        id="invoice-title"
+   450→                        value={invoiceTitle}
+   451→                        onChange={(e) => setInvoiceTitle(e.target.value)}
+   452→                        placeholder="HÓA ĐƠN BÁN HÀNG"
+   453→                        maxLength={120}
+   454→                      />
+   455→                    </div>
+   456→                    <div className="grid gap-2">
+   457→                      <Label htmlFor="invoice-template-code">Mẫu số</Label>
+   458→                      <Input
+   459→                        id="invoice-template-code"
+   460→                        value={invoiceTemplateCode}
+   461→                        onChange={(e) => setInvoiceTemplateCode(e.target.value)}
+   462→                        placeholder="01GTKT0/001"
+   463→                        maxLength={60}
+   464→                      />
+   465→                    </div>
+   466→                    <div className="grid gap-2">
+   467→                      <Label htmlFor="invoice-series">Ký hiệu</Label>
+   468→                      <Input
+   469→                        id="invoice-series"
+   470→                        value={invoiceSeries}
+   471→                        onChange={(e) => setInvoiceSeries(e.target.value)}
+   472→                        placeholder="AA/26E"
+   473→                        maxLength={40}
+   474→                      />
+   475→                    </div>
+   476→                    <div className="grid gap-2">
+   477→                      <Label htmlFor="invoice-bank-name">Tên ngân hàng</Label>
+   478→                      <Input
+   479→                        id="invoice-bank-name"
+   480→                        value={invoiceBankName}
+   481→                        onChange={(e) => {
+   482→                          setInvoiceBankName(e.target.value)
+   483→                          bankDirtyRef.current.add('invoice_bank_name')
+   484→                        }}
+   485→                        placeholder="Vietcombank — CN Tân Bình"
+   486→                        maxLength={120}
+   487→                      />
+   488→                    </div>
+   489→                    <div className="grid gap-2">
+   490→                      <Label htmlFor="invoice-bank-account">Số tài khoản</Label>
+   491→                      <Input
+   492→                        id="invoice-bank-account"
+   493→                        value={invoiceBankAccount}
+   494→                        onChange={(e) => {
+   495→                          setInvoiceBankAccount(e.target.value)
+   496→                          bankDirtyRef.current.add('invoice_bank_account')
+   497→                        }}
+   498→                        placeholder="0071000123456"
+   499→                        maxLength={60}
+   500→                      />
+   501→                    </div>
+   502→                    <div className="grid gap-2">
+   503→                      <Label htmlFor="invoice-bank-holder">Chủ tài khoản</Label>
+   504→                      <Input
+   505→                        id="invoice-bank-holder"
+   506→                        value={invoiceBankHolder}
+   507→                        onChange={(e) => {
+   508→                          setInvoiceBankHolder(e.target.value)
+   509→                          bankDirtyRef.current.add('invoice_bank_holder')
+   510→                        }}
+   511→                        placeholder="CÔNG TY TNHH THƯƠNG MẠI ABC"
+   512→                        maxLength={120}
+   513→                      />
+   514→                    </div>
+   515→                    <div className="grid gap-2">
+   516→                      <Label htmlFor="invoice-footer-note">Ghi chú cuối hóa đơn</Label>
+   517→                      <Textarea
+   518→                        id="invoice-footer-note"
+   519→                        rows={2}
+   520→                        value={invoiceFooterNote}
+   521→                        onChange={(e) => setInvoiceFooterNote(e.target.value)}
+   522→                        placeholder="Cảm ơn Quý khách đã mua hàng!"
+   523→                      />
+   524→                    </div>
+   525→                    <div className="grid gap-2">
+   526→                      <Label htmlFor="invoice-default-note">Ghi chú mặc định khi tạo hóa đơn</Label>
+   527→                      <Textarea
+   528→                        id="invoice-default-note"
+   529→                        rows={2}
+   530→                        value={invoiceDefaultNote}
+   531→                        onChange={(e) => setInvoiceDefaultNote(e.target.value)}
+   532→                        placeholder="Ví dụ: Hàng đã giao đủ — bảo hành 12 tháng"
+   533→                      />
+   534→                    </div>
+   535→                  </div>
+   536→
+   537→                  {/* Logo in trên hóa đơn — chỉ đọc trước, lưu khi bấm Lưu thiết lập */}
+   538→                  <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-muted/40 p-3">
+   539→                    {invoiceLogo ? (
+   540→                      <img
+   541→                        src={invoiceLogo}
+   542→                        alt="Logo hóa đơn"
+   543→                        className="h-12 w-12 rounded-md border bg-white object-contain p-0.5"
+   544→                      />
+   545→                    ) : (
+   546→                      <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed text-muted-foreground">
+   547→                        <ImageUp className="h-5 w-5" />
+   548→                      </div>
+   549→                    )}
+   550→                    <div className="min-w-[200px] flex-1">
+   551→                      <p className="text-sm font-medium">Logo in trên hóa đơn</p>
+   552→                      <p className="text-xs text-muted-foreground">
+   553→                        PNG/JPG/WebP/GIF, tối đa 400KB — chỉ được lưu khi bấm &quot;Lưu thiết lập hóa đơn&quot;.
+   554→                      </p>
+   555→                    </div>
+   556→                    <input
+   557→                      ref={invoiceLogoInputRef}
+   558→                      type="file"
+   559→                      accept="image/png,image/jpeg,image/webp,image/gif"
+   560→                      className="hidden"
+   561→                      onChange={(e) => {
+   562→                        handleLogoFile(e.target.files?.[0])
+   563→                        e.target.value = ''
+   564→                      }}
+   565→                    />
+   566→                    <Button
+   567→                      type="button"
+   568→                      variant="outline"
+   569→                      size="sm"
+   570→                      onClick={() => invoiceLogoInputRef.current?.click()}
+   571→                    >
+   572→                      <ImageUp className="h-4 w-4" />
+   573→                      Tải logo
+   574→                    </Button>
+   575→                    {invoiceLogo && (
+   576→                      <Button
+   577→                        type="button"
+   578→                        variant="outline"
+   579→                        size="sm"
+   580→                        className="text-destructive hover:text-destructive"
+   581→                        onClick={() => setInvoiceLogo('')}
+   582→                      >
+   583→                        <Trash2 className="h-4 w-4" />
+   584→                        Xóa logo
+   585→                      </Button>
+   586→                    )}
+   587→                  </div>
+   588→
+   589→                  <div className="flex flex-wrap items-center justify-between gap-3">
+   590→                    <p className="text-xs text-muted-foreground">
+   591→                      Áp dụng cho bản in hóa đơn bán ở module Xuất hàng.
+   592→                    </p>
+   593→                    <Button onClick={() => void saveInvoiceSettings()} disabled={savingInvoice}>
+   594→                      {savingInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+   595→                      Lưu thiết lập hóa đơn
+   596→                    </Button>
+   597→                  </div>
+   598→                </>
+   599→              )}
+   600→            </CardContent>
+   601→          </Card>
+   602→
+   603→          {/* Chốt sổ kế toán */}
+   604→          <Card className="border-border/70 shadow-sm">
+   605→            <CardHeader>
+   606→              <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+   607→                <span className="flex items-center gap-2">
+   608→                  <BookOpenCheck className="h-5 w-5 text-emerald-500" />
+   609→                  Chốt sổ kế toán
+   610→                </span>
+   611→                {currentQuarterClosed && (
+   612→                  <Badge className="border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+   613→                    <LockKeyhole className="h-3 w-3" />
+   614→                    Q{CURRENT_QUARTER}/{CURRENT_YEAR} đã chốt
+   615→                  </Badge>
+   616→                )}
+   617→              </CardTitle>
+   618→              <CardDescription>
+   619→                Sau khi chốt, mọi hóa đơn & biến động kho trong quý sẽ bị khóa — không thể thêm/sửa/hủy
+   620→              </CardDescription>
+   621→            </CardHeader>
+   622→            <CardContent className="space-y-3">
+   623→              <Select value={String(periodsYear)} onValueChange={(value) => setPeriodsYear(Number(value))}>
+   624→                <SelectTrigger className="w-[140px]">
+   625→                  <SelectValue />
+   626→                </SelectTrigger>
+   627→                <SelectContent>
+   628→                  {YEAR_OPTIONS.map((y) => (
+   629→                    <SelectItem key={y} value={String(y)}>
+   630→                      Năm {y}
+   631→                    </SelectItem>
+   632→                  ))}
+   633→                </SelectContent>
+   634→              </Select>
+   635→              {periodsLoading ? (
+   636→                <TableSkeleton rows={4} />
+   637→              ) : (
+   638→                <div className="overflow-hidden rounded-xl border">
+   639→                  <Table>
+   640→                    <TableHeader>
+   641→                      <TableRow>
+   642→                        <TableHead>Kỳ</TableHead>
+   643→                        <TableHead>Trạng thái</TableHead>
+   644→                        <TableHead>Chốt lúc</TableHead>
+   645→                        <TableHead className="text-right">Thao tác</TableHead>
+   646→                      </TableRow>
+   647→                    </TableHeader>
+   648→                    <TableBody>
+   649→                      {[1, 2, 3, 4].map((q) => {
+   650→                        const period = (periods ?? []).find((p) => p.quarter === q)
+   651→                        const closed = period?.status === 'CLOSED'
+   652→                        return (
+   653→                          <TableRow key={q}>
+   654→                            <TableCell className="whitespace-nowrap font-medium">
+   655→                              Quý {q}/{periodsYear}
+   656→                            </TableCell>
+   657→                            <TableCell>
+   658→                              {closed ? (
+   659→                                <Badge className="border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+   660→                                  <LockKeyhole className="h-3 w-3" />
+   661→                                  ĐÃ CHỐT
+   662→                                </Badge>
+   663→                              ) : (
+   664→                                <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+   665→                                  ĐANG MỞ
+   666→                                </Badge>
+   667→                              )}
+   668→                            </TableCell>
+   669→                            <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+   670→                              {period?.closedAt ? formatDateTime(period.closedAt) : '—'}
+   671→                            </TableCell>
+   672→                            <TableCell className="text-right">
+   673→                              {closed ? (
+   674→                                <Button
+   675→                                  variant="outline"
+   676→                                  size="sm"
+   677→                                  onClick={() => setReopenQuarter(q)}
+   678→                                  disabled={periodActionLoading}
+   679→                                >
+   680→                                  <LockOpen className="h-4 w-4" />
+   681→                                  Mở lại
+   682→                                </Button>
+   683→                              ) : (
+   684→                                <Button
+   685→                                  variant="outline"
+   686→                                  size="sm"
+   687→                                  onClick={() => setCloseQuarter(q)}
+   688→                                  disabled={periodActionLoading}
+   689→                                >
+   690→                                  <LockKeyhole className="h-4 w-4" />
+   691→                                  Chốt sổ
+   692→                                </Button>
+   693→                              )}
+   694→                            </TableCell>
+   695→                          </TableRow>
+   696→                        )
+   697→                      })}
+   698→                    </TableBody>
+   699→                  </Table>
+   700→                </div>
+   701→              )}
+   702→            </CardContent>
+   703→          </Card>
+   704→
+   705→          {/* Gemini AI — card nền tối */}
+   706→          <Card className="border-slate-800 bg-slate-900 text-slate-100 lg:col-span-2 dark:bg-slate-950">
+   707→            <CardHeader>
+   708→              <CardTitle className="flex items-center gap-2 text-base text-slate-100">
+   709→                <Gem className="h-5 w-5 text-sky-400" />
+   710→                Gemini AI
+   711→              </CardTitle>
+   712→              <CardDescription className="text-slate-400">
+   713→                API Key dùng cho &quot;Phân tích chuyên sâu AI&quot; — dự báo dòng tiền, cảnh báo tồn kho, chiến lược lợi
+   714→                nhuận. Key đã lưu không bao giờ hiển thị lại.
+   715→              </CardDescription>
+   716→            </CardHeader>
+   717→            <CardContent className="space-y-4">
+   718→              <div className="flex flex-wrap items-end gap-3">
+   719→                <div className="min-w-[240px] flex-1">
+   720→                  <Label htmlFor="gemini-key" className="text-slate-300">
+   721→                    Gemini API Key
+   722→                  </Label>
+   723→                  <div className="relative mt-1.5">
+   724→                    <KeyRound className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+   725→                    <Input
+   726→                      id="gemini-key"
+   727→                      type="password"
+   728→                      value={apiKeyInput}
+   729→                      onChange={(e) => setApiKeyInput(e.target.value)}
+   730→                      placeholder={
+   731→                        settings?.geminiConfigured ? '•••••••••••••••• (đã lưu)' : 'AIza... dán API Key vào đây'
+   732→                      }
+   733→                      className="border-slate-700 bg-slate-800 pl-8 text-slate-100 placeholder:text-slate-500"
+   734→                    />
+   735→                  </div>
+   736→                </div>
+   737→                <Button
+   738→                  onClick={() => void saveApiKey()}
+   739→                  disabled={savingKey || !apiKeyInput.trim()}
+   740→                  className="bg-white text-slate-900 hover:bg-slate-200"
+   741→                >
+   742→                  {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+   743→                  Lưu key
+   744→                </Button>
+   745→                <Button
+   746→                  variant="outline"
+   747→                  onClick={() => void testAi()}
+   748→                  disabled={testingAi}
+   749→                  className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+   750→                >
+   751→                  {testingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+   752→                  Kiểm tra AI
+   753→                </Button>
+   754→                {settings?.geminiConfigured && (
+   755→                  <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">
+   756→                    <BadgeCheck className="h-3 w-3" />
+   757→                    Đã cấu hình
+   758→                  </Badge>
+   759→                )}
+   760→              </div>
+   761→              <p className="text-xs text-slate-500">
+   762→                Kiểm tra AI sẽ chạy phân tích nhanh cho kỳ hiện tại Q{CURRENT_QUARTER}/{CURRENT_YEAR} và hiển thị đoạn
+   763→                xem trước 200 ký tự của dự báo dòng tiền.
+   764→              </p>
+   765→            </CardContent>
+   766→          </Card>
+   767→
+   768→          {/* Giá trị mặc định */}
+   769→          <Card className="border-border/70 shadow-sm">
+   770→            <CardHeader>
+   771→              <CardTitle className="flex items-center gap-2 text-base">
+   772→                <Percent className="h-5 w-5 text-sky-500" />
+   773→                Giá trị mặc định
+   774→              </CardTitle>
+   775→              <CardDescription>Áp dụng cho hóa đơn mới tạo ở module Nhập hàng / Xuất hàng</CardDescription>
+   776→            </CardHeader>
+   777→            <CardContent>
+   778→              {loading ? (
+   779→                <div className="h-9 w-48 animate-pulse rounded-md bg-muted" />
+   780→              ) : (
+   781→                <div className="flex items-center gap-3">
+   782→                  <Select value={vatDefault} onValueChange={(value) => void changeVatDefault(value)}>
+   783→                    <SelectTrigger className="w-40">
+   784→                      <SelectValue />
+   785→                    </SelectTrigger>
+   786→                    <SelectContent>
+   787→                      {VAT_RATES.map((rate) => (
+   788→                        <SelectItem key={rate} value={String(rate)}>
+   789→                          VAT {rate}%
+   790→                        </SelectItem>
+   791→                      ))}
+   792→                    </SelectContent>
+   793→                  </Select>
+   794→                  {savingVat && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+   795→                  <p className="text-xs text-muted-foreground">Thuế suất VAT điền sẵn khi tạo hóa đơn</p>
+   796→                </div>
+   797→              )}
+   798→            </CardContent>
+   799→          </Card>
+   800→
+   801→          {/* Về hệ thống */}
+   802→          <Card className="border-border/70 shadow-sm">
+   803→            <CardHeader>
+   804→              <CardTitle className="flex items-center gap-2 text-base">
+   805→                <Info className="h-5 w-5 text-violet-500" />
+   806→                Về hệ thống
+   807→              </CardTitle>
+   808→              <CardDescription>Hệ thống Quản trị Hạch toán Nội bộ & Quản lý Hóa đơn AI</CardDescription>
+   809→            </CardHeader>
+   810→            <CardContent className="space-y-3 text-sm">
+   811→              <div className="flex items-start gap-3">
+   812→                <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+   813→                <p>
+   814→                  <span className="font-medium">OmniSales + Invoice Pro</span> — CMS bán hàng đa kênh tích hợp hạch toán
+   815→                  nội bộ, quản lý hóa đơn mua/bán và định mức BOM trong một ứng dụng duy nhất.
+   816→                </p>
+   817→              </div>
+   818→              <div className="flex items-start gap-3">
+   819→                <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+   820→                <p>
+   821→                  <span className="font-medium">Offline-first</span> — dữ liệu mặt hàng & khách hàng lưu tại máy, hoạt
+   822→                  động cả khi mất mạng và đồng bộ khi có kết nối.
+   823→                </p>
+   824→              </div>
+   825→              <div className="flex items-start gap-3">
+   826→                <Database className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+   827→                <p>
+   828→                  <span className="font-medium">Sổ Data</span> — mọi thao tác (đơn hàng, kho, hóa đơn, chốt sổ, cấu
+   829→                  hình...) đều ghi nhật ký bất biến phục vụ truy vết và đối soát.
+   830→                </p>
+   831→              </div>
+   832→              <div className="flex items-start gap-3">
+   833→                <BookOpenCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+   834→                <p>
+   835→                  <span className="font-medium">Chốt sổ theo quý</span> — khóa dữ liệu kế toán từng kỳ, bảo đảm số liệu
+   836→                  báo cáo không bị thay đổi sau khi phát hành.
+   837→                </p>
+   838→              </div>
+   839→            </CardContent>
+   840→          </Card>
+   841→        </div>
+   842→      )}
+   843→
+   844→      {/* Confirm chốt sổ */}
+   845→      <ConfirmDialog
+   846→        open={closeQuarter !== null}
+   847→        onOpenChange={(open) => !open && setCloseQuarter(null)}
+   848→        title={`Chốt sổ Quý ${closeQuarter ?? ''}/${periodsYear}?`}
+   849→        description={`Sau khi chốt, mọi hóa đơn & biến động kho trong quý ${closeQuarter ?? ''}/${periodsYear} sẽ bị khóa, không thể thêm/sửa/hủy. Cần mở lại sổ nếu muốn thay đổi.`}
+   850→        confirmText="Chốt sổ"
+   851→        destructive
+   852→        loading={periodActionLoading}
+   853→        onConfirm={() => closeQuarter !== null && void handlePeriodAction('CLOSE', closeQuarter)}
+   854→      />
+   855→
+   856→      {/* Confirm mở lại sổ */}
+   857→      <ConfirmDialog
+   858→        open={reopenQuarter !== null}
+   859→        onOpenChange={(open) => !open && setReopenQuarter(null)}
+   860→        title={`Mở lại sổ Quý ${reopenQuarter ?? ''}/${periodsYear}?`}
+   861→        description="Kỳ sẽ mở lại hoàn toàn — có thể thêm/sửa/hủy hóa đơn và biến động kho trong kỳ này."
+   862→        confirmText="Mở lại sổ"
+   863→        loading={periodActionLoading}
+   864→        onConfirm={() => reopenQuarter !== null && void handlePeriodAction('REOPEN', reopenQuarter)}
+   865→      />
+   866→    </div>
+   867→  )
+   868→}
+   869→

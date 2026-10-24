@@ -379,3 +379,103 @@ Stage Summary:
 - HOÀN THÀNH "mã vạch": sinh CODE128 SVG server-side (không lib ngoài), field barcode trên Product (unique), tra cứu ?barcode=, BarcodeScanner (USB+wedge+camera BarcodeDetector), in nhãn 3 khổ giấy cấu hình số lượng/tên/giá, quét nhanh ở Tồn kho (mở phiếu kho), Nhập hàng & Xuất hàng (thêm/tăng dòng tự điền giá)
 - HOÀN THÀNH "thiết lập hóa đơn": card cấu hình (tiêu đề/mẫu số/ký hiệu/3 trường ngân hàng/ghi chú cuối/ghi chú mặc định/logo ≤400KB) + bản in hóa đơn bán GTGT khổ A4 chuẩn Việt Nam (viền bảng đen, số tiền bằng chữ, chữ ký, watermark hủy) + nút In ở chi tiết HĐ bán
 - Toàn bộ thao tác ghi Sổ Data; không đụng Agent Autopilot/webhook/chốt sổ/offline-first; 0 lỗi lint/tsc/runtime
+
+---
+Task ID: 20-a
+Agent: main (Z.ai Code)
+Task: AUDIT trường thông tin thiếu + backend "SỐ HÓA ĐƠN, SĐT đơn vị, hình thức thanh toán, barcode đóng gói"
+
+Work Log:
+- Audit 5 gap so với yêu cầu mã vạch + thiết lập hóa đơn: (1) thiếu Số bắt đầu hóa đơn + ghi số tăng dần (bản in đang hiện mã nội bộ PXK... làm Số); (2) thiếu company_phone trên header hóa đơn; (3) Hình thức thanh toán hardcode "Tiền mặt / Chuyển khoản"; (4) thiếu quét mã vạch Đóng Gói/Kiểm đếm ở đơn hàng; (5) thiếu In hóa đơn mua (chỉ Xuất hàng có In)
+- prisma/schema.prisma: SalesInvoice thêm invoiceNo Int? @index + series String? + templateCode String? + paymentMethod String? (snapshot mẫu in lúc tạo, hóa đơn cũ không đổi) → db:push OK, restart dev (kill next-server + rm -rf .next)
+- invoice-service.ts: nextInvoiceNumber() = max(max invoiceNo, start-1)+1 với start = setting invoice_number_start (mặc định 1) — số KHÔNG dùng lại kể cả khi hủy; readInvoiceSeriesSettings() đọc invoice_series/invoice_template_code (fallback AA/26E, 01GTKT0/001); createSalesInvoice chụp invoiceNo + series + templateCode + paymentMethod (từ order.paymentMethod khi lập từ đơn) + ghi đủ vào ledger detail; fix thiếu import getSetting
+- /api/settings: PUBLIC_KEYS + DEFAULTS + MAX_LENGTHS + PATCH thêm company_phone (≤40), invoice_payment_method (≤120, default "Tiền mặt / Chuyển khoản"), invoice_number_start (số nguyên ≥1, default 1)
+- /api/orders/[id] GET: include product thêm barcode (chuẩn bị cho quét kiểm đếm đóng gói)
+- Smoke test curl: settings 17 keys trả đủ; PATCH 3 key mới OK; tạo 2 HĐ test → invoiceNo 5→6 (đúng setting start=5 lúc test); hủy HĐ → số không dùng lại; HĐ cũ invoiceNo=null (print fallback mã nội bộ); đã hủy 2 HĐ test + reset settings (start=1, payment mặc định), giữ company_phone demo; lint backend exit 0
+
+Stage Summary:
+- Backend ghi số hóa đơn hoàn chỉnh: invoiceNo tăng dần toàn cục không dùng lại + snapshot mẫu số/ký hiệu/phương thức thanh toán vào từng hóa đơn
+- Contract cho frontend: SalesInvoice mới có {invoiceNo: number|null, series, templateCode, paymentMethod: 'COD'|'BANKING'|'MOMO'|'CARD'|null}; settings GET trả thêm company_phone, invoice_number_start (string), invoice_payment_method; /api/orders/[id] items.product có barcode
+- Còn lại cho 20-b (in hóa đơn mua + số HĐ + SĐT + hình thức TT + Thiết lập 3 trường mới) và 20-c (quét kiểm đếm PACKING)
+
+---
+Task ID: 20-b
+Agent: invoice-frontend
+Task: Frontend HÓA ĐƠN — số hóa đơn + SĐT đơn vị + hình thức thanh toán trên bản in, In hóa đơn MUA, 3 trường mới ở Thiết lập
+
+Work Log:
+- Đọc worklog 20-a/19-final, curl verify contract đang chạy: GET /api/settings trả đủ 17 keys (thêm company_phone, invoice_number_start, invoice_payment_method); GET /api/purchase-invoices/{id} trả partner FULL (address/phone/email) + items.product{sku,name,unit}; GET /api/sales-invoices/{id} có 4 trường mới (hóa đơn cũ → null hết, dùng fallback)
+- (A) invoice-print.tsx — nâng cấp InvoicePrintDialog hỗ trợ 2 loại bản in:
+  • Export type InvoicePrintKind = 'sales' | 'purchase'; prop kind? mặc định 'sales'
+  • InvoicePrintData thêm optional: invoiceNo?: number|null, series?, templateCode?, paymentMethod? (snapshot Task 20-a; hóa đơn cũ null hết → optional nên sales-view cũ không vỡ type)
+  • InvoiceSettings + SETTINGS_FALLBACK + normalizeSettings thêm: companyPhone (company_phone), paymentMethod (invoice_payment_method, fallback 'Tiền mặt / Chuyển khoản'), numberStart (invoice_number_start, fallback '1' — chỉ hint, không render trên hóa đơn)
+  • Header trái: thêm dòng "Điện thoại: {companyPhone}" khi khác rỗng
+  • Header phải kind='sales': "Mẫu số: {invoice.templateCode ?? settings.templateCode}", "Ký hiệu: {invoice.series ?? settings.series}", "Số: {invoice.invoiceNo != null ? invoice.invoiceNo : invoice.code}" (hóa đơn mới hiện số trần tăng dần, hóa đơn cũ fallback mã PXK...); kind='purchase': tiêu đề cố định "HÓA ĐƠN MUA HÀNG", KHÔNG in Mẫu số/Ký hiệu, "Số: {invoice.code}" (mã PMM...)
+  • Khối bên bán/mua kind='sales' giữ cấu trúc, dòng "Hình thức thanh toán" thay hardcode: invoice.paymentMethod ? (PAYMENT_METHOD_LABELS[paymentMethod] ?? raw) : settings.paymentMethod (import PAYMENT_METHOD_LABELS từ '@/lib/types'); kind='purchase' đảo vai trò: cột trái NGƯỜI BÁN = NCC (Đơn cung cấp + MST + Địa chỉ + Điện thoại), cột phải NGƯỜI MUA = đơn vị mình (Đơn mua + MST + Địa chỉ + Điện thoại khi có + Hình thức thanh toán từ settings), KHÔNG hiện "Theo đơn hàng"
+  • Watermark HỦY, PRINT_CSS, cơ chế fetch settings + DialogFooter giữ nguyên; DialogTitle/Description đổi theo kind ('In hóa đơn mua'/'In hóa đơn bán')
+- (B) purchase-view.tsx — In hóa đơn mua trong dialog chi tiết:
+  • Thêm interface PurchaseInvoiceDetail (partner FULL address/phone optional), state printOpen/printInvoice/printLoading theo đúng pattern sales-view (chỉ tham khảo, không sửa sales-view)
+  • openPrint(): fetch FRESH GET /api/purchase-invoices/{id} → map thủ công sang InvoicePrintData (partner normalize address/phone ?? null) → mở InvoicePrintDialog kind="purchase"; lỗi qua toast destructive hiện có; nút disabled + Loader2 khi đang fetch
+  • Nút outline "In hóa đơn" (icon Printer) trong DialogFooter chi tiết, CHỈ khi detail.status === 'POSTED' — không thêm nút ở dòng bảng; <InvoicePrintDialog ... kind="purchase" /> render cạnh ConfirmDialog
+- (C) system-view.tsx — bổ sung 3 trường cấu hình:
+  • SettingsData thêm optional company_phone/invoice_number_start/invoice_payment_method; state companyPhone + invoiceNumberStart ('1') + invoicePaymentMethod ('Tiền mặt / Chuyển khoản'); load() map với ?? fallback
+  • Card "Thông tin đơn vị": input "Điện thoại" (id company-phone, placeholder 0901234567, maxLength 40) dưới Địa chỉ; saveCompany() gửi thêm company_phone: companyPhone.trim()
+  • Card "Thiết lập hóa đơn" grid 2 cột: "Số bắt đầu hóa đơn" (id invoice-number-start, type number min 1 step 1) cạnh Ký hiệu + hint text-xs "Số hóa đơn bán tiếp theo — tăng dần, không dùng lại (áp dụng từ hóa đơn mới)"; "Hình thức thanh toán mặc định" (id invoice-payment-method, maxLength 120, placeholder "Tiền mặt / Chuyển khoản") cạnh đó; saveInvoiceSettings() body đổi Record<string, string|number> gửi invoice_number_start: Math.floor(Number(...)) || 1 (server 400 khi <1 → toast lỗi hiện có xử lý) + invoice_payment_method: trim(); sau PATCH sync lại 2 state từ response
+  • CardDescription + hint cuối card cập nhật: "Áp dụng cho bản in hóa đơn bán ở module Xuất hàng và hóa đơn mua ở module Nhập hàng."
+- Verify: bunx eslint 3 file --max-warnings 0 → exit 0; bunx tsc --noEmit → 0 lỗi ở src/ (chỉ còn lỗi có sẵn examples/, skills/); curl PATCH 3 key mới OK + PATCH invoice_number_start=0 → HTTP 400 với message tiếng Việt (frontend toast hiện đúng); GET / → 200; bundle client phục vụ chứa "HÓA ĐƠN MUA HÀNG", "Số bắt đầu hóa đơn", "Đơn cung cấp:"; dev.log: panic Turbopack tạm thời do cache nội bộ (missing sst file) ngay lúc hot-reload purchase-view nhưng server tự phục hồi "✓ Compiled in 697ms" — KHÔNG phải lỗi code, không cần restart
+
+Stage Summary:
+- HOÀN THÀNH 3 gap frontend hóa đơn: (A) bản in hóa đơn bán có Số hóa đơn tăng dần (invoiceNo snapshot, fallback mã nội bộ cho HĐ cũ), SĐT đơn vị trên header, Hình thức thanh toán động (snapshot đơn hàng COD/BANKING/MOMO/CARD qua PAYMENT_METHOD_LABELS, fallback settings); (B) In hóa đơn MUA khổ A4 từ dialog chi tiết Nhập hàng (chỉ HĐ POSTED, fetch fresh partner FULL, bên bán=NCC / bên mua=đơn vị, tiêu đề HÓA ĐƠN MUA HÀNG, số = mã PMM...); (C) Hệ thống có Điện thoại đơn vị + Số bắt đầu hóa đơn + Hình thức thanh toán mặc định, tất cả persist qua PATCH /api/settings
+- Contract cho task sau: InvoicePrintDialog {open, onOpenChange, invoice, kind?: InvoicePrintKind ('sales' mặc định)}; InvoicePrintData có thêm invoiceNo/series/templateCode/paymentMethod optional; khi 20-c làm quét kiểm đếm PACKING không cần đụng 3 file này
+- Rủi ro còn lại: (1) Turbopack panic cache 1 lần trong dev.log (đã tự phục hồi, HTTP 200, bundle đúng — nếu gặp lại chỉ cần reload, KHÔNG restart); (2) HĐ bán tạo TRƯỚC Task 20-a in "Số: PXK..." (mã nội bộ) là hành vi chấp nhận được theo thiết kế fallback; (3) pattern visibility khi in giới hạn 1 trang A4/hoá đơn (giới hạn cố hữu từ 19-final)
+
+---
+Task ID: 20-c
+Agent: orders-packing-scan
+Task: Frontend ĐƠN HÀNG — Card "Kiểm đếm đóng gói bằng mã vạch" trong dialog chi tiết đơn (PACKING/CONFIRMED)
+
+Work Log:
+- Đọc worklog 19-a/19-b/19-final/20-a/20-b + đối chiếu contract: BarcodeScanner props {onScan, placeholder, className, autoFocus, hint}, GET /api/orders/[id] items[].product đã có barcode (20-a), STATUS_FLOW PENDING→CONFIRMED→PACKING→SHIPPING→COMPLETED
+- curl xác thực contract: GET /api/orders/{id} trả items[].product.barcode (GY-NAM-002 = "GY-NAM-002", AO-NU-001 = 8935201001234 qua GET /api/products?barcode=); GET /api/orders (list) không cần barcode — chỉ detail dùng
+- Chỉ sửa src/components/cms/views/orders-view.tsx (additive, không đụng invoice-print/system-view/purchase-view của 20-b, không sửa lib/types):
+  • Type cục bộ: DetailOrderItem = OrderItem & {product?: Pick<Product,'id'|'sku'|'name'|'barcode'>|null}, DetailOrder = Omit<Order,'items'> & {items} — detail state + apiGet detail đổi sang DetailOrder (list Order giữ nguyên)
+  • State `scannedCounts: Record<string, number>` (key = productId) đặt cạnh state detail; reset {} trong openDetail (mỗi lần mở dialog chi tiết); KHÔNG lưu server — state phiên
+  • handleUpdateStatus đổi thành return Promise<boolean> (return true/false) — các caller cũ không đổi (void handleUpdateStatus), tái sử dụng nguyên logic PATCH + toast + detailReload + refreshKey (timeline/Sổ Data/webhook như bấm tay)
+  • handlePackingScan: trim mã → khớp product.barcode === code (chính xác) trước, fallback product.sku.toLowerCase() === code.toLowerCase(); không khớp dòng nào → toast destructive "Không thuộc đơn hàng {code}: mã quét..."; còn thiếu → +1 + toast success "{sku}: {đã quét}/{cần}"; đã đủ mà quét nữa → toast cảnh báo "«{sku}» đã đủ {SL} — quét thừa" (vẫn setScannedCounts +1 để dòng hiện badge "Thừa X", KHÔNG tính vào tổng đủ)
+  • handlePackingConfirm: tính tổng món trước, await handleUpdateStatus('SHIPPING'), nếu ok → setScannedCounts({}) + toast "Đã kiểm đếm đủ {tổng món} món — đơn {code} chuyển Đang giao"
+  • Render trong dialog chi tiết (đặt NGAY TRÊN khối "Cập nhật trạng thái"): Card viền emerald chỉ hiện khi status CONFIRMED hoặc PACKING. CONFIRMED → rút gọn (title ScanLine emerald + hint "Chuyển đơn sang «Đang đóng gói» để bắt đầu kiểm đếm", không scanner). PACKING → đầy đủ: BarcodeScanner (autoFocus, hint "quét 1 lần = 1 món đã bỏ vào thùng") + bảng 3 cột (Sản phẩm: tên+SKU+barcode mono / note nghiêng "chưa có mã vạch — chọn thủ công"; Tiến độ: "{scanned}/{needed}" + Progress bar h-1.5 amber→emerald; Trạng thái: badge Đủ emerald / Còn X amber / Thừa X rose) + overview badge lớn ("Đã đủ X/Y dòng" emerald khi hết / "Còn thiếu X/Y dòng" amber) + nút emerald "Xác nhận đủ — Chuyển Đang giao" (disabled khi chưa đủ hoặc updatingStatus, Loader2 khi đang gọi) + ghi chú "Việc quét chỉ là kiểm đếm phiên làm việc — dữ liệu chính thức ghi Sổ Data khi chuyển trạng thái."; bảng bọc overflow-x-auto min-w-[440px] cho mobile 390px
+  • Import thêm: BarcodeScanner, Card/CardContent/CardDescription/CardHeader/CardTitle, Progress, icons PackageCheck + ScanLine, type OrderItem — không đổi import có sẵn
+- Kiểm thử E2E browser thật (agent-browser 390x844, tạo đơn test DH261024-2516 3 dòng: AO-NU-001 ×2, GY-NAM-002 ×1, PK-DAY-001 ×1 → PATCH CONFIRMED → PACKING, tắt Agent Autopilot tạm thời để agent không tự nhảy trạng thái):
+  • PACKING: card hiện đủ scanner + 3 dòng (dòng PK-DAY-001 có note "chưa có mã vạch — chọn thủ công"), nút confirm disabled
+  • Quét 8935201001234 lần 1 → 1/2 "Còn 1"; lần 2 → "Đủ"; lần 3 → "Thừa 1" (không tính tổng đủ); quét "gy-nam-002" (thường) → khớp SKU → "Đủ"; quét "NOPE-999" → toast destructive đúng; quét "PK-DAY-001" (SP không barcode) → khớp SKU fallback → "Đủ"
+  • Đủ 3/3 dòng → badge "Đã đủ" + nút bật → bấm confirm → PATCH SHIPPING thành công, timeline hiện "Người vận hành chuyển trạng thái: Đang đóng gói → Đang giao" (Sổ Data/webhook đi theo PATCH có sẵn), card tự ẩn khi đã qua PACKING
+  • CONFIRMED (đơn test 2): card rút gọn hiện đúng hint, KHÔNG có ô quét (eval kiểm tra input[aria-label="Mã vạch"] = false)
+  • Dọn dẹp: HỦY (CANCELLED) 2 đơn test → kho hoàn lại đúng (AO-NU-001 stock 123 như cũ); BẬT LẠI Agent Autopilot (checked=true); không xóa/đổi barcode SP nào
+- bunx eslint orders-view.tsx --max-warnings 0 → exit 0; bunx tsc --noEmit → 0 lỗi vùng src; dev.log: GET / 200, GET /api/orders 200, KHÔNG có lỗi runtime ở orders-view (panic Turbopack duy nhất là purchase-view.tsx của 20-b do HMR song song — đã tự phục hồi "✓ Compiled", không phải file của 20-c)
+
+Stage Summary:
+- HOÀN THÀNH gap cuối của chuỗi mã vạch: Đóng Gói/Kiểm đếm — đơn đa kênh ở trạng thái Đang đóng gói giờ có card quét mã vạch kiểm đếm từng món bỏ vào thùng (bút USB/camera/nhập tay), tiến độ theo dòng (Đủ/Còn X/Thừa X), chặn chuyển giao khi thiếu, cảnh báo quét thừa, và xác nhận đủ → PACKING→SHIPPING tái sử dụng đúng pipeline PATCH (timeline + Sổ Data STATUS_CHANGED + webhook như thao tác tay)
+- Contract: state kiểm đếm thuần phiên (scannedCounts, reset khi mở dialog); khớp mã barcode chính xác trước rồi SKU (case-insensitive); SP không barcode vẫn kiểm đếm được bằng cách quét/nhập SKU hoặc chọn thủ công
+- Lưu ý cho task sau: nếu muốn giữ tiến độ quét khi reload/dialog reopen thì cần lưu server (hiện theo spec là state phiên); lib/types OrderItem.product là Pick không có barcode — orders-view dùng type cục bộ DetailOrderItem/DetailOrder, khi lib thêm barcode vào Pick có thể bỏ 2 type này
+
+---
+Task ID: 20-final
+Agent: main (Z.ai Code)
+Task: Tổng hợp & kiểm thử E2E "bổ sung trường thông tin còn thiếu" (số hóa đơn, SĐT đơn vị, hình thức thanh toán, in hóa đơn mua, quét kiểm đếm đóng gói)
+
+Work Log:
+- Restart dev server sạch (kill next-server + rm -rf .next) sau khi 2 agent sửa xong → GET / 200, settings 17 keys đủ (company_phone, invoice_number_start, invoice_payment_method)
+- Turbopack panic (purchase-view hot-reload do 2 agent sửa song song) đã tự phục hồi; restart sạch loại bỏ hẳn cache
+- E2E browser (agent-browser):
+  • Xuất hàng → PXK261024-0003 (HĐ mới) → In hóa đơn: header có "Điện thoại: 0903123456", "Mẫu số: 01GTKT0/001", "Ký hiệu: AA/26E", "Số: 7" (invoiceNo), "Hình thức thanh toán: Tiền mặt / Chuyển khoản" (động theo settings, invoice tự tạo paymentMethod=null); số tiền bằng chữ OK
+  • Nhập hàng → chi tiết PMM → nút "In hóa đơn" (chỉ POSTED) → dialog "In hóa đơn mua": tiêu đề HÓA ĐƠN MUA HÀNG, KHÔNG có Mẫu số/Ký hiệu, "Số: PMM261023-0003", cột trái "Đơn cung cấp: Công ty TNHH Vật tư Minh Phát" + MST + ĐT, cột phải "Đơn mua: Công ty TNHH OmniSales" + MST + SĐT + hình thức thanh toán
+  • Hệ thống: card Thông tin đơn vị có "Điện thoại"; card Thiết lập hóa đơn có "Số bắt đầu hóa đơn" (spinbutton) + "Hình thức thanh toán mặc định"; sửa start=1→100 → Lưu → server nhận 100; tạo HĐ mới → invoiceNo=100 (đúng start); hủy → số không dùng lại; reset start=1 → HĐ tiếp theo sẽ là 101 (max-based, đúng semantics)
+  • Đơn hàng: mô phỏng đơn Zalo DH261024-3787 → PACKING → chi tiết hiện card "Kiểm đếm đóng gói bằng mã vạch" (BarcodeScanner + bảng tiến độ + note "chưa có mã vạch — chọn thủ công"); quét SKU AO-NU-003 ×2 → 2/2 badge Đủ; AO-NAM-003 ×2 → nút "Xác nhận đủ — Chuyển Đang giao" mở khóa; bấm → đơn sang SHIPPING; Sổ Data ghi STATUS_CHANGED; SP thiếu barcode vẫn quét theo SKU; quét mã lạ → toast destructive; bật lại Autopilot (đã tắt tạm khi test)
+  • Mobile 390px: off-canvas sidebar, card Cấu hình đủ 3 trường mới, không vỡ layout, 0 page error
+- Realtime: xác nhận qua Caddy gateway :81 badge "Realtime" xanh (Mất kết nối chỉ xuất hiện khi truy cập trực tiếp :3000 bỏ qua gateway — không phải bug, người dùng luôn vào qua gateway)
+- Dọn dẹp test: hủy 2 HĐ test (PXK261024-0001/0002 — số 5,6 không dùng lại), giữ PXK261024-0003 (Số 7) làm demo, giữ đơn 3787 SHIPPING; autopilot master ON
+- lint toàn src exit 0; tsc vùng src sạch; dev.log không có runtime error
+
+Stage Summary:
+- ĐÓNG XONG 5 GAP "trường thông tin còn thiếu": (1) Số hóa đơn tăng dần + số bắt đầu cấu hình được (không dùng lại khi hủy, snapshot mẫu số/ký hiệu/phương thức TT vào từng hóa đơn — hóa đơn cũ in fallback mã nội bộ); (2) company_phone in header hóa đơn; (3) Hình thức thanh toán động (snapshot từ đơn hàng COD/BANKING/MOMO/CARD → nhãn VN, fallback setting); (4) In hóa đơn mua ở Nhập hàng (đảo bên cung cấp/mua); (5) Quét kiểm đếm Đóng Gói ở chi tiết đơn (USB wedge + camera, theo SKU khi thiếu mã vạch, khóa nút giao hàng đến khi đủ, Sổ Data qua PATCH có sẵn)
+- Toàn bộ gap thuộc 2 tính năng "mã vạch + thiết lập hóa đơn" đã khép kín vòng đời; Agent Autopilot/webhook/chốt sổ/offline-first không bị ảnh hưởng

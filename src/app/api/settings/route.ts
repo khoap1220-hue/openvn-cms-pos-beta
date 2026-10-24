@@ -9,11 +9,14 @@ const PUBLIC_KEYS = [
   'company_name',
   'company_tax',
   'company_address',
+  'company_phone', // SĐT đơn vị — in trên header hóa đơn
   'vat_default',
   // THIẾT LẬP HÓA ĐƠN — mẫu in hóa đơn bán GTGT
   'invoice_title', // tiêu đề HÓA ĐƠN BÁN HÀNG
   'invoice_template_code', // Mẫu số (vd 01GTKT0/001)
   'invoice_series', // Ký hiệu (vd AA/26E)
+  'invoice_number_start', // Số bắt đầu ghi số hóa đơn bán (tăng dần, không dùng lại)
+  'invoice_payment_method', // hình thức thanh toán mặc định in trên hóa đơn
   'invoice_bank_name', // tên ngân hàng
   'invoice_bank_account', // số tài khoản
   'invoice_bank_holder', // chủ tài khoản
@@ -25,15 +28,19 @@ const DEFAULTS: Record<string, string> = {
   invoice_title: 'HÓA ĐƠN BÁN HÀNG',
   invoice_template_code: '01GTKT0/001',
   invoice_series: 'AA/26E',
+  invoice_number_start: '1',
+  invoice_payment_method: 'Tiền mặt / Chuyển khoản',
   invoice_footer_note: 'Cảm ơn Quý khách đã mua hàng!',
   invoice_default_note: '',
 }
 
 /** giới hạn độ dài từng trường để chống nhồi dữ liệu */
 const MAX_LENGTHS: Record<string, number> = {
+  company_phone: 40,
   invoice_title: 120,
   invoice_template_code: 60,
   invoice_series: 40,
+  invoice_payment_method: 120,
   invoice_bank_name: 120,
   invoice_bank_account: 60,
   invoice_bank_holder: 120,
@@ -49,6 +56,7 @@ async function buildPublicSettings(): Promise<Record<string, string | boolean>> 
     company_name: values.company_name ?? '',
     company_tax: values.company_tax ?? '',
     company_address: values.company_address ?? '',
+    company_phone: values.company_phone ?? '',
     vat_default: values.vat_default ?? '8',
     invoice_logo: values.invoice_logo ?? '',
     geminiConfigured: Boolean(geminiKey && geminiKey.trim().length > 0),
@@ -80,6 +88,13 @@ export async function PATCH(req: NextRequest) {
     if (body.company_name !== undefined) updates.push({ key: 'company_name', value: String(body.company_name).trim() })
     if (body.company_tax !== undefined) updates.push({ key: 'company_tax', value: String(body.company_tax).trim() })
     if (body.company_address !== undefined) updates.push({ key: 'company_address', value: String(body.company_address).trim() })
+    if (body.company_phone !== undefined) {
+      const value = String(body.company_phone).trim()
+      if (value.length > (MAX_LENGTHS.company_phone ?? 40)) {
+        return NextResponse.json({ error: 'Điện thoại đơn vị tối đa 40 ký tự' }, { status: 400 })
+      }
+      updates.push({ key: 'company_phone', value })
+    }
     if (body.vat_default !== undefined) {
       const vat = Number(body.vat_default)
       if (!Number.isFinite(vat) || vat < 0 || vat > 100) {
@@ -93,7 +108,14 @@ export async function PATCH(req: NextRequest) {
     }
 
     // THIẾT LẬP HÓA ĐƠN
-    for (const key of ['invoice_title', 'invoice_template_code', 'invoice_series', 'invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder', 'invoice_footer_note', 'invoice_default_note']) {
+    if (body.invoice_number_start !== undefined) {
+      const start = Math.floor(Number(body.invoice_number_start))
+      if (!Number.isFinite(start) || start < 1) {
+        return NextResponse.json({ error: 'Số bắt đầu hóa đơn phải là số nguyên từ 1 trở lên' }, { status: 400 })
+      }
+      updates.push({ key: 'invoice_number_start', value: String(start) })
+    }
+    for (const key of ['invoice_title', 'invoice_template_code', 'invoice_series', 'invoice_payment_method', 'invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder', 'invoice_footer_note', 'invoice_default_note']) {
       if (body[key] === undefined) continue
       const value = String(body[key]).trim()
       const max = MAX_LENGTHS[key] ?? 200

@@ -38,12 +38,15 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import { BarcodeScanner } from '@/components/cms/barcode-scanner'
+import { InvoicePrintDialog } from '@/components/cms/invoice-print'
+import type { InvoicePrintData } from '@/components/cms/invoice-print'
 import {
   Eye,
   FileSpreadsheet,
   Loader2,
   PackagePlus,
   Plus,
+  Printer,
   Receipt,
   Search,
   Trash2,
@@ -91,6 +94,21 @@ interface PurchaseInvoice {
   items: InvoiceItemRow[]
 }
 
+/** Chi tiết hóa đơn mua từ GET /api/purchase-invoices/{id} — partner FULL (đủ địa chỉ/điện thoại để in) */
+interface PurchaseInvoiceDetail {
+  id: string
+  code: string
+  invoiceDate: string
+  subtotal: number
+  vatRate: number
+  vatAmount: number
+  total: number
+  status: 'POSTED' | 'CANCELLED'
+  note: string | null
+  partner: { name: string; taxCode: string | null; address?: string | null; phone?: string | null } | null
+  items: InvoiceItemRow[]
+}
+
 interface DraftRow {
   productId: string
   quantity: string
@@ -132,6 +150,11 @@ export function PurchaseView() {
   const [detail, setDetail] = useState<PurchaseInvoice | null>(null)
   const [cancelTarget, setCancelTarget] = useState<PurchaseInvoice | null>(null)
   const [cancelling, setCancelling] = useState(false)
+
+  // In hóa đơn mua — dữ liệu mới nhất từ API chi tiết (partner FULL) + dialog xem trước bản in
+  const [printOpen, setPrintOpen] = useState(false)
+  const [printInvoice, setPrintInvoice] = useState<InvoicePrintData | null>(null)
+  const [printLoading, setPrintLoading] = useState(false)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<{
@@ -289,6 +312,45 @@ export function PurchaseView() {
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  /** Mở dialog in hóa đơn mua — luôn lấy dữ liệu FRESH từ API chi tiết để có đầy đủ địa chỉ/điện thoại NCC */
+  const openPrint = async () => {
+    if (!detail) return
+    setPrintLoading(true)
+    try {
+      const fresh = await apiGet<{ invoice: PurchaseInvoiceDetail }>(`/api/purchase-invoices/${detail.id}`)
+      const inv = fresh.invoice
+      setPrintInvoice({
+        id: inv.id,
+        code: inv.code,
+        invoiceDate: inv.invoiceDate,
+        subtotal: inv.subtotal,
+        vatRate: inv.vatRate,
+        vatAmount: inv.vatAmount,
+        total: inv.total,
+        status: inv.status,
+        note: inv.note,
+        partner: inv.partner
+          ? {
+              name: inv.partner.name,
+              taxCode: inv.partner.taxCode,
+              address: inv.partner.address ?? null,
+              phone: inv.partner.phone ?? null,
+            }
+          : null,
+        items: inv.items,
+      })
+      setPrintOpen(true)
+    } catch (e) {
+      toast({
+        title: 'Không thể tải dữ liệu in hóa đơn',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setPrintLoading(false)
     }
   }
 
@@ -562,6 +624,10 @@ export function PurchaseView() {
               </div>
               {detail.status === 'POSTED' && (
                 <DialogFooter>
+                  <Button variant="outline" onClick={() => void openPrint()} disabled={printLoading}>
+                    {printLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                    In hóa đơn
+                  </Button>
                   <Button variant="destructive" onClick={() => setCancelTarget(detail)}>
                     <Trash2 className="h-4 w-4" />
                     Hủy hóa đơn
@@ -735,6 +801,9 @@ export function PurchaseView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog in hóa đơn mua — dữ liệu chi tiết fresh + settings tải khi mở */}
+      <InvoicePrintDialog open={printOpen} onOpenChange={setPrintOpen} invoice={printInvoice} kind="purchase" />
 
       {/* Confirm hủy hóa đơn */}
       <ConfirmDialog

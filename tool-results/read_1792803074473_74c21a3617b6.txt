@@ -1,0 +1,753 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useMemo, useState } from 'react'
+     4→import { apiGet, apiPost } from '@/lib/api'
+     5→import { formatCompactVND, formatDate, formatNumber, formatVND } from '@/lib/format'
+     6→import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/cms/page-header'
+     7→import { StatCard } from '@/components/cms/stat-card'
+     8→import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+     9→import { Badge } from '@/components/ui/badge'
+    10→import { Button } from '@/components/ui/button'
+    11→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    12→import { Input } from '@/components/ui/input'
+    13→import { Label } from '@/components/ui/label'
+    14→import { Textarea } from '@/components/ui/textarea'
+    15→import {
+    16→  Dialog,
+    17→  DialogContent,
+    18→  DialogDescription,
+    19→  DialogFooter,
+    20→  DialogHeader,
+    21→  DialogTitle,
+    22→} from '@/components/ui/dialog'
+    23→import {
+    24→  Select,
+    25→  SelectContent,
+    26→  SelectItem,
+    27→  SelectTrigger,
+    28→  SelectValue,
+    29→} from '@/components/ui/select'
+    30→import {
+    31→  Table,
+    32→  TableBody,
+    33→  TableCell,
+    34→  TableHead,
+    35→  TableHeader,
+    36→  TableRow,
+    37→} from '@/components/ui/table'
+    38→import { Separator } from '@/components/ui/separator'
+    39→import { useToast } from '@/hooks/use-toast'
+    40→import { BarcodeScanner } from '@/components/cms/barcode-scanner'
+    41→import {
+    42→  Eye,
+    43→  FileSpreadsheet,
+    44→  Loader2,
+    45→  PackagePlus,
+    46→  Plus,
+    47→  Receipt,
+    48→  Search,
+    49→  Trash2,
+    50→  Wallet,
+    51→  X,
+    52→} from 'lucide-react'
+    53→
+    54→interface ProductLite {
+    55→  id: string
+    56→  sku: string
+    57→  name: string
+    58→  unit: string | null
+    59→  costPrice: number
+    60→  sellPrice: number
+    61→  stock: number
+    62→  barcode?: string | null
+    63→}
+    64→
+    65→interface PartnerLite {
+    66→  id: string
+    67→  code: string
+    68→  name: string
+    69→  taxCode: string | null
+    70→  type: string
+    71→}
+    72→
+    73→interface InvoiceItemRow {
+    74→  quantity: number
+    75→  unitPrice: number
+    76→  amount: number
+    77→  product: { sku: string; name: string; unit: string }
+    78→}
+    79→
+    80→interface PurchaseInvoice {
+    81→  id: string
+    82→  code: string
+    83→  invoiceDate: string
+    84→  subtotal: number
+    85→  vatRate: number
+    86→  vatAmount: number
+    87→  total: number
+    88→  status: 'POSTED' | 'CANCELLED'
+    89→  note: string | null
+    90→  partner: { name: string; taxCode: string | null } | null
+    91→  items: InvoiceItemRow[]
+    92→}
+    93→
+    94→interface DraftRow {
+    95→  productId: string
+    96→  quantity: string
+    97→  unitPrice: string
+    98→}
+    99→
+   100→const FIRST_YEAR = 2024
+   101→const CURRENT_YEAR = new Date().getFullYear()
+   102→const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR + 2 - FIRST_YEAR }, (_, i) => FIRST_YEAR + i)
+   103→const QUARTER_OPTIONS = [
+   104→  { value: 'all', label: 'Cả năm' },
+   105→  { value: '1', label: 'Quý 1' },
+   106→  { value: '2', label: 'Quý 2' },
+   107→  { value: '3', label: 'Quý 3' },
+   108→  { value: '4', label: 'Quý 4' },
+   109→]
+   110→const VAT_RATES = [0, 5, 8, 10]
+   111→
+   112→const todayInput = () => {
+   113→  const d = new Date()
+   114→  const mm = String(d.getMonth() + 1).padStart(2, '0')
+   115→  const dd = String(d.getDate()).padStart(2, '0')
+   116→  return `${d.getFullYear()}-${mm}-${dd}`
+   117→}
+   118→
+   119→export function PurchaseView() {
+   120→  const [invoices, setInvoices] = useState<PurchaseInvoice[] | null>(null)
+   121→  const [loading, setLoading] = useState(true)
+   122→  const [error, setError] = useState<string | null>(null)
+   123→
+   124→  const [year, setYear] = useState<number>(CURRENT_YEAR)
+   125→  const [quarter, setQuarter] = useState<string>('all')
+   126→  const [searchInput, setSearchInput] = useState('')
+   127→  const [search, setSearch] = useState('')
+   128→
+   129→  const [partners, setPartners] = useState<PartnerLite[] | null>(null)
+   130→  const [products, setProducts] = useState<ProductLite[] | null>(null)
+   131→
+   132→  const [detail, setDetail] = useState<PurchaseInvoice | null>(null)
+   133→  const [cancelTarget, setCancelTarget] = useState<PurchaseInvoice | null>(null)
+   134→  const [cancelling, setCancelling] = useState(false)
+   135→
+   136→  const [dialogOpen, setDialogOpen] = useState(false)
+   137→  const [form, setForm] = useState<{
+   138→    partnerId: string
+   139→    invoiceDate: string
+   140→    vatRate: string
+   141→    note: string
+   142→  }>({ partnerId: 'none', invoiceDate: todayInput(), vatRate: '8', note: '' })
+   143→  const [rows, setRows] = useState<DraftRow[]>([{ productId: '', quantity: '', unitPrice: '' }])
+   144→  const [submitting, setSubmitting] = useState(false)
+   145→  const { toast } = useToast()
+   146→
+   147→  useEffect(() => {
+   148→    const t = setTimeout(() => setSearch(searchInput.trim()), 400)
+   149→    return () => clearTimeout(t)
+   150→  }, [searchInput])
+   151→
+   152→  const load = useCallback(async () => {
+   153→    setLoading(true)
+   154→    setError(null)
+   155→    try {
+   156→      const params = new URLSearchParams({ year: String(year) })
+   157→      if (quarter !== 'all') params.set('quarter', quarter)
+   158→      if (search) params.set('q', search)
+   159→      const res = await apiGet<{ invoices: PurchaseInvoice[] }>(`/api/purchase-invoices?${params.toString()}`)
+   160→      setInvoices(res.invoices)
+   161→    } catch (e) {
+   162→      const message = e instanceof Error ? e.message : 'Không thể tải hóa đơn mua'
+   163→      setError(message)
+   164→    } finally {
+   165→      setLoading(false)
+   166→    }
+   167→  }, [year, quarter, search])
+   168→
+   169→  useEffect(() => {
+   170→    void load()
+   171→  }, [load])
+   172→
+   173→  // Dữ liệu phụ cho dialog tạo: đối tác NCC + danh mục sản phẩm
+   174→  const loadDialogData = useCallback(async () => {
+   175→    try {
+   176→      const [partnersRes, productsRes] = await Promise.all([
+   177→        apiGet<{ partners: PartnerLite[] }>('/api/partners?type=SUPPLIER'),
+   178→        apiGet<{ products: ProductLite[] }>('/api/products?status=ACTIVE'),
+   179→      ])
+   180→      setPartners(partnersRes.partners)
+   181→      setProducts(productsRes.products)
+   182→    } catch {
+   183→      // bỏ qua — dialog vẫn mở, select sẽ rỗng
+   184→    }
+   185→  }, [])
+   186→
+   187→  const openCreate = () => {
+   188→    setForm({ partnerId: 'none', invoiceDate: todayInput(), vatRate: '8', note: '' })
+   189→    setRows([{ productId: '', quantity: '', unitPrice: '' }])
+   190→    setDialogOpen(true)
+   191→    void loadDialogData()
+   192→  }
+   193→
+   194→  const updateRow = (index: number, patch: Partial<DraftRow>) =>
+   195→    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+   196→
+   197→  const removeRow = (index: number) => setRows((prev) => prev.filter((_, i) => i !== index))
+   198→
+   199→  const addRow = () => setRows((prev) => [...prev, { productId: '', quantity: '', unitPrice: '' }])
+   200→
+   201→  // Quét mã vạch trong dialog tạo hóa đơn mua → thêm nhanh/tăng SL dòng sản phẩm
+   202→  const handleScanToAdd = (code: string) => {
+   203→    const product =
+   204→      (products ?? []).find((p) => p.barcode === code) ?? (products ?? []).find((p) => p.sku === code)
+   205→    if (!product) {
+   206→      toast({ title: `Không tìm thấy sản phẩm với mã vạch ${code}`, variant: 'destructive' })
+   207→      return
+   208→    }
+   209→    setRows((prev) => {
+   210→      const existIdx = prev.findIndex((r) => r.productId === product.id)
+   211→      if (existIdx >= 0) {
+   212→        // Đã có dòng của SP này → tăng số lượng lên 1
+   213→        return prev.map((row, i) =>
+   214→          i === existIdx ? { ...row, quantity: String((Number(row.quantity) || 0) + 1) } : row
+   215→        )
+   216→      }
+   217→      // Dòng đầu vẫn trống → điền vào thay vì thêm dòng mới
+   218→      if (prev[0] && prev[0].productId === '') {
+   219→        return prev.map((row, i) =>
+   220→          i === 0 ? { productId: product.id, quantity: '1', unitPrice: String(product.costPrice) } : row
+   221→        )
+   222→      }
+   223→      return [...prev, { productId: product.id, quantity: '1', unitPrice: String(product.costPrice) }]
+   224→    })
+   225→  }
+   226→
+   227→  const draftTotals = useMemo(() => {
+   228→    const vatRate = Number(form.vatRate) || 0
+   229→    let subtotal = 0
+   230→    for (const row of rows) {
+   231→      const qty = Number(row.quantity) || 0
+   232→      const price = Number(row.unitPrice) || 0
+   233→      subtotal += qty * price
+   234→    }
+   235→    const vatAmount = Math.round((subtotal * vatRate) / 100)
+   236→    return { subtotal, vatAmount, total: subtotal + vatAmount }
+   237→  }, [rows, form.vatRate])
+   238→
+   239→  const posted = (invoices ?? []).filter((inv) => inv.status === 'POSTED')
+   240→  const totalExpense = posted.reduce((sum, inv) => sum + inv.total, 0)
+   241→  const totalVatInput = posted.reduce((sum, inv) => sum + inv.vatAmount, 0)
+   242→  const avgPerInvoice = posted.length > 0 ? Math.round(totalExpense / posted.length) : 0
+   243→
+   244→  const openDialogReady = dialogOpen && products !== null
+   245→
+   246→  const handleCreate = async () => {
+   247→    const items: Array<{ productId: string; quantity: number; unitPrice?: number }> = []
+   248→    for (const row of rows) {
+   249→      const qty = Number(row.quantity)
+   250→      const price = row.unitPrice === '' ? undefined : Number(row.unitPrice)
+   251→      if (!row.productId) {
+   252→        toast({ title: 'Vui lòng chọn sản phẩm cho mọi dòng', variant: 'destructive' })
+   253→        return
+   254→      }
+   255→      if (!Number.isFinite(qty) || qty <= 0) {
+   256→        toast({ title: 'Số lượng phải lớn hơn 0', variant: 'destructive' })
+   257→        return
+   258→      }
+   259→      if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+   260→        toast({ title: 'Đơn giá không được âm', variant: 'destructive' })
+   261→        return
+   262→      }
+   263→      items.push({ productId: row.productId, quantity: qty, ...(price !== undefined ? { unitPrice: price } : {}) })
+   264→    }
+   265→    if (items.length === 0) {
+   266→      toast({ title: 'Cần ít nhất 1 dòng sản phẩm', variant: 'destructive' })
+   267→      return
+   268→    }
+   269→    setSubmitting(true)
+   270→    try {
+   271→      await apiPost<{ invoice: PurchaseInvoice }>('/api/purchase-invoices', {
+   272→        partnerId: form.partnerId !== 'none' ? form.partnerId : undefined,
+   273→        items,
+   274→        vatRate: Number(form.vatRate) || 0,
+   275→        invoiceDate: form.invoiceDate || undefined,
+   276→        note: form.note.trim() || undefined,
+   277→      })
+   278→      toast({
+   279→        title: 'Đã ghi sổ hóa đơn mua',
+   280→        description: 'Chi phí & tồn kho đã được cập nhật theo hóa đơn.',
+   281→      })
+   282→      setDialogOpen(false)
+   283→      await load()
+   284→    } catch (e) {
+   285→      toast({
+   286→        title: 'Ghi sổ hóa đơn mua thất bại',
+   287→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   288→        variant: 'destructive',
+   289→      })
+   290→    } finally {
+   291→      setSubmitting(false)
+   292→    }
+   293→  }
+   294→
+   295→  const handleCancel = async () => {
+   296→    if (!cancelTarget) return
+   297→    setCancelling(true)
+   298→    try {
+   299→      await apiPost<{ invoice: PurchaseInvoice }>(`/api/purchase-invoices/${cancelTarget.id}`, { action: 'CANCEL' })
+   300→      toast({
+   301→        title: 'Đã hủy hóa đơn mua',
+   302→        description: `${cancelTarget.code} — tồn kho & chi phí đã hoàn ngược.`,
+   303→      })
+   304→      setCancelTarget(null)
+   305→      setDetail(null)
+   306→      await load()
+   307→    } catch (e) {
+   308→      toast({
+   309→        title: 'Hủy hóa đơn thất bại',
+   310→        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+   311→        variant: 'destructive',
+   312→      })
+   313→    } finally {
+   314→      setCancelling(false)
+   315→    }
+   316→  }
+   317→
+   318→  const selectProduct = (index: number, productId: string) => {
+   319→    const product = (products ?? []).find((p) => p.id === productId)
+   320→    updateRow(index, {
+   321→      productId,
+   322→      unitPrice:
+   323→        product && (rows[index].unitPrice === '' || Number(rows[index].unitPrice) === 0)
+   324→          ? String(product.costPrice)
+   325→          : rows[index].unitPrice,
+   326→    })
+   327→  }
+   328→
+   329→  return (
+   330→    <div>
+   331→      <PageHeader
+   332→        title="Nhập hàng"
+   333→        description="Hóa đơn mua nguyên vật liệu — ghi sổ chi phí, thuế VAT đầu vào và nhập kho"
+   334→      >
+   335→        <Button onClick={openCreate}>
+   336→          <PackagePlus className="h-4 w-4" />
+   337→          Tạo hóa đơn mua
+   338→        </Button>
+   339→      </PageHeader>
+   340→
+   341→      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   342→        <StatCard
+   343→          title="Tổng chi"
+   344→          value={loading ? '' : formatCompactVND(totalExpense)}
+   345→          icon={Wallet}
+   346→          loading={loading}
+   347→          hint="Đã loại hóa đơn hủy"
+   348→          iconClassName="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400"
+   349→        />
+   350→        <StatCard
+   351→          title="Số hóa đơn"
+   352→          value={loading ? '' : formatNumber(invoices?.length ?? 0)}
+   353→          icon={Receipt}
+   354→          loading={loading}
+   355→          hint={`${posted.length} đã ghi sổ`}
+   356→        />
+   357→        <StatCard
+   358→          title="Thuế VAT đầu vào"
+   359→          value={loading ? '' : formatCompactVND(totalVatInput)}
+   360→          icon={FileSpreadsheet}
+   361→          loading={loading}
+   362→          hint="Khấu trừ từ hóa đơn mua"
+   363→          iconClassName="bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400"
+   364→        />
+   365→        <StatCard
+   366→          title="Giá trị TB / hóa đơn"
+   367→          value={loading ? '' : formatCompactVND(avgPerInvoice)}
+   368→          icon={PackagePlus}
+   369→          loading={loading}
+   370→          hint="Trên hóa đơn đã ghi sổ"
+   371→        />
+   372→      </div>
+   373→
+   374→      {/* Bộ lọc */}
+   375→      <div className="mb-4 flex flex-wrap items-center gap-3">
+   376→        <Select value={quarter} onValueChange={setQuarter}>
+   377→          <SelectTrigger className="w-[140px]">
+   378→            <SelectValue />
+   379→          </SelectTrigger>
+   380→          <SelectContent>
+   381→            {QUARTER_OPTIONS.map((q) => (
+   382→              <SelectItem key={q.value} value={q.value}>
+   383→                {q.label}
+   384→              </SelectItem>
+   385→            ))}
+   386→          </SelectContent>
+   387→        </Select>
+   388→        <Select value={String(year)} onValueChange={(value) => setYear(Number(value))}>
+   389→          <SelectTrigger className="w-[120px]">
+   390→            <SelectValue />
+   391→          </SelectTrigger>
+   392→          <SelectContent>
+   393→            {YEAR_OPTIONS.map((y) => (
+   394→              <SelectItem key={y} value={String(y)}>
+   395→                Năm {y}
+   396→              </SelectItem>
+   397→            ))}
+   398→          </SelectContent>
+   399→        </Select>
+   400→        <div className="relative w-full max-w-xs">
+   401→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   402→          <Input
+   403→            value={searchInput}
+   404→            onChange={(e) => setSearchInput(e.target.value)}
+   405→            placeholder="Tìm mã hóa đơn, đối tác..."
+   406→            className="pl-8"
+   407→          />
+   408→        </div>
+   409→      </div>
+   410→
+   411→      <Card className="border-border/70 shadow-sm">
+   412→        <CardContent className="p-0">
+   413→          {loading ? (
+   414→            <div className="p-4">
+   415→              <TableSkeleton rows={6} />
+   416→            </div>
+   417→          ) : error ? (
+   418→            <div className="p-4">
+   419→              <ErrorState message={error} onRetry={() => void load()} />
+   420→            </div>
+   421→          ) : !invoices || invoices.length === 0 ? (
+   422→            <div className="p-4">
+   423→              <EmptyState
+   424→                icon={PackagePlus}
+   425→                title="Chưa có hóa đơn mua nào"
+   426→                description="Tạo hóa đơn mua để ghi sổ chi phí và nhập kho nguyên vật liệu."
+   427→                action={
+   428→                  <Button onClick={openCreate}>
+   429→                    <PackagePlus className="h-4 w-4" />
+   430→                    Tạo hóa đơn mua
+   431→                  </Button>
+   432→                }
+   433→              />
+   434→            </div>
+   435→          ) : (
+   436→            <div className="max-h-96 overflow-auto">
+   437→              <Table>
+   438→                <TableHeader className="sticky top-0 bg-background">
+   439→                  <TableRow>
+   440→                    <TableHead>Mã HĐ</TableHead>
+   441→                    <TableHead>Ngày</TableHead>
+   442→                    <TableHead>Đối tác</TableHead>
+   443→                    <TableHead className="text-right">SL mặt hàng</TableHead>
+   444→                    <TableHead className="text-right">Tiền hàng</TableHead>
+   445→                    <TableHead className="text-right">VAT</TableHead>
+   446→                    <TableHead className="text-right">Tổng cộng</TableHead>
+   447→                    <TableHead>Trạng thái</TableHead>
+   448→                    <TableHead className="w-12" />
+   449→                  </TableRow>
+   450→                </TableHeader>
+   451→                <TableBody>
+   452→                  {invoices.map((inv) => (
+   453→                    <TableRow key={inv.id} className={inv.status === 'CANCELLED' ? 'opacity-60' : undefined}>
+   454→                      <TableCell className="whitespace-nowrap font-mono text-xs font-medium">{inv.code}</TableCell>
+   455→                      <TableCell className="whitespace-nowrap text-sm">{formatDate(inv.invoiceDate)}</TableCell>
+   456→                      <TableCell>
+   457→                        <p className="max-w-[180px] truncate font-medium">{inv.partner?.name ?? '—'}</p>
+   458→                        {inv.partner?.taxCode && (
+   459→                          <p className="font-mono text-xs text-muted-foreground">{inv.partner.taxCode}</p>
+   460→                        )}
+   461→                      </TableCell>
+   462→                      <TableCell className="text-right tabular-nums">{inv.items.length}</TableCell>
+   463→                      <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(inv.subtotal)}</TableCell>
+   464→                      <TableCell className="whitespace-nowrap text-right tabular-nums text-sky-700 dark:text-sky-400">
+   465→                        {inv.vatRate}% · {formatVND(inv.vatAmount)}
+   466→                      </TableCell>
+   467→                      <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">
+   468→                        {formatVND(inv.total)}
+   469→                      </TableCell>
+   470→                      <TableCell>
+   471→                        {inv.status === 'POSTED' ? (
+   472→                          <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+   473→                            Đã ghi sổ
+   474→                          </Badge>
+   475→                        ) : (
+   476→                          <Badge variant="secondary">Đã hủy</Badge>
+   477→                        )}
+   478→                      </TableCell>
+   479→                      <TableCell>
+   480→                        <Button
+   481→                          variant="ghost"
+   482→                          size="icon"
+   483→                          className="h-8 w-8"
+   484→                          onClick={() => setDetail(inv)}
+   485→                          title="Xem chi tiết"
+   486→                        >
+   487→                          <Eye className="h-4 w-4" />
+   488→                        </Button>
+   489→                      </TableCell>
+   490→                    </TableRow>
+   491→                  ))}
+   492→                </TableBody>
+   493→              </Table>
+   494→            </div>
+   495→          )}
+   496→        </CardContent>
+   497→      </Card>
+   498→
+   499→      {/* Dialog chi tiết hóa đơn */}
+   500→      <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
+   501→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   502→          {detail && (
+   503→            <>
+   504→              <DialogHeader>
+   505→                <DialogTitle className="flex flex-wrap items-center gap-2">
+   506→                  <span className="font-mono">{detail.code}</span>
+   507→                  {detail.status === 'POSTED' ? (
+   508→                    <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+   509→                      Đã ghi sổ
+   510→                    </Badge>
+   511→                  ) : (
+   512→                    <Badge variant="secondary">Đã hủy</Badge>
+   513→                  )}
+   514→                </DialogTitle>
+   515→                <DialogDescription>
+   516→                  {formatDate(detail.invoiceDate)} — {detail.partner?.name ?? 'Không có đối tác'}
+   517→                  {detail.partner?.taxCode ? ` (MST ${detail.partner.taxCode})` : ''}
+   518→                </DialogDescription>
+   519→              </DialogHeader>
+   520→              <div className="overflow-x-auto">
+   521→                <Table>
+   522→                  <TableHeader>
+   523→                    <TableRow>
+   524→                      <TableHead className="font-mono">Mã SP</TableHead>
+   525→                      <TableHead>Sản phẩm</TableHead>
+   526→                      <TableHead className="text-right">SL</TableHead>
+   527→                      <TableHead className="text-right">Đơn giá</TableHead>
+   528→                      <TableHead className="text-right">Thành tiền</TableHead>
+   529→                    </TableRow>
+   530→                  </TableHeader>
+   531→                  <TableBody>
+   532→                    {detail.items.map((item, i) => (
+   533→                      <TableRow key={`${detail.id}-${i}`}>
+   534→                        <TableCell className="whitespace-nowrap font-mono text-xs">{item.product.sku}</TableCell>
+   535→                        <TableCell>
+   536→                          <p className="max-w-[220px] truncate font-medium">{item.product.name}</p>
+   537→                          <p className="text-xs text-muted-foreground">{item.product.unit}</p>
+   538→                        </TableCell>
+   539→                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatNumber(item.quantity)}</TableCell>
+   540→                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(item.unitPrice)}</TableCell>
+   541→                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(item.amount)}</TableCell>
+   542→                      </TableRow>
+   543→                    ))}
+   544→                  </TableBody>
+   545→                </Table>
+   546→              </div>
+   547→              <Separator />
+   548→              <div className="space-y-1.5 text-sm">
+   549→                <div className="flex justify-between">
+   550→                  <span className="text-muted-foreground">Tiền hàng</span>
+   551→                  <span className="tabular-nums">{formatVND(detail.subtotal)}</span>
+   552→                </div>
+   553→                <div className="flex justify-between">
+   554→                  <span className="text-muted-foreground">Thuế VAT ({detail.vatRate}%)</span>
+   555→                  <span className="tabular-nums text-sky-700 dark:text-sky-400">{formatVND(detail.vatAmount)}</span>
+   556→                </div>
+   557→                <div className="flex justify-between text-base font-bold">
+   558→                  <span>Tổng cộng</span>
+   559→                  <span className="tabular-nums">{formatVND(detail.total)}</span>
+   560→                </div>
+   561→                {detail.note && <p className="pt-1 text-xs text-muted-foreground">Ghi chú: {detail.note}</p>}
+   562→              </div>
+   563→              {detail.status === 'POSTED' && (
+   564→                <DialogFooter>
+   565→                  <Button variant="destructive" onClick={() => setCancelTarget(detail)}>
+   566→                    <Trash2 className="h-4 w-4" />
+   567→                    Hủy hóa đơn
+   568→                  </Button>
+   569→                </DialogFooter>
+   570→              )}
+   571→            </>
+   572→          )}
+   573→        </DialogContent>
+   574→      </Dialog>
+   575→
+   576→      {/* Dialog tạo hóa đơn mua */}
+   577→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   578→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   579→          <DialogHeader>
+   580→            <DialogTitle>Tạo hóa đơn mua</DialogTitle>
+   581→            <DialogDescription>
+   582→              Ghi sổ chi phí, thuế VAT đầu vào và tự động nhập kho theo từng dòng sản phẩm.
+   583→            </DialogDescription>
+   584→          </DialogHeader>
+   585→          <div className="grid gap-4 py-2">
+   586→            <div className="grid gap-4 sm:grid-cols-3">
+   587→              <div className="grid gap-2 sm:col-span-2">
+   588→                <Label htmlFor="purchase-partner">Đối tác (NCC)</Label>
+   589→                <Select value={form.partnerId} onValueChange={(value) => setForm({ ...form, partnerId: value })}>
+   590→                  <SelectTrigger id="purchase-partner" className="w-full">
+   591→                    <SelectValue placeholder="Chọn nhà cung cấp" />
+   592→                  </SelectTrigger>
+   593→                  <SelectContent>
+   594→                    <SelectItem value="none">— Không chọn —</SelectItem>
+   595→                    {(partners ?? []).map((p) => (
+   596→                      <SelectItem key={p.id} value={p.id}>
+   597→                        {p.name}
+   598→                        {p.taxCode ? ` (${p.taxCode})` : ''}
+   599→                      </SelectItem>
+   600→                    ))}
+   601→                  </SelectContent>
+   602→                </Select>
+   603→              </div>
+   604→              <div className="grid gap-2">
+   605→                <Label htmlFor="purchase-date">Ngày hóa đơn</Label>
+   606→                <Input
+   607→                  id="purchase-date"
+   608→                  type="date"
+   609→                  value={form.invoiceDate}
+   610→                  onChange={(e) => setForm({ ...form, invoiceDate: e.target.value })}
+   611→                />
+   612→              </div>
+   613→            </div>
+   614→
+   615→            <div className="space-y-2">
+   616→              <div className="flex items-center justify-between">
+   617→                <Label>Danh sách mặt hàng</Label>
+   618→                <div className="w-[110px]">
+   619→                  <Select value={form.vatRate} onValueChange={(value) => setForm({ ...form, vatRate: value })}>
+   620→                    <SelectTrigger className="h-9">
+   621→                      <SelectValue />
+   622→                    </SelectTrigger>
+   623→                    <SelectContent>
+   624→                      {VAT_RATES.map((rate) => (
+   625→                        <SelectItem key={rate} value={String(rate)}>
+   626→                          VAT {rate}%
+   627→                        </SelectItem>
+   628→                      ))}
+   629→                    </SelectContent>
+   630→                  </Select>
+   631→                </div>
+   632→              </div>
+   633→              <BarcodeScanner
+   634→                onScan={handleScanToAdd}
+   635→                hint="Quét mã vạch để thêm nhanh dòng sản phẩm"
+   636→                className="mb-3"
+   637→              />
+   638→              {rows.map((row, index) => (
+   639→                <div key={index} className="space-y-1.5 rounded-xl border p-3">
+   640→                  <div className="flex items-center gap-2">
+   641→                    <Select value={row.productId || undefined} onValueChange={(value) => selectProduct(index, value)}>
+   642→                      <SelectTrigger className="min-w-[200px] flex-1">
+   643→                        <SelectValue placeholder="Chọn sản phẩm" />
+   644→                      </SelectTrigger>
+   645→                      <SelectContent>
+   646→                        {(products ?? []).map((p) => (
+   647→                          <SelectItem key={p.id} value={p.id}>
+   648→                            {p.sku} — {p.name} (tồn {formatNumber(p.stock)})
+   649→                          </SelectItem>
+   650→                        ))}
+   651→                      </SelectContent>
+   652→                    </Select>
+   653→                    <Button
+   654→                      type="button"
+   655→                      variant="ghost"
+   656→                      size="icon"
+   657→                      className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+   658→                      onClick={() => removeRow(index)}
+   659→                      disabled={rows.length === 1}
+   660→                    >
+   661→                      <X className="h-4 w-4" />
+   662→                    </Button>
+   663→                  </div>
+   664→                  <div className="flex flex-wrap items-center gap-2">
+   665→                    <Input
+   666→                      type="number"
+   667→                      min={0}
+   668→                      step={1}
+   669→                      value={row.quantity}
+   670→                      onChange={(e) => updateRow(index, { quantity: e.target.value })}
+   671→                      placeholder="Số lượng"
+   672→                      className="w-32"
+   673→                    />
+   674→                    <Input
+   675→                      type="number"
+   676→                      min={0}
+   677→                      step={1000}
+   678→                      value={row.unitPrice}
+   679→                      onChange={(e) => updateRow(index, { unitPrice: e.target.value })}
+   680→                      placeholder="Đơn giá"
+   681→                      className="w-40"
+   682→                    />
+   683→                    <span className="ml-auto text-sm tabular-nums text-muted-foreground">
+   684→                      Thành tiền:{' '}
+   685→                      <span className="font-semibold text-foreground">
+   686→                        {formatVND((Number(row.quantity) || 0) * (Number(row.unitPrice) || 0))}
+   687→                      </span>
+   688→                    </span>
+   689→                  </div>
+   690→                </div>
+   691→              ))}
+   692→              <Button type="button" variant="outline" size="sm" onClick={addRow}>
+   693→                <Plus className="h-4 w-4" />
+   694→                Thêm dòng
+   695→              </Button>
+   696→            </div>
+   697→
+   698→            <div className="rounded-xl border bg-muted/40 p-3 text-sm">
+   699→              <div className="flex justify-between">
+   700→                <span className="text-muted-foreground">Tiền hàng</span>
+   701→                <span className="tabular-nums">{formatVND(draftTotals.subtotal)}</span>
+   702→              </div>
+   703→              <div className="flex justify-between">
+   704→                <span className="text-muted-foreground">Thuế VAT ({form.vatRate}%)</span>
+   705→                <span className="tabular-nums text-sky-700 dark:text-sky-400">{formatVND(draftTotals.vatAmount)}</span>
+   706→              </div>
+   707→              <div className="mt-1 flex justify-between border-t pt-1.5 text-base font-bold">
+   708→                <span>Tổng cộng</span>
+   709→                <span className="tabular-nums">{formatVND(draftTotals.total)}</span>
+   710→              </div>
+   711→            </div>
+   712→
+   713→            <div className="grid gap-2">
+   714→              <Label htmlFor="purchase-note">Ghi chú</Label>
+   715→              <Textarea
+   716→                id="purchase-note"
+   717→                value={form.note}
+   718→                onChange={(e) => setForm({ ...form, note: e.target.value })}
+   719→                placeholder="Số HĐ nhà cung cấp, lô hàng, điểm giao nhận..."
+   720→                rows={2}
+   721→              />
+   722→            </div>
+   723→          </div>
+   724→          <DialogFooter>
+   725→            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+   726→              Hủy
+   727→            </Button>
+   728→            <Button
+   729→              onClick={() => void handleCreate()}
+   730→              disabled={submitting || !openDialogReady || rows.length === 0}
+   731→            >
+   732→              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+   733→              Ghi sổ hóa đơn
+   734→            </Button>
+   735→          </DialogFooter>
+   736→        </DialogContent>
+   737→      </Dialog>
+   738→
+   739→      {/* Confirm hủy hóa đơn */}
+   740→      <ConfirmDialog
+   741→        open={cancelTarget !== null}
+   742→        onOpenChange={(open) => !open && setCancelTarget(null)}
+   743→        title={`Hủy hóa đơn mua ${cancelTarget?.code ?? ''}?`}
+   744→        description="Hóa đơn hủy sẽ không còn tính vào chi phí, thuế VAT đầu vào và tồn kho được hoàn ngược."
+   745→        confirmText="Hủy hóa đơn"
+   746→        destructive
+   747→        loading={cancelling}
+   748→        onConfirm={() => void handleCancel()}
+   749→      />
+   750→    </div>
+   751→  )
+   752→}
+   753→

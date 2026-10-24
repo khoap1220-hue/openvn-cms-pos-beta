@@ -277,9 +277,16 @@ model SalesInvoice {
   total       Float              @default(0)
   status      String             @default("POSTED") // POSTED | CANCELLED
   note        String?
+  // THIẾT LẬP HÓA ĐƠN — ghi số & snapshot mẫu in lúc tạo (hóa đơn cũ giữ nguyên mẫu số/ký hiệu)
+  invoiceNo     Int?    // SỐ HÓA ĐƠN — tăng dần toàn cục, bắt đầu từ setting invoice_number_start
+  series        String? // Ký hiệu chụp lại lúc tạo (vd AA/26E)
+  templateCode  String? // Mẫu số chụp lại lúc tạo (vd 01GTKT0/001)
+  paymentMethod String? // Hình thức thanh toán chụp từ đơn hàng (COD | BANKING | MOMO | CARD)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   items       SalesInvoiceItem[]
+
+  @@index([invoiceNo])
 }
 
 model SalesInvoiceItem {
