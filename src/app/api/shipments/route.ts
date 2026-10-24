@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
 import { logActivity, logEvent, sendZalo } from '@/lib/agent-log'
+import { recordLineageChangeAsync } from '@/lib/ledger'
 import { AGENTS, CARRIERS, makeTrackingCode, tCarrier, buildVoiceContext, zaloKeyOf } from '@/lib/agents'
+import type { PeriodRange } from '@/lib/lineage'
+import { resolvePeriodRange } from '@/lib/lineage'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,13 +14,46 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const codStatus = searchParams.get('codStatus')
+
+    // ===== Bộ lọc Thời gian + Nguồn gốc + Trạng thái thay đổi (DATA PROVENANCE) =====
+    const period: PeriodRange = {
+      preset: (searchParams.get('preset') as PeriodRange['preset']) || 'ALL',
+      from: searchParams.get('from') ?? '',
+      to: searchParams.get('to') ?? '',
+    }
+    const { fromDate, toDate } = resolvePeriodRange(period)
+    const originSource = searchParams.get('originSource') // AGENT_AUTOPILOT | MANUAL_ADMIN
+    const onlyChanged = searchParams.get('onlyChanged') // ALL | CHANGED | ORIGINAL
+
     const where: Record<string, unknown> = {}
     if (status && status !== 'ALL') where.status = status
     if (codStatus && codStatus !== 'ALL') where.codStatus = codStatus
+    if (originSource === 'AGENT_AUTOPILOT') where.dispatchedBy = 'AGENT'
+    else if (originSource === 'MANUAL_ADMIN') where.dispatchedBy = 'OPERATOR'
+    if (fromDate || toDate) {
+      const created: Record<string, Date> = {}
+      if (fromDate) created.gte = fromDate
+      if (toDate) created.lt = toDate
+      where.createdAt = created
+    }
+
+    // onlyChanged: đối chiếu Sổ Data — vận đơn từng được sửa (có entry changedFields)
+    const changedAgg = await db.ledgerEntry.groupBy({
+      by: ['entityId'],
+      _count: { _all: true },
+      where: { entityType: 'Shipment', changedFields: { not: null }, entityId: { not: null } },
+    })
+    const changedMap = new Map(changedAgg.map((c) => [c.entityId as string, c._count._all]))
+    if (onlyChanged === 'CHANGED') where.id = { in: [...changedMap.keys()] }
+    else if (onlyChanged === 'ORIGINAL') where.id = { notIn: [...changedMap.keys()] }
+
+    // statsWhere: giống where nhưng KHÔNG gạch createdAt — dùng cho đối chiếu Đầu kỳ/Cuối kỳ
+    // (vận đơn tồn từ trước kỳ phải tính cả những cái tạo TRƯỚC khoảng lọc)
+    const { createdAt: _createdAtRange, ...statsWhere } = where
 
     const startOfDay = new Date(new Date().setHours(0, 0, 0, 0))
 
-    const [shipments, active, deliveredToday, dispatchedToday, codPendingAgg, codReceivedAgg] = await Promise.all([
+    const [shipments, active, deliveredToday, dispatchedToday, statsRows, codPendingAgg, codReceivedAgg] = await Promise.all([
       db.shipment.findMany({
         where,
         orderBy: { updatedAt: 'desc' },
@@ -40,6 +76,11 @@ export async function GET(req: NextRequest) {
       db.shipment.count({ where: { status: { in: ['DISPATCHED', 'PICKED_UP', 'IN_TRANSIT'] } } }),
       db.shipment.count({ where: { status: 'DELIVERED', updatedAt: { gte: startOfDay } } }),
       db.shipment.count({ where: { createdAt: { gte: startOfDay } } }),
+      // Toàn bộ vận đơn khớp bộ lọc nghiệp vụ (không gạch thời gian) cho đối chiếu kỳ
+      db.shipment.findMany({
+        where: statsWhere,
+        select: { id: true, status: true, createdAt: true, updatedAt: true },
+      }),
       // Đối soát COD: tiền chờ ĐVVC chuyển về + số vận đơn chờ
       db.shipment.aggregate({
         where: { codStatus: 'PENDING' },
@@ -52,8 +93,36 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
+    // ===== Đối chiếu Kỳ: Đầu kỳ chờ → Phát sinh mới → Hoàn tất trong kỳ → Còn lại cuối kỳ =====
+    // Công thức chính xác theo mốc thời gian:
+    //   remainingAtEnd = (tạo trước cuối kỳ) − (đã hoàn tất trước cuối kỳ)
+    //   opening = (tạo trước đầu kỳ) − (hoàn tất trước đầu kỳ)
+    //   opening + new − completed = remainingAtEnd (luôn khớp)
+    const filtered = statsRows
+    const inPeriod = (d: Date) => (!fromDate || d.getTime() >= fromTime) && (!toDate || d.getTime() < toTime)
+    const settledStatuses = ['DELIVERED', 'RETURNED']
+    const toTime = toDate ? toDate.getTime() : Number.POSITIVE_INFINITY
+    const fromTime = fromDate ? fromDate.getTime() : Number.NEGATIVE_INFINITY
+    const isSettled = (s: { status: string }) => settledStatuses.includes(s.status)
+    const newInPeriod = filtered.filter((s) => inPeriod(s.createdAt)).length
+    const completedInPeriod = filtered.filter((s) => isSettled(s) && inPeriod(s.updatedAt)).length
+    const createdBeforeFrom = filtered.filter((s) => fromDate && s.createdAt.getTime() < fromTime).length
+    const settledBeforeFrom = filtered.filter((s) => isSettled(s) && s.updatedAt.getTime() < fromTime).length
+    const openingPending = createdBeforeFrom - settledBeforeFrom
+    // Còn lại cuối kỳ = đã tồn tại TRƯỚC mốc cuối kỳ và chưa hoàn tất lúc đó
+    const remaining = filtered.filter(
+      (s) => s.createdAt.getTime() < toTime && !(isSettled(s) && s.updatedAt.getTime() < toTime)
+    ).length
+
+    // Gắn nguồn gốc + số lần thay đổi cho từng dòng (badge Nguồn gốc / Đã đổi N lần)
+    const shipmentsWithLineage = shipments.map((s) => ({
+      ...s,
+      originSource: s.dispatchedBy === 'AGENT' ? 'AGENT_AUTOPILOT' : 'MANUAL_ADMIN',
+      changeCount: changedMap.get(s.id) ?? 0,
+    }))
+
     return NextResponse.json({
-      shipments,
+      shipments: shipmentsWithLineage,
       stats: {
         active,
         deliveredToday,
@@ -61,6 +130,14 @@ export async function GET(req: NextRequest) {
         codPendingCount: codPendingAgg._count,
         codPendingAmount: codPendingAgg._sum.codAmount ?? 0,
         codReceivedToday: codReceivedAgg._sum.codReceived ?? 0,
+      },
+      period: {
+        openingPending,
+        newInPeriod,
+        completedInPeriod,
+        remaining,
+        fromDate: fromDate?.toISOString() ?? null,
+        toDate: toDate?.toISOString() ?? null,
       },
     })
   } catch (error) {
@@ -103,6 +180,21 @@ export async function POST(req: NextRequest) {
     })
 
     await logEvent(order.id, 'CARRIER_DISPATCHED', 'OPERATOR', `Người vận hành báo ${carrier.name} lấy hàng — mã vận đơn ${tracking}`)
+    // DATA LINEAGE — snapshot gốc vận đơn
+    recordLineageChangeAsync({
+      scope: 'ORDER',
+      action: 'SHIPMENT_ORIGINAL',
+      entityType: 'Shipment',
+      entityId: shipment.id,
+      entityCode: tracking,
+      sourceRefCode: tracking,
+      title: `Vận đơn ${tracking} tạo — báo ${carrier.name} lấy hàng đơn ${order.code}`,
+      after: { status: 'DISPATCHED', codStatus: 'PENDING', carrier: carrier.key, trackingCode: tracking, fee: shipment.fee, codAmount: shipment.codAmount },
+      actor: 'OPERATOR',
+      actorName: 'Người vận hành',
+      originSource: 'MANUAL_ADMIN',
+      detail: { orderId: order.id, orderCode: order.code },
+    })
     if (order.customer) {
       const { getMemorySnapshot } = await import('@/lib/memory-engine')
       const mem = await getMemorySnapshot(order.customer.id).catch(() => null)

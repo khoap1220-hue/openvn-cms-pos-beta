@@ -9,6 +9,8 @@ import { ConfirmDialog } from '@/components/cms/confirm-dialog'
 import { BarcodeScanner } from '@/components/cms/barcode-scanner'
 import { InvoicePrintDialog } from '@/components/cms/invoice-print'
 import type { InvoicePrintData } from '@/components/cms/invoice-print'
+import { DataLineageBadge, LineageInspectorDialog } from '@/components/cms/lineage'
+import type { LineageInspectorTarget } from '@/components/cms/lineage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -98,6 +100,9 @@ interface SalesInvoice {
   items: InvoiceItemRow[]
 }
 
+/** Hóa đơn bán + 2 field nguồn gốc (GET /api/sales-invoices trả kèm) — cho Badge Nguồn gốc & Lịch sử */
+type InvoiceWithLineage = SalesInvoice & { originSource?: string | null; changeCount?: number }
+
 /** Dữ liệu in hóa đơn — GET /api/sales-invoices/{id} trả partner FULL (đủ địa chỉ/điện thoại để in) */
 type InvoiceDetailForPrint = SalesInvoice
 
@@ -136,7 +141,7 @@ const todayInput = () => {
 }
 
 export function SalesView() {
-  const [invoices, setInvoices] = useState<SalesInvoice[] | null>(null)
+  const [invoices, setInvoices] = useState<InvoiceWithLineage[] | null>(null)
   const [uninvoiced, setUninvoiced] = useState<UninvoicedOrder[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -167,6 +172,16 @@ export function SalesView() {
   const [printOpen, setPrintOpen] = useState(false)
   const [printInvoice, setPrintInvoice] = useState<InvoicePrintData | null>(null)
   const [printLoading, setPrintLoading] = useState(false)
+
+  // Truy xuất nguồn gốc & lịch sử thay đổi (Sổ Data) — 1 dialog dùng chung, mở từ badge trên từng dòng
+  const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
+  const openLineage = (inv: InvoiceWithLineage) =>
+    setLineageTarget({
+      entityType: 'SalesInvoice',
+      entityId: inv.id,
+      entityCode: inv.code,
+      label: `Hóa đơn bán ${inv.code}`,
+    })
 
   // Cấu hình mặc định cho hóa đơn mới (VAT mặc định + ghi chú mặc định) — tải 1 lần lúc mount,
   // dùng ref để openCreate không bị stale closure
@@ -209,7 +224,7 @@ export function SalesView() {
       if (quarter !== 'all') params.set('quarter', quarter)
       if (search) params.set('q', search)
       const [invoiceRes, uninvoicedRes] = await Promise.all([
-        apiGet<{ invoices: SalesInvoice[] }>(`/api/sales-invoices?${params.toString()}`),
+        apiGet<{ invoices: InvoiceWithLineage[] }>(`/api/sales-invoices?${params.toString()}`),
         apiGet<{ orders: UninvoicedOrder[] }>('/api/sales-invoices?uninvoiced=1'),
       ])
       setInvoices(invoiceRes.invoices)
@@ -531,6 +546,7 @@ export function SalesView() {
                     <TableHead className="text-right">VAT</TableHead>
                     <TableHead className="text-right">Tổng cộng</TableHead>
                     <TableHead>Trạng thái</TableHead>
+                    <TableHead className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
                     <TableHead className="w-12" />
                   </TableRow>
                 </TableHeader>
@@ -563,6 +579,14 @@ export function SalesView() {
                         ) : (
                           <Badge variant="secondary">Đã hủy</Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <DataLineageBadge
+                          originSource={inv.originSource}
+                          changeCount={inv.changeCount}
+                          onInspect={() => openLineage(inv)}
+                          compact
+                        />
                       </TableCell>
                       <TableCell>
                         <Button
@@ -887,6 +911,13 @@ export function SalesView() {
         destructive
         loading={cancelling}
         onConfirm={() => void handleCancel()}
+      />
+
+      {/* Truy xuất nguồn gốc & lịch sử thay đổi (Sổ Data) — dùng chung cho mọi dòng hóa đơn bán */}
+      <LineageInspectorDialog
+        open={!!lineageTarget}
+        onOpenChange={(o) => !o && setLineageTarget(null)}
+        target={lineageTarget}
       />
     </div>
   )

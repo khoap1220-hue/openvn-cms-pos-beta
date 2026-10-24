@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { logLedger } from '@/lib/ledger'
+import { logLedger, recordLineageChange } from '@/lib/ledger'
 import { comboAvailableFromRows, comboCostFromRows } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
@@ -138,16 +138,59 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     if (barcodeChanged) {
-      await logLedger({
+      await recordLineageChange({
         scope: 'INVENTORY',
         action: 'PRODUCT_BARCODE_UPDATED',
-        entityType: 'PRODUCT',
+        entityType: 'Product',
         entityId: id,
         entityCode: product.sku,
+        sourceRefCode: product.sku,
         title: `Cập nhật mã vạch ${product.sku}: ${barcodeChanged.from ?? '(trống)'} → ${barcodeChanged.to ?? '(xóa)'}`,
-        detail: { sku: product.sku, name: product.name, barcode: product.barcode },
+        before: { barcode: barcodeChanged.from },
+        after: { barcode: barcodeChanged.to },
         actor: 'OPERATOR',
+        actorName: 'Người vận hành',
+        originSource: 'BARCODE_SCAN',
+        detail: { sku: product.sku, name: product.name },
       })
+    }
+
+    // DATA LINEAGE — chụp diff các trường sản phẩm đã sửa
+    {
+      const before: Record<string, unknown> = {}
+      const after: Record<string, unknown> = {}
+      const track: Array<[string, unknown, unknown]> = [
+        ['sku', existing.sku, product.sku],
+        ['name', existing.name, product.name],
+        ['costPrice', existing.costPrice, product.costPrice],
+        ['sellPrice', existing.sellPrice, product.sellPrice],
+        ['lowStockThreshold', existing.lowStockThreshold, product.lowStockThreshold],
+        ['status', existing.status, product.status],
+        ['barcode', existing.barcode, product.barcode],
+        ['type', existing.type, product.type],
+      ]
+      for (const [field, b, a] of track) {
+        if (JSON.stringify(b ?? null) !== JSON.stringify(a ?? null)) {
+          before[field] = b
+          after[field] = a
+        }
+      }
+      if (Object.keys(after).length > 0) {
+        await recordLineageChange({
+          scope: 'INVENTORY',
+          action: 'PRODUCT_UPDATED',
+          entityType: 'Product',
+          entityId: id,
+          entityCode: product.sku,
+          sourceRefCode: product.sku,
+          title: `Cập nhật sản phẩm ${product.sku} — ${Object.keys(after).join(', ')}`,
+          before,
+          after,
+          actor: 'OPERATOR',
+          actorName: 'Người vận hành',
+          originSource: 'MANUAL_ADMIN',
+        })
+      }
     }
 
     return NextResponse.json({ product })

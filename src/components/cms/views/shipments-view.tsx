@@ -37,15 +37,21 @@ import { StatCard } from '@/components/cms/stat-card'
 import { ChannelBadge } from '@/components/cms/channel-badge'
 import { AgentBadge, ShipmentStatusBadge } from '@/components/cms/agent-badge'
 import { ShipmentLabelDialog } from '@/components/cms/shipment-label-dialog'
+import { DataLineageBadge, LineageInspectorDialog, type LineageInspectorTarget } from '@/components/cms/lineage'
+import { PeriodFilterBar, PeriodSummaryBar } from '@/components/cms/period-filter-bar'
 import { apiGet, apiPatch } from '@/lib/api'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { CARRIERS, SHIPMENT_STATUS_LABELS } from '@/lib/agents'
+import { EMPTY_PERIOD, type ChangedFilter, type PeriodRange } from '@/lib/lineage'
 import type { Shipment } from '@/lib/types'
 import { formatDateTime, formatVND, timeAgo } from '@/lib/format'
 
+// Nguồn gốc + số lần thay đổi trả thêm từ API danh sách vận đơn (không có trong type Shipment gốc)
+type ShipmentWithLineage = Shipment & { originSource?: string | null; changeCount?: number }
+
 interface ShipmentsData {
-  shipments: Shipment[]
+  shipments: ShipmentWithLineage[]
   stats: {
     active: number
     deliveredToday: number
@@ -53,6 +59,14 @@ interface ShipmentsData {
     codPendingCount: number
     codPendingAmount: number
     codReceivedToday: number
+  }
+  period: {
+    openingPending: number
+    newInPeriod: number
+    completedInPeriod: number
+    remaining: number
+    fromDate: string | null
+    toDate: string | null
   }
 }
 
@@ -100,17 +114,32 @@ export function ShipmentsView() {
   const [codStatus, setCodStatus] = useState('ALL')
   const [labelShipment, setLabelShipment] = useState<Shipment | null>(null)
   const [codBusyId, setCodBusyId] = useState<string | null>(null)
+  // Bộ lọc kỳ kế toán + nguồn gốc + trạng thái thay đổi (Data Provenance)
+  const [period, setPeriod] = useState<PeriodRange>(EMPTY_PERIOD)
+  const [originSource, setOriginSource] = useState('ALL')
+  const [changedFilter, setChangedFilter] = useState<ChangedFilter>('ALL')
+  const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const d = await apiGet<ShipmentsData>(`/api/shipments?status=${status}&codStatus=${codStatus}`)
+      const qs = new URLSearchParams({ status, codStatus })
+      if (period.preset !== 'ALL') {
+        qs.set('preset', period.preset)
+        if (period.preset === 'CUSTOM') {
+          if (period.from) qs.set('from', period.from)
+          if (period.to) qs.set('to', period.to)
+        }
+      }
+      if (originSource !== 'ALL') qs.set('originSource', originSource)
+      if (changedFilter !== 'ALL') qs.set('onlyChanged', changedFilter)
+      const d = await apiGet<ShipmentsData>(`/api/shipments?${qs.toString()}`)
       setData(d)
     } catch {
       // giữ dữ liệu cũ
     } finally {
       setLoading(false)
     }
-  }, [status, codStatus])
+  }, [status, codStatus, period, originSource, changedFilter])
 
   useEffect(() => {
     void load()
@@ -137,6 +166,16 @@ export function ShipmentsView() {
     } finally {
       setCodBusyId(null)
     }
+  }
+
+  // Mở dialog Truy xuất nguồn gốc & Lịch sử thay đổi của vận đơn
+  const openLineage = (s: ShipmentWithLineage) => {
+    setLineageTarget({
+      entityType: 'Shipment',
+      entityId: s.id,
+      entityCode: s.trackingCode,
+      label: `Vận đơn ${s.trackingCode} — đơn ${s.order?.code ?? ''}`,
+    })
   }
 
   // Chốt sổ: tiền COD đã về — backend ghi COD_RECONCILED vào Sổ Data
@@ -179,14 +218,39 @@ export function ShipmentsView() {
         />
       </div>
 
+      {/* Đối chiếu Kỳ vận chuyển: Đầu kỳ chờ → Phát sinh mới → Hoàn tất trong kỳ → Còn lại cuối kỳ */}
+      <div className="space-y-1">
+        <PeriodSummaryBar
+          segments={[
+            { label: 'Đầu kỳ chờ xử lý', value: String(data?.period.openingPending ?? 0), tone: 'amber' },
+            { label: 'Phát sinh mới trong kỳ', value: String(data?.period.newInPeriod ?? 0), tone: 'blue', operator: '+' },
+            { label: 'Hoàn tất/đối soát trong kỳ', value: String(data?.period.completedInPeriod ?? 0), tone: 'green', operator: '−' },
+            { label: 'Còn lại cuối kỳ', value: String(data?.period.remaining ?? 0), tone: 'default', operator: '=' },
+          ]}
+        />
+        <p className="text-[11px] text-muted-foreground">Đối chiếu Kỳ vận chuyển — tính theo bộ lọc thời gian &amp; trạng thái hiện tại.</p>
+      </div>
+
       <Card className="border-border/70 p-0 shadow-sm">
         <CardContent className="p-0">
-          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
+          <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="shrink-0">
               <h3 className="font-semibold">Hành trình vận chuyển</h3>
               <p className="text-xs text-muted-foreground">Cập nhật realtime từ các đơn vị vận chuyển: GHN · GHTK · Viettel Post · J&T · Ninja Van</p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:gap-4">
+              <PeriodFilterBar
+                value={period}
+                onChange={setPeriod}
+                showOrigin
+                showChanged
+                originOptions={['AGENT_AUTOPILOT', 'MANUAL_ADMIN']}
+                originSource={originSource}
+                onOriginSourceChange={setOriginSource}
+                changedFilter={changedFilter}
+                onChangedFilterChange={setChangedFilter}
+              />
+              <div className="flex flex-col gap-2 sm:flex-row">
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger className="w-full sm:w-44" aria-label="Lọc trạng thái vận chuyển">
                   <SelectValue />
@@ -211,6 +275,7 @@ export function ShipmentsView() {
                   <SelectItem value="RECONCILED">Đã đối soát</SelectItem>
                 </SelectContent>
               </Select>
+              </div>
             </div>
           </div>
 
@@ -227,6 +292,7 @@ export function ShipmentsView() {
                   <TableHead>Báo bởi</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead className="hidden md:table-cell">Đối soát COD</TableHead>
+                  <TableHead className="hidden md:table-cell">Nguồn gốc & Lịch sử</TableHead>
                   <TableHead className="hidden md:table-cell">Cập nhật</TableHead>
                   <TableHead>Hành động</TableHead>
                 </TableRow>
@@ -235,14 +301,14 @@ export function ShipmentsView() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={11}>
+                      <TableCell colSpan={12}>
                         <Skeleton className="h-8 w-full" />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (data?.shipments ?? []).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-32 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={12} className="h-32 text-center text-sm text-muted-foreground">
                       Chưa có vận đơn nào. Agent sẽ tự báo ĐVVC ngay khi đơn được đóng gói.
                     </TableCell>
                   </TableRow>
@@ -280,6 +346,13 @@ export function ShipmentsView() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <CodBadge shipment={s} />
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <DataLineageBadge
+                            originSource={s.originSource}
+                            changeCount={s.changeCount}
+                            onInspect={() => openLineage(s)}
+                          />
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <p className="text-xs text-muted-foreground">{formatDateTime(s.updatedAt)}</p>
@@ -342,6 +415,15 @@ export function ShipmentsView() {
           if (!o) setLabelShipment(null)
         }}
         shipment={labelShipment}
+      />
+
+      {/* Dialog Truy xuất nguồn gốc & Lịch sử thay đổi (Diff Trước → Sau) */}
+      <LineageInspectorDialog
+        open={lineageTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setLineageTarget(null)
+        }}
+        target={lineageTarget}
       />
     </div>
   )

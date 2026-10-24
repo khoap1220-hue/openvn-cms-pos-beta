@@ -9,6 +9,8 @@ import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/
 import { StatCard } from '@/components/cms/stat-card'
 import { ProductAvatar } from '@/components/cms/product-avatar'
 import { OrderStatusBadge } from '@/components/cms/status-badge'
+import { DataLineageBadge, LineageInspectorDialog } from '@/components/cms/lineage'
+import type { LineageInspectorTarget } from '@/components/cms/lineage'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -91,6 +93,9 @@ interface CustomerDetail {
   orders: DetailOrder[]
 }
 
+/** Khách hàng + 2 field nguồn gốc (GET /api/customers trả kèm) — cho Badge Nguồn gốc & Lịch sử */
+type CustomerWithLineage = Customer & { originSource?: string | null; changeCount?: number }
+
 // Tra cấu hình hạng (badge/bar class) theo key — server trả MemberTierInfo (key/label/ngưỡng)
 const TIER_BY_KEY = Object.fromEntries(MEMBER_TIERS.map((t) => [t.key, t])) as Record<string, MemberTier>
 const tierBar = (key: string): string => TIER_BY_KEY[key]?.bar ?? 'bg-stone-400'
@@ -139,7 +144,7 @@ function TierBadge({ tier, className }: { tier?: MemberTierInfo | null; classNam
 }
 
 export function CustomersView() {
-  const [customers, setCustomers] = useState<Customer[] | null>(null)
+  const [customers, setCustomers] = useState<CustomerWithLineage[] | null>(null)
   const [stats, setStats] = useState<CustomersStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -170,6 +175,16 @@ export function CustomersView() {
   // Tóm tắt lại trí nhớ khách
   const [memorySummarizing, setMemorySummarizing] = useState(false)
 
+  // Truy xuất nguồn gốc & lịch sử thay đổi (Sổ Data) — 1 dialog dùng chung, mở từ badge trên từng dòng
+  const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
+  const openLineage = (c: CustomerWithLineage) =>
+    setLineageTarget({
+      entityType: 'Customer',
+      entityId: c.id,
+      entityCode: c.memberCode ?? c.phone ?? c.name,
+      label: c.name,
+    })
+
   // Debounce ô tìm kiếm 400ms
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput.trim()), 400)
@@ -185,7 +200,7 @@ export function CustomersView() {
         if (keyword) params.set('search', keyword)
         if (scope !== 'ALL') params.set('scope', scope)
         const qs = params.toString()
-        const data = await apiGet<{ customers: Customer[]; stats: CustomersStats }>(`/api/customers${qs ? `?${qs}` : ''}`)
+        const data = await apiGet<{ customers: CustomerWithLineage[]; stats: CustomersStats }>(`/api/customers${qs ? `?${qs}` : ''}`)
         setCustomers(data.customers)
         setStats(data.stats)
       } catch (e) {
@@ -479,6 +494,7 @@ export function CustomersView() {
                   <TableRow>
                     <TableHead>Khách hàng</TableHead>
                     <TableHead>Hạng thành viên</TableHead>
+                    <TableHead className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
                     <TableHead>Số điện thoại</TableHead>
                     <TableHead className="hidden md:table-cell">Địa chỉ</TableHead>
                     <TableHead className="text-right">Số đơn</TableHead>
@@ -515,6 +531,15 @@ export function CustomersView() {
                           ) : (
                             <span className="text-sm text-muted-foreground">Khách hàng</span>
                           )}
+                        </TableCell>
+                        {/* stopPropagation: bấm badge không mở dialog chi tiết (cả dòng đang có onClick mở chi tiết) */}
+                        <TableCell className="hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
+                          <DataLineageBadge
+                            originSource={c.originSource}
+                            changeCount={c.changeCount}
+                            onInspect={() => openLineage(c)}
+                            compact
+                          />
                         </TableCell>
                         <TableCell className="font-mono text-sm">{c.phone || '—'}</TableCell>
                         <TableCell className="hidden max-w-[220px] md:table-cell">
@@ -935,6 +960,13 @@ export function CustomersView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Truy xuất nguồn gốc & lịch sử thay đổi (Sổ Data) — dùng chung cho mọi dòng khách hàng */}
+      <LineageInspectorDialog
+        open={!!lineageTarget}
+        onOpenChange={(o) => !o && setLineageTarget(null)}
+        target={lineageTarget}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { PeriodClosedError, createPurchaseInvoice } from '@/lib/invoice-service'
 import { quarterRange } from '@/lib/accounting'
+import { getLineageMeta } from '@/lib/lineage-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,15 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({ invoices })
+    // DATA PROVENANCE — số lần sửa + nguồn gốc theo Sổ Data
+    const lineageMeta = await getLineageMeta('PurchaseInvoice', invoices.map((inv) => inv.id))
+    return NextResponse.json({
+      invoices: invoices.map((inv) => ({
+        ...inv,
+        originSource: lineageMeta.get(inv.id)?.originSource ?? null,
+        changeCount: lineageMeta.get(inv.id)?.changeCount ?? 0,
+      })),
+    })
   } catch (error) {
     console.error('Purchase invoices GET error:', error)
     return NextResponse.json({ error: 'Không thể tải hóa đơn mua' }, { status: 500 })

@@ -40,6 +40,8 @@ import { useToast } from '@/hooks/use-toast'
 import { BarcodeScanner } from '@/components/cms/barcode-scanner'
 import { InvoicePrintDialog } from '@/components/cms/invoice-print'
 import type { InvoicePrintData } from '@/components/cms/invoice-print'
+import { DataLineageBadge, LineageInspectorDialog } from '@/components/cms/lineage'
+import type { LineageInspectorTarget } from '@/components/cms/lineage'
 import {
   Eye,
   FileSpreadsheet,
@@ -94,6 +96,9 @@ interface PurchaseInvoice {
   items: InvoiceItemRow[]
 }
 
+/** Hóa đơn mua + 2 field nguồn gốc (GET /api/purchase-invoices trả kèm) — cho Badge Nguồn gốc & Lịch sử */
+type InvoiceWithLineage = PurchaseInvoice & { originSource?: string | null; changeCount?: number }
+
 /** Chi tiết hóa đơn mua từ GET /api/purchase-invoices/{id} — partner FULL (đủ địa chỉ/điện thoại để in) */
 interface PurchaseInvoiceDetail {
   id: string
@@ -135,7 +140,7 @@ const todayInput = () => {
 }
 
 export function PurchaseView() {
-  const [invoices, setInvoices] = useState<PurchaseInvoice[] | null>(null)
+  const [invoices, setInvoices] = useState<InvoiceWithLineage[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -155,6 +160,16 @@ export function PurchaseView() {
   const [printOpen, setPrintOpen] = useState(false)
   const [printInvoice, setPrintInvoice] = useState<InvoicePrintData | null>(null)
   const [printLoading, setPrintLoading] = useState(false)
+
+  // Truy xuất nguồn gốc & lịch sử thay đổi (Sổ Data) — 1 dialog dùng chung, mở từ badge trên từng dòng
+  const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
+  const openLineage = (inv: InvoiceWithLineage) =>
+    setLineageTarget({
+      entityType: 'PurchaseInvoice',
+      entityId: inv.id,
+      entityCode: inv.code,
+      label: `Hóa đơn mua ${inv.code}`,
+    })
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<{
@@ -179,7 +194,7 @@ export function PurchaseView() {
       const params = new URLSearchParams({ year: String(year) })
       if (quarter !== 'all') params.set('quarter', quarter)
       if (search) params.set('q', search)
-      const res = await apiGet<{ invoices: PurchaseInvoice[] }>(`/api/purchase-invoices?${params.toString()}`)
+      const res = await apiGet<{ invoices: InvoiceWithLineage[] }>(`/api/purchase-invoices?${params.toString()}`)
       setInvoices(res.invoices)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Không thể tải hóa đơn mua'
@@ -507,6 +522,7 @@ export function PurchaseView() {
                     <TableHead className="text-right">VAT</TableHead>
                     <TableHead className="text-right">Tổng cộng</TableHead>
                     <TableHead>Trạng thái</TableHead>
+                    <TableHead className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
                     <TableHead className="w-12" />
                   </TableRow>
                 </TableHeader>
@@ -537,6 +553,14 @@ export function PurchaseView() {
                         ) : (
                           <Badge variant="secondary">Đã hủy</Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <DataLineageBadge
+                          originSource={inv.originSource}
+                          changeCount={inv.changeCount}
+                          onInspect={() => openLineage(inv)}
+                          compact
+                        />
                       </TableCell>
                       <TableCell>
                         <Button
@@ -815,6 +839,13 @@ export function PurchaseView() {
         destructive
         loading={cancelling}
         onConfirm={() => void handleCancel()}
+      />
+
+      {/* Truy xuất nguồn gốc & lịch sử thay đổi (Sổ Data) — dùng chung cho mọi dòng hóa đơn mua */}
+      <LineageInspectorDialog
+        open={!!lineageTarget}
+        onOpenChange={(o) => !o && setLineageTarget(null)}
+        target={lineageTarget}
       />
     </div>
   )

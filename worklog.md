@@ -666,3 +666,116 @@ Stage Summary:
 - Mỗi khách có hồ sơ trí nhớ dài hạn tự cập nhật (đơn/chat/review) + chân dung (avatar DiceBear, giới tính, tuổi ước lượng, phong cách) + gợi ý chăm sóc; hiển thị ở Dialog Khách hàng + sidebar Hộp thư, có nút Tóm tắt lại
 - Hộp thư Zalo multimodal: khách gửi ảnh → VLM đọc ảnh + Agent trả lời đúng trọng tâm ảnh kèm trí nhớ (xin lỗi + bù quà đúng lỗi nắp hở), reaction ❤️/🙏/😢 tự động trên bong bóng + Nhật ký
 - Sổ Data ghi đủ vết scope CUSTOMER (MEMORY_REFRESH ×29, MEMORY_SYSTEM_SEEDED) + MESSAGE/AGENT kèm reaction
+
+---
+Task ID: 24-d
+Agent: ui-integrator (Z.ai Code)
+Task: Tích hợp Data Lineage + Bộ lọc Kỳ kế toán + Đối chiếu Đầu kỳ→Cuối kỳ vào 2 view (Vận chuyển + Đơn hàng)
+
+Work Log:
+- Đọc nền tảng có sẵn: src/lib/lineage.ts (PeriodRange/EMPTY_PERIOD/resolvePeriodRange/CHANGED_FILTER_LABELS), src/components/cms/lineage.tsx (DataLineageBadge/LineageInspectorDialog), src/components/cms/period-filter-bar.tsx (PeriodFilterBar/PeriodSummaryBar) + verify 2 API route đã hỗ trợ preset/from/to/originSource/onlyChanged + block `period` (Đầu kỳ/Phát sinh/Hoàn tất/Còn lại) — nền tảng đã xong, chỉ tích hợp UI
+- FILE 1 src/components/cms/views/shipments-view.tsx (348→431 dòng, giữ nguyên 5 stat card / select trạng thái / select COD / Nhận COD / Đối soát xong / In phiếu A6):
+  • Type cục bộ `ShipmentWithLineage = Shipment & { originSource?, changeCount? }` (không sửa lib/types) + mở rộng ShipmentsData thêm block `period`
+  • State mới: period (EMPTY_PERIOD), originSource 'ALL', changedFilter 'ALL', lineageTarget (LineageInspectorTarget | null)
+  • load(): thêm params preset/from/to (CUSTOM) + originSource + onlyChanged (chỉ gửi khi !== ALL) vào GET /api/shipments, deps đầy đủ
+  • Hàng filter: đổi thành flex-col lg:flex-row lg:justify-between — trái = title, phải = PeriodFilterBar (showOrigin showChanged, originOptions=['AGENT_AUTOPILOT','MANUAL_ADMIN']) + 2 Select cũ (xếp dịu mobile: flex-col → xl:flex-row)
+  • PeriodSummaryBar NGAY DƯỚI hàng stat card: [Đầu kỳ chờ xử lý amber] +[Phát sinh mới trong kỳ blue] −[Hoàn tất/đối soát trong kỳ green] =[Còn lại cuối kỳ default] + caption "Đối chiếu Kỳ vận chuyển"
+  • Bảng: cột mới "Nguồn gốc & Lịch sử" (hidden md, trước cột Cập nhật) với DataLineageBadge originSource/changeCount/onInspect; colSpan skeleton + empty 11→12
+  • openLineage(s) → LineageInspectorDialog target { entityType:'Shipment', entityId, entityCode: trackingCode, label: `Vận đơn ${trackingCode} — đơn ${order.code}` }; dialog render cuối component
+- FILE 2 src/components/cms/views/orders-view.tsx (1638→1744 dòng, GIỮ NGUYÊN search/filter/pagination/tạo đơn POS/dialog chi tiết/in hóa đơn/aftersales/quét mã vạch — chỉ chèn đúng chỗ):
+  • Type cục bộ `OrderWithLineage = Order & { originSource?, changeCount? }`; orders state đổi sang type này; state mới period/originSource/changedFilter/lineageTarget/periodStats (block period từ API)
+  • fetchOrders(): thêm preset/from/to/originSource/onlyChanged; setPeriodStats(data.period); deps thêm period/originSource/changedFilter
+  • Toolbar tách 2 hàng: hàng 1 = search + select trạng thái + select kênh (giữ nguyên), hàng 2 = PeriodFilterBar (showOrigin showChanged, KHÔNG truyền originOptions — đủ 4 nguồn SHOPEE_SYNC/MARKETPLACE_SYNC/ZALO_OA/POS); applyPeriod/applyOriginSource/applyChangedFilter đều setPage(1)
+  • PeriodSummaryBar TRÊN bảng (trong fragment, chỉ render khi có periodStats): [Đầu kỳ chờ xử lý amber] +[Đơn mới trong kỳ blue] −[Hoàn tất/Hủy trong kỳ green] =[Còn lại cuối kỳ default] + caption "Đối chiếu Kỳ đơn hàng"; min-w bảng 960→1080px
+  • Bảng: cột mới "Nguồn gốc & Lịch sử" ngay sau cột Kênh với DataLineageBadge compact; openLineage(o) → target { entityType:'Order', entityId, entityCode: o.code, label: `Đơn ${o.code}` }; LineageInspectorDialog cuối component
+  • hasFilter mở rộng thêm period.preset/originSource/changedFilter (empty state hiển thị đúng khi lọc kỳ không ra kết quả)
+- Verify: bunx tsc --noEmit (0 lỗi vùng src, chỉ bỏ qua examples/skills cũ); bunx eslint shipments-view + orders-view --max-warnings 0 = PASS; curl /api/shipments?preset=THIS_MONTH → 52 shipments, lineage {AGENT_AUTOPILOT, changeCount 4}, period {openingPending 0, newInPeriod 52, completedInPeriod 52, remaining 0}; curl /api/orders?preset=LAST7&pageSize=2&originSource=POS&onlyChanged=CHANGED → total 9, lineage {POS, 1}, period đúng; GET / 200; dev.log không lỗi runtime
+
+Stage Summary:
+- 2 view (Vận chuyển + Đơn hàng) giờ có đủ lớp Data Provenance: (1) Bộ lọc Kỳ kế toán chuẩn (Tất cả/Hôm nay/Hôm qua/7 ngày/Tháng này/Kỳ trước/Tùy chỉnh from-to) + Nguồn gốc dữ liệu (Vận chuyển thu hẹp 2 nguồn Agent tự động/Quản trị viên; Đơn hàng đủ 4 nguồn sàn/Zalo/POS/online) + Trạng thái thay đổi (Nguyên bản/Đã đổi) — mọi filter gửi thẳng xuống API
+- Đối chiếu Kỳ hiển thị ngay trên mỗi view dạng công khai: Đầu kỳ chờ xử lý + Phát sinh mới − Hoàn tất trong kỳ = Còn lại cuối kỳ, tự cập nhật theo filter (đổi filter kỳ ở Đơn hàng tự quay về trang 1)
+- Cột "Nguồn gốc & Lịch sử" trên cả 2 bảng: badge nguồn gốc (màu theo nguồn) + badge Nguyên bản/Đã đổi (N lần); bấm → LineageInspectorDialog tự fetch /api/lineage hiển thị Thông tin gốc (người tạo, chứng từ gốc) + Timeline + bảng Diff Trước→Sau từng trường
+- Không xóa/sửa bất kỳ tính năng cũ nào (stat card, COD, In phiếu A6, POS, aftersales, quét vạch... đều nguyên vẹn); chỉ chèn chồng lớp; mobile an toàn (cột lineage ẩn dưới md ở Vận chuyển, bảng Đơn hàng có overflow-x + min-width đã nới)
+- Lưu ý cho task sau: ShipmentWithLineage/OrderWithLineage là type cục bộ trong từng view (theo pattern DetailOrder cũ) — khi lib/types thêm originSource/changeCount chính thức có thể dọn; DataLineageBadge prop `compact` hiện chưa ảnh hưởng render (component nền chấp nhận nhưng chưa dùng)
+
+---
+Task ID: 24-c
+Agent: lineage-ui-integrator
+Task: Tích hợp Data Lineage + Bộ lọc Kỳ kế toán vào 2 view (ledger-view, inventory-view) trên nền Data Provenance có sẵn
+
+Work Log:
+- Đọc worklog (task 1→23) + 2 file nền tảng src/lib/lineage.ts & src/components/cms/lineage.tsx + period-filter-bar.tsx; đối chiếu contract API thực tế trong src/app/api/ledger/route.ts (preset/from/to/originSource/onlyChanged + period{beforeCount,inCount,originalCount,changedCount}) và src/app/api/inventory/route.ts (movements + originSource suy luận + period{opening,importQty,exportQty,adjustQty,closing,movementCount}); tham khảo pattern tích hợp sẵn ở shipments-view.tsx (lineageTarget + LineageInspectorDialog) để giữ nhất quán
+- ledger-view.tsx (697→825 dòng, GIỮ NGUYÊN scope filter/search/realtime/tab đối soát/dialog chi tiết): (1) mở rộng interface LedgerEntry thêm 6 trường optional provenance (originSource, actorName, sourceRefCode, beforeSnapshot, afterSnapshot, changedFields) + interface LedgerPeriodStats; (2) thêm state period (EMPTY_PERIOD) / originSource / changedFilter / periodStats / lineageTarget; (3) fetchLedger truyền thêm preset, from+to khi CUSTOM, originSource, onlyChanged (deps cập nhật) + setPeriodStats từ response; (4) PeriodFilterBar (showOrigin showChanged) đặt cạnh Select Phạm vi/Thời gian trong toolbar flex-wrap lg (mobile stack dọc không tràn); (5) PeriodSummaryBar "Đối chiếu Kỳ" NGAY TRÊN bảng: Đầu kỳ (bản ghi trước kỳ, default) + Phát sinh trong kỳ (blue, +) · Nguyên bản (green) · Đã thay đổi (amber) — hiện khi response có period (preset ALL vẫn hiện, trước kỳ = 0); (6) cột mới "Nguồn gốc & Lịch sử" trước cột cuối (Thực hiện): DataLineageBadge originSource + changeCount = changedFields?1:0, cell stopPropagation để không kích hoạt row-click dialog chi tiết; onInspect chỉ gắn khi entityType ∈ {Order,Shipment,Product,Customer,SalesInvoice,PurchaseInvoice} và có entityId → mở LineageInspectorDialog target{entityType, entityId, entityCode, label: entityCode ?? title}; (7) min-w bảng 760→920px cho cột mới
+- inventory-view.tsx (489→587 dòng, GIỮ NGUYÊN quét vạch/cảnh báo tồn thấp/dialog thao tác kho): (1) type MovementWithOrigin = StockMovement & {originSource?} + interface InventoryPeriodSummary; (2) state period / periodSummary / lineageTarget; (3) load() gọi /api/inventory?view=movements + preset (+from/to khi CUSTOM), lưu periodSummary; (4) PeriodFilterBar (không showOrigin/showChanged) cạnh CardTitle trong flex justify-between; (5) PeriodSummaryBar trong card dưới header: Tồn đầu kỳ (sub "Toàn bộ sản phẩm") + Nhập trong kỳ (+X, green) − Xuất/ĐC trong kỳ (red) = Tồn cuối kỳ (emerald, sub "N biến động"); (6) cột "Nguồn gốc" sau cột "Tồn sau": DataLineageBadge originSource (không changeCount), onInspect mở LineageInspectorDialog target{entityType:'Product', entityId:m.productId, entityCode:m.product?.sku, label:"name (sku)"} — chỉ khi productId có; (7) bảng thêm min-w-[720px] cho x-scroll mobile, giữ max-h-96; (8) hint StatCard 60→120 bản ghi (khớp limit API mới)
+- Verify: bunx tsc --noEmit → 0 lỗi mới (chỉ còn 3 lỗi cũ examples/ + skills/); bunx eslint 2 file --max-warnings 0 → exit 0; curl 2 API OK; GET / 200 compile sạch, dev.log không lỗi runtime
+
+Stage Summary:
+- Sổ Data & Tồn kho giờ có đầy đủ lớp Data Provenance: bộ lọc Kỳ kế toán (Đầu kỳ → Trong kỳ → Cuối kỳ) + lọc Nguồn gốc/Trạng thái thay đổi (Sổ Data) + badge nguồn gốc & Nguyên bản/Đã đổi trên từng dòng + Dialog Truy xuất nguồn gốc với Diff Trước(đỏ)→Sau(xanh)
+- Sổ Data: 4 segment đối chiếu (Đầu kỳ/Phát sinh/Nguyên bản/Đã thay đổi) dùng period stats từ API; entry Sổ Data trỏ entity 6 loại (Order/Shipment/Product/Customer/SalesInvoice/PurchaseInvoice) mở inspector theo entityId; entry không entity vẫn hiện badge nhưng không click; inventory mở inspector theo Product (xem toàn bộ chuỗi tồn kho before→after của SP)
+- Quyết định: cột lineage đặt trước cột cuối (đúng spec "trước cột thời gian/cột cuối" — thời gian ở đây là cột đầu); stopPropagation trên cell badge để row-click chi tiết không xung đột; không đụng tính năng cũ (days filter vẫn hoạt động, server ưu tiên days khi có)
+
+---
+Task ID: 24-e
+Agent: lineage-3views-frontend
+Task: Tích hợp Badge Nguồn gốc + Dialog Truy xuất nguồn gốc/Lịch sử (DataLineageBadge + LineageInspectorDialog từ src/components/cms/lineage.tsx) vào 3 view: Xuất hàng (sales-view), Nhập hàng (purchase-view), Khách hàng (customers-view) — chỉ chồng lớp, không đụng tính năng cũ
+
+Work Log:
+- Đọc worklog (800 dòng cuối: 23, 22-final, 22-b, 22-c, 22, 23 cũ...) + lineage.tsx (DataLineageBadge [OriginBadge + ChangeCountBadge], LineageInspectorDialog tự fetch /api/lineage?entityType&entityId, hiển thị Thông tin gốc + Timeline + Diff Trước(đỏ nhạt)→Sau(xanh nhạt))
+- Verify contract bằng curl TRƯỚC khi code: GET /api/customers → customers[0] có originSource="SYSTEM_SEED", changeCount=1; GET /api/sales-invoices → originSource="MANUAL_ADMIN", changeCount=0, order null; GET /api/purchase-invoices → originSource="MANUAL_ADMIN", changeCount=0; GET /api/lineage?entityType=Customer&entityId → origin CUSTOMER_ORIGINAL + changes + changeCount; entityType=SalesInvoice → changes trả về OK (dialog xử lý origin=null mượt)
+- sales-view.tsx (894 dòng, additive): import DataLineageBadge/LineageInspectorDialog/LineageInspectorTarget; type cục bộ `InvoiceWithLineage = SalesInvoice & { originSource?: string|null; changeCount?: number }` (state invoices + apiGet generic đổi sang type này, mọi chỗ khác giữ nguyên SalesInvoice); state lineageTarget + openLineage(inv) → { entityType:'SalesInvoice', entityId: inv.id, entityCode: inv.code, label: `Hóa đơn bán ${inv.code}` }; bảng thêm cột "Nguồn gốc & Lịch sử" (hidden md:table-cell, đặt sau cột Trạng thái, trước cột nút Eye) với `<DataLineageBadge originSource={inv.originSource} changeCount={inv.changeCount} onInspect={() => openLineage(inv)} compact />`; 1 LineageInspectorDialog duy nhất cuối component (open={!!lineageTarget}, onOpenChange đóng → setLineageTarget(null))
+- purchase-view.tsx (853 dòng sau sửa, cùng pattern sales-view): InvoiceWithLineage từ PurchaseInvoice, entityType 'PurchaseInvoice', label `Hóa đơn mua ${inv.code}`; cột badge + dialog như sales-view; KHÔNG đụng quét mã vạch/VAT/in hóa đơn/hủy
+- customers-view.tsx (973 dòng sau sửa, additive): type cục bộ `CustomerWithLineage = Customer & { originSource?: string|null; changeCount?: number }` (state customers + apiGet generic); openLineage(c) → { entityType:'Customer', entityId: c.id, entityCode: c.memberCode ?? c.phone ?? c.name, label: c.name }; cột "Nguồn gốc & Lịch sử" đặt NGAY SAU cột "Hạng thành viên" (gần cột Thành viên theo yêu cầu), hidden md:table-cell; TableCell bọc onClick stopPropagation để bấm badge KHÔNG mở dialog chi tiết (cả TableRow đang có onClick openDetail); giữ nguyên 5 StatCard, filter thành viên, dialog chi tiết (Chân dung & Trí nhớ AI, cộng/trừ điểm, nâng cấp TV)
+- Badge size text-[11px] sẵn trong lineage.tsx (OriginBadge/ChangeCountBadge), không cần CSS thêm; 3 bảng đều nằm trong wrapper overflow (sales/purchase: max-h-96 overflow-auto; customers: overflow-x-auto) nên không vỡ layout
+- Kiểm chứng E2E browser (agent-browser session t24e): Xuất hàng — header cột thứ 9 "Nguồn gốc & Lịch sử", 8 dòng render badge "Quản trị viên · Nguyên bản"; bấm badge → dialog "Nguồn gốc & Lịch sử thay đổi — Hóa đơn bán PXK261024-0004 · Nguyên bản — chưa từng sửa" (lưu ý: click phải trúng span con có title "Chưa từng bị chỉnh sửa/Đã được cập nhật…" — bấm span bọc ngoài không có onClick); Nhập hàng — 4 dòng badge OK, dialog "Hóa đơn mua PMM261023-0003" mở đúng; Khách hàng — cột đặt sau Hạng thành viên, badge "Dữ liệu mẫu · Đã đổi (1 lần)"/"Nguyên bản", bấm badge dòng Vũ Ngọc Linh → dialog "Vũ Ngọc Linh · Đã đổi 1 lần" có Thông tin gốc (Chứng từ gốc TV0002) + Timeline thay đổi (9) + Diff Trước→Sau, KHÔNG mở kèm dialog chi tiết (stopPropagation ăn); mobile 390px: cột lineage display:none, body.scrollWidth=390 không tràn ngang
+- bunx eslint 3 file --max-warnings 0 → exit 0; bunx tsc --noEmit → 0 lỗi vùng src (chỉ lỗi cũ examples/skills như thường lệ); dev.log: GET / 200, GET /api/sales-invoices + /api/purchase-invoices + /api/customers 200, không runtime error; console/page errors sạch (chỉ Fast Refresh logs)
+
+Stage Summary:
+- 3 view Xuất hàng/Nhập hàng/Khách hàng giờ đều có cột "Nguồn gốc & Lịch sử" với badge [Nguồn gốc] + [Nguyên bản | Đã đổi (N lần)]; bấm badge mở LineageInspectorDialog dùng chung (1 dialog/view) tra cứu /api/lineage: Thông tin gốc + Timeline mọi thay đổi (MEMORY_REFRESH, MEMBER_REGISTERED, *_CANCELLED…) + bảng Diff Trước(đỏ)→Sau(xanh)
+- Contract cho task sau: cột badge dùng DataLineageBadge({originSource, changeCount, onInspect, compact}) — originSource null thì ẩn badge gốc, chỉ còn badge trạng thái; trong bảng có row onClick phải stopPropagation ở mức TableCell; click test bằng agent-browser phải trúng span có title (không phải span bọc ngoài); cột hidden md:table-cell nên mobile không chật
+- Không đổi bất kỳ API/điều hướng/lọc nào; PeriodFilterBar không thêm vào 3 view này theo đề bài
+---
+Task ID: 24
+Agent: main (Z.ai Code)
+Task: Nâng cấp toàn hệ thống lên chuẩn "Truy xuất nguồn gốc dữ liệu (Data Provenance) + Kiểm toán thay đổi (Diff Trước/Sau) + Bộ lọc Thời gian Đầu kỳ - Cuối kỳ" theo 4 hạng mục
+
+Work Log:
+- HẠNG MỤC 1 — Schema & Helper:
+  • prisma/schema.prisma: LedgerEntry thêm 6 trường provenance (originSource/actorName/sourceRefCode/beforeSnapshot/afterSnapshot/changedFields JSON string) + index (entityType,entityId) & (originSource); db push OK
+  • src/lib/lineage.ts (mới, client-safe): ORIGIN_SOURCES map 8 nguồn (SHOPEE_SYNC/MARKETPLACE_SYNC/ZALO_OA/POS/AGENT_AUTOPILOT/BARCODE_SCAN/MANUAL_ADMIN/SYSTEM_SEED — thêm MARKETPLACE_SYNC cho Lazada/TikTok/Tiki/Website/Facebook/App để không gắn nhãn sai "Từ Shopee"), FIELD_LABELS ~40 trường + formatFieldValue (VND/boolean/status map), parseSnapshot/parseChangedFields, resolvePeriodRange 7 preset (ALL/TODAY/YESTERDAY/LAST7/THIS_MONTH/LAST_MONTH/CUSTOM)
+  • lib/ledger.ts: logLedger mở rộng nhận 6 trường mới; recordLineageChange() tự diff before→after (diffChangedFields), tự suy luận originSource (inferOriginSource theo channelKey/actor/action) + actorName (defaultActorName phân biệt 5 Agent), skip khi không đổi; recordLineageChangeAsync
+  • Gắn recordLineageChange vào MỌI mutation sống: orders/[id] PATCH (STATUS_CHANGED/ORDER_CANCELLED/PAYMENT_MARKED), shipments POST + [id] PATCH (SHIPMENT_ORIGINAL/COD_*/SHIPMENT_STATUS_CHANGED), inventory POST (STOCK_* với stock before→after), products/[id] PUT (PRODUCT_UPDATED diff 8 trường + BARCODE_SCAN cho barcode), customers POST (CUSTOMER_ORIGINAL), member.ts (MEMBER_REGISTERED/POINTS_ADJUSTED/POINTS_REDEEMED/POINTS_EARNED — chuyển POINTS_EARNED sang entityType Customer để timeline khách hiển thị), invoice-service.ts (SALES/PURCHASE_CREATED + CANCELLED), order-service.ts (ORDER_CREATED kèm origin theo kênh)
+- BACKFILL (scripts/backfill-lineage.ts, idempotent qua tag "lineage-backfill":"v1"):
+  • Pass A: gán originSource/actorName/sourceRefCode cho toàn bộ 429 entry cũ + chuẩn hóa casing entityType (PRODUCT→Product)
+  • Pass B: bổ sung snapshot cho entry có sẵn (ORDER_CREATED, STATUS_CHANGED từ detail from/to, COD_RECEIVED/RECONCILED, MEMBER_REGISTERED, STOCK_* — fallback tra StockMovement ±5-8s khi detail cũ thiếu số liệu)
+  • Pass C: tạo snapshot lịch sử: 156 ORDER_ORIGINAL + 173 ORDER_STATUS_CHANGED (timestamp THẬT từ OrderEvent) + ~86 ORDER_STATUS_SUMMARY (đơn không có event, tổng hợp PENDING→hiện tại) + 52 SHIPMENT_ORIGINAL + chuỗi trạng thái vận đơn + chuỗi COD + 234 movement-lineage (before=stockAfter−qty) + 29 CUSTOMER_ORIGINAL + MEMBER_UPGRADED + hóa đơn thiếu origin → 995 entry mới
+  • Sự cố đã xử lý: chạy lần 2 tạo trùng 173 ORDER_STATUS_CHANGED (thiếu guard) → xóa trùng + vá guard (entityId::createdAt key) + re-run 2 lần = 0 mới; Pass B5 bỏ sót before của entry STOCK_ADJUST gốc → vá bằng movement ±8s (UD-QT-001 15→8, UD-QT-002 12→6)
+  • Kết quả: 1424 entry — 100% có originSource, 1033 có afterSnapshot, 781 có changedFields; 171/171 đơn có vết
+- HẠNG MỤC 2 — API + Component:
+  • API /api/lineage (mới): ?entityType=&entityId=|entityCode= → origin (fallback entry sớm nhất khi thiếu bản gốc, originIsFallback) + changes asc + changeCount
+  • getLineageMeta() (lib/lineage-server.ts): Map entityId→{changeCount, originSource} — gắn vào GET customers/sales-invoices/purchase-invoices
+  • src/components/cms/lineage.tsx (mới): DataLineageBadge (origin badge + 'Nguyên bản' xanh/'Đã đổi (N lần)' amber, click được), OriginBadge/ChangeCountBadge, LineageInspectorDialog (Thông tin gốc: thời điểm/nguồn/người tạo/chứng từ + snapshot grid; Timeline thay đổi desc; DiffTable Trước đỏ nhạt → Sau xanh nhạt theo từng trường, formatFieldValue hiển thị tiếng Việt)
+  • src/components/cms/period-filter-bar.tsx (mới): PeriodFilterBar (Select 7 preset + 2 Input date khi CUSTOM + lọc Nguồn gốc [originOptions thu hẹp được] + lọc Trạng thái thay đổi), PeriodSummaryBar (segment label/value/sub/tone/operator, flex-wrap)
+- HẠNG MỤC 3 — API kỳ kế toán:
+  • /api/ledger: +preset/from/to/originSource/onlyChanged + period {beforeCount, inCount, originalCount, changedCount}
+  • /api/inventory: +preset/from/to (+productId) → movements lọc kỳ + period {opening, importQty, exportQty(COMBO_ISSUE gộp), adjustQty, closing, movementCount}; công thức closing = tồn hiện tại − Σ(sau toDate), opening = closing − Σ(trong kỳ) — assert khớp 3 mức (tất cả/kỳ/custom/per-product)
+  • /api/shipments + /api/orders: +preset/from/to/originSource/onlyChanged (changed đối chiếu Sổ Data groupBy entityId changedFields≠null; origin: shipments qua dispatchedBy, orders qua channel.key) + changeCount từng dòng + period đối chiếu Đầu kỳ→Phát sinh→Hoàn tất→Còn lại; statsWhere tách khỏi where (không gạch createdAt) để Đầu kỳ tính cả hàng tồn từ trước kỳ
+  • 2 lần sửa công thức: (1) remaining tính theo mốc cuối kỳ thay vì hiện tại (sửa Đầu kỳ âm −2 khi lọc Hôm qua); (2) remaining chỉ tính entity ĐÃ TỒN TẠI trước mốc cuối kỳ (sửa mismatch 162≠171). Kết quả: opening + new − completed = remaining khớp 100% trên 8 preset × 2 API
+- HẠNG MỤC 3 — UI (3 agent song song):
+  • 24-c: ledger-view (PeriodFilterBar showOrigin+showChanged, PeriodSummaryBar Đầu kỳ/Phát sinh/Nguyên bản/Đã thay đổi, cột Nguồn gốc & Lịch sử + inspector theo entity); inventory-view (PeriodFilterBar, PeriodSummaryBar Tồn đầu kỳ→+Nhập→−Xuất/ĐC[gồm điều chỉnh kiểm kê]→=Tồn cuối kỳ, badge origin từng movement, inspector Product timeline tồn kho)
+  • 24-d: shipments-view (PeriodFilterBar originOptions=[AGENT_AUTOPILOT,MANUAL_ADMIN], bar Đầu kỳ chờ→+Phát sinh→−Hoàn tất→=Còn lại, badge + inspector Shipment); orders-view (tương tự, origin 4 giá trị kênh, setPage(1) khi đổi filter, cột badge compact + inspector Order)
+  • 24-e: sales-view + purchase-view (cột Nguồn gốc & Lịch sử + inspector SalesInvoice/PurchaseInvoice, stopPropagation); customers-view (cột sau Hạng thành viên + inspector Customer)
+- HẠNG MỤC 4 — E2E (agent-browser session t24):
+  • Vận chuyển: bar ALL "0+52−52=0"; lọc Hôm qua → bar "41+2−0=43" khớp API, bảng còn 2 dòng; badge "Agent tự động · Đã đổi (4 lần)" → dialog: Thông tin gốc (05:22 24-10, Agent Kho vận, JT261024380049, snapshot) + 4 bảng diff (Trạng thái Đang vận chuyển→Đã giao…)
+  • Tồn kho: ALL "59+1.202−387(gồm ĐC 13)=874" ✓; Đầu tháng này "1.194+4−324(gồm ĐC 13)=874" ✓ (đã fix UI gộp adjustQty vào Xuất/ĐC)
+  • Sổ Data: bar "Đầu kỳ 79 + Phát sinh 1.345 · Nguyên bản 613 · Đã thay đổi 732" (613+732=1345 ✓); lọc CHANGED → 200 dòng STOCK_ADJUST...; badge → inspector UD-QT-001 24 lần + Customer Nguyên bản
+  • Đơn hàng: bar "0+171−138=33"; badge "Từ Zalo OA · Đã đổi (4 lần)" → dialog đơn DH261024-0096: origin + 4 diff (Đã bàn giao ĐVVC→Đã giao)
+  • Vòng đời sống: POST /api/inventory IMPORT +5 → changeCount 24→25, newest diff {stock:8}→{stock:13} timestamp thật; ADJUST trả về 8 (giữ nguyên 2 SP low-stock test UD-QT-002=6/UD-QT-001=8)
+  • Mobile 390px: 8 view (Sổ Data/Tồn kho/Vận chuyển/Đơn hàng/Khách hàng/Xuất hàng/Nhập hàng) scrollW=390 không tràn, PeriodSummaryBar tự wrap
+  • dev.log: 0 runtime error mới sau khi sửa xong; lint 11 file --max-warnings 0 exit 0; tsc sạch vùng src
+- Lưu ý vận hành: dev server đã restart 1 lần trong phiên (Prisma client cũ không nhận biết changedFields → ledger/shipments/orders 500 tạm thời; rm -rf .next + setsid bun run dev đã ổn định)
+
+Stage Summary:
+- Toàn hệ thống có lớp DATA PROVENANCE hoàn chỉnh: 7+1 nguồn gốc (badge màu), Nguyên bản/Đã đổi N lần theo Sổ Data, Dialog Truy xuất nguồn gốc & So sánh thay đổi (Trước đỏ → Sau xanh) nhúng 8 bảng: Sổ Data, Tồn kho, Vận chuyển, Đơn hàng, Xuất hàng, Nhập hàng, Khách hàng (+1.424 entry lineage backfill 100%)
+- Bộ lọc Kỳ chuẩn kế toán (Tất cả/Hôm nay/Hôm qua/7 ngày/Đầu tháng/Kỳ trước/Tùy chỉnh + Nguồn gốc + Trạng thái thay đổi) chạy trên Sổ Data/Tồn kho/Vận chuyển/Đơn hàng với thanh đối chiếu ĐẦU KỲ → TRONG KỲ → CUỐI KỲ khớp chính xác toán học (assert cả API lẫn UI)
+- Mọi thao tác mới (đơn/vận đơn/COD/kho/SP/khách/điểm/hóa đơn) tự chụp beforeSnapshot→afterSnapshot→changedFields vào Sổ Data từ giờ
+- Công cụ lưu lại: scripts/backfill-lineage.ts (idempotent, tag v1), /api/lineage, getLineageMeta, lib/lineage.ts, components lineage.tsx + period-filter-bar.tsx

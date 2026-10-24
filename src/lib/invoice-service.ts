@@ -8,7 +8,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
-import { logLedger } from '@/lib/ledger'
+import { recordLineageChange } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { getSetting, getSettings } from '@/lib/settings'
 import { syncComboStock } from '@/lib/combo'
@@ -230,20 +230,19 @@ export async function createPurchaseInvoice(input: CreatePurchaseInvoiceInput) {
     },
   })
 
-  await logLedger({
+  await recordLineageChange({
     scope: 'INVOICE',
     action: 'PURCHASE_CREATED',
     actor: 'OPERATOR',
+    actorName: 'Người vận hành',
+    originSource: 'MANUAL_ADMIN',
     entityType: 'PurchaseInvoice',
     entityId: created.id,
     entityCode: code,
+    sourceRefCode: code,
     title: `Hóa đơn mua ${code} — ${partner?.name ?? 'Nhà cung cấp lẻ'}`,
+    after: { status: 'POSTED', subtotal, vatRate, vatAmount, total, itemCount: items.length },
     detail: {
-      subtotal,
-      vatRate,
-      vatAmount,
-      total,
-      itemCount: items.length,
       items: items.map((it) => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice })),
     },
   })
@@ -430,24 +429,24 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
     ? { ...full, order: order ? { id: order.id, code: order.code } : null }
     : full
 
-  await logLedger({
+  await recordLineageChange({
     scope: 'INVOICE',
     action: 'SALES_CREATED',
     actor: 'OPERATOR',
+    actorName: 'Người vận hành',
+    originSource: 'MANUAL_ADMIN',
     entityType: 'SalesInvoice',
     entityId: created.invoice.id,
     entityCode: code,
+    sourceRefCode: order?.code ?? code,
     title: `Hóa đơn bán ${code}${order ? ` — đơn ${order.code}` : partner ? ` — ${partner.name}` : ''}`,
+    after: { status: 'POSTED', invoiceNo, subtotal, vatRate, vatAmount, total },
     detail: {
       orderId: order?.id ?? null,
       orderCode: order?.code ?? null,
-      invoiceNo,
       series: seriesSettings.series,
       templateCode: seriesSettings.templateCode,
       paymentMethod: order?.paymentMethod ?? null,
-      subtotal,
-      vatRate,
-      vatAmount,
       total,
       itemCount: items.length,
       items: items.map((it) => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice })),
@@ -493,14 +492,19 @@ export async function cancelPurchaseInvoice(id: string, note?: string) {
     },
   })
 
-  await logLedger({
+  await recordLineageChange({
     scope: 'INVOICE',
     action: 'PURCHASE_CANCELLED',
     actor: 'OPERATOR',
+    actorName: 'Người vận hành',
+    originSource: 'MANUAL_ADMIN',
     entityType: 'PurchaseInvoice',
     entityId: id,
     entityCode: invoice.code,
+    sourceRefCode: invoice.code,
     title: `Hủy hóa đơn mua ${invoice.code}`,
+    before: { status: invoice.status, total: invoice.total },
+    after: { status: 'CANCELLED', total: invoice.total },
     detail: {
       note: note?.trim() || null,
       reversedItems: invoice.items.map((it) => ({ productId: it.productId, quantity: Math.round(it.quantity) })),
@@ -544,14 +548,19 @@ export async function cancelSalesInvoice(id: string, note?: string) {
       ? { ...full, order: { id: invoice.orderId, code: orderCodeMap.get(invoice.orderId) ?? null } }
       : full
 
-  await logLedger({
+  await recordLineageChange({
     scope: 'INVOICE',
     action: 'SALES_CANCELLED',
     actor: 'OPERATOR',
+    actorName: 'Người vận hành',
+    originSource: 'MANUAL_ADMIN',
     entityType: 'SalesInvoice',
     entityId: id,
     entityCode: invoice.code,
+    sourceRefCode: invoice.orderId ? orderCodeMap.get(invoice.orderId) ?? invoice.code : invoice.code,
     title: `Hủy hóa đơn bán ${invoice.code}${invoice.orderId ? ` — đơn ${orderCodeMap.get(invoice.orderId) ?? ''}` : ''}`,
+    before: { status: invoice.status, total: invoice.total },
+    after: { status: 'CANCELLED', total: invoice.total },
     detail: { note: note?.trim() || null, orderId: invoice.orderId },
   })
   broadcast('settings.updated', { reason: 'invoice' })

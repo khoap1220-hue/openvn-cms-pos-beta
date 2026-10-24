@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { logActivity, logEvent } from '@/lib/agent-log'
 import { broadcast } from '@/lib/realtime'
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/lib/types'
-import { logLedger } from '@/lib/ledger'
+import { recordLineageChange } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { syncComboStock } from '@/lib/combo'
 import { awardPointsForCompletedOrder } from '@/lib/member'
@@ -139,28 +139,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
       broadcast('order.updated', { id, status: data.status, code: order.code })
 
-      // Sổ Data: đổi trạng thái / hủy đơn
+      // Sổ Data: đổi trạng thái / hủy đơn — chụp lineage Trước → Sau
       if (data.status === 'CANCELLED') {
-        await logLedger({
+        await recordLineageChange({
           scope: 'ORDER',
           action: 'ORDER_CANCELLED',
           entityType: 'Order',
           entityId: id,
           entityCode: order.code,
           title: `Hủy đơn ${order.code} — hoàn kho tự động`,
-          detail: { from: order.status, to: 'CANCELLED' },
+          before: { status: order.status, paymentStatus: order.paymentStatus },
+          after: { status: 'CANCELLED', paymentStatus: finalPaymentStatus },
           actor: 'OPERATOR',
+          actorName: 'Người vận hành',
+          originSource: 'MANUAL_ADMIN',
+          detail: { restocked: restocking },
         })
       } else {
-        await logLedger({
+        await recordLineageChange({
           scope: 'ORDER',
           action: 'STATUS_CHANGED',
           entityType: 'Order',
           entityId: id,
           entityCode: order.code,
           title: `Đơn ${order.code}: ${ORDER_STATUS_LABELS[order.status] ?? order.status} → ${ORDER_STATUS_LABELS[data.status] ?? data.status}`,
-          detail: { from: order.status, to: data.status },
+          before: { status: order.status, paymentStatus: order.paymentStatus },
+          after: { status: data.status, paymentStatus: finalPaymentStatus },
           actor: 'OPERATOR',
+          actorName: 'Người vận hành',
+          originSource: 'MANUAL_ADMIN',
         })
       }
 
@@ -177,16 +184,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     } else if (data.paymentStatus) {
       broadcast('order.updated', { id, paymentStatus: data.paymentStatus, code: order.code })
 
-      // Sổ Data: đánh dấu thanh toán
-      await logLedger({
+      // Sổ Data: đánh dấu thanh toán — chụp lineage Trước → Sau
+      await recordLineageChange({
         scope: 'ORDER',
         action: 'PAYMENT_MARKED',
         entityType: 'Order',
         entityId: id,
         entityCode: order.code,
         title: `Đơn ${order.code} — thanh toán ${PAYMENT_STATUS_LABELS[data.paymentStatus] ?? data.paymentStatus}`,
-        detail: { from: order.paymentStatus, to: data.paymentStatus },
+        before: { paymentStatus: order.paymentStatus },
+        after: { paymentStatus: data.paymentStatus },
         actor: 'OPERATOR',
+        actorName: 'Người vận hành',
+        originSource: 'MANUAL_ADMIN',
       })
 
       // Webhook outbound kèm paymentStatus (theo trạng thái hiện tại của đơn)

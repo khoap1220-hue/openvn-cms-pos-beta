@@ -8,7 +8,7 @@
 //  - Mọi thao tác ghi Sổ Data scope CUSTOMER.
 
 import { db } from '@/lib/db'
-import { logLedger } from '@/lib/ledger'
+import { logLedger, recordLineageChange } from '@/lib/ledger'
 import { broadcast } from '@/lib/realtime'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { computeTier, pointsForTotal } from '@/lib/types'
@@ -44,15 +44,20 @@ export async function registerMember(customerId: string, actor: 'OPERATOR' | 'SY
     .then((r) => r._sum.total ?? 0)
   const tier = computeTier(totalSpent)
 
-  await logLedger({
+  await recordLineageChange({
     scope: 'CUSTOMER',
     action: 'MEMBER_REGISTERED',
     entityType: 'Customer',
     entityId: customerId,
     entityCode: memberCode,
+    sourceRefCode: memberCode,
     title: `${customer.name} chính thức trở thành thành viên — mã ${memberCode}`,
-    detail: { name: customer.name, phone: customer.phone, memberCode, totalSpent, tier: tier.key },
+    before: { isMember: false, points: customer.points },
+    after: { isMember: true, memberCode, points: customer.points },
     actor,
+    actorName: actor === 'OPERATOR' ? 'Người vận hành' : 'Agent Tự động',
+    originSource: actor === 'OPERATOR' ? 'MANUAL_ADMIN' : 'AGENT_AUTOPILOT',
+    detail: { name: customer.name, phone: customer.phone, memberCode, totalSpent, tier: tier.key },
   })
   broadcast('customer.updated', { id: customerId, isMember: true, memberCode })
   dispatchWebhook('member.registered', {
@@ -88,21 +93,24 @@ export async function adjustPoints(customerId: string, mode: PointsMode, points:
 
   const action = mode === 'EARN' ? 'POINTS_ADJUSTED' : 'POINTS_REDEEMED'
   const verb = mode === 'EARN' ? 'Cộng' : 'Trừ'
-  await logLedger({
+  await recordLineageChange({
     scope: 'CUSTOMER',
     action,
     entityType: 'Customer',
     entityId: customerId,
     entityCode: customer.memberCode ?? undefined,
+    sourceRefCode: customer.memberCode ?? undefined,
     title: `${verb} ${amount} điểm — ${customer.name} (${customer.memberCode})`,
+    before: { points: customer.points },
+    after: { points: updated.points },
+    actor,
+    actorName: actor === 'OPERATOR' ? 'Người vận hành' : 'Agent Tự động',
+    originSource: actor === 'OPERATOR' ? 'MANUAL_ADMIN' : 'AGENT_AUTOPILOT',
     detail: {
       mode,
       points: amount,
-      before: customer.points,
-      after: updated.points,
       note: note?.trim() || (mode === 'EARN' ? 'Bù điểm thủ công' : 'Đổi quà / giảm giá bằng điểm'),
     },
-    actor,
   })
   broadcast('customer.updated', { id: customerId, points: updated.points })
 
@@ -144,13 +152,19 @@ export async function awardPointsForCompletedOrder(orderId: string): Promise<voi
       .then((r) => r._sum.total ?? 0)
     const tier = computeTier(totalSpent)
 
-    await logLedger({
+    await recordLineageChange({
       scope: 'CUSTOMER',
       action: 'POINTS_EARNED',
-      entityType: 'Order',
-      entityId: orderId,
-      entityCode: order.code,
+      entityType: 'Customer',
+      entityId: customer.id,
+      entityCode: customer.memberCode ?? undefined,
+      sourceRefCode: order.code,
       title: `+${earned} điểm từ đơn ${order.code} — ${customer.name} (${customer.memberCode})`,
+      before: { points: customer.points },
+      after: { points: updated.points },
+      actor: 'AGENT',
+      actorName: 'Agent Tự động',
+      originSource: 'AGENT_AUTOPILOT',
       detail: {
         orderCode: order.code,
         orderTotal: order.total,
@@ -161,7 +175,6 @@ export async function awardPointsForCompletedOrder(orderId: string): Promise<voi
         memberCode: customer.memberCode,
         tier: tier.key,
       },
-      actor: 'SYSTEM',
     })
     broadcast('customer.updated', { id: customer.id, points: updated.points, earned, orderCode: order.code })
     dispatchWebhook('member.points', {

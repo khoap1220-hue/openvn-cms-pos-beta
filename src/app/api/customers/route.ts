@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { recordLineageChange } from '@/lib/ledger'
 import { computeTier } from '@/lib/types'
+import { getLineageMeta } from '@/lib/lineage-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +41,8 @@ export async function GET(req: NextRequest) {
         memberAt: c.memberAt,
         points: c.points,
         tier: c.isMember ? computeTier(totalSpent) : null,
+        originSource: 'MANUAL_ADMIN' as string,
+        changeCount: 0,
         stats: {
           orderCount: c.orders.length,
           totalSpent,
@@ -46,6 +50,13 @@ export async function GET(req: NextRequest) {
         },
       }
     })
+
+    // DATA PROVENANCE — số lần sửa + nguồn gốc theo Sổ Data
+    const lineageMeta = await getLineageMeta('Customer', data.map((c) => c.id))
+    for (const c of data) {
+      c.changeCount = lineageMeta.get(c.id)?.changeCount ?? 0
+      c.originSource = (lineageMeta.get(c.id)?.originSource ?? 'MANUAL_ADMIN') as string
+    }
 
     // Sắp xếp: thành viên + tổng chi tiêu giảm dần
     data.sort((a, b) => {
@@ -92,6 +103,20 @@ export async function POST(req: NextRequest) {
     // Khách mới → dựng ngay chân dung: xưng hô + avatar + nhận diện tên
     const { ensureCustomerProfile } = await import('@/lib/memory-engine')
     await ensureCustomerProfile(customer.id).catch(() => null)
+    // DATA LINEAGE — snapshot gốc hồ sơ khách
+    await recordLineageChange({
+      scope: 'CUSTOMER',
+      action: 'CUSTOMER_ORIGINAL',
+      entityType: 'Customer',
+      entityId: customer.id,
+      entityCode: customer.phone ?? customer.name,
+      sourceRefCode: customer.phone ?? undefined,
+      title: `Hồ sơ khách hàng ${customer.name} được tạo mới`,
+      after: { name: customer.name, phone: customer.phone, isMember: false, points: 0 },
+      actor: 'OPERATOR',
+      actorName: 'Người vận hành',
+      originSource: 'MANUAL_ADMIN',
+    })
     return NextResponse.json({ customer }, { status: 201 })
   } catch (error) {
     console.error('Customers POST error:', error)

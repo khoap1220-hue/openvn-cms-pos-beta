@@ -3,7 +3,7 @@
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
 import { logActivity, logEvent } from '@/lib/agent-log'
-import { logLedgerAsync } from '@/lib/ledger'
+import { logLedgerAsync, recordLineageChangeAsync, inferOriginSource } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { issueComboComponents, syncComboStock } from '@/lib/combo'
 import { friendlyItemsText } from '@/lib/agents'
@@ -167,16 +167,26 @@ export async function createOrder(input: CreateOrderInput) {
     refreshCustomerMemory(finalCustomerId, 'ORDER', `Đơn mới ${order.code}`).catch(() => null)
   }
 
-  // Sổ Data + Webhook outbound (fire-and-forget)
-  logLedgerAsync({
+  // Sổ Data + Webhook outbound (fire-and-forget) — chụp snapshot gốc đơn hàng (DATA LINEAGE)
+  recordLineageChangeAsync({
     scope: 'ORDER',
     action: 'ORDER_CREATED',
     entityType: 'Order',
     entityId: order.id,
     entityCode: order.code,
+    sourceRefCode: order.code,
     title: `Đơn ${order.code} — ${channel.name}`,
-    detail: { total: order.total, items: order.items.length, customer: order.customer?.name ?? 'Khách lẻ' },
+    after: {
+      status: 'PENDING',
+      paymentMethod: order.paymentMethod,
+      paymentStatus: 'UNPAID',
+      total: order.total,
+      itemCount: order.items.length,
+    },
+    originSource: inferOriginSource({ channelKey: channel.key, actor: 'SYSTEM', action: 'ORDER_CREATED' }),
+    actorName: 'Kênh bán',
     actor: 'SYSTEM',
+    detail: { total: order.total, items: order.items.length, customer: order.customer?.name ?? 'Khách lẻ' },
   })
   dispatchWebhook('order.created', {
     id: order.id,

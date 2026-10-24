@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
-import { logLedgerAsync } from '@/lib/ledger'
+import { recordLineageChangeAsync } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,23 +76,50 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updated = await db.shipment.update({ where: { id }, data, include: { order: true } })
 
-    // Sổ Data: mọi thao tác đối soát COD phải ghi vào đây
     const codChanged = data.codStatus !== undefined || data.codReceived !== undefined
+
+    broadcast('shipment.updated', { id: updated.id, orderId: updated.orderId, status: updated.status, codStatus: updated.codStatus })
+
+    // ===== DATA LINEAGE — chụp Trước → Sau cho mọi thay đổi vận đơn =====
+    const beforeSnap: Record<string, unknown> = {}
+    const afterSnap: Record<string, unknown> = {}
+    if (data.status !== undefined && data.status !== shipment.status) {
+      beforeSnap.status = shipment.status
+      afterSnap.status = updated.status
+    }
     if (codChanged) {
-      const amount = updated.codReceived
-      const label =
-        updated.codStatus === 'RECEIVED'
-          ? `Đã nhận tiền COD từ ĐVVC cho đơn ${shipment.order.code} — ${(amount).toLocaleString('vi-VN')}đ`
-          : updated.codStatus === 'RECONCILED'
-            ? `Đối soát COD xong đơn ${shipment.order.code} — tiền ${(amount).toLocaleString('vi-VN')}đ đã về, chốt vào sổ`
-            : `Chuyển đơn ${shipment.order.code} về chờ đối soát COD`
-      logLedgerAsync({
+      beforeSnap.codStatus = shipment.codStatus
+      afterSnap.codStatus = updated.codStatus
+      if (updated.codReceived !== shipment.codReceived) {
+        beforeSnap.codReceived = shipment.codReceived
+        afterSnap.codReceived = updated.codReceived
+      }
+    }
+    if (Object.keys(afterSnap).length > 0) {
+      const isCodOnly = Object.keys(afterSnap).every((k) => k.startsWith('cod'))
+      const action = isCodOnly
+        ? (updated.codStatus === 'RECONCILED' ? 'COD_RECONCILED' : 'COD_RECEIVED')
+        : 'SHIPMENT_STATUS_CHANGED'
+      const lineTitle = isCodOnly
+        ? (updated.codStatus === 'RECONCILED'
+          ? `Đối soát COD xong đơn ${shipment.order.code} — ${(updated.codReceived).toLocaleString('vi-VN')}đ đã về, chốt vào sổ`
+          : updated.codStatus === 'RECEIVED'
+            ? `Đã nhận tiền COD từ ĐVVC cho đơn ${shipment.order.code} — ${(updated.codReceived).toLocaleString('vi-VN')}đ`
+            : `Chuyển đơn ${shipment.order.code} về chờ đối soát COD`)
+        : `Vận đơn ${updated.trackingCode}: ${shipment.status} → ${updated.status}`
+      recordLineageChangeAsync({
         scope: 'ORDER',
-        action: updated.codStatus === 'RECONCILED' ? 'COD_RECONCILED' : 'COD_RECEIVED',
+        action,
         entityType: 'Shipment',
         entityId: updated.id,
         entityCode: updated.trackingCode,
-        title: label,
+        sourceRefCode: shipment.order.code,
+        title: lineTitle,
+        before: beforeSnap,
+        after: afterSnap,
+        actor: 'OPERATOR',
+        actorName: 'Người vận hành',
+        originSource: 'MANUAL_ADMIN',
         detail: {
           orderId: shipment.order.id,
           orderCode: shipment.order.code,
@@ -100,11 +127,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           codReceived: updated.codReceived,
           note: updated.codNote,
         },
-        actor: 'OPERATOR',
       })
     }
-
-    broadcast('shipment.updated', { id: updated.id, orderId: updated.orderId, status: updated.status, codStatus: updated.codStatus })
 
     return NextResponse.json({ shipment: updated })
   } catch (error) {

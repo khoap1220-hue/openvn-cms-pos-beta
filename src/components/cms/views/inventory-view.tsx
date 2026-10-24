@@ -49,6 +49,9 @@ import {
 } from 'lucide-react'
 
 import { BarcodeScanner } from '@/components/cms/barcode-scanner'
+import { DataLineageBadge, LineageInspectorDialog, type LineageInspectorTarget } from '@/components/cms/lineage'
+import { PeriodFilterBar, PeriodSummaryBar } from '@/components/cms/period-filter-bar'
+import { EMPTY_PERIOD, type PeriodRange } from '@/lib/lineage'
 
 type LowStockProduct = Pick<
   Product,
@@ -77,9 +80,23 @@ interface MovementFormState {
 
 const EMPTY_MOVEMENT_FORM: MovementFormState = { productId: '', type: 'IMPORT', quantity: '', note: '' }
 
+// ===== Data Provenance: movement trả thêm nguồn gốc + API trả thêm đối chiếu kỳ =====
+type MovementWithOrigin = StockMovement & { originSource?: string | null }
+
+interface InventoryPeriodSummary {
+  opening: number
+  importQty: number
+  exportQty: number
+  adjustQty: number
+  closing: number
+  movementCount: number
+  fromDate: string | null
+  toDate: string | null
+}
+
 export function InventoryView() {
   const [lowStock, setLowStock] = useState<LowStockProduct[] | null>(null)
-  const [movements, setMovements] = useState<StockMovement[] | null>(null)
+  const [movements, setMovements] = useState<MovementWithOrigin[] | null>(null)
   const [products, setProducts] = useState<ProductWithBarcode[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -90,17 +107,31 @@ export function InventoryView() {
   const [submitting, setSubmitting] = useState(false)
   const { toast } = useToast()
 
+  // ===== Bộ lọc Kỳ kế toán + Truy xuất nguồn gốc (Data Provenance) =====
+  const [period, setPeriod] = useState<PeriodRange>(EMPTY_PERIOD)
+  const [periodSummary, setPeriodSummary] = useState<InventoryPeriodSummary | null>(null)
+  const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
+      const movParams = new URLSearchParams({ view: 'movements' })
+      if (period.preset !== 'ALL') movParams.set('preset', period.preset)
+      if (period.preset === 'CUSTOM') {
+        if (period.from) movParams.set('from', period.from)
+        if (period.to) movParams.set('to', period.to)
+      }
       const [lowStockRes, movementsRes, productsRes] = await Promise.all([
         apiGet<{ products: ProductWithBarcode[] }>('/api/inventory?view=lowstock'),
-        apiGet<{ movements: StockMovement[] }>('/api/inventory?view=movements'),
+        apiGet<{ movements: MovementWithOrigin[]; period?: InventoryPeriodSummary }>(
+          `/api/inventory?${movParams.toString()}`
+        ),
         apiGet<{ products: ProductWithBarcode[] }>('/api/products'),
       ])
       setLowStock(lowStockRes.products)
       setMovements(movementsRes.movements)
+      setPeriodSummary(movementsRes.period ?? null)
       setProducts(productsRes.products)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Không thể tải dữ liệu kho'
@@ -109,7 +140,7 @@ export function InventoryView() {
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [toast, period])
 
   useEffect(() => {
     void load()
@@ -207,6 +238,17 @@ export function InventoryView() {
     }
   }
 
+  // Mở Dialog Truy xuất nguồn gốc: toàn bộ lịch sử tồn kho (chuỗi stock before → after) của sản phẩm
+  const openMovementLineage = (m: MovementWithOrigin) => {
+    if (!m.productId) return
+    setLineageTarget({
+      entityType: 'Product',
+      entityId: m.productId,
+      entityCode: m.product?.sku ?? null,
+      label: m.product ? `${m.product.name} (${m.product.sku})` : 'Sản phẩm',
+    })
+  }
+
   return (
     <div>
       <PageHeader title="Tồn kho" description="Theo dõi tồn kho, nhập - xuất hàng và lịch sử biến động">
@@ -230,7 +272,7 @@ export function InventoryView() {
           value={loading ? '' : formatNumber(movements?.length ?? 0)}
           icon={ArrowLeftRight}
           loading={loading}
-          hint="60 bản ghi mới nhất"
+          hint="120 bản ghi mới nhất"
         />
       </div>
 
@@ -302,13 +344,54 @@ export function InventoryView() {
       {/* Lịch sử biến động kho */}
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Warehouse className="h-5 w-5 text-primary" />
-            Lịch sử biến động kho
-          </CardTitle>
-          <CardDescription>Ghi nhận nhập kho, xuất kho và điều chỉnh kiểm kê</CardDescription>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="shrink-0">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Warehouse className="h-5 w-5 text-primary" />
+                Lịch sử biến động kho
+              </CardTitle>
+              <CardDescription>Ghi nhận nhập kho, xuất kho và điều chỉnh kiểm kê</CardDescription>
+            </div>
+            <PeriodFilterBar value={period} onChange={setPeriod} />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
+          {/* Đối chiếu Kỳ: Tồn đầu kỳ → Nhập → Xuất/ĐC → Tồn cuối kỳ */}
+          {periodSummary && (
+            <div className="px-4 pt-4">
+              <PeriodSummaryBar
+                segments={[
+                  {
+                    label: 'Tồn đầu kỳ',
+                    sub: 'Toàn bộ sản phẩm',
+                    value: formatNumber(periodSummary.opening),
+                    tone: 'default',
+                  },
+                  {
+                    label: 'Nhập trong kỳ',
+                    value: `+${formatNumber(periodSummary.importQty)}`,
+                    tone: 'green',
+                    operator: '+',
+                  },
+                  {
+                    label: 'Xuất/ĐC trong kỳ',
+                    // Xuất kho + điều chỉnh kiểm kê (adjustQty âm = giảm tồn) → gộp để phép đối chiếu khớp
+                    value: formatNumber(periodSummary.exportQty + Math.max(0, -periodSummary.adjustQty)),
+                    sub: periodSummary.adjustQty !== 0 ? `gồm điều chỉnh kiểm kê ${formatNumber(Math.abs(periodSummary.adjustQty))}` : undefined,
+                    tone: 'red',
+                    operator: '−',
+                  },
+                  {
+                    label: 'Tồn cuối kỳ',
+                    sub: `${formatNumber(periodSummary.movementCount)} biến động`,
+                    value: formatNumber(periodSummary.closing),
+                    tone: 'emerald',
+                    operator: '=',
+                  },
+                ]}
+              />
+            </div>
+          )}
           {loading ? (
             <div className="p-4">
               <TableSkeleton rows={6} />
@@ -329,7 +412,7 @@ export function InventoryView() {
             </div>
           ) : (
             <div className="max-h-96 overflow-auto">
-              <Table>
+              <Table className="min-w-[720px]">
                 <TableHeader className="sticky top-0 bg-background">
                   <TableRow>
                     <TableHead>Thời gian</TableHead>
@@ -337,6 +420,7 @@ export function InventoryView() {
                     <TableHead>Loại</TableHead>
                     <TableHead className="text-right">Số lượng</TableHead>
                     <TableHead className="text-right">Tồn sau</TableHead>
+                    <TableHead>Nguồn gốc</TableHead>
                     <TableHead className="hidden lg:table-cell">Ghi chú</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -367,6 +451,12 @@ export function InventoryView() {
                         {formatNumber(m.quantity)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-right">{formatNumber(m.stockAfter)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <DataLineageBadge
+                          originSource={m.originSource}
+                          onInspect={m.productId ? () => openMovementLineage(m) : undefined}
+                        />
+                      </TableCell>
                       <TableCell className="hidden max-w-[220px] lg:table-cell">
                         <span className="block truncate text-sm text-muted-foreground" title={m.note ?? undefined}>
                           {m.note ?? '—'}
@@ -484,6 +574,15 @@ export function InventoryView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Truy xuất nguồn gốc & Lịch sử thay đổi (chuỗi tồn kho before → after) */}
+      <LineageInspectorDialog
+        open={lineageTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setLineageTarget(null)
+        }}
+        target={lineageTarget}
+      />
     </div>
   )
 }

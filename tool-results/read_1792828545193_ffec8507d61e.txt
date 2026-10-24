@@ -1,0 +1,698 @@
+     1→'use client'
+     2→
+     3→// SỔ DATA — nhật ký tổng hợp mọi dữ liệu & thao tác trong hệ thống + Đối soát tự động đa chiều
+     4→
+     5→import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+     6→import {
+     7→  AlertTriangle,
+     8→  CheckCircle2,
+     9→  ClipboardCheck,
+    10→  Loader2,
+    11→  ScrollText,
+    12→  Search,
+    13→} from 'lucide-react'
+    14→
+    15→import { apiGet } from '@/lib/api'
+    16→import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
+    17→import { cn } from '@/lib/utils'
+    18→import { useRealtime } from '@/hooks/use-realtime'
+    19→import { useToast } from '@/hooks/use-toast'
+    20→
+    21→import { Badge } from '@/components/ui/badge'
+    22→import { Button } from '@/components/ui/button'
+    23→import { Card, CardContent } from '@/components/ui/card'
+    24→import {
+    25→  Dialog,
+    26→  DialogContent,
+    27→  DialogDescription,
+    28→  DialogHeader,
+    29→  DialogTitle,
+    30→} from '@/components/ui/dialog'
+    31→import { Input } from '@/components/ui/input'
+    32→import {
+    33→  Select,
+    34→  SelectContent,
+    35→  SelectItem,
+    36→  SelectTrigger,
+    37→  SelectValue,
+    38→} from '@/components/ui/select'
+    39→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    40→import {
+    41→  Table,
+    42→  TableBody,
+    43→  TableCell,
+    44→  TableHead,
+    45→  TableHeader,
+    46→  TableRow,
+    47→} from '@/components/ui/table'
+    48→import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
+    49→
+    50→// ===== Types =====
+    51→
+    52→interface LedgerEntry {
+    53→  id: string
+    54→  scope: string
+    55→  action: string
+    56→  entityType: string | null
+    57→  entityId: string | null
+    58→  entityCode: string | null
+    59→  title: string
+    60→  detail: string | null
+    61→  actor: string
+    62→  createdAt: string
+    63→}
+    64→
+    65→interface ReconciliationIssue {
+    66→  type: string
+    67→  severity: 'warning' | 'error'
+    68→  title: string
+    69→  count: number
+    70→  estimatedValue?: number
+    71→  samples: Array<Record<string, unknown>>
+    72→}
+    73→
+    74→interface ReconciliationData {
+    75→  checkedAt: string
+    76→  ok: boolean
+    77→  issues: ReconciliationIssue[]
+    78→  summary: string
+    79→}
+    80→
+    81→// ===== Hằng số hiển thị =====
+    82→
+    83→const SCOPES: Array<{ value: string; label: string; badge: string }> = [
+    84→  {
+    85→    value: 'ORDER',
+    86→    label: 'Đơn hàng',
+    87→    badge: 'border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+    88→  },
+    89→  {
+    90→    value: 'INVOICE',
+    91→    label: 'Hóa đơn',
+    92→    badge: 'border-transparent bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400',
+    93→  },
+    94→  {
+    95→    value: 'INVENTORY',
+    96→    label: 'Kho hàng',
+    97→    badge: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+    98→  },
+    99→  {
+   100→    value: 'AGENT',
+   101→    label: 'Agent',
+   102→    badge: 'border-transparent bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+   103→  },
+   104→  {
+   105→    value: 'WEBHOOK',
+   106→    label: 'Webhook',
+   107→    badge: 'border-transparent bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-400',
+   108→  },
+   109→  {
+   110→    value: 'PARTNER',
+   111→    label: 'Đối tác',
+   112→    badge: 'border-transparent bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400',
+   113→  },
+   114→  {
+   115→    value: 'BOM',
+   116→    label: 'Định mức BOM',
+   117→    badge: 'border-transparent bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
+   118→  },
+   119→  {
+   120→    value: 'AFTERSALES',
+   121→    label: 'Sau bán hàng',
+   122→    badge: 'border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
+   123→  },
+   124→  {
+   125→    value: 'PERIOD',
+   126→    label: 'Kỳ sổ sách',
+   127→    badge: 'border-transparent bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+   128→  },
+   129→  {
+   130→    value: 'SETTINGS',
+   131→    label: 'Cấu hình',
+   132→    badge: 'border-transparent bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+   133→  },
+   134→  {
+   135→    value: 'CHANNEL',
+   136→    label: 'Kênh bán',
+   137→    badge: 'border-transparent bg-lime-100 text-lime-700 dark:bg-lime-950 dark:text-lime-400',
+   138→  },
+   139→  {
+   140→    value: 'MESSAGE',
+   141→    label: 'Tin nhắn',
+   142→    badge: 'border-transparent bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-400',
+   143→  },
+   144→  {
+   145→    value: 'CUSTOMER',
+   146→    label: 'Khách hàng & TV',
+   147→    badge: 'border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
+   148→  },
+   149→  {
+   150→    value: 'SYSTEM',
+   151→    label: 'Hệ thống',
+   152→    badge: 'bg-muted text-muted-foreground',
+   153→  },
+   154→]
+   155→
+   156→const SCOPE_LABELS: Record<string, string> = Object.fromEntries(
+   157→  SCOPES.map((s) => [s.value, s.label] as const)
+   158→)
+   159→const SCOPE_BADGES: Record<string, string> = Object.fromEntries(
+   160→  SCOPES.map((s) => [s.value, s.badge] as const)
+   161→)
+   162→
+   163→const ACTOR_BADGES: Record<string, { label: string; badge: string }> = {
+   164→  AGENT: {
+   165→    label: 'Agent',
+   166→    badge: 'border-transparent bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+   167→  },
+   168→  OPERATOR: {
+   169→    label: 'Người vận hành',
+   170→    badge: 'border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+   171→  },
+   172→  SYSTEM: { label: 'Hệ thống', badge: 'bg-muted text-muted-foreground' },
+   173→  CUSTOMER: {
+   174→    label: 'Khách',
+   175→    badge: 'border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
+   176→  },
+   177→  API: {
+   178→    label: 'API',
+   179→    badge: 'border-transparent bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-400',
+   180→  },
+   181→}
+   182→
+   183→const TIME_OPTIONS: Array<{ value: string; label: string }> = [
+   184→  { value: '1', label: 'Hôm nay' },
+   185→  { value: '7', label: '7 ngày qua' },
+   186→  { value: '30', label: '30 ngày qua' },
+   187→  { value: 'ALL', label: 'Tất cả' },
+   188→]
+   189→
+   190→const RECON_GUIDES: Array<{ title: string; description: string }> = [
+   191→  {
+   192→    title: 'Đơn ↔ Hóa đơn',
+   193→    description: 'Đơn hàng đã hoàn tất (COMPLETED) nhưng chưa được lập hóa đơn bán tương ứng.',
+   194→  },
+   195→  {
+   196→    title: 'Kho ↔ Hóa đơn mua',
+   197→    description: 'Phiếu nhập kho trong 90 ngày qua chưa kèm hóa đơn mua (PM) — nghi nhập hàng không chứng từ.',
+   198→  },
+   199→  {
+   200→    title: 'Tồn kho âm',
+   201→    description: 'Sản phẩm có tồn nhỏ hơn 0 do xuất vượt nhập — lỗi dữ liệu kho cần xử lý ngay.',
+   202→  },
+   203→  {
+   204→    title: 'Dòng tiền',
+   205→    description: 'Tổng hóa đơn bán POSTED so với tổng đơn COMPLETED trong quý lệch nhau quá 5% và trên 100.000đ.',
+   206→  },
+   207→]
+   208→
+   209→// ===== Helpers =====
+   210→
+   211→function errorMessage(err: unknown): string {
+   212→  return err instanceof Error ? err.message : 'Đã xảy ra lỗi'
+   213→}
+   214→
+   215→/** Parse chi tiết JSON an toàn để hiển thị pretty */
+   216→function prettyDetail(detail: string | null): string {
+   217→  if (!detail) return '—'
+   218→  try {
+   219→    const parsed: unknown = JSON.parse(detail)
+   220→    if (parsed !== null && typeof parsed === 'object') return JSON.stringify(parsed, null, 2)
+   221→    return String(parsed)
+   222→  } catch {
+   223→    return detail
+   224→  }
+   225→}
+   226→
+   227→function sampleText(value: unknown): string {
+   228→  if (value === null || value === undefined) return '—'
+   229→  if (typeof value === 'number') return formatNumber(value)
+   230→  return String(value)
+   231→}
+   232→
+   233→// ===== Component =====
+   234→
+   235→export function LedgerView() {
+   236→  const { toast } = useToast()
+   237→
+   238→  // ===== Tab 1: Nhật ký tổng hợp =====
+   239→  const [entries, setEntries] = useState<LedgerEntry[]>([])
+   240→  const [counts, setCounts] = useState<Record<string, number>>({})
+   241→  const [loading, setLoading] = useState(true)
+   242→  const [error, setError] = useState<string | null>(null)
+   243→  const [refreshKey, setRefreshKey] = useState(0)
+   244→
+   245→  const [scopeFilter, setScopeFilter] = useState('ALL')
+   246→  const [timeFilter, setTimeFilter] = useState('ALL')
+   247→  const [searchInput, setSearchInput] = useState('')
+   248→  const [search, setSearch] = useState('')
+   249→
+   250→  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null)
+   251→
+   252→  // ===== Tab 2: Đối soát tự động =====
+   253→  const [activeTab, setActiveTab] = useState('log')
+   254→  const [reconData, setReconData] = useState<ReconciliationData | null>(null)
+   255→  const [reconLoading, setReconLoading] = useState(false)
+   256→  const [reconError, setReconError] = useState<string | null>(null)
+   257→
+   258→  // Tìm kiếm debounce 400ms
+   259→  useEffect(() => {
+   260→    const timer = setTimeout(() => setSearch(searchInput.trim()), 400)
+   261→    return () => clearTimeout(timer)
+   262→  }, [searchInput])
+   263→
+   264→  const fetchLedger = useCallback(async () => {
+   265→    setLoading(true)
+   266→    setError(null)
+   267→    try {
+   268→      const params = new URLSearchParams()
+   269→      if (scopeFilter !== 'ALL') params.set('scope', scopeFilter)
+   270→      if (search) params.set('q', search)
+   271→      if (timeFilter !== 'ALL') params.set('days', timeFilter)
+   272→      const data = await apiGet<{ entries: LedgerEntry[]; counts: Record<string, number> }>(
+   273→        `/api/ledger?${params.toString()}`
+   274→      )
+   275→      setEntries(data.entries)
+   276→      setCounts(data.counts ?? {})
+   277→    } catch (err) {
+   278→      setError(errorMessage(err))
+   279→    } finally {
+   280→      setLoading(false)
+   281→    }
+   282→  }, [scopeFilter, search, timeFilter, refreshKey])
+   283→
+   284→  useEffect(() => {
+   285→    void fetchLedger()
+   286→  }, [fetchLedger])
+   287→
+   288→  // Realtime: có bản ghi Sổ Data mới → refetch sau 1s (giữ nguyên filter)
+   289→  const ledgerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+   290→  useRealtime((e) => {
+   291→    if (e.type !== 'ledger.new') return
+   292→    if (ledgerTimer.current) clearTimeout(ledgerTimer.current)
+   293→    ledgerTimer.current = setTimeout(() => setRefreshKey((k) => k + 1), 1000)
+   294→  })
+   295→
+   296→  const runReconciliation = useCallback(async () => {
+   297→    setReconLoading(true)
+   298→    setReconError(null)
+   299→    try {
+   300→      const data = await apiGet<ReconciliationData>('/api/reconciliation')
+   301→      setReconData(data)
+   302→    } catch (err) {
+   303→      setReconError(errorMessage(err))
+   304→      toast({ title: 'Không thể chạy đối soát', description: errorMessage(err), variant: 'destructive' })
+   305→    } finally {
+   306→      setReconLoading(false)
+   307→    }
+   308→  }, [toast])
+   309→
+   310→  const handleTabChange = (value: string) => {
+   311→    setActiveTab(value)
+   312→    // Mở tab đối soát lần đầu → tự chạy một lượt
+   313→    if (value === 'reconciliation' && !reconData && !reconLoading && !reconError) {
+   314→      void runReconciliation()
+   315→    }
+   316→  }
+   317→
+   318→  const countBadges = useMemo(() => SCOPES.filter((s) => (counts[s.value] ?? 0) > 0), [counts])
+   319→
+   320→  return (
+   321→    <div>
+   322→      <PageHeader
+   323→        title="Sổ Data"
+   324→        description="Mọi dữ liệu và thao tác trong hệ thống đều được ghi lại tại đây — nhật ký tổng hợp & đối soát tự động"
+   325→      />
+   326→
+   327→      <Tabs value={activeTab} onValueChange={handleTabChange}>
+   328→        <TabsList className="mb-4">
+   329→          <TabsTrigger value="log">
+   330→            <ScrollText className="mr-1.5 h-4 w-4" />
+   331→            Nhật ký tổng hợp
+   332→          </TabsTrigger>
+   333→          <TabsTrigger value="reconciliation">
+   334→            <ClipboardCheck className="mr-1.5 h-4 w-4" />
+   335→            Đối soát tự động
+   336→          </TabsTrigger>
+   337→        </TabsList>
+   338→
+   339→        {/* ===== TAB 1: NHẬT KÝ TỔNG HỢP ===== */}
+   340→        <TabsContent value="log" className="mt-0">
+   341→          {/* Thanh công cụ */}
+   342→          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+   343→            <Select
+   344→              value={scopeFilter}
+   345→              onValueChange={setScopeFilter}
+   346→            >
+   347→              <SelectTrigger className="w-full sm:w-[180px]" aria-label="Lọc theo phạm vi">
+   348→                <SelectValue placeholder="Tất cả phạm vi" />
+   349→              </SelectTrigger>
+   350→              <SelectContent>
+   351→                <SelectItem value="ALL">Tất cả phạm vi</SelectItem>
+   352→                {SCOPES.map((s) => (
+   353→                  <SelectItem key={s.value} value={s.value}>
+   354→                    {s.label}
+   355→                  </SelectItem>
+   356→                ))}
+   357→              </SelectContent>
+   358→            </Select>
+   359→            <Select
+   360→              value={timeFilter}
+   361→              onValueChange={setTimeFilter}
+   362→            >
+   363→              <SelectTrigger className="w-full sm:w-[150px]" aria-label="Lọc theo thời gian">
+   364→                <SelectValue placeholder="Thời gian" />
+   365→              </SelectTrigger>
+   366→              <SelectContent>
+   367→                {TIME_OPTIONS.map((t) => (
+   368→                  <SelectItem key={t.value} value={t.value}>
+   369→                    {t.label}
+   370→                  </SelectItem>
+   371→                ))}
+   372→              </SelectContent>
+   373→            </Select>
+   374→            <div className="relative flex-1">
+   375→              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   376→              <Input
+   377→                value={searchInput}
+   378→                onChange={(e) => setSearchInput(e.target.value)}
+   379→                placeholder="Tìm theo nội dung hoặc mã đối tượng..."
+   380→                className="pl-8"
+   381→                aria-label="Tìm kiếm trong Sổ Data"
+   382→              />
+   383→            </div>
+   384→          </div>
+   385→
+   386→          {/* Tổng theo scope */}
+   387→          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+   388→            {countBadges.length === 0 ? (
+   389→              <span className="text-xs text-muted-foreground">Chưa có bản ghi nào trong Sổ Data.</span>
+   390→            ) : (
+   391→              countBadges.map((s) => (
+   392→                <Badge
+   393→                  key={s.value}
+   394→                  variant="outline"
+   395→                  className={cn('gap-1 border-transparent text-xs', s.badge)}
+   396→                >
+   397→                  {s.label}
+   398→                  <span className="font-semibold">{formatNumber(counts[s.value] ?? 0)}</span>
+   399→                </Badge>
+   400→              ))
+   401→            )}
+   402→          </div>
+   403→
+   404→          {/* Bảng nhật ký */}
+   405→          {loading ? (
+   406→            <TableSkeleton rows={8} />
+   407→          ) : error ? (
+   408→            <ErrorState message={error} onRetry={() => setRefreshKey((k) => k + 1)} />
+   409→          ) : entries.length === 0 ? (
+   410→            <EmptyState
+   411→              icon={ScrollText}
+   412→              title="Không có bản ghi phù hợp"
+   413→              description="Thử đổi phạm vi, khoảng thời gian hoặc từ khóa tìm kiếm."
+   414→            />
+   415→          ) : (
+   416→            <div className="max-h-[480px] overflow-y-auto overflow-x-auto rounded-lg border">
+   417→              <Table className="min-w-[760px]">
+   418→                <TableHeader className="sticky top-0 bg-background">
+   419→                  <TableRow>
+   420→                    <TableHead>Thời gian</TableHead>
+   421→                    <TableHead>Phạm vi</TableHead>
+   422→                    <TableHead>Hành động</TableHead>
+   423→                    <TableHead>Nội dung</TableHead>
+   424→                    <TableHead>Thực hiện</TableHead>
+   425→                  </TableRow>
+   426→                </TableHeader>
+   427→                <TableBody>
+   428→                  {entries.map((entry) => {
+   429→                    const scopeBadge = SCOPE_BADGES[entry.scope] ?? 'bg-muted text-muted-foreground'
+   430→                    const actor = ACTOR_BADGES[entry.actor] ?? {
+   431→                      label: entry.actor,
+   432→                      badge: 'bg-muted text-muted-foreground',
+   433→                    }
+   434→                    return (
+   435→                      <TableRow
+   436→                        key={entry.id}
+   437→                        className="cursor-pointer"
+   438→                        onClick={() => setSelectedEntry(entry)}
+   439→                      >
+   440→                        <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+   441→                          {formatDateTime(entry.createdAt)}
+   442→                        </TableCell>
+   443→                        <TableCell>
+   444→                          <Badge variant="outline" className={cn('border-transparent', scopeBadge)}>
+   445→                            {SCOPE_LABELS[entry.scope] ?? entry.scope}
+   446→                          </Badge>
+   447→                        </TableCell>
+   448→                        <TableCell className="whitespace-nowrap font-mono text-xs">{entry.action}</TableCell>
+   449→                        <TableCell className="max-w-[340px]">
+   450→                          <p className="truncate text-sm font-medium" title={entry.title}>
+   451→                            {entry.title}
+   452→                          </p>
+   453→                          {entry.entityCode && (
+   454→                            <p className="truncate font-mono text-xs text-muted-foreground">
+   455→                              {entry.entityCode}
+   456→                            </p>
+   457→                          )}
+   458→                        </TableCell>
+   459→                        <TableCell>
+   460→                          <Badge variant="outline" className={cn('border-transparent whitespace-nowrap', actor.badge)}>
+   461→                            {actor.label}
+   462→                          </Badge>
+   463→                        </TableCell>
+   464→                      </TableRow>
+   465→                    )
+   466→                  })}
+   467→                </TableBody>
+   468→              </Table>
+   469→            </div>
+   470→          )}
+   471→          <p className="mt-2 text-xs text-muted-foreground">
+   472→            Bấm vào một dòng để xem chi tiết JSON của bản ghi. Dữ liệu tự cập nhật realtime.
+   473→          </p>
+   474→        </TabsContent>
+   475→
+   476→        {/* ===== TAB 2: ĐỐI SOÁT TỰ ĐỘNG ĐA CHIỀU ===== */}
+   477→        <TabsContent value="reconciliation" className="mt-0 space-y-4">
+   478→          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   479→            <div className="flex items-center gap-3">
+   480→              <Button onClick={() => void runReconciliation()} disabled={reconLoading}>
+   481→                {reconLoading ? (
+   482→                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+   483→                ) : (
+   484→                  <ClipboardCheck className="mr-1.5 h-4 w-4" />
+   485→                )}
+   486→                Chạy đối soát
+   487→              </Button>
+   488→              {reconData && (
+   489→                <span className="text-sm text-muted-foreground">
+   490→                  Đối soát lúc <span className="font-medium text-foreground">{formatDateTime(reconData.checkedAt)}</span>
+   491→                </span>
+   492→              )}
+   493→            </div>
+   494→          </div>
+   495→
+   496→          {reconLoading && !reconData ? (
+   497→            <TableSkeleton rows={4} />
+   498→          ) : reconError && !reconData ? (
+   499→            <ErrorState message={reconError} onRetry={() => void runReconciliation()} />
+   500→          ) : !reconData ? (
+   501→            <EmptyState
+   502→              icon={ClipboardCheck}
+   503→              title="Chưa chạy đối soát"
+   504→              description="Chạy đối soát để kiểm tra 4 phép khớp dữ liệu đa chiều của hệ thống."
+   505→              action={
+   506→                <Button onClick={() => void runReconciliation()} disabled={reconLoading}>
+   507→                  {reconLoading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   508→                  Chạy đối soát ngay
+   509→                </Button>
+   510→              }
+   511→            />
+   512→          ) : (
+   513→            <>
+   514→              {/* Banner tổng */}
+   515→              <Card
+   516→                className={cn(
+   517→                  'shadow-sm',
+   518→                  reconData.ok
+   519→                    ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/30'
+   520→                    : 'border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30'
+   521→                )}
+   522→              >
+   523→                <CardContent className="flex items-start gap-3 p-4">
+   524→                  {reconData.ok ? (
+   525→                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+   526→                  ) : (
+   527→                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+   528→                  )}
+   529→                  <div>
+   530→                    <p
+   531→                      className={cn(
+   532→                        'font-medium',
+   533→                        reconData.ok
+   534→                          ? 'text-emerald-700 dark:text-emerald-400'
+   535→                          : 'text-amber-700 dark:text-amber-400'
+   536→                      )}
+   537→                    >
+   538→                      {reconData.ok ? 'Không phát hiện sai lệch' : 'Phát hiện sai lệch dữ liệu'}
+   539→                    </p>
+   540→                    <p className="mt-0.5 text-sm text-muted-foreground">{reconData.summary}</p>
+   541→                  </div>
+   542→                </CardContent>
+   543→              </Card>
+   544→
+   545→              {/* Danh sách issues */}
+   546→              {reconData.issues.map((issue) => (
+   547→                <Card key={issue.type} className="shadow-sm">
+   548→                  <CardContent className="p-4">
+   549→                    <div className="mb-3 flex flex-wrap items-center gap-2">
+   550→                      {issue.severity === 'error' ? (
+   551→                        <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+   552→                      ) : (
+   553→                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+   554→                      )}
+   555→                      <p className="font-medium">{issue.title}</p>
+   556→                      <Badge
+   557→                        variant="outline"
+   558→                        className={cn(
+   559→                          'border-transparent',
+   560→                          issue.severity === 'error'
+   561→                            ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
+   562→                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+   563→                        )}
+   564→                      >
+   565→                        {formatNumber(issue.count)} mục
+   566→                      </Badge>
+   567→                      {typeof issue.estimatedValue === 'number' && (
+   568→                        <Badge variant="outline" className="border-transparent bg-muted text-muted-foreground">
+   569→                          Ước tính {formatVND(issue.estimatedValue)}
+   570→                        </Badge>
+   571→                      )}
+   572→                    </div>
+   573→
+   574→                    {/* Samples theo từng loại đối soát */}
+   575→                    {issue.samples.length > 0 &&
+   576→                      (issue.type === 'ORDER_NO_INVOICE' ? (
+   577→                        <div className={cn(issue.samples.length > 4 && 'max-h-40 overflow-y-auto')}>
+   578→                          <Table>
+   579→                            <TableHeader>
+   580→                              <TableRow>
+   581→                                <TableHead>Mã đơn</TableHead>
+   582→                                <TableHead className="text-right">Giá trị</TableHead>
+   583→                                <TableHead>Ngày</TableHead>
+   584→                              </TableRow>
+   585→                            </TableHeader>
+   586→                            <TableBody>
+   587→                              {issue.samples.map((sample, idx) => (
+   588→                                <TableRow key={idx}>
+   589→                                  <TableCell className="font-mono text-xs font-medium">
+   590→                                    {sampleText(sample.code)}
+   591→                                  </TableCell>
+   592→                                  <TableCell className="whitespace-nowrap text-right text-sm">
+   593→                                    {typeof sample.total === 'number' ? formatVND(sample.total) : '—'}
+   594→                                  </TableCell>
+   595→                                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+   596→                                    {typeof sample.createdAt === 'string'
+   597→                                      ? formatDateTime(sample.createdAt)
+   598→                                      : '—'}
+   599→                                  </TableCell>
+   600→                                </TableRow>
+   601→                              ))}
+   602→                            </TableBody>
+   603→                          </Table>
+   604→                        </div>
+   605→                      ) : issue.type === 'NEGATIVE_STOCK' ? (
+   606→                        <div className={cn(issue.samples.length > 4 && 'max-h-40 overflow-y-auto')}>
+   607→                          <Table>
+   608→                            <TableHeader>
+   609→                              <TableRow>
+   610→                                <TableHead>SKU</TableHead>
+   611→                                <TableHead>Tồn</TableHead>
+   612→                              </TableRow>
+   613→                            </TableHeader>
+   614→                            <TableBody>
+   615→                              {issue.samples.map((sample, idx) => (
+   616→                                <TableRow key={idx}>
+   617→                                  <TableCell>
+   618→                                    <p className="font-mono text-xs font-medium">{sampleText(sample.sku)}</p>
+   619→                                    {typeof sample.name === 'string' && (
+   620→                                      <p className="text-xs text-muted-foreground">{sampleText(sample.name)}</p>
+   621→                                    )}
+   622→                                  </TableCell>
+   623→                                  <TableCell className="font-mono text-sm font-semibold text-red-600 dark:text-red-400">
+   624→                                    {sampleText(sample.stock)}
+   625→                                  </TableCell>
+   626→                                </TableRow>
+   627→                              ))}
+   628→                            </TableBody>
+   629→                          </Table>
+   630→                        </div>
+   631→                      ) : (
+   632→                        <div className={cn('space-y-1.5', issue.samples.length > 4 && 'max-h-40 overflow-y-auto')}>
+   633→                          {issue.samples.map((sample, idx) => (
+   634→                            <p
+   635→                              key={idx}
+   636→                              className="break-all rounded bg-muted px-2 py-1.5 font-mono text-xs"
+   637→                            >
+   638→                              {JSON.stringify(sample)}
+   639→                            </p>
+   640→                          ))}
+   641→                        </div>
+   642→                      ))}
+   643→                  </CardContent>
+   644→                </Card>
+   645→              ))}
+   646→            </>
+   647→          )}
+   648→
+   649→          {/* Hướng dẫn 4 phép đối soát */}
+   650→          <div className="rounded-lg border bg-muted/30 p-4">
+   651→            <p className="mb-2 text-sm font-semibold">4 phép đối soát đa chiều</p>
+   652→            <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+   653→              {RECON_GUIDES.map((g) => (
+   654→                <div key={g.title} className="rounded-md border bg-background p-2.5">
+   655→                  <p className="font-medium text-foreground">{g.title}</p>
+   656→                  <p className="mt-0.5">{g.description}</p>
+   657→                </div>
+   658→              ))}
+   659→            </div>
+   660→          </div>
+   661→        </TabsContent>
+   662→      </Tabs>
+   663→
+   664→      {/* Dialog chi tiết bản ghi */}
+   665→      <Dialog
+   666→        open={selectedEntry !== null}
+   667→        onOpenChange={(open) => {
+   668→          if (!open) setSelectedEntry(null)
+   669→        }}
+   670→      >
+   671→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+   672→          <DialogHeader>
+   673→            <DialogTitle className="text-left text-base">{selectedEntry?.title}</DialogTitle>
+   674→            <DialogDescription>
+   675→              {selectedEntry && (
+   676→                <>
+   677→                  {SCOPE_LABELS[selectedEntry.scope] ?? selectedEntry.scope} ·{' '}
+   678→                  <span className="font-mono">{selectedEntry.action}</span> ·{' '}
+   679→                  {formatDateTime(selectedEntry.createdAt)}
+   680→                  {selectedEntry.entityCode && (
+   681→                    <>
+   682→                      {' '}
+   683→                      · <span className="font-mono">{selectedEntry.entityCode}</span>
+   684→                    </>
+   685→                  )}
+   686→                </>
+   687→              )}
+   688→            </DialogDescription>
+   689→          </DialogHeader>
+   690→          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed">
+   691→            {prettyDetail(selectedEntry?.detail ?? null)}
+   692→          </pre>
+   693→        </DialogContent>
+   694→      </Dialog>
+   695→    </div>
+   696→  )
+   697→}
+   698→

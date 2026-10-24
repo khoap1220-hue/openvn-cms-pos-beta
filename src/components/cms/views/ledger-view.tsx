@@ -17,6 +17,9 @@ import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { DataLineageBadge, LineageInspectorDialog, type LineageInspectorTarget } from '@/components/cms/lineage'
+import { PeriodFilterBar, PeriodSummaryBar } from '@/components/cms/period-filter-bar'
+import { EMPTY_PERIOD, type ChangedFilter, type PeriodRange } from '@/lib/lineage'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -60,6 +63,13 @@ interface LedgerEntry {
   detail: string | null
   actor: string
   createdAt: string
+  // ===== Data Provenance (Truy xuất nguồn gốc & Kiểm toán thay đổi) =====
+  originSource?: string | null
+  actorName?: string | null
+  sourceRefCode?: string | null
+  beforeSnapshot?: string | null
+  afterSnapshot?: string | null
+  changedFields?: string | null
 }
 
 interface ReconciliationIssue {
@@ -77,6 +87,24 @@ interface ReconciliationData {
   issues: ReconciliationIssue[]
   summary: string
 }
+
+// Đối chiếu Kỳ kế toán trả thêm từ /api/ledger (Đầu kỳ → Phát sinh trong kỳ → Nguyên bản / Đã đổi)
+interface LedgerPeriodStats {
+  beforeCount: number
+  inCount: number
+  originalCount: number
+  changedCount: number
+}
+
+// entityType đủ dữ liệu để mở Dialog Truy xuất nguồn gốc (có origin + timeline thay đổi)
+const INSPECTABLE_ENTITY_TYPES = new Set([
+  'Order',
+  'Shipment',
+  'Product',
+  'Customer',
+  'SalesInvoice',
+  'PurchaseInvoice',
+])
 
 // ===== Hằng số hiển thị =====
 
@@ -249,6 +277,13 @@ export function LedgerView() {
 
   const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null)
 
+  // ===== Bộ lọc Kỳ kế toán + Nguồn gốc dữ liệu (Data Provenance) =====
+  const [period, setPeriod] = useState<PeriodRange>(EMPTY_PERIOD)
+  const [originSource, setOriginSource] = useState('ALL')
+  const [changedFilter, setChangedFilter] = useState<ChangedFilter>('ALL')
+  const [periodStats, setPeriodStats] = useState<LedgerPeriodStats | null>(null)
+  const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
+
   // ===== Tab 2: Đối soát tự động =====
   const [activeTab, setActiveTab] = useState('log')
   const [reconData, setReconData] = useState<ReconciliationData | null>(null)
@@ -269,17 +304,27 @@ export function LedgerView() {
       if (scopeFilter !== 'ALL') params.set('scope', scopeFilter)
       if (search) params.set('q', search)
       if (timeFilter !== 'ALL') params.set('days', timeFilter)
-      const data = await apiGet<{ entries: LedgerEntry[]; counts: Record<string, number> }>(
-        `/api/ledger?${params.toString()}`
-      )
+      if (period.preset !== 'ALL') params.set('preset', period.preset)
+      if (period.preset === 'CUSTOM') {
+        if (period.from) params.set('from', period.from)
+        if (period.to) params.set('to', period.to)
+      }
+      if (originSource !== 'ALL') params.set('originSource', originSource)
+      if (changedFilter !== 'ALL') params.set('onlyChanged', changedFilter)
+      const data = await apiGet<{
+        entries: LedgerEntry[]
+        counts: Record<string, number>
+        period?: LedgerPeriodStats
+      }>(`/api/ledger?${params.toString()}`)
       setEntries(data.entries)
       setCounts(data.counts ?? {})
+      setPeriodStats(data.period ?? null)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
       setLoading(false)
     }
-  }, [scopeFilter, search, timeFilter, refreshKey])
+  }, [scopeFilter, search, timeFilter, period, originSource, changedFilter, refreshKey])
 
   useEffect(() => {
     void fetchLedger()
@@ -317,6 +362,17 @@ export function LedgerView() {
 
   const countBadges = useMemo(() => SCOPES.filter((s) => (counts[s.value] ?? 0) > 0), [counts])
 
+  // Mở Dialog Truy xuất nguồn gốc & Lịch sử thay đổi của đối tượng gốc (nếu bản ghi trỏ về entity)
+  const openLineage = (entry: LedgerEntry) => {
+    if (!entry.entityType || !entry.entityId) return
+    setLineageTarget({
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      entityCode: entry.entityCode,
+      label: entry.entityCode ?? entry.title,
+    })
+  }
+
   return (
     <div>
       <PageHeader
@@ -339,7 +395,7 @@ export function LedgerView() {
         {/* ===== TAB 1: NHẬT KÝ TỔNG HỢP ===== */}
         <TabsContent value="log" className="mt-0">
           {/* Thanh công cụ */}
-          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
             <Select
               value={scopeFilter}
               onValueChange={setScopeFilter}
@@ -371,7 +427,17 @@ export function LedgerView() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="relative flex-1">
+            <PeriodFilterBar
+              value={period}
+              onChange={setPeriod}
+              showOrigin
+              showChanged
+              originSource={originSource}
+              onOriginSourceChange={setOriginSource}
+              changedFilter={changedFilter}
+              onChangedFilterChange={setChangedFilter}
+            />
+            <div className="relative min-w-[240px] flex-1">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchInput}
@@ -401,6 +467,43 @@ export function LedgerView() {
             )}
           </div>
 
+          {/* Đối chiếu Kỳ: Đầu kỳ → Phát sinh trong kỳ → Nguyên bản / Đã thay đổi */}
+          {periodStats && (
+            <div className="mb-3 space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Đối chiếu Kỳ
+              </p>
+              <PeriodSummaryBar
+                segments={[
+                  {
+                    label: 'Đầu kỳ',
+                    sub: 'bản ghi trước kỳ',
+                    value: formatNumber(periodStats.beforeCount),
+                    tone: 'default',
+                  },
+                  {
+                    label: 'Phát sinh trong kỳ',
+                    value: formatNumber(periodStats.inCount),
+                    tone: 'blue',
+                    operator: '+',
+                  },
+                  {
+                    label: 'Nguyên bản',
+                    value: formatNumber(periodStats.originalCount),
+                    tone: 'green',
+                    operator: '·',
+                  },
+                  {
+                    label: 'Đã thay đổi',
+                    value: formatNumber(periodStats.changedCount),
+                    tone: 'amber',
+                    operator: '·',
+                  },
+                ]}
+              />
+            </div>
+          )}
+
           {/* Bảng nhật ký */}
           {loading ? (
             <TableSkeleton rows={8} />
@@ -414,13 +517,14 @@ export function LedgerView() {
             />
           ) : (
             <div className="max-h-[480px] overflow-y-auto overflow-x-auto rounded-lg border">
-              <Table className="min-w-[760px]">
+              <Table className="min-w-[920px]">
                 <TableHeader className="sticky top-0 bg-background">
                   <TableRow>
                     <TableHead>Thời gian</TableHead>
                     <TableHead>Phạm vi</TableHead>
                     <TableHead>Hành động</TableHead>
                     <TableHead>Nội dung</TableHead>
+                    <TableHead>Nguồn gốc &amp; Lịch sử</TableHead>
                     <TableHead>Thực hiện</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -455,6 +559,20 @@ export function LedgerView() {
                               {entry.entityCode}
                             </p>
                           )}
+                        </TableCell>
+                        <TableCell
+                          className="whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <DataLineageBadge
+                            originSource={entry.originSource}
+                            changeCount={entry.changedFields ? 1 : 0}
+                            onInspect={
+                              entry.entityType && entry.entityId && INSPECTABLE_ENTITY_TYPES.has(entry.entityType)
+                                ? () => openLineage(entry)
+                                : undefined
+                            }
+                          />
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn('border-transparent whitespace-nowrap', actor.badge)}>
@@ -692,6 +810,15 @@ export function LedgerView() {
           </pre>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Truy xuất nguồn gốc & Lịch sử thay đổi (Diff Trước → Sau) */}
+      <LineageInspectorDialog
+        open={lineageTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setLineageTarget(null)
+        }}
+        target={lineageTarget}
+      />
     </div>
   )
 }

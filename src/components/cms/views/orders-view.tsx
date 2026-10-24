@@ -71,8 +71,11 @@ import { ConfirmDialog } from '@/components/cms/confirm-dialog'
 import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/cms/status-badge'
 import { ShipmentStatusBadge } from '@/components/cms/agent-badge'
+import { DataLineageBadge, LineageInspectorDialog, type LineageInspectorTarget } from '@/components/cms/lineage'
+import { PeriodFilterBar, PeriodSummaryBar } from '@/components/cms/period-filter-bar'
 import { useRealtime } from '@/hooks/use-realtime'
 import { carrierName } from '@/lib/agents'
+import { EMPTY_PERIOD, type ChangedFilter, type PeriodRange } from '@/lib/lineage'
 
 const PAGE_SIZE = 10
 // Luồng xử lý đơn: PENDING → CONFIRMED → PACKING → SHIPPING → COMPLETED (CANCELLED từ mọi trạng thái)
@@ -84,6 +87,9 @@ type DetailOrderItem = OrderItem & {
   product?: Pick<Product, 'id' | 'sku' | 'name' | 'barcode' | 'costPrice'> | null
 }
 type DetailOrder = Omit<Order, 'items'> & { items: DetailOrderItem[] }
+
+// Nguồn gốc + số lần thay đổi trả thêm từ API danh sách đơn (không có trong type Order gốc)
+type OrderWithLineage = Order & { originSource?: string | null; changeCount?: number }
 
 interface CreateOrderItem {
   productId: string
@@ -210,7 +216,7 @@ export function OrdersView() {
   const { toast } = useToast()
 
   // ===== Danh sách đơn hàng + bộ lọc + phân trang server-side =====
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<OrderWithLineage[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -223,6 +229,19 @@ export function OrdersView() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [channelFilter, setChannelFilter] = useState('ALL')
   const [channels, setChannels] = useState<Channel[]>([])
+
+  // Bộ lọc kỳ kế toán + nguồn gốc + trạng thái thay đổi (Data Provenance)
+  const [period, setPeriod] = useState<PeriodRange>(EMPTY_PERIOD)
+  const [originSource, setOriginSource] = useState('ALL')
+  const [changedFilter, setChangedFilter] = useState<ChangedFilter>('ALL')
+  const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
+  // Đối chiếu Kỳ đơn hàng trả về từ API theo bộ lọc hiện tại
+  const [periodStats, setPeriodStats] = useState<{
+    openingPending: number
+    newInPeriod: number
+    completedInPeriod: number
+    remaining: number
+  } | null>(null)
 
   // Realtime: Agent tự cập nhật đơn → tự refresh danh sách + dialog chi tiết
   const realtimeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -290,22 +309,38 @@ export function OrdersView() {
       if (channelFilter !== 'ALL') params.set('channelId', channelFilter)
       params.set('page', String(page))
       params.set('pageSize', String(PAGE_SIZE))
+      if (period.preset !== 'ALL') {
+        params.set('preset', period.preset)
+        if (period.preset === 'CUSTOM') {
+          if (period.from) params.set('from', period.from)
+          if (period.to) params.set('to', period.to)
+        }
+      }
+      if (originSource !== 'ALL') params.set('originSource', originSource)
+      if (changedFilter !== 'ALL') params.set('onlyChanged', changedFilter)
       const data = await apiGet<{
-        orders: Order[]
+        orders: OrderWithLineage[]
         total: number
         page: number
         pageSize: number
         totalPages: number
+        period: {
+          openingPending: number
+          newInPeriod: number
+          completedInPeriod: number
+          remaining: number
+        }
       }>(`/api/orders?${params.toString()}`)
       setOrders(data.orders)
       setTotal(data.total)
       setTotalPages(Math.max(1, data.totalPages))
+      setPeriodStats(data.period ?? null)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
       setLoading(false)
     }
-  }, [search, statusFilter, channelFilter, page, refreshKey])
+  }, [search, statusFilter, channelFilter, page, refreshKey, period, originSource, changedFilter])
 
   useEffect(() => {
     void fetchOrders()
@@ -329,6 +364,25 @@ export function OrdersView() {
   }, [fetchChannels])
 
   const connectedChannels = useMemo(() => channels.filter((c) => c.connected), [channels])
+
+  // Đổi bộ lọc kỳ/nguồn gốc/trạng thái thay đổi → quay về trang 1
+  const applyPeriod = (next: PeriodRange) => {
+    setPeriod(next)
+    setPage(1)
+  }
+  const applyOriginSource = (v: string) => {
+    setOriginSource(v)
+    setPage(1)
+  }
+  const applyChangedFilter = (v: ChangedFilter) => {
+    setChangedFilter(v)
+    setPage(1)
+  }
+
+  // Mở dialog Truy xuất nguồn gốc & Lịch sử thay đổi của đơn hàng
+  const openLineage = (o: OrderWithLineage) => {
+    setLineageTarget({ entityType: 'Order', entityId: o.id, entityCode: o.code, label: `Đơn ${o.code}` })
+  }
 
   // ===== Chi tiết đơn hàng =====
   const openDetail = (id: string) => {
@@ -670,7 +724,13 @@ export function OrdersView() {
   // ===== Phân trang hiển thị =====
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const to = Math.min(page * PAGE_SIZE, total)
-  const hasFilter = search !== '' || statusFilter !== 'ALL' || channelFilter !== 'ALL'
+  const hasFilter =
+    search !== '' ||
+    statusFilter !== 'ALL' ||
+    channelFilter !== 'ALL' ||
+    period.preset !== 'ALL' ||
+    originSource !== 'ALL' ||
+    changedFilter !== 'ALL'
   const nextStatuses = detail ? allowedNextStatuses(detail.status) : []
 
   // Kiểm đếm đóng gói: tiến độ theo từng dòng (dòng "đủ" = đã quét >= SL cần đóng, quét thừa không tính thêm)
@@ -692,7 +752,8 @@ export function OrdersView() {
       </PageHeader>
 
       {/* Toolbar */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="mb-4 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -741,6 +802,19 @@ export function OrdersView() {
             ))}
           </SelectContent>
         </Select>
+        </div>
+
+        {/* Bộ lọc Kỳ kế toán + Nguồn gốc dữ liệu + Trạng thái thay đổi */}
+        <PeriodFilterBar
+          value={period}
+          onChange={applyPeriod}
+          showOrigin
+          showChanged
+          originSource={originSource}
+          onOriginSourceChange={applyOriginSource}
+          changedFilter={changedFilter}
+          onChangedFilterChange={applyChangedFilter}
+        />
       </div>
 
       {/* Nội dung chính */}
@@ -765,12 +839,27 @@ export function OrdersView() {
         />
       ) : (
         <>
+          {/* Đối chiếu Kỳ đơn hàng: Đầu kỳ chờ → Đơn mới → Hoàn tất/Hủy → Còn lại cuối kỳ */}
+          {periodStats && (
+            <div className="mb-4 space-y-1">
+              <PeriodSummaryBar
+                segments={[
+                  { label: 'Đầu kỳ chờ xử lý', value: String(periodStats.openingPending), tone: 'amber' },
+                  { label: 'Đơn mới trong kỳ', value: String(periodStats.newInPeriod), tone: 'blue', operator: '+' },
+                  { label: 'Hoàn tất/Hủy trong kỳ', value: String(periodStats.completedInPeriod), tone: 'green', operator: '−' },
+                  { label: 'Còn lại cuối kỳ', value: String(periodStats.remaining), tone: 'default', operator: '=' },
+                ]}
+              />
+              <p className="text-[11px] text-muted-foreground">Đối chiếu Kỳ đơn hàng — tính theo bộ lọc thời gian hiện tại.</p>
+            </div>
+          )}
           <div className="overflow-x-auto rounded-lg border">
-            <Table className="min-w-[960px]">
+            <Table className="min-w-[1080px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Mã đơn</TableHead>
                   <TableHead>Kênh</TableHead>
+                  <TableHead>Nguồn gốc & Lịch sử</TableHead>
                   <TableHead>Khách hàng</TableHead>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead className="text-right">Tổng tiền</TableHead>
@@ -786,6 +875,14 @@ export function OrdersView() {
                     <TableCell className="font-mono text-sm font-medium">{o.code}</TableCell>
                     <TableCell>
                       <ChannelBadge channel={o.channel} className="text-xs" />
+                    </TableCell>
+                    <TableCell>
+                      <DataLineageBadge
+                        compact
+                        originSource={o.originSource}
+                        changeCount={o.changeCount}
+                        onInspect={() => openLineage(o)}
+                      />
                     </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
@@ -1632,6 +1729,15 @@ export function OrdersView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Truy xuất nguồn gốc & Lịch sử thay đổi (Diff Trước → Sau) */}
+      <LineageInspectorDialog
+        open={lineageTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setLineageTarget(null)
+        }}
+        target={lineageTarget}
+      />
     </div>
   )
 }

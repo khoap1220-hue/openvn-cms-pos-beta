@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { PeriodClosedError, createSalesInvoice, getOrderCodeMap } from '@/lib/invoice-service'
 import { quarterRange } from '@/lib/accounting'
+import { getLineageMeta } from '@/lib/lineage-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,9 +59,13 @@ export async function GET(req: NextRequest) {
 
     // SalesInvoice chỉ lưu orderId — ghép mã đơn vào kết quả
     const orderCodeMap = await getOrderCodeMap(invoices.map((inv) => inv.orderId))
+    // DATA PROVENANCE — số lần sửa + nguồn gốc theo Sổ Data
+    const lineageMeta = await getLineageMeta('SalesInvoice', invoices.map((inv) => inv.id))
     const withOrder = invoices.map((inv) => ({
       ...inv,
       order: inv.orderId ? { id: inv.orderId, code: orderCodeMap.get(inv.orderId) ?? null } : null,
+      originSource: lineageMeta.get(inv.id)?.originSource ?? null,
+      changeCount: lineageMeta.get(inv.id)?.changeCount ?? 0,
     }))
 
     return NextResponse.json({ invoices: withOrder })

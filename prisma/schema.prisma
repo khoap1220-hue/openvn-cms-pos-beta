@@ -216,7 +216,7 @@ model AutomationSetting {
 
 model LedgerEntry {
   id         String   @id @default(cuid())
-  scope      String // ORDER | INVOICE | INVENTORY | AGENT | WEBHOOK | PARTNER | BOM | AFTERSALES | PERIOD | SETTINGS | CHANNEL | MESSAGE | SYSTEM
+  scope      String // ORDER | INVOICE | INVENTORY | AGENT | WEBHOOK | PARTNER | BOM | AFTERSALES | PERIOD | SETTINGS | CHANNEL | MESSAGE | CUSTOMER | SYSTEM
   action     String
   entityType String?
   entityId   String?
@@ -224,10 +224,21 @@ model LedgerEntry {
   title      String
   detail     String? // JSON chi tiết
   actor      String   @default("SYSTEM") // AGENT | OPERATOR | SYSTEM | CUSTOMER | API
+
+  // ===== DATA PROVENANCE — truy xuất nguồn gốc & kiểm toán thay đổi =====
+  originSource   String? // SHOPEE_SYNC | ZALO_OA | POS | AGENT_AUTOPILOT | BARCODE_SCAN | MANUAL_ADMIN | SYSTEM_SEED — nguồn gốc sinh dữ liệu
+  actorName      String? // tên hiển thị của người/Agent thực hiện ("Agent Kho vận", "Người vận hành", "Ưu Đàm Admin")
+  sourceRefCode  String? // mã chứng từ gốc liên kết (DH261024-xxxx, PXK..., GHTK..., TV0001...)
+  beforeSnapshot String? // JSON trạng thái TRƯỚC khi thay đổi (null = bản ghi khởi tạo)
+  afterSnapshot  String? // JSON trạng thái SAU khi thay đổi
+  changedFields  String? // JSON mảng tên trường thay đổi, vd: ["status","codStatus","stock"]
+
   createdAt  DateTime @default(now())
 
   @@index([scope])
   @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([originSource])
 }
 
 // ============================================================
