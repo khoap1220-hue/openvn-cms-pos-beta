@@ -4,6 +4,34 @@ import { comboAvailableFromRows, comboCostFromRows } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
 
+/** Giới hạn giá bán riêng trên một kênh (0đ – 1 tỷđ) */
+const MAX_CHANNEL_PRICE = 1_000_000_000
+
+/**
+ * Parse mảng `listings` từ body: [{ channelId, price }] — price null/undefined = theo giá bán chung.
+ * Dedupe theo channelId (mục sau đè mục trước). Trả error khi price không hợp lệ.
+ */
+function parseListingsInput(raw: unknown): { listings: Map<string, number | null> } | { error: string } {
+  if (!Array.isArray(raw)) return { error: 'Danh sách kênh bán (listings) không hợp lệ' }
+  const map = new Map<string, number | null>()
+  for (const item of raw) {
+    if (item == null || typeof item !== 'object') continue
+    const channelId = (item as { channelId?: unknown }).channelId
+    if (typeof channelId !== 'string' || !channelId.trim()) continue
+    const priceRaw = (item as { price?: unknown }).price
+    let price: number | null = null
+    if (priceRaw !== null && priceRaw !== undefined && priceRaw !== '') {
+      const num = Number(priceRaw)
+      if (!Number.isFinite(num) || num < 0 || num > MAX_CHANNEL_PRICE) {
+        return { error: 'Giá bán trên kênh phải là số từ 0 đến 1.000.000.000đ' }
+      }
+      price = num
+    }
+    map.set(channelId.trim(), price)
+  }
+  return { listings: map }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
@@ -113,6 +141,27 @@ export async function POST(req: NextRequest) {
       imageInput = img
     }
 
+    // KÊNH BÁN + GIÁ RIÊNG THEO KÊNH: `listings` (kèm price) ưu tiên,
+    // fallback `listingChannelIds` (tương thích ngược — giá null = theo giá bán chung)
+    let targetListings: Array<{ channelId: string; price: number | null }> = []
+    const hasListingsInput = Array.isArray(body.listings)
+    if (hasListingsInput) {
+      const parsed = parseListingsInput(body.listings)
+      if ('error' in parsed) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 })
+      }
+      const channelIds = [...parsed.listings.keys()]
+      if (channelIds.length > 0) {
+        const channels = await db.channel.findMany({ where: { id: { in: channelIds } }, select: { id: true } })
+        const validIds = new Set(channels.map((c) => c.id))
+        const unknown = channelIds.filter((cid) => !validIds.has(cid))
+        if (unknown.length > 0) {
+          return NextResponse.json({ error: `Kênh bán không tồn tại: ${unknown.join(', ')}` }, { status: 400 })
+        }
+      }
+      targetListings = channelIds.map((channelId) => ({ channelId, price: parsed.listings.get(channelId) ?? null }))
+    }
+
     const initialStock = Number(stock) || 0
     const product = await db.product.create({
       data: {
@@ -137,7 +186,14 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    if (Array.isArray(listingChannelIds) && listingChannelIds.length > 0) {
+    if (hasListingsInput) {
+      // listings[] gửi lên (kể cả rỗng = không kênh nào) — mỗi kênh kèm giá riêng
+      if (targetListings.length > 0) {
+        await db.channelListing.createMany({
+          data: targetListings.map(({ channelId, price }) => ({ productId: product.id, channelId, price })),
+        })
+      }
+    } else if (Array.isArray(listingChannelIds) && listingChannelIds.length > 0) {
       await db.channelListing.createMany({
         data: listingChannelIds.map((channelId: string) => ({ productId: product.id, channelId })),
       })

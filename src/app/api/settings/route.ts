@@ -20,6 +20,7 @@ const PUBLIC_KEYS = [
   'invoice_bank_name', // tên ngân hàng
   'invoice_bank_account', // số tài khoản
   'invoice_bank_holder', // chủ tài khoản
+  'invoice_bank_code', // mã ngân hàng VietQR (vd VCB) — tạo mã QR chuyển khoản trên bản in hóa đơn bán
   'invoice_footer_note', // ghi chú cuối hóa đơn
   'invoice_default_note', // ghi chú mặc định khi tạo hóa đơn
 ] as const
@@ -30,6 +31,7 @@ const DEFAULTS: Record<string, string> = {
   invoice_series: 'AA/26E',
   invoice_number_start: '1',
   invoice_payment_method: 'Tiền mặt / Chuyển khoản',
+  invoice_bank_code: '',
   invoice_footer_note: 'Cảm ơn Quý khách đã mua hàng!',
   invoice_default_note: '',
 }
@@ -44,6 +46,7 @@ const MAX_LENGTHS: Record<string, number> = {
   invoice_bank_name: 120,
   invoice_bank_account: 60,
   invoice_bank_holder: 120,
+  invoice_bank_code: 20,
   invoice_footer_note: 500,
   invoice_default_note: 500,
   invoice_logo: 600_000, // data URL ảnh logo (≈450KB ảnh gốc)
@@ -115,7 +118,7 @@ export async function PATCH(req: NextRequest) {
       }
       updates.push({ key: 'invoice_number_start', value: String(start) })
     }
-    for (const key of ['invoice_title', 'invoice_template_code', 'invoice_series', 'invoice_payment_method', 'invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder', 'invoice_footer_note', 'invoice_default_note']) {
+    for (const key of ['invoice_title', 'invoice_template_code', 'invoice_series', 'invoice_payment_method', 'invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder', 'invoice_bank_code', 'invoice_footer_note', 'invoice_default_note']) {
       if (body[key] === undefined) continue
       const value = String(body[key]).trim()
       const max = MAX_LENGTHS[key] ?? 200

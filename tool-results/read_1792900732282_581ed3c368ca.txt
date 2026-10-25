@@ -1,0 +1,856 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useMemo, useState } from 'react'
+     4→import {
+     5→  Barcode,
+     6→  ChevronLeft,
+     7→  ChevronRight,
+     8→  Loader2,
+     9→  MoreHorizontal,
+    10→  Package,
+    11→  Pencil,
+    12→  Plus,
+    13→  Power,
+    14→  Search,
+    15→  Trash2,
+    16→  Wand2,
+    17→} from 'lucide-react'
+    18→
+    19→import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api'
+    20→import { formatNumber, formatVND } from '@/lib/format'
+    21→import type { Category, Channel, Product } from '@/lib/types'
+    22→import { cn } from '@/lib/utils'
+    23→import { useToast } from '@/hooks/use-toast'
+    24→
+    25→import { Badge } from '@/components/ui/badge'
+    26→import { Button } from '@/components/ui/button'
+    27→import { Checkbox } from '@/components/ui/checkbox'
+    28→import {
+    29→  Dialog,
+    30→  DialogContent,
+    31→  DialogDescription,
+    32→  DialogFooter,
+    33→  DialogHeader,
+    34→  DialogTitle,
+    35→} from '@/components/ui/dialog'
+    36→import {
+    37→  DropdownMenu,
+    38→  DropdownMenuContent,
+    39→  DropdownMenuItem,
+    40→  DropdownMenuSeparator,
+    41→  DropdownMenuTrigger,
+    42→} from '@/components/ui/dropdown-menu'
+    43→import { Input } from '@/components/ui/input'
+    44→import { Label } from '@/components/ui/label'
+    45→import {
+    46→  Select,
+    47→  SelectContent,
+    48→  SelectItem,
+    49→  SelectTrigger,
+    50→  SelectValue,
+    51→} from '@/components/ui/select'
+    52→import { Switch } from '@/components/ui/switch'
+    53→import {
+    54→  Table,
+    55→  TableBody,
+    56→  TableCell,
+    57→  TableHead,
+    58→  TableHeader,
+    59→  TableRow,
+    60→} from '@/components/ui/table'
+    61→import { Textarea } from '@/components/ui/textarea'
+    62→
+    63→import { ChannelBadge } from '@/components/cms/channel-badge'
+    64→import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+    65→import { LabelPrintDialog, type BarcodeProduct } from '@/components/cms/label-print-dialog'
+    66→import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
+    67→import { ProductAvatar } from '@/components/cms/product-avatar'
+    68→import { ProductStatusBadge } from '@/components/cms/status-badge'
+    69→
+    70→const PAGE_SIZE = 20
+    71→
+    72→/** Product của lib/types chưa có barcode — mở rộng cục bộ cho đến khi lib cập nhật */
+    73→type ProductRow = Product & { barcode?: string | null }
+    74→
+    75→interface ProductFormState {
+    76→  type: string
+    77→  sku: string
+    78→  name: string
+    79→  description: string
+    80→  categoryId: string
+    81→  barcode: string
+    82→  image: string
+    83→  costPrice: string
+    84→  sellPrice: string
+    85→  stock: string
+    86→  lowStockThreshold: string
+    87→  status: string
+    88→  listingChannelIds: string[]
+    89→}
+    90→
+    91→const EMPTY_FORM: ProductFormState = {
+    92→  type: 'SIMPLE',
+    93→  sku: '',
+    94→  name: '',
+    95→  description: '',
+    96→  categoryId: 'NONE',
+    97→  barcode: '',
+    98→  image: '',
+    99→  costPrice: '',
+   100→  sellPrice: '',
+   101→  stock: '0',
+   102→  lowStockThreshold: '10',
+   103→  status: 'ACTIVE',
+   104→  listingChannelIds: [],
+   105→}
+   106→
+   107→function errorMessage(err: unknown): string {
+   108→  return err instanceof Error ? err.message : 'Đã xảy ra lỗi'
+   109→}
+   110→
+   111→/** Badge nhỏ đánh dấu sản phẩm Combo/Set quà tặng */
+   112→function ComboBadge() {
+   113→  return (
+   114→    <Badge
+   115→      variant="outline"
+   116→      className="shrink-0 border-violet-300 text-[10px] font-medium text-violet-600 dark:border-violet-800 dark:text-violet-400"
+   117→    >
+   118→      Combo
+   119→    </Badge>
+   120→  )
+   121→}
+   122→
+   123→export function ProductsView() {
+   124→  const { toast } = useToast()
+   125→
+   126→  // ===== Danh sách sản phẩm + bộ lọc =====
+   127→  const [products, setProducts] = useState<ProductRow[]>([])
+   128→  const [loading, setLoading] = useState(true)
+   129→  const [error, setError] = useState<string | null>(null)
+   130→
+   131→  const [searchInput, setSearchInput] = useState('')
+   132→  const [search, setSearch] = useState('')
+   133→  const [categoryFilter, setCategoryFilter] = useState('ALL')
+   134→  const [statusFilter, setStatusFilter] = useState('ALL')
+   135→  const [page, setPage] = useState(1)
+   136→
+   137→  // ===== Meta data =====
+   138→  const [categories, setCategories] = useState<Category[]>([])
+   139→  const [channels, setChannels] = useState<Channel[]>([])
+   140→
+   141→  // ===== Dialog thêm / sửa =====
+   142→  const [dialogOpen, setDialogOpen] = useState(false)
+   143→  const [editing, setEditing] = useState<Product | null>(null)
+   144→  const [form, setForm] = useState<ProductFormState>(EMPTY_FORM)
+   145→  const [saving, setSaving] = useState(false)
+   146→
+   147→  // ===== Xóa sản phẩm =====
+   148→  const [deleting, setDeleting] = useState<Product | null>(null)
+   149→  const [deleteLoading, setDeleteLoading] = useState(false)
+   150→
+   151→  // ===== In nhãn mã vạch =====
+   152→  const [printOpen, setPrintOpen] = useState(false)
+   153→  const [printProducts, setPrintProducts] = useState<BarcodeProduct[]>([])
+   154→
+   155→  const openPrintDialog = (list: ProductRow[]) => {
+   156→    setPrintProducts(
+   157→      list.map((p) => ({ id: p.id, sku: p.sku, name: p.name, barcode: p.barcode ?? null, sellPrice: p.sellPrice }))
+   158→    )
+   159→    setPrintOpen(true)
+   160→  }
+   161→
+   162→  // ===== Tìm kiếm debounce (client-side) =====
+   163→  useEffect(() => {
+   164→    const timer = setTimeout(() => {
+   165→      setSearch(searchInput.trim())
+   166→      setPage(1)
+   167→    }, 400)
+   168→    return () => clearTimeout(timer)
+   169→  }, [searchInput])
+   170→
+   171→  const fetchProducts = useCallback(async () => {
+   172→    setLoading(true)
+   173→    setError(null)
+   174→    try {
+   175→      const params = new URLSearchParams()
+   176→      if (search) params.set('search', search)
+   177→      if (categoryFilter !== 'ALL') params.set('categoryId', categoryFilter)
+   178→      if (statusFilter !== 'ALL') params.set('status', statusFilter)
+   179→      const qs = params.toString()
+   180→      const data = await apiGet<{ products: ProductRow[] }>(`/api/products${qs ? `?${qs}` : ''}`)
+   181→      setProducts(data.products)
+   182→    } catch (err) {
+   183→      setError(errorMessage(err))
+   184→    } finally {
+   185→      setLoading(false)
+   186→    }
+   187→  }, [search, categoryFilter, statusFilter])
+   188→
+   189→  useEffect(() => {
+   190→    void fetchProducts()
+   191→  }, [fetchProducts])
+   192→
+   193→  const fetchMeta = useCallback(async () => {
+   194→    try {
+   195→      const [catRes, chRes] = await Promise.all([
+   196→        apiGet<{ categories: Category[] }>('/api/categories'),
+   197→        apiGet<{ channels: Channel[] }>('/api/channels'),
+   198→      ])
+   199→      setCategories(catRes.categories)
+   200→      setChannels(chRes.channels)
+   201→    } catch (err) {
+   202→      toast({
+   203→        title: 'Không thể tải danh mục / kênh bán',
+   204→        description: errorMessage(err),
+   205→        variant: 'destructive',
+   206→      })
+   207→    }
+   208→  }, [toast])
+   209→
+   210→  useEffect(() => {
+   211→    void fetchMeta()
+   212→  }, [fetchMeta])
+   213→
+   214→  // ===== Phân trang client-side =====
+   215→  const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE))
+   216→  const currentPage = Math.min(page, totalPages)
+   217→  const pagedProducts = useMemo(
+   218→    () => products.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+   219→    [products, currentPage]
+   220→  )
+   221→  const hasFilter = search !== '' || categoryFilter !== 'ALL' || statusFilter !== 'ALL'
+   222→
+   223→  // ===== Dialog handlers =====
+   224→  const openCreate = () => {
+   225→    setEditing(null)
+   226→    setForm(EMPTY_FORM)
+   227→    setDialogOpen(true)
+   228→  }
+   229→
+   230→  const openEdit = (p: ProductRow) => {
+   231→    setEditing(p)
+   232→    setForm({
+   233→      type: p.type ?? 'SIMPLE',
+   234→      sku: p.sku,
+   235→      name: p.name,
+   236→      description: p.description ?? '',
+   237→      categoryId: p.categoryId ?? 'NONE',
+   238→      barcode: p.barcode ?? '',
+   239→      image: p.image ?? '',
+   240→      costPrice: String(p.costPrice),
+   241→      sellPrice: String(p.sellPrice),
+   242→      stock: String(p.stock),
+   243→      lowStockThreshold: String(p.lowStockThreshold),
+   244→      status: p.status,
+   245→      listingChannelIds: (p.listings ?? []).map((l) => l.channelId),
+   246→    })
+   247→    setDialogOpen(true)
+   248→  }
+   249→
+   250→  const toggleChannel = (channelId: string, checked: boolean) => {
+   251→    setForm((f) => ({
+   252→      ...f,
+   253→      listingChannelIds: checked
+   254→        ? [...f.listingChannelIds, channelId]
+   255→        : f.listingChannelIds.filter((id) => id !== channelId),
+   256→    }))
+   257→  }
+   258→
+   259→  const handleSave = async () => {
+   260→    if (!form.sku.trim()) {
+   261→      toast({ title: 'Vui lòng nhập SKU sản phẩm', variant: 'destructive' })
+   262→      return
+   263→    }
+   264→    if (!form.name.trim()) {
+   265→      toast({ title: 'Vui lòng nhập tên sản phẩm', variant: 'destructive' })
+   266→      return
+   267→    }
+   268→    if (!Number(form.sellPrice)) {
+   269→      toast({ title: 'Vui lòng nhập giá bán hợp lệ', variant: 'destructive' })
+   270→      return
+   271→    }
+   272→    setSaving(true)
+   273→    try {
+   274→      const base = {
+   275→        type: form.type,
+   276→        sku: form.sku.trim(),
+   277→        name: form.name.trim(),
+   278→        description: form.description.trim(),
+   279→        categoryId: form.categoryId === 'NONE' ? null : form.categoryId,
+   280→        barcode: form.barcode.trim(),
+   281→        image: form.image.trim(),
+   282→        costPrice: Number(form.costPrice) || 0,
+   283→        sellPrice: Number(form.sellPrice) || 0,
+   284→        lowStockThreshold: Number(form.lowStockThreshold) || 0,
+   285→        status: form.status,
+   286→        listingChannelIds: form.listingChannelIds,
+   287→      }
+   288→      if (editing) {
+   289→        await apiPut<{ product: ProductRow }>(`/api/products/${editing.id}`, base)
+   290→        toast({ title: 'Đã cập nhật sản phẩm', description: base.name })
+   291→      } else {
+   292→        await apiPost<{ product: Product }>('/api/products', { ...base, stock: Number(form.stock) || 0 })
+   293→        toast({ title: 'Đã thêm sản phẩm mới', description: base.name })
+   294→      }
+   295→      setDialogOpen(false)
+   296→      void fetchProducts()
+   297→    } catch (err) {
+   298→      toast({
+   299→        title: editing ? 'Không thể cập nhật sản phẩm' : 'Không thể thêm sản phẩm',
+   300→        description: errorMessage(err),
+   301→        variant: 'destructive',
+   302→      })
+   303→    } finally {
+   304→      setSaving(false)
+   305→    }
+   306→  }
+   307→
+   308→  const handleToggleStatus = async (p: Product) => {
+   309→    const nextStatus = p.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+   310→    try {
+   311→      await apiPut<{ product: Product }>(`/api/products/${p.id}`, { status: nextStatus })
+   312→      toast({
+   313→        title: nextStatus === 'ACTIVE' ? 'Đã kích hoạt lại sản phẩm' : 'Đã ngừng bán sản phẩm',
+   314→        description: p.name,
+   315→      })
+   316→      void fetchProducts()
+   317→    } catch (err) {
+   318→      toast({
+   319→        title: 'Cập nhật trạng thái thất bại',
+   320→        description: errorMessage(err),
+   321→        variant: 'destructive',
+   322→      })
+   323→    }
+   324→  }
+   325→
+   326→  const handleDelete = async () => {
+   327→    if (!deleting) return
+   328→    setDeleteLoading(true)
+   329→    try {
+   330→      await apiDelete<{ success: boolean }>(`/api/products/${deleting.id}`)
+   331→      toast({ title: 'Đã xóa sản phẩm', description: deleting.name })
+   332→      setDeleting(null)
+   333→      void fetchProducts()
+   334→    } catch (err) {
+   335→      // 409: sản phẩm đã có đơn hàng → gợi ý chuyển sang "Ngừng bán"
+   336→      toast({
+   337→        title: 'Không thể xóa sản phẩm',
+   338→        description: `${errorMessage(err)}. Nếu sản phẩm đã có đơn hàng, hãy chuyển sang "Ngừng bán" thay vì xóa.`,
+   339→        variant: 'destructive',
+   340→      })
+   341→      setDeleting(null)
+   342→    } finally {
+   343→      setDeleteLoading(false)
+   344→    }
+   345→  }
+   346→
+   347→  return (
+   348→    <div>
+   349→      <PageHeader title="Sản phẩm" description="Quản lý sản phẩm và kênh phân phối đa kênh">
+   350→        <Button variant="outline" onClick={() => openPrintDialog(products)}>
+   351→          <Barcode className="mr-1.5 h-4 w-4" /> In nhãn mã vạch
+   352→        </Button>
+   353→        <Button onClick={openCreate}>
+   354→          <Plus className="mr-1.5 h-4 w-4" /> Thêm sản phẩm
+   355→        </Button>
+   356→      </PageHeader>
+   357→
+   358→      {/* Toolbar */}
+   359→      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+   360→        <div className="relative w-full sm:w-72">
+   361→          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   362→          <Input
+   363→            value={searchInput}
+   364→            onChange={(e) => setSearchInput(e.target.value)}
+   365→            placeholder="Tìm theo tên, SKU hoặc mã vạch..."
+   366→            className="pl-8"
+   367→            aria-label="Tìm kiếm sản phẩm"
+   368→          />
+   369→        </div>
+   370→        <Select
+   371→          value={categoryFilter}
+   372→          onValueChange={(v) => {
+   373→            setCategoryFilter(v)
+   374→            setPage(1)
+   375→          }}
+   376→        >
+   377→          <SelectTrigger className="w-full sm:w-[180px]" aria-label="Lọc theo danh mục">
+   378→            <SelectValue placeholder="Tất cả danh mục" />
+   379→          </SelectTrigger>
+   380→          <SelectContent>
+   381→            <SelectItem value="ALL">Tất cả danh mục</SelectItem>
+   382→            {categories.map((c) => (
+   383→              <SelectItem key={c.id} value={c.id}>
+   384→                {c.name}
+   385→              </SelectItem>
+   386→            ))}
+   387→          </SelectContent>
+   388→        </Select>
+   389→        <Select
+   390→          value={statusFilter}
+   391→          onValueChange={(v) => {
+   392→            setStatusFilter(v)
+   393→            setPage(1)
+   394→          }}
+   395→        >
+   396→          <SelectTrigger className="w-full sm:w-[150px]" aria-label="Lọc theo trạng thái">
+   397→            <SelectValue placeholder="Tất cả trạng thái" />
+   398→          </SelectTrigger>
+   399→          <SelectContent>
+   400→            <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+   401→            <SelectItem value="ACTIVE">Đang bán</SelectItem>
+   402→            <SelectItem value="INACTIVE">Ngừng bán</SelectItem>
+   403→          </SelectContent>
+   404→        </Select>
+   405→      </div>
+   406→
+   407→      {/* Nội dung chính */}
+   408→      {loading ? (
+   409→        <TableSkeleton rows={6} />
+   410→      ) : error ? (
+   411→        <ErrorState message={error} onRetry={() => void fetchProducts()} />
+   412→      ) : products.length === 0 ? (
+   413→        <EmptyState
+   414→          icon={Package}
+   415→          title={hasFilter ? 'Không tìm thấy sản phẩm nào' : 'Chưa có sản phẩm nào'}
+   416→          description={
+   417→            hasFilter
+   418→              ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc.'
+   419→              : 'Bắt đầu bằng cách thêm sản phẩm đầu tiên cho cửa hàng.'
+   420→          }
+   421→          action={
+   422→            <Button onClick={openCreate}>
+   423→              <Plus className="mr-1.5 h-4 w-4" /> Thêm sản phẩm
+   424→            </Button>
+   425→          }
+   426→        />
+   427→      ) : (
+   428→        <>
+   429→          <div className="overflow-x-auto rounded-lg border">
+   430→            <Table className="min-w-[900px]">
+   431→              <TableHeader>
+   432→                <TableRow>
+   433→                  <TableHead>Sản phẩm</TableHead>
+   434→                  <TableHead>Danh mục</TableHead>
+   435→                  <TableHead>Mã vạch</TableHead>
+   436→                  <TableHead>Giá bán</TableHead>
+   437→                  <TableHead>Tồn kho</TableHead>
+   438→                  <TableHead>Kênh bán</TableHead>
+   439→                  <TableHead>Trạng thái</TableHead>
+   440→                  <TableHead className="w-12 text-right">
+   441→                    <span className="sr-only">Hành động</span>
+   442→                  </TableHead>
+   443→                </TableRow>
+   444→              </TableHeader>
+   445→              <TableBody>
+   446→                {pagedProducts.map((p) => (
+   447→                  <TableRow key={p.id}>
+   448→                    <TableCell>
+   449→                      <div className="flex items-center gap-3">
+   450→                        <ProductAvatar name={p.name} image={p.image} />
+   451→                        <div className="min-w-0">
+   452→                          <p className="flex max-w-[220px] items-center gap-1.5 font-medium">
+   453→                            <span className="truncate">{p.name}</span>
+   454→                            {p.type === 'COMBO' && <ComboBadge />}
+   455→                          </p>
+   456→                          <p className="text-xs text-muted-foreground">{p.sku}</p>
+   457→                        </div>
+   458→                      </div>
+   459→                    </TableCell>
+   460→                    <TableCell className="text-sm">{p.category?.name ?? '—'}</TableCell>
+   461→                    <TableCell>
+   462→                      <div className="flex items-center gap-1.5">
+   463→                        {p.barcode ? (
+   464→                          <span className="max-w-[140px] truncate font-mono text-xs" title={p.barcode}>
+   465→                            {p.barcode}
+   466→                          </span>
+   467→                        ) : (
+   468→                          <span className="text-xs text-muted-foreground">—</span>
+   469→                        )}
+   470→                        <Button
+   471→                          variant="ghost"
+   472→                          size="icon"
+   473→                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+   474→                          title="In nhãn mã vạch"
+   475→                          aria-label={`In nhãn mã vạch cho ${p.sku}`}
+   476→                          onClick={() => openPrintDialog([p])}
+   477→                        >
+   478→                          <Barcode className="h-3.5 w-3.5" />
+   479→                        </Button>
+   480→                      </div>
+   481→                    </TableCell>
+   482→                    <TableCell className="whitespace-nowrap text-sm">{formatVND(p.sellPrice)}</TableCell>
+   483→                    <TableCell>
+   484→                      {p.type === 'COMBO' ? (
+   485→                        <div className="space-y-0.5" title="Số bộ đóng được từ tồn thành phần">
+   486→                          <span className="text-sm tabular-nums">
+   487→                            {formatNumber(p.comboAvailable ?? p.stock)}
+   488→                          </span>
+   489→                          <p className="text-xs text-muted-foreground">bộ (tự động)</p>
+   490→                        </div>
+   491→                      ) : p.stock <= p.lowStockThreshold ? (
+   492→                        <div className="space-y-0.5">
+   493→                          <Badge
+   494→                            variant="outline"
+   495→                            className="border-red-200 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+   496→                          >
+   497→                            {p.stock === 0 ? 'Hết hàng' : `Còn ${p.stock}`}
+   498→                          </Badge>
+   499→                          <p className="text-xs text-muted-foreground">Ngưỡng {p.lowStockThreshold}</p>
+   500→                        </div>
+   501→                      ) : (
+   502→                        <span className="text-sm">{formatNumber(p.stock)}</span>
+   503→                      )}
+   504→                    </TableCell>
+   505→                    <TableCell>
+   506→                      <div className="flex max-w-[160px] flex-wrap gap-x-3 gap-y-1">
+   507→                        {(p.listings ?? []).length > 0 ? (
+   508→                          (p.listings ?? []).map((l) => (
+   509→                            <ChannelBadge key={l.id} channel={l.channel} className="text-xs" />
+   510→                          ))
+   511→                        ) : (
+   512→                          <span className="text-xs text-muted-foreground">—</span>
+   513→                        )}
+   514→                      </div>
+   515→                    </TableCell>
+   516→                    <TableCell>
+   517→                      <ProductStatusBadge status={p.status} />
+   518→                    </TableCell>
+   519→                    <TableCell className="text-right">
+   520→                      <DropdownMenu>
+   521→                        <DropdownMenuTrigger asChild>
+   522→                          <Button variant="ghost" size="icon" className="h-8 w-8">
+   523→                            <MoreHorizontal className="h-4 w-4" />
+   524→                            <span className="sr-only">Hành động cho {p.name}</span>
+   525→                          </Button>
+   526→                        </DropdownMenuTrigger>
+   527→                        <DropdownMenuContent align="end">
+   528→                          <DropdownMenuItem onSelect={() => openEdit(p)}>
+   529→                            <Pencil className="mr-2 h-4 w-4" /> Sửa
+   530→                          </DropdownMenuItem>
+   531→                          <DropdownMenuItem onSelect={() => void handleToggleStatus(p)}>
+   532→                            <Power className="mr-2 h-4 w-4" />
+   533→                            {p.status === 'ACTIVE' ? 'Ngừng bán' : 'Kích hoạt lại'}
+   534→                          </DropdownMenuItem>
+   535→                          <DropdownMenuSeparator />
+   536→                          <DropdownMenuItem
+   537→                            className="text-destructive focus:text-destructive"
+   538→                            onSelect={() => setDeleting(p)}
+   539→                          >
+   540→                            <Trash2 className="mr-2 h-4 w-4" /> Xóa
+   541→                          </DropdownMenuItem>
+   542→                        </DropdownMenuContent>
+   543→                      </DropdownMenu>
+   544→                    </TableCell>
+   545→                  </TableRow>
+   546→                ))}
+   547→              </TableBody>
+   548→            </Table>
+   549→          </div>
+   550→
+   551→          {/* Phân trang client-side */}
+   552→          <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+   553→            <p className="text-sm text-muted-foreground">
+   554→              Hiển thị {formatNumber((currentPage - 1) * PAGE_SIZE + 1)}–
+   555→              {formatNumber(Math.min(currentPage * PAGE_SIZE, products.length))} trong{' '}
+   556→              {formatNumber(products.length)} sản phẩm
+   557→            </p>
+   558→            {totalPages > 1 && (
+   559→              <div className="flex items-center gap-2">
+   560→                <Button
+   561→                  variant="outline"
+   562→                  size="sm"
+   563→                  disabled={currentPage <= 1}
+   564→                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+   565→                >
+   566→                  <ChevronLeft className="mr-1 h-4 w-4" /> Trước
+   567→                </Button>
+   568→                <span className="text-sm text-muted-foreground">
+   569→                  Trang {currentPage}/{totalPages}
+   570→                </span>
+   571→                <Button
+   572→                  variant="outline"
+   573→                  size="sm"
+   574→                  disabled={currentPage >= totalPages}
+   575→                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+   576→                >
+   577→                  Sau <ChevronRight className="ml-1 h-4 w-4" />
+   578→                </Button>
+   579→              </div>
+   580→            )}
+   581→          </div>
+   582→        </>
+   583→      )}
+   584→
+   585→      {/* Dialog thêm / sửa sản phẩm */}
+   586→      <Dialog
+   587→        open={dialogOpen}
+   588→        onOpenChange={(open) => {
+   589→          if (!saving) setDialogOpen(open)
+   590→        }}
+   591→      >
+   592→        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+   593→          <DialogHeader>
+   594→            <DialogTitle>{editing ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}</DialogTitle>
+   595→            <DialogDescription>
+   596→              {editing
+   597→                ? 'Cập nhật thông tin sản phẩm và đồng bộ kênh bán.'
+   598→                : 'Điền thông tin để tạo sản phẩm mới trong hệ thống.'}
+   599→            </DialogDescription>
+   600→          </DialogHeader>
+   601→
+   602→          <div className="grid gap-4 py-1 sm:grid-cols-2">
+   603→            <div className="space-y-1.5">
+   604→              <Label htmlFor="product-sku">
+   605→                SKU <span className="text-destructive">*</span>
+   606→              </Label>
+   607→              <Input
+   608→                id="product-sku"
+   609→                value={form.sku}
+   610→                onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+   611→                placeholder="VD: AO-SOMI-01"
+   612→              />
+   613→            </div>
+   614→            <div className="space-y-1.5">
+   615→              <Label htmlFor="product-barcode">Mã vạch (CODE128)</Label>
+   616→              <div className="flex gap-2">
+   617→                <Input
+   618→                  id="product-barcode"
+   619→                  value={form.barcode}
+   620→                  onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+   621→                  placeholder="VD: 8935201001234"
+   622→                  className="font-mono"
+   623→                />
+   624→                <Button
+   625→                  type="button"
+   626→                  variant="outline"
+   627→                  size="sm"
+   628→                  className="shrink-0"
+   629→                  title="Tự sinh mã vạch"
+   630→                  onClick={() => setForm((f) => ({ ...f, barcode: `BC${Date.now().toString(36).toUpperCase()}` }))}
+   631→                >
+   632→                  <Wand2 className="h-4 w-4" />
+   633→                  Tự sinh
+   634→                </Button>
+   635→              </div>
+   636→              <p className="text-xs text-muted-foreground">
+   637→                Quét bút quét USB hoặc nhập tay. Để trống sẽ sinh theo SKU khi in nhãn.
+   638→              </p>
+   639→            </div>
+   640→            <div className="space-y-1.5 sm:col-span-2">
+   641→              <Label htmlFor="product-name">
+   642→                Tên sản phẩm <span className="text-destructive">*</span>
+   643→              </Label>
+   644→              <Input
+   645→                id="product-name"
+   646→                value={form.name}
+   647→                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+   648→                placeholder="VD: Áo sơ mi nam dài tay"
+   649→              />
+   650→            </div>
+   651→            <div className="space-y-1.5 sm:col-span-2">
+   652→              <Label htmlFor="product-description">Mô tả</Label>
+   653→              <Textarea
+   654→                id="product-description"
+   655→                rows={2}
+   656→                value={form.description}
+   657→                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+   658→                placeholder="Mô tả ngắn về sản phẩm..."
+   659→              />
+   660→            </div>
+   661→            <div className="space-y-1.5 sm:col-span-2">
+   662→              <Label htmlFor="product-image">Ảnh sản phẩm (URL)</Label>
+   663→              <div className="flex items-center gap-3">
+   664→                <ProductAvatar name={form.name || '?'} image={form.image.trim() || null} className="h-12 w-12" />
+   665→                <Input
+   666→                  id="product-image"
+   667→                  value={form.image}
+   668→                  onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+   669→                  placeholder="https://... (dán link ảnh Shopee/web)"
+   670→                  maxLength={500}
+   671→                  className="flex-1"
+   672→                />
+   673→              </div>
+   674→              <p className="text-xs text-muted-foreground">
+   675→                Dán link ảnh http(s) — hiển thị trong danh sách Kho hàng. Bỏ trống sẽ hiện chữ cái đầu.
+   676→              </p>
+   677→            </div>
+   678→            <div className="space-y-1.5 sm:col-span-2">
+   679→              <Label htmlFor="product-type">Loại sản phẩm</Label>
+   680→              <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
+   681→                <SelectTrigger id="product-type" className="w-full">
+   682→                  <SelectValue placeholder="Chọn loại sản phẩm" />
+   683→                </SelectTrigger>
+   684→                <SelectContent>
+   685→                  <SelectItem value="SIMPLE">Sản phẩm thường</SelectItem>
+   686→                  <SelectItem value="COMBO">Combo · Set quà tặng (gộp nhiều thành phẩm)</SelectItem>
+   687→                </SelectContent>
+   688→              </Select>
+   689→              {form.type === 'COMBO' && (
+   690→                <p className="text-xs text-violet-600 dark:text-violet-400">
+   691→                  Xuất bán sẽ tự trừ kho các sản phẩm thành phần khai báo ở mục Kho &amp; Định mức — giá vốn gộp tính
+   692→                  tự động.
+   693→                </p>
+   694→              )}
+   695→            </div>
+   696→            <div className="space-y-1.5">
+   697→              <Label>Danh mục</Label>
+   698→              <Select
+   699→                value={form.categoryId}
+   700→                onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+   701→              >
+   702→                <SelectTrigger className="w-full">
+   703→                  <SelectValue placeholder="Chọn danh mục" />
+   704→                </SelectTrigger>
+   705→                <SelectContent>
+   706→                  <SelectItem value="NONE">— Không phân loại —</SelectItem>
+   707→                  {categories.map((c) => (
+   708→                    <SelectItem key={c.id} value={c.id}>
+   709→                      {c.name}
+   710→                    </SelectItem>
+   711→                  ))}
+   712→                </SelectContent>
+   713→              </Select>
+   714→            </div>
+   715→            <div className="grid grid-cols-2 gap-3">
+   716→              <div className="space-y-1.5">
+   717→                <Label htmlFor="product-cost">Giá vốn (đ)</Label>
+   718→                <Input
+   719→                  id="product-cost"
+   720→                  type="number"
+   721→                  min={0}
+   722→                  step={1000}
+   723→                  value={form.costPrice}
+   724→                  onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))}
+   725→                  placeholder="0"
+   726→                />
+   727→                {form.type === 'COMBO' && (
+   728→                  <p className="text-xs text-muted-foreground">Combo: giá vốn gộp tự tính từ thành phần.</p>
+   729→                )}
+   730→              </div>
+   731→              <div className="space-y-1.5">
+   732→                <Label htmlFor="product-sell">
+   733→                  Giá bán (đ) <span className="text-destructive">*</span>
+   734→                </Label>
+   735→                <Input
+   736→                  id="product-sell"
+   737→                  type="number"
+   738→                  min={0}
+   739→                  step={1000}
+   740→                  value={form.sellPrice}
+   741→                  onChange={(e) => setForm((f) => ({ ...f, sellPrice: e.target.value }))}
+   742→                  placeholder="0"
+   743→                />
+   744→              </div>
+   745→            </div>
+   746→            {!editing && (
+   747→              <div className="space-y-1.5">
+   748→                <Label htmlFor="product-stock">Tồn kho ban đầu</Label>
+   749→                <Input
+   750→                  id="product-stock"
+   751→                  type="number"
+   752→                  min={0}
+   753→                  step={1}
+   754→                  value={form.stock}
+   755→                  onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
+   756→                />
+   757→              </div>
+   758→            )}
+   759→            <div className="space-y-1.5">
+   760→              <Label htmlFor="product-threshold">Ngưỡng cảnh báo tồn kho</Label>
+   761→              <Input
+   762→                id="product-threshold"
+   763→                type="number"
+   764→                min={0}
+   765→                step={1}
+   766→                value={form.lowStockThreshold}
+   767→                onChange={(e) => setForm((f) => ({ ...f, lowStockThreshold: e.target.value }))}
+   768→              />
+   769→            </div>
+   770→            <div className="flex items-center gap-3 rounded-lg border p-3 sm:col-span-2">
+   771→              <Switch
+   772→                id="product-status"
+   773→                checked={form.status === 'ACTIVE'}
+   774→                onCheckedChange={(checked) =>
+   775→                  setForm((f) => ({ ...f, status: checked ? 'ACTIVE' : 'INACTIVE' }))
+   776→                }
+   777→              />
+   778→              <div>
+   779→                <Label htmlFor="product-status">Đang bán</Label>
+   780→                <p className="text-xs text-muted-foreground">
+   781→                  Tắt để ngừng bán sản phẩm này trên mọi kênh
+   782→                </p>
+   783→              </div>
+   784→            </div>
+   785→            <div className="space-y-2 sm:col-span-2">
+   786→              <Label>Kênh bán</Label>
+   787→              <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-3">
+   788→                {channels.length === 0 ? (
+   789→                  <p className="py-2 text-center text-sm text-muted-foreground">
+   790→                    Không có kênh bán nào.
+   791→                  </p>
+   792→                ) : (
+   793→                  channels.map((ch) => (
+   794→                    <label
+   795→                      key={ch.id}
+   796→                      className={cn(
+   797→                        'flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1.5 text-sm hover:bg-muted/60',
+   798→                        !ch.connected && 'cursor-not-allowed opacity-50'
+   799→                      )}
+   800→                    >
+   801→                      <Checkbox
+   802→                        checked={form.listingChannelIds.includes(ch.id)}
+   803→                        disabled={!ch.connected}
+   804→                        onCheckedChange={(checked) => toggleChannel(ch.id, checked === true)}
+   805→                        aria-label={`Bán trên ${ch.name}`}
+   806→                      />
+   807→                      <span
+   808→                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+   809→                        style={{ backgroundColor: ch.color }}
+   810→                      />
+   811→                      <span className="font-medium">{ch.name}</span>
+   812→                      {!ch.connected && (
+   813→                        <span className="text-xs text-muted-foreground">(Chưa kết nối)</span>
+   814→                      )}
+   815→                    </label>
+   816→                  ))
+   817→                )}
+   818→              </div>
+   819→              <p className="text-xs text-muted-foreground">
+   820→                Chỉ có thể chọn kênh đã kết nối. Khi sửa, thay đổi sẽ được đồng bộ sang các kênh.
+   821→              </p>
+   822→            </div>
+   823→          </div>
+   824→
+   825→          <DialogFooter>
+   826→            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+   827→              Hủy
+   828→            </Button>
+   829→            <Button onClick={() => void handleSave()} disabled={saving}>
+   830→              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   831→              {editing ? 'Lưu thay đổi' : 'Thêm sản phẩm'}
+   832→            </Button>
+   833→          </DialogFooter>
+   834→        </DialogContent>
+   835→      </Dialog>
+   836→
+   837→      {/* Dialog xác nhận xóa */}
+   838→      <ConfirmDialog
+   839→        open={deleting !== null}
+   840→        onOpenChange={(open) => {
+   841→          if (!open) setDeleting(null)
+   842→        }}
+   843→        title={`Xóa sản phẩm "${deleting?.name ?? ''}"?`}
+   844→        description="Sản phẩm sẽ bị xóa vĩnh viễn khỏi hệ thống. Hành động này không thể hoàn tác."
+   845→        confirmText="Xóa sản phẩm"
+   846→        destructive
+   847→        loading={deleteLoading}
+   848→        onConfirm={() => void handleDelete()}
+   849→      />
+   850→
+   851→      {/* Dialog in nhãn mã vạch */}
+   852→      <LabelPrintDialog open={printOpen} onOpenChange={setPrintOpen} products={printProducts} />
+   853→    </div>
+   854→  )
+   855→}
+   856→

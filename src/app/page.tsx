@@ -66,7 +66,7 @@ export default function Home() {
   const [autopilotOn, setAutopilotOn] = useState(true)
   const [status, setStatus] = useState<SidebarStatus>({ offline: false, pendingSync: 0, periodClosed: null })
   const { toast } = useToast()
-  const live = useRealtimeStatus()
+  const realtimeMode = useRealtimeStatus()
   const badgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refreshBadges = useCallback(async () => {
@@ -134,8 +134,9 @@ export default function Home() {
     }
   }, [])
 
+  // 'realtime.poll' = WS hỏng, đang fallback polling 10s → làm mới badge im lặng
   useRealtime((e) => {
-    if (!['order.created', 'order.updated', 'message.new', 'settings.updated', 'review.received'].includes(e.type)) return
+    if (!['order.created', 'order.updated', 'message.new', 'settings.updated', 'review.received', 'realtime.poll'].includes(e.type)) return
     if (badgeTimer.current) clearTimeout(badgeTimer.current)
     badgeTimer.current = setTimeout(() => {
       void refreshBadges()
@@ -170,15 +171,31 @@ export default function Home() {
               variant="outline"
               className={cn(
                 'gap-1.5 font-medium',
-                live ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-400' : 'border-border bg-muted text-muted-foreground',
+                realtimeMode === 'live'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-400'
+                  : realtimeMode === 'polling'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-400'
+                    : 'border-border bg-muted text-muted-foreground',
               )}
               aria-live="polite"
+              title={
+                realtimeMode === 'live'
+                  ? 'Kết nối WebSocket thời gian thực'
+                  : realtimeMode === 'polling'
+                    ? 'Mất kết nối WebSocket — đang tự làm mới dữ liệu mỗi 10 giây'
+                    : 'Chưa kết nối máy chủ realtime'
+              }
             >
               <span className="relative flex h-2 w-2">
-                {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
-                <span className={cn('relative inline-flex h-2 w-2 rounded-full', live ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
+                {realtimeMode === 'live' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+                <span
+                  className={cn(
+                    'relative inline-flex h-2 w-2 rounded-full',
+                    realtimeMode === 'live' ? 'bg-emerald-500' : realtimeMode === 'polling' ? 'bg-amber-500' : 'bg-muted-foreground/40',
+                  )}
+                />
               </span>
-              {live ? 'Realtime' : 'Mất kết nối'}
+              {realtimeMode === 'live' ? 'Realtime' : realtimeMode === 'polling' ? 'Tự đồng bộ' : 'Mất kết nối'}
             </Badge>
             <ThemeToggle />
             <Avatar className="hidden h-8 w-8 sm:flex">

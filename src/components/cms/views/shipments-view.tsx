@@ -148,6 +148,9 @@ export function ShipmentsView() {
   useRealtime((e) => {
     if (['shipment.updated', 'order.updated'].includes(e.type)) {
       void load()
+    } else if (e.type === 'realtime.poll') {
+      // WS hỏng → polling 10s: load im lặng (load không setLoading(true) — không flash skeleton)
+      void load()
     }
   })
 

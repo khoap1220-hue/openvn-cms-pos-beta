@@ -152,6 +152,28 @@ export function InboxView() {
       )
       return
     }
+    if (e.type === 'realtime.poll') {
+      // WS hỏng → polling 10s: tải lại tin nhắn của hội thoại đang mở IM LẶNG —
+      // chỉ setMessages khi số lượng hoặc id tin cuối cùng đổi (tránh scroll-jump khi đang xem)
+      if (selected) {
+        void (async () => {
+          try {
+            const d = await apiGet<{ messages: DirectMessage[] }>(
+              `/api/inbox?customerId=${encodeURIComponent(selected.customerId)}&channelKey=${encodeURIComponent(selected.channelKey)}`,
+            )
+            setMessages((prev) => {
+              const lastId = prev[prev.length - 1]?.id
+              const nextId = d.messages[d.messages.length - 1]?.id
+              if (prev.length === d.messages.length && lastId === nextId) return prev
+              return d.messages
+            })
+          } catch {
+            // im lặng — giữ nguyên tin nhắn hiện có
+          }
+        })()
+      }
+      return
+    }
     if (e.type !== 'message.new') return
     const msg = e.data as DirectMessage
     if (selected && msg.customerId === selected.customerId && msg.channelKey === selected.channelKey) {

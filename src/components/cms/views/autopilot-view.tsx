@@ -78,6 +78,9 @@ export function AutopilotView() {
     } else if (e.type === 'settings.updated') {
       void loadSettings()
       void loadLog()
+    } else if (e.type === 'realtime.poll') {
+      // WS hỏng → polling 10s: nạp lại nhật ký Agent im lặng (không loading flash)
+      void loadLog()
     }
   })
 

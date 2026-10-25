@@ -60,6 +60,7 @@ interface SettingsData {
   invoice_bank_name?: string
   invoice_bank_account?: string
   invoice_bank_holder?: string
+  invoice_bank_code?: string
   invoice_footer_note: string
   invoice_default_note: string
   invoice_logo: string
@@ -82,6 +83,30 @@ const CURRENT_YEAR = new Date().getFullYear()
 const CURRENT_QUARTER = Math.floor(new Date().getMonth() / 3) + 1
 const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR + 2 - FIRST_YEAR }, (_, i) => FIRST_YEAR + i)
 const VAT_RATES = [0, 5, 8, 10]
+
+/** Giá trị "chưa chọn" của Select mã ngân hàng (Radix Select không nhận SelectItem value rỗng) */
+const BANK_CODE_EMPTY = '__none__'
+
+/** Mã ngân hàng phổ biến cho VietQR — value = mã ngắn img.vietqr.io (đã verify trả ảnh HTTP 200) */
+const BANK_CODE_OPTIONS: Array<{ code: string; label: string }> = [
+  { code: 'VCB', label: 'VCB — Vietcombank' },
+  { code: 'MB', label: 'MB — MB Bank' },
+  { code: 'TCB', label: 'TCB — Techcombank' },
+  { code: 'ICB', label: 'ICB — VietinBank' },
+  { code: 'BIDV', label: 'BIDV' },
+  { code: 'ACB', label: 'ACB' },
+  { code: 'VPB', label: 'VPB — VPBank' },
+  { code: 'STB', label: 'STB — Sacombank' },
+  { code: 'SHB', label: 'SHB' },
+  { code: 'HDB', label: 'HDB — HDBank' },
+  { code: 'MSB', label: 'MSB — Maritime Bank' },
+  { code: 'OCB', label: 'OCB' },
+  { code: 'TPB', label: 'TPB — TPBank' },
+  { code: 'VIB', label: 'VIB' },
+  { code: 'SEAB', label: 'SEAB — SeABank' },
+  { code: 'LPB', label: 'LPB — LienVietPostBank' },
+  { code: 'VBA', label: 'VBA — Agribank' },
+]
 
 export function SystemView() {
   const [settings, setSettings] = useState<SettingsData | null>(null)
@@ -121,6 +146,9 @@ export function SystemView() {
   const [invoiceBankName, setInvoiceBankName] = useState('')
   const [invoiceBankAccount, setInvoiceBankAccount] = useState('')
   const [invoiceBankHolder, setInvoiceBankHolder] = useState('')
+  const [invoiceBankCode, setInvoiceBankCode] = useState('')
+  // URL VietQR xem trước vừa lỗi tải — null = chưa lỗi; đổi mã ngân hàng/số TK/chủ TK → URL mới → tự thử lại
+  const [qrPreviewFailedUrl, setQrPreviewFailedUrl] = useState<string | null>(null)
   const [invoiceFooterNote, setInvoiceFooterNote] = useState('')
   const [invoiceDefaultNote, setInvoiceDefaultNote] = useState('')
   const [invoiceLogo, setInvoiceLogo] = useState('')
@@ -153,8 +181,9 @@ export function SystemView() {
       setInvoiceBankName(res.invoice_bank_name ?? '')
       setInvoiceBankAccount(res.invoice_bank_account ?? '')
       setInvoiceBankHolder(res.invoice_bank_holder ?? '')
+      setInvoiceBankCode(res.invoice_bank_code ?? '')
       bankKnownRef.current = new Set(
-        (['invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder'] as const).filter(
+        (['invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder', 'invoice_bank_code'] as const).filter(
           (key) => res[key] !== undefined
         )
       )
@@ -262,6 +291,7 @@ export function SystemView() {
         invoice_bank_name: invoiceBankName.trim(),
         invoice_bank_account: invoiceBankAccount.trim(),
         invoice_bank_holder: invoiceBankHolder.trim(),
+        invoice_bank_code: invoiceBankCode.trim(),
       }
       for (const [key, value] of Object.entries(bankValues)) {
         if (bankKnownRef.current.has(key) || bankDirtyRef.current.has(key)) body[key] = value
@@ -378,6 +408,14 @@ export function SystemView() {
     [periods]
   )
   const currentQuarterClosed = currentQuarterPeriod?.status === 'CLOSED'
+
+  // URL xem trước VietQR (mẫu cố định 100.000đ — UUDAM TEST) — cần đủ mã ngân hàng + số tài khoản
+  const qrPreviewUrl =
+    invoiceBankCode.trim() && invoiceBankAccount.trim()
+      ? `https://img.vietqr.io/image/${invoiceBankCode.trim()}-${invoiceBankAccount.trim()}-compact.png?amount=100000&addInfo=UUDAM%20TEST&accountName=${encodeURIComponent(
+          invoiceBankHolder.trim()
+        )}`
+      : ''
 
   return (
     <div>
@@ -561,6 +599,56 @@ export function SystemView() {
                         placeholder="CÔNG TY TNHH THƯƠNG MẠI ABC"
                         maxLength={120}
                       />
+                    </div>
+                    {/* Mã ngân hàng VietQR + xem trước mã QR chuyển khoản in trên hóa đơn bán */}
+                    <div className="grid gap-2 sm:col-span-2">
+                      <Label htmlFor="invoice-bank-code">Mã ngân hàng (VietQR)</Label>
+                      <div className="flex flex-wrap items-start gap-4">
+                        <div className="grid w-full gap-1 sm:w-64">
+                          <Select
+                            value={invoiceBankCode || BANK_CODE_EMPTY}
+                            onValueChange={(value) => {
+                              setInvoiceBankCode(value === BANK_CODE_EMPTY ? '' : value)
+                              bankDirtyRef.current.add('invoice_bank_code')
+                            }}
+                          >
+                            <SelectTrigger id="invoice-bank-code">
+                              <SelectValue placeholder="Chọn mã ngân hàng" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={BANK_CODE_EMPTY}>(chưa chọn)</SelectItem>
+                              {BANK_CODE_OPTIONS.map((b) => (
+                                <SelectItem key={b.code} value={b.code}>
+                                  {b.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Dùng tạo mã QR chuyển khoản tự động in ở góc dưới phải hóa đơn bán hàng.
+                          </p>
+                        </div>
+                        {qrPreviewUrl ? (
+                          qrPreviewFailedUrl === qrPreviewUrl ? (
+                            <p className="self-center text-xs text-muted-foreground">
+                              Không tải được xem trước VietQR
+                            </p>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1">
+                              <img
+                                key={qrPreviewUrl}
+                                src={qrPreviewUrl}
+                                alt="Xem trước VietQR"
+                                className="h-28 w-28 rounded-md border bg-white object-contain"
+                                onError={() => setQrPreviewFailedUrl(qrPreviewUrl)}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Xem trước VietQR (mẫu: 100.000đ — UUDAM TEST)
+                              </p>
+                            </div>
+                          )
+                        ) : null}
+                      </div>
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="invoice-footer-note">Ghi chú cuối hóa đơn</Label>

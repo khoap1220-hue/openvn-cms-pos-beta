@@ -296,9 +296,10 @@ export function LedgerView() {
     return () => clearTimeout(timer)
   }, [searchInput])
 
-  const fetchLedger = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  // silent = true khi reload ngầm qua polling 10s: KHÔNG setLoading(true) (tránh flash skeleton),
+  // lỗi thì bỏ qua (giữ dữ liệu cũ) — chỉ cập nhật state khi fetch thành công
+  const fetchLedger = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const params = new URLSearchParams()
       if (scopeFilter !== 'ALL') params.set('scope', scopeFilter)
@@ -319,10 +320,11 @@ export function LedgerView() {
       setEntries(data.entries)
       setCounts(data.counts ?? {})
       setPeriodStats(data.period ?? null)
+      setError(null)
     } catch (err) {
-      setError(errorMessage(err))
+      if (!silent) setError(errorMessage(err))
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [scopeFilter, search, timeFilter, period, originSource, changedFilter, refreshKey])
 
@@ -330,12 +332,16 @@ export function LedgerView() {
     void fetchLedger()
   }, [fetchLedger])
 
-  // Realtime: có bản ghi Sổ Data mới → refetch sau 1s (giữ nguyên filter)
+  // Realtime: có bản ghi Sổ Data mới → refetch sau 1s (giữ nguyên filter);
+  // WS hỏng → polling 10s → refetch im lặng (không loading flash)
   const ledgerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useRealtime((e) => {
-    if (e.type !== 'ledger.new') return
-    if (ledgerTimer.current) clearTimeout(ledgerTimer.current)
-    ledgerTimer.current = setTimeout(() => setRefreshKey((k) => k + 1), 1000)
+    if (e.type === 'ledger.new') {
+      if (ledgerTimer.current) clearTimeout(ledgerTimer.current)
+      ledgerTimer.current = setTimeout(() => setRefreshKey((k) => k + 1), 1000)
+    } else if (e.type === 'realtime.poll') {
+      void fetchLedger(true)
+    }
   })
 
   const runReconciliation = useCallback(async () => {

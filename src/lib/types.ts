@@ -32,6 +32,9 @@ export interface ProductListing {
   channelId: string
   price: number | null
   status: string
+  /** bản mô tả đã đồng bộ lên kênh (null = chưa từng đẩy) */
+  description?: string | null
+  descriptionSyncedAt?: string | null
   channel?: Pick<Channel, 'id' | 'key' | 'name' | 'color'> | null
 }
 
@@ -225,6 +228,57 @@ export interface ReportsData {
   revenueByDay: Array<{ date: string; label: string; revenue: number; orders: number }>
   statusDistribution: Array<{ status: string; count: number }>
   topProducts: Array<{ id: string; sku: string; name: string; sold: number; revenue: number }>
+}
+
+// ===== P&L & UNIT ECONOMICS (Báo cáo Lợi nhuận Ròng — 5 tầng) =====
+/** 1 dòng P&L: 5 tầng chi phí → Net Profit + % Margin. Dùng cho cả tổng/kênh/sản phẩm. */
+export interface PnlRow {
+  /** Tầng 1 — Doanh thu gộp (chưa trừ gì) */
+  grossRevenue: number
+  /** Tầng 2 — Giá vốn (SIMPLE: costPrice × SL · COMBO: định mức BOM) */
+  cogs: number
+  /** Tầng 3a — Phí sàn TMĐT (snapshot trên đơn + ước tính % phí kênh cho đơn thiếu) */
+  platformFee: number
+  /** Tầng 3b — Vận chuyển shop hỗ trợ (cước DVVC thực/ước tính − phí thu khách) */
+  shippingSubsidy: number
+  /** Tầng 4 — Điểm thưởng/hoa hồng Affiliate ước tính (điểm phát sinh × 1.000đ) */
+  pointsCost: number
+  /** Tầng 5 — Lợi nhuận ròng = 1 − 2 − 3a − 3b − 4 */
+  netProfit: number
+  /** % Margin = netProfit / grossRevenue */
+  marginPct: number
+}
+
+export interface PnlChannelRow extends PnlRow {
+  key: string
+  name: string
+  color: string
+  orders: number
+}
+
+export interface PnlProductRow extends PnlRow {
+  id: string
+  sku: string
+  name: string
+  type: string
+  /** SIMPLE | COMBO — COMBO tính giá vốn theo định mức BOM */
+  units: number
+}
+
+export interface PnlData {
+  days: number
+  /** kỳ lọc: from-to ISO + nhãn hiển thị */
+  period: { from: string; to: string; label: string }
+  summary: PnlRow & { orders: number }
+  byChannel: PnlChannelRow[]
+  products: PnlProductRow[]
+  /** các giả định ước tính đang dùng — hiển thị minh bạch trên UI */
+  assumptions: {
+    /** giá trị quy đổi 1 điểm thưởng (đ) */
+    pointValueVnd: number
+    /** cước DVVC ước tính theo hãng khi Shipment.fee = 0 (đ/đơn) */
+    carrierFeeEstimates: Record<string, number>
+  }
 }
 
 // ===== Constants / Labels =====

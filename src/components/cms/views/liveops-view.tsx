@@ -57,6 +57,9 @@ export function LiveOpsView({ onNavigate }: { onNavigate?: (view: 'orders' | 'in
       scheduleRefetch()
     } else if (['order.created', 'order.updated', 'shipment.updated', 'settings.updated', 'review.received', 'message.new'].includes(e.type)) {
       scheduleRefetch()
+    } else if (e.type === 'realtime.poll') {
+      // WS hỏng → polling 10s: load im lặng (load không setLoading(true) — không flash skeleton)
+      scheduleRefetch()
     }
   })
 

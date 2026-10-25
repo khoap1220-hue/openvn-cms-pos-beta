@@ -243,9 +243,17 @@ export function OrdersView() {
     remaining: number
   } | null>(null)
 
-  // Realtime: Agent tự cập nhật đơn → tự refresh danh sách + dialog chi tiết
+  // Realtime: Agent tự cập nhật đơn → tự refresh danh sách + dialog chi tiết;
+  // WS hỏng → polling 10s → reload danh sách IM LẶNG (không flash skeleton, không đụng dialog chi tiết)
   const realtimeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useRealtime((e) => {
+    if (e.type === 'realtime.poll') {
+      if (realtimeTimer.current) clearTimeout(realtimeTimer.current)
+      realtimeTimer.current = setTimeout(() => {
+        void fetchOrders(true)
+      }, 600)
+      return
+    }
     if (!['order.created', 'order.updated', 'review.received'].includes(e.type)) return
     if (realtimeTimer.current) clearTimeout(realtimeTimer.current)
     realtimeTimer.current = setTimeout(() => {
@@ -299,9 +307,10 @@ export function OrdersView() {
     return () => clearTimeout(timer)
   }, [searchInput])
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  // silent = true khi reload ngầm qua polling 10s: KHÔNG setLoading(true) (tránh flash skeleton),
+  // lỗi thì bỏ qua (giữ dữ liệu cũ) — chỉ cập nhật state khi fetch thành công
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const params = new URLSearchParams()
       if (search) params.set('search', search)
@@ -335,10 +344,11 @@ export function OrdersView() {
       setTotal(data.total)
       setTotalPages(Math.max(1, data.totalPages))
       setPeriodStats(data.period ?? null)
+      setError(null)
     } catch (err) {
-      setError(errorMessage(err))
+      if (!silent) setError(errorMessage(err))
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [search, statusFilter, channelFilter, page, refreshKey, period, originSource, changedFilter])
 

@@ -8,6 +8,8 @@
 // • Khi dialog mở → tự GET /api/settings lấy thông tin đơn vị, mẫu in, ngân hàng, logo, ghi chú cuối.
 // • Nút "In hóa đơn" → window.print(): CSS @media print ẩn toàn trang, chỉ hiện .invoice-print-area.
 // • Hóa đơn trạng thái CANCELLED in kèm watermark "HÓA ĐƠN ĐÃ HỦY".
+// • VietQR (Task 28): hóa đơn BÁN có đủ mã ngân hàng (invoice_bank_code) + số TK → in mã QR chuyển khoản
+//   (img.vietqr.io, gộp tổng tiền + mã HĐ) ở góc dưới bên phải, cạnh khối thông tin chuyển khoản/ghi chú cuối.
 // Lưu ý: hóa đơn bán tạo từ Task 20-a trở đi có snapshot invoiceNo/series/templateCode/paymentMethod;
 // hóa đơn CŨ có thể null hết 4 trường → mọi trường đều có fallback từ settings/mã nội bộ.
 
@@ -70,6 +72,8 @@ interface InvoiceSettings {
   bankName: string
   bankAccount: string
   bankHolder: string
+  /** Mã ngân hàng VietQR (vd VCB) — rỗng = không in mã QR chuyển khoản */
+  bankCode: string
   footerNote: string
   logo: string
 }
@@ -87,6 +91,7 @@ const SETTINGS_FALLBACK: InvoiceSettings = {
   bankName: '',
   bankAccount: '',
   bankHolder: '',
+  bankCode: '',
   footerNote: '',
   logo: '',
 }
@@ -110,6 +115,7 @@ function normalizeSettings(raw: Record<string, unknown> | null): InvoiceSettings
     bankName: str('invoice_bank_name'),
     bankAccount: str('invoice_bank_account'),
     bankHolder: str('invoice_bank_holder'),
+    bankCode: str('invoice_bank_code'),
     footerNote: str('invoice_footer_note'),
     logo: str('invoice_logo'),
   }
@@ -176,6 +182,10 @@ export function InvoicePrintDialog({
   kind?: InvoicePrintKind
 }) {
   const [settings, setSettings] = useState<InvoiceSettings | null>(null)
+  // URL VietQR vừa lỗi tải — null = chưa lỗi. Mỗi hóa đơn có URL riêng (số tiền + mã HĐ trong addInfo)
+  // nên đổi hóa đơn → URL mới → khớp lại → QR tự thử lại (tương đương reset qrFailed theo invoice,
+  // nhưng không setState trong useEffect — tránh lỗi react-hooks/set-state-in-effect).
+  const [qrFailedUrl, setQrFailedUrl] = useState<string | null>(null)
 
   // Tải cấu hình hóa đơn mỗi lần mở dialog — giữ kết quả lần trước làm cache trong khi refetch
   useEffect(() => {
@@ -200,6 +210,17 @@ export function InvoicePrintDialog({
     if (Number.isNaN(d.getTime())) return ''
     return `Ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`
   })()
+
+  // URL VietQR chuyển khoản cho hóa đơn BÁN (kind='sales'): gộp mã ngân hàng + số TK + tổng tiền + mã HĐ.
+  // Thiếu mã ngân hàng/số TK hoặc hóa đơn mua → rỗng → không in QR.
+  const vietQrUrl =
+    invoice && settings && kind === 'sales' && settings.bankCode && settings.bankAccount
+      ? `https://img.vietqr.io/image/${settings.bankCode}-${settings.bankAccount}-compact.png?amount=${Math.round(
+          invoice.total
+        )}&addInfo=${encodeURIComponent(
+          `HD ${invoice.invoiceNo != null ? String(invoice.invoiceNo) : invoice.code}`
+        )}&accountName=${encodeURIComponent(settings.bankHolder)}`
+      : ''
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -393,16 +414,6 @@ export function InvoicePrintDialog({
                     Số tiền viết bằng chữ: {docSoTienBangChu(invoice.total)}
                   </p>
 
-                  {settings.bankAccount ? (
-                    <p className="mt-2 text-sm">
-                      Ngân hàng: {settings.bankName || '—'} — Số TK: {settings.bankAccount}
-                      {settings.bankHolder ? ` — Chủ TK: ${settings.bankHolder}` : ''}
-                    </p>
-                  ) : null}
-
-                  {invoice.note ? <p className="mt-2 text-sm">Ghi chú: {invoice.note}</p> : null}
-                  {settings.footerNote ? <p className="mt-1 text-sm">{settings.footerNote}</p> : null}
-
                   {/* Chữ ký */}
                   <div className="mt-8 grid grid-cols-2 gap-6 text-center text-sm">
                     <div>
@@ -415,6 +426,42 @@ export function InvoicePrintDialog({
                       <p className="text-xs italic">(Ký, ghi rõ họ tên)</p>
                       <div className="h-20" />
                     </div>
+                  </div>
+
+                  {/* Góc dưới hóa đơn: trái = thông tin chuyển khoản + ghi chú cuối, phải = VietQR (chỉ hóa đơn bán) */}
+                  <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+                    <div className="min-w-[220px] max-w-[60%] flex-1 text-sm leading-relaxed">
+                      {settings.bankAccount ? (
+                        <p>
+                          Ngân hàng: {settings.bankName || '—'} — Số TK: {settings.bankAccount}
+                          {settings.bankHolder ? ` — Chủ TK: ${settings.bankHolder}` : ''}
+                        </p>
+                      ) : null}
+                      {invoice.note ? <p className="mt-2">Ghi chú: {invoice.note}</p> : null}
+                      {settings.footerNote ? <p className="mt-1">{settings.footerNote}</p> : null}
+                    </div>
+                    {vietQrUrl ? (
+                      qrFailedUrl === vietQrUrl ? (
+                        <p className="text-xs text-slate-600">
+                          VietQR: QR chuyển khoản sẽ hiển thị khi in (cần internet)
+                        </p>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          <img
+                            key={`${invoice.id}-${vietQrUrl}`}
+                            src={vietQrUrl}
+                            alt="VietQR chuyển khoản"
+                            className="h-[110px] w-[110px] object-contain"
+                            onError={() => setQrFailedUrl(vietQrUrl)}
+                          />
+                          <p className="text-center text-[10px] leading-tight text-slate-600">
+                            Quét mã để chuyển khoản
+                            <br />
+                            {formatNumber(invoice.total)}đ
+                          </p>
+                        </div>
+                      )
+                    ) : null}
                   </div>
                 </>
               )}

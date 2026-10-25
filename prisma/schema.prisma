@@ -63,9 +63,12 @@ model ChannelListing {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   channelId String
   channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  price     Float?
+  price     Float? // GIÁ BÁN RIÊNG trên kênh (null = dùng giá bán chung Product.sellPrice)
   status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
+  // ĐỒNG BỘ MÔ TẢ — Product.description là nguồn chân lý; bản sao đẩy lên kênh + thời điểm đồng bộ
+  description         String?
+  descriptionSyncedAt DateTime?
+  createdAt  DateTime @default(now())
 
   @@unique([productId, channelId])
 }

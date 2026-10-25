@@ -36,7 +36,11 @@ export function ConfirmDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
+          {/* Luôn render description để dialog có aria-describedby cho screen reader —
+              thiếu description dùng fallback sr-only (a11y) */}
+          <AlertDialogDescription className={description ? undefined : 'sr-only'}>
+            {description ?? 'Xác nhận thao tác này để tiếp tục.'}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Hủy</AlertDialogCancel>

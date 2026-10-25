@@ -1,9 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { logLedger, recordLineageChange } from '@/lib/ledger'
+import { recordLineageChange } from '@/lib/ledger'
 import { comboAvailableFromRows, comboCostFromRows } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
+
+/** Giới hạn giá bán riêng trên một kênh (0đ – 1 tỷđ) */
+const MAX_CHANNEL_PRICE = 1_000_000_000
+
+/**
+ * Parse mảng `listings` từ body: [{ channelId, price }] — price null/undefined = theo giá bán chung.
+ * Dedupe theo channelId (mục sau đè mục trước). Trả error khi price không hợp lệ.
+ */
+function parseListingsInput(raw: unknown): { listings: Map<string, number | null> } | { error: string } {
+  if (!Array.isArray(raw)) return { error: 'Danh sách kênh bán (listings) không hợp lệ' }
+  const map = new Map<string, number | null>()
+  for (const item of raw) {
+    if (item == null || typeof item !== 'object') continue
+    const channelId = (item as { channelId?: unknown }).channelId
+    if (typeof channelId !== 'string' || !channelId.trim()) continue
+    const priceRaw = (item as { price?: unknown }).price
+    let price: number | null = null
+    if (priceRaw !== null && priceRaw !== undefined && priceRaw !== '') {
+      const num = Number(priceRaw)
+      if (!Number.isFinite(num) || num < 0 || num > MAX_CHANNEL_PRICE) {
+        return { error: 'Giá bán trên kênh phải là số từ 0 đến 1.000.000.000đ' }
+      }
+      price = num
+    }
+    map.set(channelId.trim(), price)
+  }
+  return { listings: map }
+}
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -105,6 +133,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       nextType = body.type === 'COMBO' ? 'COMBO' : 'SIMPLE'
     }
 
+    // KÊNH BÁN + GIÁ RIÊNG THEO KÊNH: `listings` (kèm price) ưu tiên — parse & validate
+    // TRƯỚC khi ghi DB để không rơi vào trạng thái nửa vời. Fallback `listingChannelIds`
+    // (tương thích ngược — khi đó KHÔNG đụng price các listing tồn tại).
+    const hasListingsInput = Array.isArray(body.listings)
+    let targetListings = new Map<string, number | null>()
+    let channelKeyById = new Map<string, string>()
+    if (hasListingsInput) {
+      const parsed = parseListingsInput(body.listings)
+      if ('error' in parsed) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 })
+      }
+      targetListings = parsed.listings
+      const channelIds = [...targetListings.keys()]
+      if (channelIds.length > 0) {
+        const channels = await db.channel.findMany({ where: { id: { in: channelIds } }, select: { id: true, key: true } })
+        const validIds = new Set(channels.map((c) => c.id))
+        const unknown = channelIds.filter((cid) => !validIds.has(cid))
+        if (unknown.length > 0) {
+          return NextResponse.json({ error: `Kênh bán không tồn tại: ${unknown.join(', ')}` }, { status: 400 })
+        }
+        channelKeyById = new Map(channels.map((c) => [c.id, c.key]))
+      }
+    }
+
     const product = await db.product.update({
       where: { id },
       data: {
@@ -124,8 +176,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     })
 
-    // Đồng bộ danh sách kênh bán nếu có gửi lên
-    if (Array.isArray(listingChannelIds)) {
+    // Đồng bộ danh sách kênh bán + giá riêng theo kênh
+    // priceTracks: [field price_{channel.key}, before, after] — đưa vào lineage PRODUCT_UPDATED
+    const priceTracks: Array<[string, number | null, number | null]> = []
+    if (hasListingsInput) {
+      const current = await db.channelListing.findMany({ where: { productId: id } })
+      const currentIds = new Set(current.map((l) => l.channelId))
+
+      // Kênh đang có mà không nằm trong target → gỡ listing
+      const toRemove = current.filter((l) => !targetListings.has(l.channelId)).map((l) => l.id)
+      if (toRemove.length > 0) await db.channelListing.deleteMany({ where: { id: { in: toRemove } } })
+
+      // Upsert từng kênh target với giá riêng (unique productId + channelId)
+      for (const [channelId, price] of targetListings) {
+        if (currentIds.has(channelId)) {
+          await db.channelListing.update({ where: { productId_channelId: { productId: id, channelId } }, data: { price } })
+        } else {
+          await db.channelListing.create({ data: { productId: id, channelId, price } })
+        }
+      }
+
+      // Detect thay đổi price từng kênh để ghi lineage (kênh mới thêm có giá cũng tính là thay đổi)
+      for (const [channelId, newPrice] of targetListings) {
+        const oldListing = current.find((l) => l.channelId === channelId)
+        const oldPrice = oldListing?.price ?? null
+        if (oldPrice !== newPrice) {
+          const key = channelKeyById.get(channelId) ?? channelId
+          priceTracks.push([`price_${key.toLowerCase()}`, oldPrice, newPrice])
+        }
+      }
+    } else if (Array.isArray(listingChannelIds)) {
       const current = await db.channelListing.findMany({ where: { productId: id } })
       const currentIds = new Set(current.map((l) => l.channelId))
       const targetIds = new Set(listingChannelIds as string[])
@@ -155,7 +235,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       })
     }
 
-    // DATA LINEAGE — chụp diff các trường sản phẩm đã sửa
+    // DATA LINEAGE — chụp diff các trường sản phẩm đã sửa (gồm giá riêng từng kênh price_{key})
     {
       const before: Record<string, unknown> = {}
       const after: Record<string, unknown> = {}
@@ -168,6 +248,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ['status', existing.status, product.status],
         ['barcode', existing.barcode, product.barcode],
         ['type', existing.type, product.type],
+        ...priceTracks,
       ]
       for (const [field, b, a] of track) {
         if (JSON.stringify(b ?? null) !== JSON.stringify(a ?? null)) {

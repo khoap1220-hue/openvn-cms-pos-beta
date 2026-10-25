@@ -11,14 +11,15 @@ import {
   Pencil,
   Plus,
   Power,
+  RefreshCw,
   Search,
   Trash2,
   Wand2,
 } from 'lucide-react'
 
 import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api'
-import { formatNumber, formatVND } from '@/lib/format'
-import type { Category, Channel, Product } from '@/lib/types'
+import { formatCompactVND, formatDateTime, formatNumber, formatVND } from '@/lib/format'
+import type { Category, Channel, Product, ProductListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
@@ -86,6 +87,8 @@ interface ProductFormState {
   lowStockThreshold: string
   status: string
   listingChannelIds: string[]
+  /** Giá bán riêng từng kênh (string thô từ input — rỗng = null = theo giá bán chung) */
+  channelPrices: Record<string, string>
 }
 
 const EMPTY_FORM: ProductFormState = {
@@ -102,6 +105,7 @@ const EMPTY_FORM: ProductFormState = {
   lowStockThreshold: '10',
   status: 'ACTIVE',
   listingChannelIds: [],
+  channelPrices: {},
 }
 
 function errorMessage(err: unknown): string {
@@ -117,6 +121,37 @@ function ComboBadge() {
     >
       Combo
     </Badge>
+  )
+}
+
+/** Response POST /api/products/[id]/sync-description */
+interface SyncDescriptionResponse {
+  synced: number
+  channels: Array<{ channelId: string; key: string; name: string; syncedAt: string }>
+}
+
+/**
+ * Trạng thái đồng bộ mô tả của một kênh (chỉ dùng trong form sửa sản phẩm):
+ * - chưa từng sync → "Chưa đồng bộ"
+ * - đã sync nhưng bản kênh ≠ mô tả master → badge amber "Chưa cập nhật"
+ */
+function ChannelDescStatus({ listing, master }: { listing: ProductListing; master: string | null }) {
+  if (!listing.descriptionSyncedAt) {
+    return <p className="pl-7 pt-0.5 text-xs text-muted-foreground">Chưa đồng bộ mô tả</p>
+  }
+  const outdated = (listing.description ?? null) !== master
+  return (
+    <p className="flex flex-wrap items-center gap-1.5 pl-7 pt-0.5 text-xs text-muted-foreground">
+      Đã đồng bộ {formatDateTime(listing.descriptionSyncedAt)}
+      {outdated && (
+        <Badge
+          variant="outline"
+          className="h-4 border-amber-300 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400"
+        >
+          Chưa cập nhật
+        </Badge>
+      )}
+    </p>
   )
 }
 
@@ -143,6 +178,9 @@ export function ProductsView() {
   const [editing, setEditing] = useState<Product | null>(null)
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  /** Bản sao live của các listing (kèm trạng thái đồng bộ mô tả) của SP đang sửa — cập nhật sau khi sync */
+  const [editingListings, setEditingListings] = useState<ProductListing[]>([])
+  const [syncingDesc, setSyncingDesc] = useState(false)
 
   // ===== Xóa sản phẩm =====
   const [deleting, setDeleting] = useState<Product | null>(null)
@@ -223,12 +261,19 @@ export function ProductsView() {
   // ===== Dialog handlers =====
   const openCreate = () => {
     setEditing(null)
+    setEditingListings([])
     setForm(EMPTY_FORM)
     setDialogOpen(true)
   }
 
   const openEdit = (p: ProductRow) => {
     setEditing(p)
+    setEditingListings(p.listings ?? [])
+    // Giá kênh: listing có price → String(price), không có → '' (theo giá chung)
+    const prices: Record<string, string> = {}
+    for (const l of p.listings ?? []) {
+      prices[l.channelId] = l.price != null ? String(l.price) : ''
+    }
     setForm({
       type: p.type ?? 'SIMPLE',
       sku: p.sku,
@@ -243,6 +288,7 @@ export function ProductsView() {
       lowStockThreshold: String(p.lowStockThreshold),
       status: p.status,
       listingChannelIds: (p.listings ?? []).map((l) => l.channelId),
+      channelPrices: prices,
     })
     setDialogOpen(true)
   }
@@ -253,6 +299,13 @@ export function ProductsView() {
       listingChannelIds: checked
         ? [...f.listingChannelIds, channelId]
         : f.listingChannelIds.filter((id) => id !== channelId),
+    }))
+  }
+
+  const setChannelPrice = (channelId: string, value: string) => {
+    setForm((f) => ({
+      ...f,
+      channelPrices: { ...f.channelPrices, [channelId]: value.replace(/[^\d.]/g, '') },
     }))
   }
 
@@ -269,6 +322,19 @@ export function ProductsView() {
       toast({ title: 'Vui lòng nhập giá bán hợp lệ', variant: 'destructive' })
       return
     }
+    // Giá kênh phải là số ≥ 0 khi có nhập
+    for (const ch of channels) {
+      const raw = (form.channelPrices[ch.id] ?? '').trim()
+      if (raw && (Number.isNaN(Number(raw)) || Number(raw) < 0)) {
+        toast({ title: `Giá kênh ${ch.name} không hợp lệ`, description: 'Chỉ nhận số từ 0 trở lên — bỏ trống để dùng giá chung.', variant: 'destructive' })
+        return
+      }
+    }
+    // Danh sách kênh kèm giá riêng: giá trống = null (theo giá bán chung)
+    const listings = form.listingChannelIds.map((channelId) => {
+      const raw = (form.channelPrices[channelId] ?? '').trim()
+      return { channelId, price: raw ? Number(raw) : null }
+    })
     setSaving(true)
     try {
       const base = {
@@ -284,6 +350,7 @@ export function ProductsView() {
         lowStockThreshold: Number(form.lowStockThreshold) || 0,
         status: form.status,
         listingChannelIds: form.listingChannelIds,
+        listings,
       }
       if (editing) {
         await apiPut<{ product: ProductRow }>(`/api/products/${editing.id}`, base)
@@ -341,6 +408,67 @@ export function ProductsView() {
       setDeleting(null)
     } finally {
       setDeleteLoading(false)
+    }
+  }
+
+  // ===== Đồng bộ mô tả sản phẩm lên các kênh =====
+  const syncDescription = async (productId: string): Promise<SyncDescriptionResponse> => {
+    // Không gửi channelIds = đồng bộ TẤT CẢ kênh của sản phẩm
+    return apiPost<SyncDescriptionResponse>(`/api/products/${productId}/sync-description`, {})
+  }
+
+  // Từ dropdown menu từng dòng trong bảng
+  const handleSyncDescription = async (p: ProductRow) => {
+    try {
+      const res = await syncDescription(p.id)
+      if (res.synced === 0) {
+        toast({ title: 'Sản phẩm chưa có kênh bán nào để đồng bộ', description: p.name })
+        return
+      }
+      toast({
+        title: `Đã đồng bộ mô tả ${p.name} tới ${res.synced} kênh`,
+        description: res.channels.map((c) => c.name).join(', '),
+      })
+      void fetchProducts()
+    } catch (err) {
+      toast({
+        title: 'Không thể đồng bộ mô tả',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    }
+  }
+
+  // Từ nút trong form sửa sản phẩm — cập nhật trạng thái mô tả ngay trong dialog
+  const handleSyncDescriptionFromForm = async () => {
+    if (!editing) return
+    setSyncingDesc(true)
+    try {
+      const res = await syncDescription(editing.id)
+      if (res.synced === 0) {
+        toast({ title: 'Sản phẩm chưa có kênh bán nào để đồng bộ', description: editing.name })
+        return
+      }
+      toast({
+        title: `Đã đồng bộ mô tả tới ${res.synced} kênh`,
+        description: res.channels.map((c) => c.name).join(', '),
+      })
+      // Cập nhật local: bản kênh = mô tả master đang lưu trong DB (editing.description)
+      const syncedByChannel = new Map(res.channels.map((c) => [c.channelId, c.syncedAt]))
+      setEditingListings((prev) =>
+        prev.map((l) => {
+          const syncedAt = syncedByChannel.get(l.channelId)
+          return syncedAt ? { ...l, description: editing.description ?? null, descriptionSyncedAt: syncedAt } : l
+        })
+      )
+    } catch (err) {
+      toast({
+        title: 'Không thể đồng bộ mô tả',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncingDesc(false)
     }
   }
 
@@ -503,11 +631,34 @@ export function ProductsView() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex max-w-[160px] flex-wrap gap-x-3 gap-y-1">
+                      <div className="flex max-w-[220px] flex-wrap gap-x-3 gap-y-1">
                         {(p.listings ?? []).length > 0 ? (
-                          (p.listings ?? []).map((l) => (
-                            <ChannelBadge key={l.id} channel={l.channel} className="text-xs" />
-                          ))
+                          (p.listings ?? []).map((l) => {
+                            const priceTitle =
+                              l.price != null ? `Giá riêng: ${formatVND(l.price)}` : 'Theo giá bán chung'
+                            const descTitle = l.descriptionSyncedAt
+                              ? `Mô tả: đã đồng bộ ${formatDateTime(l.descriptionSyncedAt)}`
+                              : 'Mô tả: chưa đồng bộ'
+                            return (
+                              <span
+                                key={l.id}
+                                title={`${priceTitle}\n${descTitle}`}
+                                className="inline-flex min-w-0 items-center gap-1"
+                              >
+                                <ChannelBadge channel={l.channel} className="min-w-0 text-xs" />
+                                {l.price != null && (
+                                  <>
+                                    <span aria-hidden className="text-xs text-muted-foreground">
+                                      ·
+                                    </span>
+                                    <span className="text-xs font-medium tabular-nums text-foreground/80">
+                                      {formatCompactVND(l.price)}
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                            )
+                          })
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
@@ -527,6 +678,9 @@ export function ProductsView() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onSelect={() => openEdit(p)}>
                             <Pencil className="mr-2 h-4 w-4" /> Sửa
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => void handleSyncDescription(p)}>
+                            <RefreshCw className="mr-2 h-4 w-4" /> Đồng bộ mô tả
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => void handleToggleStatus(p)}>
                             <Power className="mr-2 h-4 w-4" />
@@ -648,7 +802,7 @@ export function ProductsView() {
                 placeholder="VD: Áo sơ mi nam dài tay"
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="product-description">Mô tả</Label>
               <Textarea
                 id="product-description"
@@ -657,6 +811,9 @@ export function ProductsView() {
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="Mô tả ngắn về sản phẩm..."
               />
+              <p className="text-xs text-muted-foreground">
+                Mô tả là nguồn chân lý duy nhất — bấm "Đồng bộ mô tả ngay" (mục Kênh bán) để đẩy bản sao này lên các kênh.
+              </p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="product-image">Ảnh sản phẩm (URL)</Label>
@@ -783,41 +940,87 @@ export function ProductsView() {
               </div>
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label>Kênh bán</Label>
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Kênh bán &amp; giá riêng theo kênh</Label>
+                {editing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleSyncDescriptionFromForm()}
+                    disabled={syncingDesc || editingListings.length === 0}
+                    title="Đẩy mô tả sản phẩm (bản đã lưu) lên tất cả kênh đang bán"
+                  >
+                    <RefreshCw className={cn('mr-1.5 h-4 w-4', syncingDesc && 'animate-spin')} />
+                    Đồng bộ mô tả ngay
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border p-3">
                 {channels.length === 0 ? (
                   <p className="py-2 text-center text-sm text-muted-foreground">
                     Không có kênh bán nào.
                   </p>
                 ) : (
-                  channels.map((ch) => (
-                    <label
-                      key={ch.id}
-                      className={cn(
-                        'flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1.5 text-sm hover:bg-muted/60',
-                        !ch.connected && 'cursor-not-allowed opacity-50'
-                      )}
-                    >
-                      <Checkbox
-                        checked={form.listingChannelIds.includes(ch.id)}
-                        disabled={!ch.connected}
-                        onCheckedChange={(checked) => toggleChannel(ch.id, checked === true)}
-                        aria-label={`Bán trên ${ch.name}`}
-                      />
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: ch.color }}
-                      />
-                      <span className="font-medium">{ch.name}</span>
-                      {!ch.connected && (
-                        <span className="text-xs text-muted-foreground">(Chưa kết nối)</span>
-                      )}
-                    </label>
-                  ))
+                  (() => {
+                    const commonSell = Number(form.sellPrice)
+                    const pricePlaceholder =
+                      form.sellPrice.trim() !== '' && Number.isFinite(commonSell) && commonSell > 0
+                        ? `Giá chung ${formatCompactVND(commonSell)}`
+                        : 'Giá chung'
+                    return channels.map((ch) => {
+                      const checked = form.listingChannelIds.includes(ch.id)
+                      const channelListing = editingListings.find((l) => l.channelId === ch.id)
+                      return (
+                        <div
+                          key={ch.id}
+                          className={cn(
+                            'rounded-md px-1.5 py-1.5 hover:bg-muted/60',
+                            !ch.connected && 'opacity-50'
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <label
+                              className={cn(
+                                'flex min-w-0 flex-1 items-center gap-2.5 text-sm',
+                                ch.connected ? 'cursor-pointer' : 'cursor-not-allowed'
+                              )}
+                            >
+                              <Checkbox
+                                checked={checked}
+                                disabled={!ch.connected}
+                                onCheckedChange={(checkedState) => toggleChannel(ch.id, checkedState === true)}
+                                aria-label={`Bán trên ${ch.name}`}
+                              />
+                              <ChannelBadge channel={ch} className="min-w-0 flex-1 truncate font-medium" />
+                              {!ch.connected && (
+                                <span className="shrink-0 text-xs text-muted-foreground">(Chưa kết nối)</span>
+                              )}
+                            </label>
+                            <Input
+                              className="h-9 w-32 shrink-0 text-right tabular-nums"
+                              type="text"
+                              inputMode="numeric"
+                              placeholder={pricePlaceholder}
+                              value={form.channelPrices[ch.id] ?? ''}
+                              onChange={(e) => setChannelPrice(ch.id, e.target.value)}
+                              disabled={!checked || !ch.connected}
+                              aria-label={`Giá bán riêng trên ${ch.name} (bỏ trống để dùng giá chung)`}
+                              title="Bỏ trống để dùng giá bán chung"
+                            />
+                          </div>
+                          {editing && checked && channelListing && (
+                            <ChannelDescStatus listing={channelListing} master={editing.description ?? null} />
+                          )}
+                        </div>
+                      )
+                    })
+                  })()
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Chỉ có thể chọn kênh đã kết nối. Khi sửa, thay đổi sẽ được đồng bộ sang các kênh.
+                Chỉ có thể chọn kênh đã kết nối. Bỏ trống giá kênh để theo giá bán chung — đặt giá
+                riêng khi bán khác giá trên từng kênh.
               </p>
             </div>
           </div>
