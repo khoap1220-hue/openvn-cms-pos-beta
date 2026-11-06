@@ -9,7 +9,7 @@
 > 5. **`FS-AGENT-05` (`Pre/Post-Fix QA & Acceptance Inspector`)**: Chịu trách nhiệm kiểm định độc lập 2 đầu **Trước khi sửa** và **Sau khi sửa**.
 > 6. **`FS-AGENT-06` (`SecOps & Digital Contract Notary`)**: Chịu trách nhiệm kiểm toán `0` rò rỉ Secret và đóng dấu chữ ký số tổng (`Master HMAC-SHA256`).
 
-- **Thời điểm cập nhật sổ cái**: `2026-11-06T07:47:06Z`
+- **Thời điểm cập nhật sổ cái**: `2026-11-06T07:47:53Z`
 - **Tổng số Hợp đồng Số đã phát hành**: **`117`** (`114` Hợp đồng Thực thi Bản vá & `3` Hợp đồng Bảo vệ Trạng thái Gốc)
 
 ---
@@ -18,8 +18,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB117` — Phản Hồi `#117`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC67E63FC6A600A11D78A2DF057004E66` (Full SHA256: `c67e63fc6a600a11d78a2df057004e66ef875b06cd850af0a4dc59c5d11eeb47`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x87CA00E7D099F0B596B4E5A90C72DEC4` (Full SHA256: `87ca00e7d099f0b596b4e5a90c72dec4e3982b1dbc892cd351afb949fd477b53`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1655x1285
 
@@ -45,8 +45,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB116` — Phản Hồi `#116`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3540D753B22E85B2AE59EC8A577A0645` (Full SHA256: `3540d753b22e85b2ae59ec8a577a06458213cc08a26fbac88ef2a9f315bc3ed6`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1CFB688EA4FA334D101627319865C326` (Full SHA256: `1cfb688ea4fa334d101627319865c326e941538ec1e7f38d009015f6b62a7043`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1357x1285
 
@@ -72,8 +72,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB115` — Phản Hồi `#115`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x76B388C54BFAD816C46329E316F51C99` (Full SHA256: `76b388c54bfad816c46329e316f51c99e045efd1aed35c50c1d76ff726eb4c63`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBB96A57AAA08346EF00FAFC21C23EFD3` (Full SHA256: `bb96a57aaa08346ef00fafc21c23efd372b96ec4d8ce4419f5a8aefec99b837e`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1160x1285
 
@@ -99,8 +99,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB114` — Phản Hồi `#114`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4B4173A028244930E9BEC076592A67EE` (Full SHA256: `4b4173a028244930e9bec076592a67ee9d119efa92b9f4083ae573c5136bd6b2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0CD5543B6E92028FEA29241B3FA7417B` (Full SHA256: `0cd5543b6e92028fea29241b3fa7417b196d878b74545fa532fb538ecf7e8ecc`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1160x1285
 
@@ -126,8 +126,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB113` — Phản Hồi `#113`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x847CEC5FC08DFF839CD07ADDB4B22376` (Full SHA256: `847cec5fc08dff839cd07addb4b22376bafe3c159fc06d78be1ea5a042e42211`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x72BED0ACA6FAEF7EC94AA42462B61B18` (Full SHA256: `72bed0aca6faef7ec94aa42462b61b18ca45b9e1db7c9886b7c20d013aff3f58`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -153,8 +153,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB112` — Phản Hồi `#112`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4A696C0F273663B0F67E39331CD94156` (Full SHA256: `4a696c0f273663b0f67e39331cd94156943ef6a4d2865f4301acee06e74e5d7f`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x89014A6CA470AA962025EA3DD9ABDE02` (Full SHA256: `89014a6ca470aa962025ea3dd9abde02b4c76e0eb56c9ccbce89455e94b3a1fb`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -180,8 +180,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB111` — Phản Hồi `#111`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x219EA4510139A10E5840B4CC0272B597` (Full SHA256: `219ea4510139a10e5840b4cc0272b5974810aefa82c6f2a81b21fb5e03045629`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA5785E76EBE1F348529AD361F8E7E43F` (Full SHA256: `a5785e76ebe1f348529ad361f8e7e43fe61c87f661670f33434ef1c2b92c1e47`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -207,8 +207,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB110` — Phản Hồi `#110`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x37DB19146247DB392EB8340A539E3EAE` (Full SHA256: `37db19146247db392eb8340a539e3eae97b0a43d73d1f96a8f481cb4b2fbb69c`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB0BAB92918094C76CFCE9A0C6AC92CDB` (Full SHA256: `b0bab92918094c76cfce9a0c6ac92cdbb07dfe17a529cbd8c44f9d6b1f5c907f`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1309x1285
 
@@ -234,8 +234,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB109` — Phản Hồi `#109`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB5C24A39D4D71CED63278C4224E27953` (Full SHA256: `b5c24a39d4d71ced63278c4224e27953c115ec95fbd5e7f16e3843803df181fd`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x06AF126C1C3F4975AF88A74AD11550BF` (Full SHA256: `06af126c1c3f4975af88a74ad11550bf9b2853400e3526ddd34cb9f10d946291`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1206x1285
 
@@ -261,8 +261,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB108` — Phản Hồi `#108`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xDF785923A8859BD1FF4CD452ACCD11B0` (Full SHA256: `df785923a8859bd1ff4cd452accd11b0a36278ddf8f43531272a4fc8297c83d8`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x02CD7FD6C3BABE016B9F6A409B8488BA` (Full SHA256: `02cd7fd6c3babe016b9f6a409b8488bae1b8d26621973dfc37ccfd73693adc43`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=system` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Trung tâm Cấu hình Hệ thống] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1696x1285
 
@@ -288,8 +288,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB107` — Phản Hồi `#107`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x7C4A43D0AC55DF19EFAA76DFCAEEF0FD` (Full SHA256: `7c4a43d0ac55df19efaa76dfcaeef0fda3391b2ded1034814dfd1e4baaf0a8ab`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1750C64AB9101B54A1C5E0A55CFBA202` (Full SHA256: `1750c64ab9101b54a1c5e0a55cfba202fefff81c41b068d3395545b7fb988c83`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1696x1285
 
@@ -315,8 +315,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB106` — Phản Hồi `#106`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xDD377C8C329AA08A7EEB4FB86020C1BC` (Full SHA256: `dd377c8c329aa08a7eeb4fb86020c1bc0affce9fff3da7cd84bd83efdf08838f`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBEE54FE00781ABEF71B20F5A2B7DBC57` (Full SHA256: `bee54fe00781abef71b20f5a2b7dbc5770c8c41ab8dbb237d57fd5adeafc4dfe`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 392x1285
 
@@ -342,8 +342,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB105` — Phản Hồi `#105`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5A0EB891C453293FFBFC383DE86361E5` (Full SHA256: `5a0eb891c453293ffbfc383de86361e533cbde0943d4439208041ac82c12b9e9`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x071F28A488232D439CC2AFA55B62B769` (Full SHA256: `071f28a488232d439cc2afa55b62b76944803ce91c99b9c1496ce0ae93cef73f`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1361x1285
 
@@ -369,8 +369,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB104` — Phản Hồi `#104`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x01E9A0D209FFE0BF3504F9566879E5D8` (Full SHA256: `01e9a0d209ffe0bf3504f9566879e5d8dc750b700e9386163075334327fbcb7a`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4B5B7754B664F7A473C133944B34886B` (Full SHA256: `4b5b7754b664f7a473c133944b34886bb4fd5686971c7ab43ffaed9ac56ed270`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1780x1285
 
@@ -396,8 +396,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB103` — Phản Hồi `#103`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x36F910D60CE7816D0178947DF1B18075` (Full SHA256: `36f910d60ce7816d0178947df1b180759b1874a04ee59d6a7f938d3db9151970`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x44640F373AC517C9BF540242E1A94A34` (Full SHA256: `44640f373ac517c9bf540242e1a94a343e4ccff920d4396e6aab091cfcdb9460`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=partners` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đối tác] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1874x1285
 
@@ -423,8 +423,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB102` — Phản Hồi `#102`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF68C34C294DE9261162A4BA54738960A` (Full SHA256: `f68c34c294de9261162a4ba54738960a4d9e402cdce5125d7ccb15507d827e59`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3409DB6322F4B87D6906D15E83FDDF67` (Full SHA256: `3409db6322f4b87d6906d15e83fddf675a693390d69dd9da0efb2ee9508db48b`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=customers` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Khách hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1874x1285
 
@@ -450,8 +450,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB101` — Phản Hồi `#101`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xDA7CFDA41BD2BD5C3DB99ABE9858F5FC` (Full SHA256: `da7cfda41bd2bd5c3db99abe9858f5fcc72bcb4665ea42cb4a6782f0b137a13a`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:05Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x279D8C97208397BEB3067404F3C23577` (Full SHA256: `279d8c97208397beb3067404f3c23577b29c3f18915015a9025b5738282fde5d`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1612x1285
 
@@ -477,8 +477,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB100` — Phản Hồi `#100`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2721B1032A015C238EBAA8DDF820FB32` (Full SHA256: `2721b1032a015c238ebaa8ddf820fb32c454ec763c38d87d657154eaea6cdd4f`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3394F364FEC4EC73649D9B1DE9A33205` (Full SHA256: `3394f364fec4ec73649d9b1de9a332051c26429257ddec1b840e0309e6581368`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=sales` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1458x1285
 
@@ -504,8 +504,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB99` — Phản Hồi `#99`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4DF6A4872485D078D8700BC4A6D89BBA` (Full SHA256: `4df6a4872485d078d8700bc4a6d89bba2aecfaa5ce42f8dc5be8ae1395367b44`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1955F7557930A96AD71E26674A36F02D` (Full SHA256: `1955f7557930a96ad71e26674a36f02dcbee21c7bad7bb61e270f151b07e88cb`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 1 vị trí chữ bị cắt (.truncate) trên 1905x1096
 
@@ -531,8 +531,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB98` — Phản Hồi `#98`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFB20E01EEFB5ED4C9924A34A18768716` (Full SHA256: `fb20e01eefb5ed4c9924a34a18768716eefd7e3dd9165ced265ac9e47f1fd7c1`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5715B105DF26F7DDE88EF8A001C2FC97` (Full SHA256: `5715b105df26f7dde88ef8a001c2fc9750999e6da07b7b38dc17e6c88ace9b27`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -558,8 +558,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB97` — Phản Hồi `#97`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3795C296EE68C393E5B2A6654BF138D5` (Full SHA256: `3795c296ee68c393e5b2a6654bf138d594d21091e10555de9e1f0d76a855653f`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x9E5879F074F2201301C6E4105E64F49F` (Full SHA256: `9e5879f074f2201301c6e4105e64f49ff3601ddc34d8939b8d497dcd8c6b920e`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=pos` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -585,8 +585,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB96` — Phản Hồi `#96`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEFD14EF15EA72A6FC9C2AC1098AB0B42` (Full SHA256: `efd14ef15ea72a6fc9c2ac1098ab0b424fdf18f358b4e5771fccc9b2e68ae2ea`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1370A96E1F5966938795C42C945F20B0` (Full SHA256: `1370a96e1f5966938795c42c945f20b05dbac6cc25833bcee93a4dbe264f3dbf`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -612,8 +612,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB95` — Phản Hồi `#95`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x617C0D8CDE278437C948304F0160BE7E` (Full SHA256: `617c0d8cde278437c948304f0160be7e0b10cd12511dbd7827660f47a51f1abf`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xAFC5E2EC50A50C7618CFA23D56669A5F` (Full SHA256: `afc5e2ec50a50c7618cfa23d56669a5f7812bff2bc3177d1f3b973f6a13c0e25`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=shipments` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -639,8 +639,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB94` — Phản Hồi `#94`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1F951908FF418C91BCCB9EA3BADD469B` (Full SHA256: `1f951908ff418c91bccb9ea3badd469b6169f46d8f15db36fc087738db5e806f`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x417D7E464BBFBD5959BEFE232C786843` (Full SHA256: `417d7e464bbfbd5959befe232c786843390fdd974adb3946a44ddf59d7d05981`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=sales` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -666,8 +666,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB93` — Phản Hồi `#93`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xACC2ED8D176BFA8AB0A86E7315EC7E82` (Full SHA256: `acc2ed8d176bfa8ab0a86e7315ec7e82f383f775d5ece9e9907214110fe579d3`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x284EC8AD2ACDD0F99C1DA0245FDBDAE6` (Full SHA256: `284ec8ad2acdd0f99c1da0245fdbdae65f2a62f9a580a1ed98b060479b14cf63`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sản xuất & Định mức (BOM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -693,8 +693,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB92` — Phản Hồi `#92`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x41479BA288E65BAC0EF8AEC233F1A221` (Full SHA256: `41479ba288e65bac0ef8aec233f1a2213c2e7baef92e4694630ab47b052e61c4`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x9C39F98B7FB016F34AAEA63E72CCFEDA` (Full SHA256: `9c39f98b7fb016f34aaea63e72ccfedafa1512944b17c5b0d4e7c13223095f06`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -720,8 +720,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB91` — Phản Hồi `#91`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x7D62706E2039E8467585481AA869D783` (Full SHA256: `7d62706e2039e8467585481aa869d78333ef55e9ec486f7f77903418271f2f9f`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x91E2E703670FE87DB029ED8629695E23` (Full SHA256: `91e2e703670fe87db029ed8629695e239037cde7910d2f6a1c09aa24fab5a2f3`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -747,8 +747,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB90` — Phản Hồi `#90`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x604B47A07F81B36E29EA430AF742900F` (Full SHA256: `604b47a07f81b36e29ea430af742900f13c9c0777bdca15d92260bf3e5d14c96`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB9FA342D99CB78B91B23420AA8E09DDC` (Full SHA256: `b9fa342d99cb78b91b23420aa8e09ddcb9b6d02ee25382ab648b8d8d98ad3281`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -774,8 +774,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB89` — Phản Hồi `#89`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x76B911EEC67D77CC8ADE44F508D67AA3` (Full SHA256: `76b911eec67d77cc8ade44f508d67aa34996f6ed6657b8af6c19c3a5fe112e5e`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xAEF813A38C82FA9F051CDB32B2D4E264` (Full SHA256: `aef813a38c82fa9f051cdb32b2d4e26465244179206138a01dc0f96b51292e12`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 4 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -801,8 +801,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB88` — Phản Hồi `#88`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4095505D74682B4701C0BCE3B1910A96` (Full SHA256: `4095505d74682b4701c0bce3b1910a96a93a23602acdab6758464dbdeea95b16`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1559C296DD83C1D9CDF161AC7A7EC6F7` (Full SHA256: `1559c296dd83c1d9cdf161ac7a7ec6f7d34c4faddefe988d693b0cbbf0a92ce7`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1306x1285
 
@@ -828,8 +828,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB87` — Phản Hồi `#87`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x227D16BB059E722182DC54591EB35667` (Full SHA256: `227d16bb059e722182dc54591eb35667eae9f2f6a960aab218929406cbc99277`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3415C7B71CC610CCBA2A3DC84BDF15B7` (Full SHA256: `3415c7b71cc610ccba2a3dc84bdf15b7df7b506a0ba571f1d9db8ff80997fea0`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=channels` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Kênh bán] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1725x1285
 
@@ -855,8 +855,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB86` — Phản Hồi `#86`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEB6DDAE698E38BF4FB43E4E28E1A3DFD` (Full SHA256: `eb6ddae698e38bf4fb43e4e28e1a3dfd62ad58a515d37c72f42b6a7af15e21bc`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8AE97757DA710EBCA8BA1A8EFF45B6BC` (Full SHA256: `8ae97757da710ebca8ba1a8eff45b6bccb42c545328362d75877405a348f9810`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=auto-social` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Auto Social — Tiếp thị AI & Lịch Đăng Đa Kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1725x1285
 
@@ -882,8 +882,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB85` — Phản Hồi `#85`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD994D748C0D01918D4E206C5C953928B` (Full SHA256: `d994d748c0d01918d4e206c5c953928b5fe1bd6a7b18e550b0280115b0b3d6f4`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF075527A9E07C3DE97A9B48E63CE216F` (Full SHA256: `f075527a9e07c3de97a9b48e63ce216f39df9def4c607599b5a3c34be8fab4e1`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sản xuất & Định mức (BOM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1725x1285
 
@@ -909,8 +909,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB84` — Phản Hồi `#84`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF092880C1A7F71F3329F8799AD259909` (Full SHA256: `f092880c1a7f71f3329f8799ad259909adfe43fdcbc536c0531a46a4ab335166`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0E077AB28CB2BF4977CEA775BF6BC878` (Full SHA256: `0e077ab28cb2bf4977cea775bf6bc87842bcc3d97d9258c40a5717a95c5ce836`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inbox` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1725x1285
 
@@ -936,8 +936,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB83` — Phản Hồi `#83`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4DE468BB359A96AEABFC8F10A6C14616` (Full SHA256: `4de468bb359a96aeabfc8f10a6c1461682e6cd567411ed2893bc476d3e9785a4`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC6E4EF33DA1FFE1D72D77B751CEFD492` (Full SHA256: `c6e4ef33da1ffe1d72d77b751cefd4921e0eaf57fad4b848a55b91b22aa4d8ba`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1452x1285
 
@@ -963,8 +963,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB82` — Phản Hồi `#82`
 - **Trạng thái Hợp đồng**: **`VETOED_AND_ROLLED_BACK`** (5/6 FULLSTACK AGENTS PASS (ratio=0.83))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x785680BD4D594549EAE3C8A3BE7C6F7E` (Full SHA256: `785680bd4d594549eae3c8a3be7c6f7e642903ab32e6f52ed7e53df9e57deb6a`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x672E3935BCF9339F88A246BD45D5FD51` (Full SHA256: `672e3935bcf9339f88a246bd45d5fd5129b8bea4ed530241c9b4eb16b35cfbeb`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [Xem chi tiết: Đơn hàng DH261028-6509] Xác nhận lỗi hiển thị chi tiết đơn hàng trên Mobile (Test Cloud Stream)
 
@@ -990,8 +990,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB81` — Phản Hồi `#81`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB08F77B041F1A1B4A6EBC2720D4047FF` (Full SHA256: `b08f77b041f1a1b4a6ebc2720d4047ff1bde8bed5129a5284ee0a5fc59504907`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x805C93FA5889DD26CB4E5E21CE1FAC7D` (Full SHA256: `805c93fa5889dd26cb4e5e21ce1fac7d4f0f3d8800ab55c82403da8584684d6c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1280x800
 
@@ -1017,8 +1017,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB80` — Phản Hồi `#80`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEB95EC9132A19BAA416DF79EA80E6943` (Full SHA256: `eb95ec9132a19baa416df79ea80e6943719a56a6d28ae861272a3e195ab5bfda`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x26E6F13BEB07371E05DC5936AF6E2988` (Full SHA256: `26e6f13beb07371e05dc5936af6e29884233af12558ad9a5ea8d207d3addcea4`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1280x800
 
@@ -1044,8 +1044,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB79` — Phản Hồi `#79`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x643045AD969C0288A9B3C22578714D16` (Full SHA256: `643045ad969c0288a9b3c22578714d16bf63e32d4d30aff766043a6796c4e152`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xABC4CA5E2A767910C109211EEC2D2030` (Full SHA256: `abc4ca5e2a767910c109211eec2d2030242570cd05e337ab4bd86225bd358248`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Cân bằng kho & Kiểm kê thực tế] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1501x1285
 
@@ -1071,8 +1071,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB78` — Phản Hồi `#78`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4404710F44FBFCB98AFC1A264E0E96BD` (Full SHA256: `4404710f44fbfcb98afc1a264e0e96bd610ad9aa407a64db1f830fc25caeb8a2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1EB62E4863AEF38CCDC439A3E2CF7DE1` (Full SHA256: `1eb62e4863aef38ccdc439a3e2cf7de1a23072d742884ed1b8ac086cf549a2f0`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 1501x1285
 
@@ -1098,8 +1098,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB77` — Phản Hồi `#77`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5AA48BEB301570E311846C463E3487A3` (Full SHA256: `5aa48beb301570e311846c463e3487a37cea425b4f29336e88a1e93ff6d3e8dd`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB601751133C3B7D51F08EFBFC5E4AC69` (Full SHA256: `b601751133c3b7d51f08efbfc5e4ac695f8779ac03c522b10b47058dcce82425`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1501x1285
 
@@ -1125,8 +1125,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB76` — Phản Hồi `#76`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2A645FAA2C127FAAFF824F6929C8BB2C` (Full SHA256: `2a645faa2c127faaff824f6929c8bb2c6bcc1616314d9d752fcf5bb55e0b5b3e`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x792301A152BAB8A2028239A9BB13E4A7` (Full SHA256: `792301a152bab8a2028239a9bb13e4a79e37bff824c932e5c2755f97c9cd1e56`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=shipments` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1501x1285
 
@@ -1152,8 +1152,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB75` — Phản Hồi `#75`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x9043E4BD300579D06244C0D3705DF0FB` (Full SHA256: `9043e4bd300579d06244c0d3705df0fbbb6721a5aa0abc56704fab9fe76ccdc0`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF371BF478F2502192939DCAD6372F452` (Full SHA256: `f371bf478f2502192939dcad6372f452c42a3e2f75a5617d1ceb79b1af6031b8`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=pos` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1501x1285
 
@@ -1179,8 +1179,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB74` — Phản Hồi `#74`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xAECDF35DE47E411FB6F6087C9F357C8E` (Full SHA256: `aecdf35de47e411fb6f6087c9f357c8e2b13e3f1d734d0bddf5802a83efb1f34`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFFE6B782E1B21A1E69A1656BE330367E` (Full SHA256: `ffe6b782e1b21a1e69a1656be330367e1ffbce3fb3680f7e77e3e43923bdb884`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 4 vị trí chữ bị cắt (.truncate) trên 1693x1285
 
@@ -1206,8 +1206,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB73` — Phản Hồi `#73`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1C1B0B24270A34999E5F1121B366DD4A` (Full SHA256: `1c1b0b24270a34999e5f1121b366dd4a9315ced02812c0cfca214e247994ef78`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x7A192DF768CC685AA004EADE52096DE7` (Full SHA256: `7a192df768cc685aa004eade52096de78bcc97b92de35de0a5b19e8236052ab6`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1183x1285
 
@@ -1233,8 +1233,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB72` — Phản Hồi `#72`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFB2D413F45FE84370CD3CE04EE5EA0DD` (Full SHA256: `fb2d413f45fe84370cd3ce04ee5ea0dde2715970ac6e4ccafaecad339d3a8a2a`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4501770F527BA64B768CB730B745039E` (Full SHA256: `4501770f527ba64b768cb730b745039e5de0b31f6099a97b3124abfeccc4c11c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=system` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Trung tâm Cấu hình Hệ thống] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -1260,8 +1260,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB71` — Phản Hồi `#71`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0824BCA4CC50D72889175664C5B350B7` (Full SHA256: `0824bca4cc50d72889175664c5b350b75fbe216d8777dd119b9c1d4c6415a434`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE309ED7BAA6BAB0415511134884527F2` (Full SHA256: `e309ed7baa6bab0415511134884527f29da050a02dc952fc9fcd1716b866ece7`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1750x1285
 
@@ -1287,8 +1287,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB70` — Phản Hồi `#70`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5B825951D5E185ACAC26E85CC15C9E3B` (Full SHA256: `5b825951d5e185acac26e85cc15c9e3b0c2e4035563c7884deffc0213bea9661`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1BFE452A2D250D75072245C230F25D53` (Full SHA256: `1bfe452a2d250d75072245c230f25d5392f29b818c483bf12c55bb8299589c3c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1750x1285
 
@@ -1314,8 +1314,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB69` — Phản Hồi `#69`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEFFDD878D4FDC9C16A9A6269A2F11615` (Full SHA256: `effdd878d4fdc9c16a9a6269a2f116159f7d7f1e91b0561f04da8e43c241c928`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x7C9DA26B5AA5A12521A60CD376A449C8` (Full SHA256: `7c9da26b5aa5a12521a60cd376a449c869f1d2f630dae7af340b92f2566cbc45`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1372x1285
 
@@ -1341,8 +1341,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB68` — Phản Hồi `#68`
 - **Trạng thái Hợp đồng**: **`VETOED_AND_ROLLED_BACK`** (5/6 FULLSTACK AGENTS PASS (ratio=0.83))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8AC583469509DD11AE194921DC2E7A4A` (Full SHA256: `8ac583469509dd11ae194921dc2e7a4a6c6e9838a524a78ab67cc93d8628c215`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1A4656F08BB8B897D13F5CDABF4D60CC` (Full SHA256: `1a4656f08bb8b897d13f5cdabf4d60cc28dba9270421b218d6f92123154db9df`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [Xem chi tiết: Đơn hàng DH261028-6509] Xác nhận lỗi hiển thị chi tiết đơn hàng trên Mobile (Test Cloud Stream)
 
@@ -1368,8 +1368,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB67` — Phản Hồi `#67`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x158B7A88DAB1CDA000F6C1AD6BD81AEC` (Full SHA256: `158b7a88dab1cda000f6c1ad6bd81aec126e5774b77e46fee1eb387d063193a1`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x34AF30387ED83B28D07F7BB3AB2A414B` (Full SHA256: `34af30387ed83b28d07f7bb3ab2a414bec43fc8ea4fd38221a66d759294773b8`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1448x1285
 
@@ -1395,8 +1395,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB66` — Phản Hồi `#66`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x92C04EEA02F8DA6FC6BB0670956F4979` (Full SHA256: `92c04eea02f8da6fc6bb0670956f49794430cef86a9d082cfa842ec138419ad8`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2071CC147958801863AAE2E3E47DD870` (Full SHA256: `2071cc147958801863aae2e3e47dd870c031acdd31e0bf081943647a87037631`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Cân bằng kho & Kiểm kê thực tế] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1448x1285
 
@@ -1422,8 +1422,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB65` — Phản Hồi `#65`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE1F99AA41331769222B4992CDF1D36E5` (Full SHA256: `e1f99aa41331769222b4992cdf1d36e565ad6bf75c47e61f90994fb9ac2557f0`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF5A3F62E5D71FB02B6BBB72F78F086B5` (Full SHA256: `f5a3f62e5d71fb02b6bbb72f78f086b51a759ffd9692858fc739844161ef7f4c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1037x1216
 
@@ -1449,8 +1449,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB64` — Phản Hồi `#64`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8DE7DA0D046ADF90225550C80ABBF8BB` (Full SHA256: `8de7da0d046adf90225550c80abbf8bb4668235b45fa9193ece86a92eb714a87`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF1C6D31EE317C2A2DB088014DC1D6D26` (Full SHA256: `f1c6d31ee317c2a2db088014dc1d6d268da10d22d35fbf2cf6c0d5c162861d68`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1037x1216
 
@@ -1476,8 +1476,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB63` — Phản Hồi `#63`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA0D82249D8F417B457F10A7A03D55A73` (Full SHA256: `a0d82249d8f417b457f10a7a03d55a73afea14a4f80803be12d31331a0aa2752`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x44708EEAB1ED8F584E83E0B52264BC42` (Full SHA256: `44708eeab1ed8f584e83e0b52264bc424153ed3653c49c81f7f95549fd500f03`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 1 vị trí chữ bị cắt (.truncate) trên 300x150
 
@@ -1503,8 +1503,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB62` — Phản Hồi `#62`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF266F3FDA0F74B1223AFCE922988FD0A` (Full SHA256: `f266f3fda0f74b1223afce922988fd0a8adf5b8d53c3e500baf3fc41be15df2a`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x63FC095B493F8194DBFDF75C25101FB5` (Full SHA256: `63fc095b493f8194dbfdf75c25101fb5ee882ebf4a10d8cd8e0cf7816a7c00a7`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sản xuất & Định mức (BOM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -1530,8 +1530,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB61` — Phản Hồi `#61`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x7EEE6C889CC34099C3BA3B9AA19AB65C` (Full SHA256: `7eee6c889cc34099c3ba3b9aa19ab65cfddc95ac33a7d9b6fac91dcc6c942206`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x28B80B56F664098F923659952C553CA4` (Full SHA256: `28b80b56f664098f923659952c553ca4d3b779fdd0a051c1c983b8ca7458b298`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -1557,8 +1557,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB60` — Phản Hồi `#60`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA114C90E50B54E8151CBF859DDB739ED` (Full SHA256: `a114c90e50b54e8151cbf859ddb739ede07061c03beb27af1f1c7524e411ffea`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3BB0651D3A2D3526C3FFCC41F202ED00` (Full SHA256: `3bb0651d3a2d3526c3ffcc41f202ed0051e2064eff277b1cb04f95d1176eed29`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 4 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -1584,8 +1584,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB59` — Phản Hồi `#59`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x9C30EB3E1FAF6F619365BDEBC2346DF2` (Full SHA256: `9c30eb3e1faf6f619365bdebc2346df2d9eebbbee4ccff4d6febc9e7dfd46be2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB02BA07F1661910208FA302999EC7AB8` (Full SHA256: `b02ba07f1661910208fa302999ec7ab82141b070797398a6e015cd4d0051d209`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -1611,8 +1611,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB58` — Phản Hồi `#58`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB1078509712B1B86D237A9FA4A3B932E` (Full SHA256: `b1078509712b1b86d237a9fa4a3b932eeba0950a0d16c26c3a7ae852d77afef2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6405C4D9E282AF766BD4FEE277C96F9F` (Full SHA256: `6405c4d9e282af766bd4fee277c96f9f8fcccddee3a88db2bacab087022b8d9b`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sản xuất & Định mức (BOM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -1638,8 +1638,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB57` — Phản Hồi `#57`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5048AEAC3A79CF93BC728AC651738A3D` (Full SHA256: `5048aeac3a79cf93bc728ac651738a3d15bafa6f9d9190a43dff58a646f832b3`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2CC133457CC7947664CA50688EBC554B` (Full SHA256: `2cc133457cc7947664ca50688ebc554bb3c95ebb66a22133be073a166a1de1d9`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -1665,8 +1665,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB56` — Phản Hồi `#56`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x42E95D97DEF7A97833CFC2AA362E405B` (Full SHA256: `42e95d97def7a97833cfc2aa362e405ba0b21516fab16311a305ceea15abb1cb`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x139A4B17C9014B605782411D8302B37A` (Full SHA256: `139a4b17c9014b605782411d8302b37a1b2c5ff6d38ee275605b2bb1aac7a557`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=stock-balance` (`src/components/cms/views/stock-balance-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Cân bằng kho & Kiểm kê thực tế] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -1692,8 +1692,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB55` — Phản Hồi `#55`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCF9CE93823A995812A627F59C1E8724F` (Full SHA256: `cf9ce93823a995812a627f59c1e8724f3205165b0ee2349324e953ee812db8a5`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x398E38AED0A34CF95323D7D7CD249C79` (Full SHA256: `398e38aed0a34cf95323d7d7cd249c7994086d5c3392e38a1e5918f1b82240df`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=stock-export` (`src/components/cms/views/stock-export-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -1719,8 +1719,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB54` — Phản Hồi `#54`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE6EB1CA4E25018914A5D029873B40D7F` (Full SHA256: `e6eb1ca4e25018914a5d029873b40d7f415c8009d57316dd664ab9fcd565e0e0`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x381FAD75DC44BDD0729CE867E6F98EE8` (Full SHA256: `381fad75dc44bdd0729ce867e6f98ee8e407aa666524355bd63467096950139d`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=purchase` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -1746,8 +1746,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB53` — Phản Hồi `#53`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x706D3DA87E3800662C56F1B27EDB9622` (Full SHA256: `706d3da87e3800662c56f1b27edb9622e21cdf00a198b1c2423e185d7c4f0567`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEE4D80582C2F81D54EA10CF937A565EA` (Full SHA256: `ee4d80582c2f81d54ea10cf937a565eaf7c2dfa8763aaa93b551d33b35a669a1`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -1773,8 +1773,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB52` — Phản Hồi `#52`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD460542F27836B552A095B283B9567B4` (Full SHA256: `d460542f27836b552a095b283b9567b4fcd5008c9fb127dee70561c2b0b13ad5`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB7134ADC7B7BB62049C566AB74F19CB0` (Full SHA256: `b7134adc7b7bb62049c566ab74f19cb037a6e57ba444ee228a1298bfdf4a1b75`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phần tử 'Mã đơn Kênh Nguồn gốc & Lịch sử Khác' bị tràn mép phải màn hình (1676px > 1185px) | Phần tử 'Thanh toán' bị tràn mép phải màn hình (1230px > 1185px) | Phần tử 'Trạng thái' bị tràn mép phải màn hình (1346px > 1185px)
 
@@ -1800,8 +1800,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB51` — Phản Hồi `#51`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x782AC0E6F90EA4DD9C09C0B9951A4F87` (Full SHA256: `782ac0e6f90ea4dd9c09c0b9951a4f87814ab6f9c9b10d574414618f2d10ab4f`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x13542EEC90AE219A4675FFD8BCD45CA8` (Full SHA256: `13542eec90ae219a4675ffd8bcd45ca885193273202af5e5e728c3ebe9e2c759`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1185x1216
 
@@ -1827,8 +1827,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB50` — Phản Hồi `#50`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC936265B9141EF853AE3712AD876E354` (Full SHA256: `c936265b9141ef853ae3712ad876e3540f771ddb4958c03f84580712e3107e9d`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1A6B36C473F9C30E734B4B345C2528DE` (Full SHA256: `1a6b36c473f9c30e734b4b345c2528deeff303ab17b77317848f4b1aedab09f8`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1185x1216
 
@@ -1854,8 +1854,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB49` — Phản Hồi `#49`
 - **Trạng thái Hợp đồng**: **`VETOED_AND_ROLLED_BACK`** (5/6 FULLSTACK AGENTS PASS (ratio=0.83))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4E56DD115C9F4750CCFA2456BD4BFB46` (Full SHA256: `4e56dd115c9f4750ccfa2456bd4bfb4695a965866d04912f51861b3749843fbd`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0C0EE78DB1584B352500920DECADEFE4` (Full SHA256: `0c0ee78db1584b352500920decadefe42af54b7f1d9dbb53a8ee7d4c33790ada`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [Xem chi tiết: Đơn hàng DH261028-6509] Xác nhận lỗi hiển thị chi tiết đơn hàng trên Mobile (Test Cloud Stream)
 
@@ -1881,8 +1881,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB48` — Phản Hồi `#48`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x9E9B67A422E27E5FBCBADC0283E3DA83` (Full SHA256: `9e9b67a422e27e5fbcbadc0283e3da832774e6283b46401da01e08bb5df3749c`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8B5CBE0F702F1AD248074CABDC15D541` (Full SHA256: `8b5cbe0f702f1ad248074cabdc15d541ca1d47857b717db84f87b08e972eb98b`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=customers` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Auto-Review] 1. [Khách hàng & Hội viên (Customers)] Phát hiện 39 nút bấm/nhãn lọc dùng class kích thước nhỏ (py-0.5, px-1.5, h-6, h-5) khiến vùng chạm <32px. | 2. [Khách hàng & Hội viên (Customers)] Có 7 vị trí cắt chữ (.truncate / .line-clamp) trong bảng/thẻ dễ làm ẩn thông tin dài khi chưa hover. | 3. [Khách hàng & Hội viên (Customers) - Sidebar] Nhãn menu điều hướng bên trái có nguy cơ bị cắt chữ khi tên phân hệ dài.
 
@@ -1908,8 +1908,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB47` — Phản Hồi `#47`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD90F003262A9450F9E725C1E520659B2` (Full SHA256: `d90f003262a9450f9e725c1e520659b2aa79d753b64a6d8ba0f4233384da1cbe`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x940FC0B4361338630328E9C2D418010B` (Full SHA256: `940fc0b4361338630328e9c2d418010bcdd0feaab5295eb89eb73685b75ebcee`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=pos` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Auto-Review] 1. [POS Bán hàng tại kho (POS)] Phát hiện 49 nút bấm/nhãn lọc dùng class kích thước nhỏ (px-1.5, py-0.5, h-7, h-5) khiến vùng chạm <32px. | 2. [POS Bán hàng tại kho (POS)] Có 9 vị trí cắt chữ (.truncate / .line-clamp) trong bảng/thẻ dễ làm ẩn thông tin dài khi chưa hover. | 3. [POS Bán hàng tại kho (POS)] Có 4 cụm whitespace-nowrap dễ gây tràn ngang trên màn hình nhỏ hoặc thu phóng 125%. | 4. [POS Bán hàng tại kho (POS) - Sidebar] Nhãn menu điều hướng bên trái có nguy cơ bị cắt chữ khi tên phân hệ dài.
 
@@ -1935,8 +1935,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB46` — Phản Hồi `#46`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6B25A47FD103192D7A41B79A9C7FDC2F` (Full SHA256: `6b25a47fd103192d7a41b79a9c7fdc2fd4539f443e7d211bd64bc9075bae8baf`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8A3BD12340DA1A439A898D79127D7424` (Full SHA256: `8a3bd12340da1a439a898d79127d74249f1f34fc1c10feffb8cb93c56e57b51c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Auto-Review] 1. [Quản lý Tồn kho (Inventory)] Phát hiện 33 nút bấm/nhãn lọc dùng class kích thước nhỏ (px-1.5, h-5, h-7, py-0.5) khiến vùng chạm <32px. | 2. [Quản lý Tồn kho (Inventory)] Có 8 vị trí cắt chữ (.truncate / .line-clamp) trong bảng/thẻ dễ làm ẩn thông tin dài khi chưa hover. | 3. [Quản lý Tồn kho (Inventory)] Có 13 cụm whitespace-nowrap dễ gây tràn ngang trên màn hình nhỏ hoặc thu phóng 125%. | 4. [Quản lý Tồn kho (Inventory) - Sidebar] Nhãn menu điều hướng bên trái có nguy cơ bị cắt chữ khi tên phân hệ dài.
 
@@ -1962,8 +1962,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB45` — Phản Hồi `#45`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC2C77CA6887AE29E3B0477908DAC7C19` (Full SHA256: `c2c77ca6887ae29e3b0477908dac7c19c0c9531c9fda62d92e1f8db3fad6c97b`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6EBFF96D1D464964B6648A3E9DDC870F` (Full SHA256: `6ebff96d1d464964b6648a3e9ddc870f37801f4282018de924e23903777f4f6c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Auto-Review] 1. [Quản lý Sản phẩm (Products)] Phát hiện 13 nút bấm/nhãn lọc dùng class kích thước nhỏ (px-1.5, py-0.5, h-7, h-5) khiến vùng chạm <32px. | 2. [Quản lý Sản phẩm (Products)] Có 5 vị trí cắt chữ (.truncate / .line-clamp) trong bảng/thẻ dễ làm ẩn thông tin dài khi chưa hover. | 3. [Quản lý Sản phẩm (Products)] Có 7 cụm whitespace-nowrap dễ gây tràn ngang trên màn hình nhỏ hoặc thu phóng 125%. | 4. [Quản lý Sản phẩm (Products) - Sidebar] Nhãn menu điều hướng bên trái có nguy cơ bị cắt chữ khi tên phân hệ dài.
 
@@ -1989,8 +1989,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB44` — Phản Hồi `#44`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x43D124788786E1ED208E2FEB8CE81EDF` (Full SHA256: `43d124788786e1ed208e2feb8ce81edf095f1fe0ca3b54157dfdb36303fa61d3`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xDD51704714BB5BF5CE84DED4E102E4FB` (Full SHA256: `dd51704714bb5bf5ce84ded4e102e4fbe8ea7f1ea5423db874bdf2d9898645cd`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Auto-Review] 1. [Quản lý Đơn hàng (Orders)] Phát hiện 10 nút bấm/nhãn lọc dùng class kích thước nhỏ (h-7, h-5, py-0.5, truncate) khiến vùng chạm <32px. | 2. [Quản lý Đơn hàng (Orders)] Có 6 vị trí cắt chữ (.truncate / .line-clamp) trong bảng/thẻ dễ làm ẩn thông tin dài khi chưa hover. | 3. [Quản lý Đơn hàng (Orders)] Có 8 cụm whitespace-nowrap dễ gây tràn ngang trên màn hình nhỏ hoặc thu phóng 125%. | 4. [Quản lý Đơn hàng (Orders) - Sidebar] Nhãn menu điều hướng bên trái có nguy cơ bị cắt chữ khi tên phân hệ dài.
 
@@ -2016,8 +2016,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB43` — Phản Hồi `#43`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD1B3A14499A396237B3E0F3B9E7D19DC` (Full SHA256: `d1b3a14499a396237b3e0f3b9e7d19dc74e2400667feefeb36791d2fd88800a8`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB59425D25DF4C25EA2E492A5007C4E6B` (Full SHA256: `b59425d25df4c25ea2e492a5007c4e6bac18969eb90e67f0219d20093480fa94`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=dashboard` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Auto-Review] 1. [Tổng quan kinh doanh (Dashboard)] Phát hiện 5 nút bấm/nhãn lọc dùng class kích thước nhỏ (h-7, h-6, py-0.5, truncate) khiến vùng chạm <32px. | 2. [Tổng quan kinh doanh (Dashboard)] Có 6 vị trí cắt chữ (.truncate / .line-clamp) trong bảng/thẻ dễ làm ẩn thông tin dài khi chưa hover. | 3. [Tổng quan kinh doanh (Dashboard) - Sidebar] Nhãn menu điều hướng bên trái có nguy cơ bị cắt chữ khi tên phân hệ dài.
 
@@ -2043,8 +2043,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB42` — Phản Hồi `#42`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEB24A79A30AF2772345BDFF7009EE465` (Full SHA256: `eb24a79a30af2772345bdff7009ee465d01d93ffb96b75b1fd56540aa2e98cc4`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x65409724FC9FEF4EA92541283BCD4D1D` (Full SHA256: `65409724fc9fef4ea92541283bcd4d1d80934fb857de1e34821810e6e3e8416b`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=system` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Trung tâm Cấu hình Hệ thống] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -2070,8 +2070,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB41` — Phản Hồi `#41`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB73ED4149EF9570C771D9BCB27FF126C` (Full SHA256: `b73ed4149ef9570c771d9bcb27ff126cfd89c91c483769165c7d4b27d5fa2c5a`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD7A9F8D6099667652DA7FA7A0CB1206D` (Full SHA256: `d7a9f8d6099667652da7fa7a0cb1206d5b50d4ec7942ddc1def5c19299bd820c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=campaigns` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Chương trình & Khuyến mãi (CRM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -2097,8 +2097,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB40` — Phản Hồi `#40`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x95AE7B7AEA5B5782CD3C34E7B8D2C19F` (Full SHA256: `95ae7b7aea5b5782cd3c34e7b8d2c19f1ae49d96b52953d253f31f93c17c6995`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0218A2DDE5E687C1B8D7EEFC650A3155` (Full SHA256: `0218a2dde5e687c1b8d7eefc650a3155e793b963ce4c49e4900f099cdf1b41a6`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Cân bằng kho & Kiểm kê thực tế] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -2124,8 +2124,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB39` — Phản Hồi `#39`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5ED7CA7C759294DB434B897CA0A77E35` (Full SHA256: `5ed7ca7c759294db434b897ca0a77e3599224ffbe4ba1dafc3f176f083e866f8`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA0044D5240565AA576A36002F2987E84` (Full SHA256: `a0044d5240565aa576a36002f2987e8467ffefce1f0bfc12193225aaf5e48049`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phần tử 'Mã SKU Mặt hàng & Phân bổ Đa Kho Phâ' bị tràn mép phải màn hình (1587px > 1536px) | Phần tử 'Thao tác nhanh' bị tràn mép phải màn hình (1587px > 1536px) | Phần tử 'Thẻ kho Chuyển + Nhập' bị tràn mép phải màn hình (1587px > 1536px)
 
@@ -2151,8 +2151,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB38` — Phản Hồi `#38`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCC65ED496DB8B5D208608FE093212976` (Full SHA256: `cc65ed496db8b5d208608fe0932129769dfa75bc0c1264ffb7631fc5e511d7ad`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x596B1FCF6E17DE0AD420614E6A40AD72` (Full SHA256: `596b1fcf6e17de0ad420614e6a40ad729d8aa7cee0473d8dda578c9b5148c075`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -2178,8 +2178,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB37` — Phản Hồi `#37`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x618573FC3C5A9FC43EED2807E07F6A28` (Full SHA256: `618573fc3c5a9fc43eed2807e07f6a2876f1f17280c4408992cd0483b409a814`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0D819D7FE20400ED6033477C6189F85C` (Full SHA256: `0d819d7fe20400ed6033477c6189f85c0b70c7209e5f943c2af13b794e61fcf9`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -2205,8 +2205,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB36` — Phản Hồi `#36`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1CA57F7A970956CAB4E3BF500DF98A63` (Full SHA256: `1ca57f7a970956cab4e3bf500df98a63132c8820f031ed8b84cf904808385062`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2146F14E808DAF1761945B2CF997F47A` (Full SHA256: `2146f14e808daf1761945b2cf997f47ad488c5514264d242061301a8f33a8c82`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -2232,8 +2232,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB35` — Phản Hồi `#35`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB3783FF5EC081B583D17474BC523D468` (Full SHA256: `b3783ff5ec081b583d17474bc523d468e4519d850956b5ea439def08131ce30d`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x424D67C7D686DA27396EAA4E897D147D` (Full SHA256: `424d67c7d686da27396eaa4e897d147de889683bfaca5b3ec9e19dd8d92ac378`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1536x695
 
@@ -2259,8 +2259,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB34` — Phản Hồi `#34`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4797DC536237D2A085495B219049A918` (Full SHA256: `4797dc536237d2a085495b219049a91808bbb8cc6d370d8b7397f50ea14742c2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD2CD9B5489ADF8F07204EDBC447A1343` (Full SHA256: `d2cd9b5489adf8f07204edbc447a1343ead6ac7797edfcb1b8ede069bbfb1da9`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=shipments` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2286,8 +2286,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB33` — Phản Hồi `#33`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0F3C91149319C7DA7B6B31775DF4B523` (Full SHA256: `0f3c91149319c7da7b6b31775df4b5238041a0312dce30629ee9ddd0acbcf43c`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD6FD0D302C8FB603ECFDD61C6FACECD7` (Full SHA256: `d6fd0d302c8fb603ecfdd61c6facecd7464d2c7dd8001c235ceca8c33ef773cf`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=sales` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2313,8 +2313,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB32` — Phản Hồi `#32`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x65C48417725BF2D7496718812CEBFCF4` (Full SHA256: `65c48417725bf2d7496718812cebfcf42f637c68c734f2c567af657a87b4bcd2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD6EDD46A10BAF59E1703F0A9EB034700` (Full SHA256: `d6edd46a10baf59e1703f0a9eb034700fee26c9dfa5e91788d58a30aba9ff6bd`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2340,8 +2340,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB31` — Phản Hồi `#31`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xAACB0387FE20ACE2556E21ECAFAD6166` (Full SHA256: `aacb0387fe20ace2556e21ecafad616605465f6350dcf70c30f404c10bea28ea`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFCED22DEE2F4F41FD53717A687AA9A5F` (Full SHA256: `fced22dee2f4f41fd53717a687aa9a5f212bee6f9ae706b6e3d48eca04baf455`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inbox` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2367,8 +2367,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB30` — Phản Hồi `#30`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x35A860198ECFC475A1DC91D2B4B014AE` (Full SHA256: `35a860198ecfc475a1dc91d2b4b014aef0fabded94ca2d1b67efec137ba94a4d`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBE271CE2FCA9358F6D79A7BD60E79597` (Full SHA256: `be271ce2fca9358f6d79a7bd60e7959757d152ef02af41a6ac00e838784714e2`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2394,8 +2394,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB29` — Phản Hồi `#29`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6FBBA0FF9D2F3231EA063DA73B8D0473` (Full SHA256: `6fbba0ff9d2f3231ea063da73b8d047391f27e56e83bf1b1bf18410a8f4a6cfc`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x63AC1517BFC9844C7388AA173115E8D9` (Full SHA256: `63ac1517bfc9844c7388aa173115e8d942b5ae8049fe0b49680a948f0a248351`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=pos` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2421,8 +2421,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB28` — Phản Hồi `#28`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBB0B5D6EF81D838152AB11812A0E9C18` (Full SHA256: `bb0b5d6ef81d838152ab11812a0e9c18d1271a3bd04a5bca287333c150669e77`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC35C5426839906E98856D8D096313A05` (Full SHA256: `c35c5426839906e98856d8d096313a057f57b21509f81986d367113f448d4118`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2448,8 +2448,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB27` — Phản Hồi `#27`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x25FFE90D0E45CE20791D513C6CDA7902` (Full SHA256: `25ffe90d0e45ce20791d513c6cda79027c3b2cc03f0ac4043467cb04d33ab928`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x12783C06984DBEB92722C2B71C3BA506` (Full SHA256: `12783c06984dbeb92722c2b71c3ba5067674bfd04b3fe44f9d77ed5e1efb0699`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Cân bằng kho & Kiểm kê thực tế] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2475,8 +2475,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB26` — Phản Hồi `#26`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x66EE02443F122CE116713A84A4042F26` (Full SHA256: `66ee02443f122ce116713a84a4042f2689c2e9af4d42999862704e7083f4aaa5`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x113BCA9C2AD3E2B7C82087495D0D4FB1` (Full SHA256: `113bca9c2ad3e2b7c82087495d0d4fb13754c37b5d27f835260e913df3865d39`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sản xuất & Định mức (BOM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2502,8 +2502,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB25` — Phản Hồi `#25`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFEB4BB48CA430D241C0FE9139F0C5439` (Full SHA256: `feb4bb48ca430d241c0fe9139f0c543931b9491e8d4203e9abb7dc3a796f8d95`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x19EACE3F5AF1E0AB6DDE56C43FED844F` (Full SHA256: `19eace3f5af1e0ab6dde56c43fed844f76791f59db778f214d8a2ce98d9a4cc3`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2529,8 +2529,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB24` — Phản Hồi `#24`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x81DB77CB79E0C897B19E1C114D5297D3` (Full SHA256: `81db77cb79e0c897b19e1c114d5297d3c1d76f974fc3a520ff51d56bf0fbf148`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x75F2FBA173452F45938591270961C6C4` (Full SHA256: `75f2fba173452f45938591270961c6c40a3f918dbad5849ca56b44caaeb444d8`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2556,8 +2556,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB23` — Phản Hồi `#23`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFEEF3C88DA97FBBF24B06D82BD8756D9` (Full SHA256: `feef3c88da97fbbf24b06d82bd8756d9d1d3b88853e7a5a3a7b9a2ddf6c2b5f8`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x9111A2D731C8C24BF5A6D38562EEC64F` (Full SHA256: `9111a2d731c8c24bf5a6d38562eec64f2bd1260a7c2d7ee30a904b47ee23060b`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=iam` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhân sự, Phân quyền & Nhật ký Hành vi] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2583,8 +2583,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB22` — Phản Hồi `#22`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB3582B9BEED1F2AAA304F9F553A5181E` (Full SHA256: `b3582b9beed1f2aaa304f9f553a5181e9e168f064ceeee1037257c123cd554cf`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xADBCCB97D9996EEED7591028AC77E5E4` (Full SHA256: `adbccb97d9996eeed7591028ac77e5e41ad41c55bab71b00152c0f3cdf400553`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2610,8 +2610,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB21` — Phản Hồi `#21`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0EDC5CB94A1B198F3738348DFCB515DD` (Full SHA256: `0edc5cb94a1b198f3738348dfcb515dd42b1bfa920f2a86524bcb10a61701ce3`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD638E7D1C35BE7C0E07BD2149895C352` (Full SHA256: `d638e7d1c35be7c0e07bd2149895c3520114a435b1cf04098408ac9490ecf0e0`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 4 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -2637,8 +2637,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB20` — Phản Hồi `#20`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB6C40B99BD4A82ECD39B3EE861D4C598` (Full SHA256: `b6c40b99bd4a82ecd39b3ee861d4c59867e97559b72d0f3b1620567b7be90c75`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE25A48B1DD1AC132F75074AB8D7F81F2` (Full SHA256: `e25a48b1dd1ac132f75074ab8d7f81f20a3e98a7874498fe531ebc72a5430979`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=channels` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Kênh bán] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2664,8 +2664,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB19` — Phản Hồi `#19`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFB8400BBA80D075423B4A20F7B998A07` (Full SHA256: `fb8400bba80d075423b4a20f7b998a07a5f49e52c831fce23669a56922a28d1e`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6AC612EB7C0DF009912A0287B8D245BB` (Full SHA256: `6ac612eb7c0df009912a0287b8d245bbb5ad3d470f0c4eabf0bdf73e5f3d60d1`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=auto-social` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Auto Social — Tiếp thị AI & Lịch Đăng Đa Kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2691,8 +2691,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB18` — Phản Hồi `#18`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBE284482F3210425F84F96EBDB866B15` (Full SHA256: `be284482f3210425f84f96ebdb866b15d133aa793fc2138048004d8809d1812a`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x544AB7780FB60DFAC30A79EA7F4FEE7F` (Full SHA256: `544ab7780fb60dfac30a79ea7f4fee7fd0cbd6e060862e7059ed44e31392a237`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=campaigns` (`src/components/cms/views/campaigns-view.tsx` ↔ `src/app/api/campaigns/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Chương trình & Khuyến mãi (CRM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2718,8 +2718,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB17` — Phản Hồi `#17`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x64CEC68BA84B3FE85F1929FB6E806812` (Full SHA256: `64cec68ba84b3fe85f1929fb6e8068129fd8cd92f14721056aacba5743e19d3b`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x31D255A5E250DC0070766389B9B21B20` (Full SHA256: `31d255a5e250dc0070766389b9b21b20b20bbfbcace8359005c116e45520ae3c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2745,8 +2745,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB16` — Phản Hồi `#16`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB18F13E05C9FA422C756D25BF08F0141` (Full SHA256: `b18f13e05c9fa422c756d25bf08f01415dfb9612d5fc9c75665a854439dffbbd`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5D3BD319C6406B70218B361740850483` (Full SHA256: `5d3bd319c6406b70218b361740850483f5c43869c0f4e0dadd8d243f2bc6101c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: 1. [Quản lý Tồn kho & Sổ Thẻ kho] [Vùng khoanh đỏ] Lỗi hiển thị/thao tác tại div: 'OPENVN · Ưu Đàm OMNI Quản lý bán hàng đa kênh Bán tại k' (1016x1566px tại x=0,y=-350)
 2. [Quản lý Tồn kho & Sổ Thẻ kho] [Vùng khoanh đỏ] Lỗi hiển thị/thao tác tại div: 'OPENVN · Ưu Đàm OMNI Quản lý bán hàng đa kênh Bán tại k' (256x1566px tại x=0,y=-350)
@@ -2776,8 +2776,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB15` — Phản Hồi `#15`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8ECCA9FED1ED08E04733BA941F6A2F9F` (Full SHA256: `8ecca9fed1ed08e04733ba941f6a2f9f0e23cc1ff40f26c88e554bac9ba3b2a0`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x19508AC413F913886CEA426DE7E5CA99` (Full SHA256: `19508ac413f913886cea426de7e5ca992b1fd064ea151b5507e041342f117e71`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: 1. [Vùng khoanh đỏ] Dữ liệu cột 'ĐẶC TÍNH' đang hiển thị trực tiếp chuỗi JSON thô (raw JSON string) thay vì render thành các thẻ tag hoặc định dạng dễ đọc, gây rối mắt và khó quản lý.
 2. [Màn hình] Các tiêu đề cột trong bảng (Mã SP, Tên sản phẩm, Đơn vị, ĐẶC TÍNH) bị chồng lấn hoặc hiển thị dư thừa nhiều lần trong DOM, gây ra lỗi layout và khó khăn cho người dùng khi thao tác.
@@ -2808,8 +2808,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB14` — Phản Hồi `#14`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF597E78694A209AE4E60FC46ABF07FE9` (Full SHA256: `f597e78694a209ae4e60fc46abf07fe91dea6330557dcec6f79108071ee62c69`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x92D20459A4BF6EBE2B862F92E564877C` (Full SHA256: `92d20459a4bf6ebe2b862f92e564877cf9bf877481da3d29f735eab4e11e155a`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=inbox` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2835,8 +2835,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB13` — Phản Hồi `#13`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB063A81F1BCC8451727D42060F39A8E9` (Full SHA256: `b063a81f1bcc8451727d42060f39a8e9bd6e98b56ca876d343ca9b78945a9584`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEDC159D75A9AC24BC74C0BFCB6FE849C` (Full SHA256: `edc159d75a9ac24bc74c0bfcb6fe849cd6160771a80f0bf9b256bde0664f1387`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=shipments` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2862,8 +2862,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB12` — Phản Hồi `#12`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xDA354EFD46F708966F1C6F370FD35A34` (Full SHA256: `da354efd46f708966f1c6f370fd35a341a31447072c9555441dc837cebd3e7a2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x043EF950659477FDD751B91B1399C168` (Full SHA256: `043ef950659477fdd751b91b1399c168ff6105423cc13c71dc01011013c37000`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=sales` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2889,8 +2889,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB11` — Phản Hồi `#11`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x33BB737DC4C32F25406FD767972A7231` (Full SHA256: `33bb737dc4c32f25406fd767972a72316230b723208adccd28c4ab8cbed36c3d`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8B0831054D587460FF5BF36C795357ED` (Full SHA256: `8b0831054d587460ff5bf36c795357ed587b04ca68478d7061050bdfdb21bb27`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=pos` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2916,8 +2916,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB10` — Phản Hồi `#10`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1814A90C4909CC0FED4673C1D33D9FB6` (Full SHA256: `1814a90c4909cc0fed4673c1d33d9fb6f15c8acfbd1d57c346fdea88e1f252b2`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x02BBBF0D2D09132E744C16499B2D5F8C` (Full SHA256: `02bbbf0d2d09132e744c16499b2d5f8cae82803ffa960b4402f0bcdb0523f914`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=liveops` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -2943,8 +2943,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB9` — Phản Hồi `#9`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x473A0D9F4E6427F7C97944A2D55B9BB2` (Full SHA256: `473a0d9f4e6427f7c97944a2d55b9bb236ec18b88727840da21bd92febe393c8`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1E7545FDD2E54ACC8DD69EED2FD57C4F` (Full SHA256: `1e7545fdd2e54acc8dd69eed2fd57c4f37eefae14d81829a23331bcb89954011`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=ledger` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sổ Data] Phần tử 'Thời gian Phạm vi Hành động Nội dung' bị tràn mép phải màn hình (1476px > 945px) | Phần tử 'Nội dung' bị tràn mép phải màn hình (1152px > 945px) | Phần tử 'Nguồn gốc & Lịch sử' bị tràn mép phải màn hình (1354px > 945px)
 
@@ -2970,8 +2970,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB8` — Phản Hồi `#8`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x410B3A680A0B907619569ED2AF3952DE` (Full SHA256: `410b3a680a0b907619569ed2af3952de8e21a528ccd099dd9c4e1c3fb4e16fdb`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x628E5BD4F58E6817D6E1EEBFC16869A0` (Full SHA256: `628e5bd4f58e6817d6e1eebfc16869a002821d4eebce6130b6246d4c5fc4a085`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=reports` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Báo cáo & phân tích] Phần tử 'Kênh Số đơn Doanh thu gộp Giá vốn Ph' bị tràn mép phải màn hình (1206px > 945px) | Phần tử 'Điểm' bị tràn mép phải màn hình (997px > 945px) | Phần tử 'Lợi nhuận ròng' bị tràn mép phải màn hình (1116px > 945px)
 
@@ -2997,8 +2997,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB7` — Phản Hồi `#7`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD505CAC5DD73DA87AD68114690D4101E` (Full SHA256: `d505cac5dd73da87ad68114690d4101e3deeb8e4fe1ff3dfe2a846553591bce7`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA487E1860FD46DD00F4F0932E19D4A9D` (Full SHA256: `a487e1860fd46dd00f4f0932e19d4a9da741177d44fc91405a54f60ad6e85455`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=partners` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đối tác] Phần tử 'Mã Tên đơn vị MST Điện thoại Loại HĐ' bị tràn mép phải màn hình (1034px > 945px) | Phần tử 'HĐ mua / HĐ bán' bị tràn mép phải màn hình (986px > 945px) | Phần tử 'TH' bị tràn mép phải màn hình (1034px > 945px)
 
@@ -3024,8 +3024,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB6` — Phản Hồi `#6`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD861BBCAEFFD82C2A024072F5D989913` (Full SHA256: `d861bbcaeffd82c2a024072f5d98991372b8f82cfe20b5ca58480409e856f4ed`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE5F1596997DEC7D7E28C22663C690CF7` (Full SHA256: `e5f1596997dec7d7e28c22663c690cf77538c5d03e0fbf8275ed65495f637a1c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=campaigns` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Chương trình & Khuyến mãi (CRM)] Phần tử 'Mã & Tên chương trình Trạng thái Thờ' bị tràn mép phải màn hình (1267px > 945px) | Phần tử 'Chính sách ưu đãi' bị tràn mép phải màn hình (969px > 945px) | Phần tử 'Thao tác' bị tràn mép phải màn hình (1267px > 945px)
 
@@ -3051,8 +3051,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB5` — Phản Hồi `#5`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8CCE91CF13FE8437F4CF2232A2E2014D` (Full SHA256: `8cce91cf13fe8437f4cf2232a2e2014d107e0799a2774b34af45b7b7398a4f3e`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA54F476D0D7EE1AAF6B9B8B60E6A2422` (Full SHA256: `a54f476d0d7ee1aaf6b9b8b60e6a2422a17c36a1db59efa2269ae721364a699a`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inbox` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 945x1216
 
@@ -3078,8 +3078,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB4` — Phản Hồi `#4`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC3C09D589C82F3FEA8ED47EF28C2C7BF` (Full SHA256: `c3c09d589c82f3fea8ed47ef28c2c7bf5b3edf73b0bbd9477a9182fc620d236d`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x897AFFC1212080BFA4FD481E9ADEDFBA` (Full SHA256: `897affc1212080bfa4fd481e9adedfba73277ef75727989bfaf7ac826fbb591c`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=shipments` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phần tử 'Mã đơn Khách hàng Kênh Đơn vị vận ch' bị tràn mép phải màn hình (1950px > 1536px) | Phần tử 'Nguồn gốc & Lịch sử' bị tràn mép phải màn hình (1696px > 1536px) | Phần tử 'Cập nhật' bị tràn mép phải màn hình (1779px > 1536px)
 
@@ -3105,8 +3105,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB3` — Phản Hồi `#3`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD64AC090BFD3A846D64F5DBFCD9224E8` (Full SHA256: `d64ac090bfd3a846d64f5dbfcd9224e8b89689b392b5363009ef9c0b8d9dcc2b`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0D4E48199088CA920470DB8D5A854FF0` (Full SHA256: `0d4e48199088ca920470db8d5a854ff00d318954b290ad8bdf05a8302803b162`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=customers` (`src/components/cms/views/customers-view.tsx` ↔ `src/app/api/customers/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Khách hàng] Phát hiện 5 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
@@ -3132,8 +3132,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB2` — Phản Hồi `#2`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5E5E73EBAD3638899B19C4485581DE97` (Full SHA256: `5e5e73ebad3638899b19c4485581de972ee8bfbe53fe8df647129930ed8be32c`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x9032D91F722001B6359E4D2ADC86192B` (Full SHA256: `9032d91f722001b6359e4d2adc86192bcad32027388adb730162b8af1355c11a`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=sales` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phần tử 'Mã HĐ Ngày Khách hàng Đơn nguồn Tiền' bị tràn mép phải màn hình (1553px > 1536px) | Phần tử 'Thao tác' bị tràn mép phải màn hình (1553px > 1536px) | Phần tử 'Tải XML Ký số' bị tràn mép phải màn hình (1553px > 1536px)
 
@@ -3159,8 +3159,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB1` — Phản Hồi `#1`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB07CC7BD4C41B4E7B9D33BCA2009AEA4` (Full SHA256: `b07cc7bd4c41b4e7b9d33bca2009aea4773a323c4a59fd935d1ff81872c7105b`)
-- **Thời gian ký công chứng**: `2026-11-06T07:47:06Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE72898CF0D837EF15A78AC21821B311E` (Full SHA256: `e72898cf0d837ef15a78ac21821b311efec06c087bffa7a76033d06eea26e8a1`)
+- **Thời gian ký công chứng**: `2026-11-06T07:47:53Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2844x1421
 
