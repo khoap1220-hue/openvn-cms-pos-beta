@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: openvn-cms-pos-beta
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: BETA_MODE
+        value: "true"

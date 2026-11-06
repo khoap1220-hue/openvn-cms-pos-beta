@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { recordLineageChange } from '@/lib/ledger'
-import { comboAvailableFromRows, comboCostFromRows } from '@/lib/combo'
+import { broadcast } from '@/lib/realtime'
+import { comboAvailableFromRows, comboCostFromRows, syncComboStock, syncCombosUsingComponents } from '@/lib/combo'
+import { syncProductWarehouseStock } from '@/lib/warehouse-service'
+import {
+  getProductUnitConfig,
+  saveProductUnitConfig,
+  syncLinkedVariantStocks,
+} from '@/lib/unit-conversion'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +47,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       where: { id },
       include: {
         category: { select: { id: true, name: true, slug: true } },
-        listings: { include: { channel: { select: { id: true, key: true, name: true, color: true } } } },
+        listings: { include: { channel: { select: { id: true, key: true, name: true, color: true, connected: true } } } },
         stockMovements: { orderBy: { createdAt: 'desc' }, take: 20 },
         bomFinished: {
           include: { componentProduct: { select: { id: true, sku: true, name: true, unit: true, costPrice: true, stock: true } } },
@@ -83,8 +90,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json()
     const { sku, name, description, categoryId, costPrice, sellPrice, lowStockThreshold, status, listingChannelIds } = body
 
-    const existing = await db.product.findUnique({ where: { id } })
+    let existing = await db.product.findUnique({ where: { id } })
+    if (!existing && sku && typeof sku === 'string' && sku.trim()) {
+      existing = await db.product.findUnique({ where: { sku: sku.trim() } })
+    }
     if (!existing) return NextResponse.json({ error: 'Không tìm thấy sản phẩm' }, { status: 404 })
+    const targetId = existing.id
 
     if (sku && sku.trim() !== existing.sku) {
       const dup = await db.product.findUnique({ where: { sku: sku.trim() } })
@@ -101,7 +112,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           return NextResponse.json({ error: 'Mã vạch chỉ được chứa 1–64 ký tự ASCII in được' }, { status: 400 })
         }
         const dup = await db.product.findUnique({ where: { barcode: nextBarcode } })
-        if (dup && dup.id !== id) {
+        if (dup && dup.id !== targetId) {
           return NextResponse.json(
             { error: `Mã vạch "${nextBarcode}" đã thuộc sản phẩm ${dup.sku}` },
             { status: 409 }
@@ -127,11 +138,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
-    // Loại sản phẩm: SIMPLE | COMBO (Set quà tặng — thành phần khai báo ở Định mức)
+    // Loại sản phẩm: SIMPLE | WEIGHT_BULK | PACKAGED_VARIANT | MATERIAL | COMBO | Custom
     let nextType: string | undefined
-    if (body.type !== undefined) {
-      nextType = body.type === 'COMBO' ? 'COMBO' : 'SIMPLE'
+    if (body.type !== undefined && typeof body.type === 'string' && body.type.trim()) {
+      nextType = body.type.trim().toUpperCase()
     }
+    const nextUnit =
+      body.unitConfig?.baseUnit
+        ? String(body.unitConfig.baseUnit).trim()
+        : typeof body.unit === 'string' && body.unit.trim()
+          ? body.unit.trim()
+          : undefined
 
     // KÊNH BÁN + GIÁ RIÊNG THEO KÊNH: `listings` (kèm price) ưu tiên — parse & validate
     // TRƯỚC khi ghi DB để không rơi vào trạng thái nửa vời. Fallback `listingChannelIds`
@@ -157,8 +174,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    const effectiveType = nextType ?? existing.type
+    const hasStockInput = body.stock !== undefined && effectiveType !== 'COMBO' && Number.isFinite(Number(body.stock))
+    const nextStockVal = hasStockInput ? Math.max(0, Math.round(Number(body.stock))) : undefined
+    const parsedThreshold =
+      lowStockThreshold !== undefined && Number.isFinite(Number(lowStockThreshold)) && Number(lowStockThreshold) >= 0
+        ? Math.round(Number(lowStockThreshold))
+        : undefined
+
     const product = await db.product.update({
-      where: { id },
+      where: { id: targetId },
       data: {
         ...(sku !== undefined ? { sku: sku.trim() } : {}),
         ...(name !== undefined ? { name: name.trim() } : {}),
@@ -169,18 +194,66 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(categoryId !== undefined ? { categoryId: categoryId || null } : {}),
         ...(costPrice !== undefined ? { costPrice: Number(costPrice) || 0 } : {}),
         ...(sellPrice !== undefined ? { sellPrice: Number(sellPrice) } : {}),
-        ...(lowStockThreshold !== undefined ? { lowStockThreshold: Number(lowStockThreshold) || 5 } : {}),
+        ...(parsedThreshold !== undefined ? { lowStockThreshold: parsedThreshold } : {}),
+        ...(nextStockVal !== undefined ? { stock: nextStockVal } : {}),
         ...(status !== undefined ? { status } : {}),
         ...(imageInput !== undefined ? { image: imageInput } : {}),
         ...(nextType !== undefined ? { type: nextType } : {}),
+        ...(nextUnit !== undefined ? { unit: nextUnit } : {}),
       },
     })
+
+    if (status !== undefined) {
+      // Khi sản phẩm chuyển sang Ngừng bán (INACTIVE), đồng bộ trạng thái listings trên mọi kênh
+      await db.channelListing.updateMany({
+        where: { productId: targetId },
+        data: { status: status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE' },
+      })
+    }
+
+    if (nextStockVal !== undefined && nextStockVal !== existing.stock) {
+      const diff = nextStockVal - existing.stock
+      await syncProductWarehouseStock(targetId, existing.ownerWarehouseId)
+      await db.stockMovement.create({
+        data: {
+          productId: targetId,
+          warehouseId: existing.ownerWarehouseId ?? null,
+          type: 'ADJUST',
+          quantity: diff,
+          stockAfter: nextStockVal,
+          note: `Cập nhật tồn kho từ hồ sơ sản phẩm: ${existing.stock} -> ${nextStockVal} (${diff > 0 ? `+${diff}` : diff})`,
+        },
+      })
+      await Promise.all([
+        syncCombosUsingComponents(db, [targetId]),
+        syncLinkedVariantStocks(db, [targetId]),
+      ])
+    }
+
+    if (body.unitConfig && typeof body.unitConfig === 'object') {
+      const uc = body.unitConfig
+      await saveProductUnitConfig(targetId, {
+        baseUnit: String(uc.baseUnit || product.unit || 'sp').trim(),
+        purchaseUnit: String(uc.purchaseUnit || product.unit || 'sp').trim(),
+        purchaseRate: Math.max(1, Number(uc.purchaseRate) || 1),
+        sellUnit: String(uc.sellUnit || product.unit || 'sp').trim(),
+        sellRate: Math.max(1, Number(uc.sellRate) || 1),
+        posQuickQuantities: Array.isArray(uc.posQuickQuantities) ? uc.posQuickQuantities : undefined,
+        linkedBaseProductId: uc.linkedBaseProductId ? String(uc.linkedBaseProductId) : null,
+      })
+      if (uc.linkedBaseProductId) {
+        await syncLinkedVariantStocks(db, [String(uc.linkedBaseProductId)])
+      } else {
+        await syncLinkedVariantStocks(db, [targetId])
+      }
+    }
+    const savedUnitConfig = await getProductUnitConfig(targetId)
 
     // Đồng bộ danh sách kênh bán + giá riêng theo kênh
     // priceTracks: [field price_{channel.key}, before, after] — đưa vào lineage PRODUCT_UPDATED
     const priceTracks: Array<[string, number | null, number | null]> = []
     if (hasListingsInput) {
-      const current = await db.channelListing.findMany({ where: { productId: id } })
+      const current = await db.channelListing.findMany({ where: { productId: targetId } })
       const currentIds = new Set(current.map((l) => l.channelId))
 
       // Kênh đang có mà không nằm trong target → gỡ listing
@@ -190,9 +263,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       // Upsert từng kênh target với giá riêng (unique productId + channelId)
       for (const [channelId, price] of targetListings) {
         if (currentIds.has(channelId)) {
-          await db.channelListing.update({ where: { productId_channelId: { productId: id, channelId } }, data: { price } })
+          await db.channelListing.update({ where: { productId_channelId: { productId: targetId, channelId } }, data: { price } })
         } else {
-          await db.channelListing.create({ data: { productId: id, channelId, price } })
+          await db.channelListing.create({ data: { productId: targetId, channelId, price } })
         }
       }
 
@@ -206,7 +279,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       }
     } else if (Array.isArray(listingChannelIds)) {
-      const current = await db.channelListing.findMany({ where: { productId: id } })
+      const current = await db.channelListing.findMany({ where: { productId: targetId } })
       const currentIds = new Set(current.map((l) => l.channelId))
       const targetIds = new Set(listingChannelIds as string[])
 
@@ -214,7 +287,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (toRemove.length > 0) await db.channelListing.deleteMany({ where: { id: { in: toRemove } } })
 
       const toAdd = [...targetIds].filter((cid) => !currentIds.has(cid))
-      if (toAdd.length > 0) await db.channelListing.createMany({ data: toAdd.map((channelId) => ({ productId: id, channelId })) })
+      if (toAdd.length > 0) await db.channelListing.createMany({ data: toAdd.map((channelId) => ({ productId: targetId, channelId })) })
     }
 
     if (barcodeChanged) {
@@ -222,7 +295,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         scope: 'INVENTORY',
         action: 'PRODUCT_BARCODE_UPDATED',
         entityType: 'Product',
-        entityId: id,
+        entityId: targetId,
         entityCode: product.sku,
         sourceRefCode: product.sku,
         title: `Cập nhật mã vạch ${product.sku}: ${barcodeChanged.from ?? '(trống)'} → ${barcodeChanged.to ?? '(xóa)'}`,
@@ -244,6 +317,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ['name', existing.name, product.name],
         ['costPrice', existing.costPrice, product.costPrice],
         ['sellPrice', existing.sellPrice, product.sellPrice],
+        ['stock', existing.stock, product.stock],
         ['lowStockThreshold', existing.lowStockThreshold, product.lowStockThreshold],
         ['status', existing.status, product.status],
         ['barcode', existing.barcode, product.barcode],
@@ -261,7 +335,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           scope: 'INVENTORY',
           action: 'PRODUCT_UPDATED',
           entityType: 'Product',
-          entityId: id,
+          entityId: targetId,
           entityCode: product.sku,
           sourceRefCode: product.sku,
           title: `Cập nhật sản phẩm ${product.sku} — ${Object.keys(after).join(', ')}`,
@@ -274,21 +348,38 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
-    return NextResponse.json({ product })
+    broadcast('product.updated', { id: targetId, status: product.status })
+    return NextResponse.json({ product: { ...product, unitConfig: savedUnitConfig } })
   } catch (error) {
     console.error('Product PUT error:', error)
     return NextResponse.json({ error: 'Không thể cập nhật sản phẩm' }, { status: 500 })
   }
 }
 
+export const PATCH = PUT
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const orderItemCount = await db.orderItem.count({ where: { productId: id } })
-    if (orderItemCount > 0) {
-      return NextResponse.json({ error: 'Sản phẩm đã có đơn hàng, chỉ có thể chuyển sang trạng thái "Ngừng bán"' }, { status: 409 })
+    const [orderItemCount, purchaseItemCount, salesItemCount, parentCombos] = await Promise.all([
+      db.orderItem.count({ where: { productId: id } }),
+      db.purchaseInvoiceItem.count({ where: { productId: id } }),
+      db.salesInvoiceItem.count({ where: { productId: id } }),
+      db.bomComponent.findMany({
+        where: { componentProductId: id, product: { type: 'COMBO' } },
+        select: { productId: true },
+      }),
+    ])
+    if (orderItemCount + purchaseItemCount + salesItemCount > 0) {
+      return NextResponse.json(
+        { error: 'Sản phẩm đã có đơn hàng hoặc chứng từ mua/bán, chỉ có thể chuyển sang trạng thái "Ngừng bán"' },
+        { status: 409 }
+      )
     }
     await db.product.delete({ where: { id } })
+    for (const row of parentCombos) {
+      await syncComboStock(db, row.productId)
+    }
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Product DELETE error:', error)

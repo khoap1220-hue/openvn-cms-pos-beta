@@ -1,15 +1,28 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { apiGet, apiPatch, apiPost } from '@/lib/api'
+import { trackClientBehavior } from '@/lib/behavior-client'
 import { formatDateTime } from '@/lib/format'
+import type { ViewId } from '@/components/cms/app-sidebar'
 import { ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
 import { ConfirmDialog } from '@/components/cms/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -28,24 +41,37 @@ import {
 } from '@/components/ui/table'
 import { useToast } from '@/hooks/use-toast'
 import {
+  ArrowRight,
   BadgeCheck,
   BookOpenCheck,
   Building2,
   Database,
+  Download,
+  FolderKanban,
   Gem,
   ImageUp,
   Info,
   KeyRound,
+  Layers,
   Loader2,
   LockKeyhole,
   LockOpen,
+  LogOut,
   Percent,
   ReceiptText,
+  Rocket,
   Save,
+  Scale,
+  ShieldCheck,
   Sparkles,
   Trash2,
+  Users,
   WifiOff,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { SystemCatalogSettings, type CatalogSettingsSubTab } from '@/components/cms/views/system-catalog-settings'
+
+export type SystemSectionTab = 'CATALOG_MASTER' | 'COMPANY_INVOICE' | 'SECURITY_AI_DATA' | 'ALL'
 
 interface SettingsData {
   company_name: string
@@ -108,10 +134,29 @@ const BANK_CODE_OPTIONS: Array<{ code: string; label: string }> = [
   { code: 'VBA', label: 'VBA — Agribank' },
 ]
 
-export function SystemView() {
+export function SystemView({
+  onNavigate,
+  initialSection = 'CATALOG_MASTER',
+  initialCatalogSubTab = 'CATEGORIES',
+}: {
+  onNavigate?: (view: ViewId) => void
+  initialSection?: SystemSectionTab
+  initialCatalogSubTab?: CatalogSettingsSubTab
+} = {}) {
+  const router = useRouter()
+  const [activeSection, setActiveSection] = useState<SystemSectionTab>(initialSection)
+  const [catalogSubTab, setCatalogSubTab] = useState<CatalogSettingsSubTab>(initialCatalogSubTab)
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setActiveSection(initialSection)
+  }, [initialSection])
+
+  useEffect(() => {
+    setCatalogSubTab(initialCatalogSubTab)
+  }, [initialCatalogSubTab])
 
   // Form thông tin đơn vị
   const [companyName, setCompanyName] = useState('')
@@ -136,6 +181,20 @@ export function SystemView() {
   // VAT mặc định
   const [vatDefault, setVatDefault] = useState('8')
   const [savingVat, setSavingVat] = useState(false)
+
+  // Bảo mật & Đăng nhập
+  const [authRequired, setAuthRequired] = useState(false)
+  const [hasCustomPassword, setHasCustomPassword] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
+
+  // Go-Live Reset (Làm sạch dữ liệu mẫu)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetConfirmCode, setResetConfirmCode] = useState('')
+  const [resetClearCustomers, setResetClearCustomers] = useState(false)
+  const [resetStockZero, setResetStockZero] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
 
   // Thiết lập hóa đơn (mẫu in hóa đơn bán ở module Xuất hàng + hóa đơn mua ở module Nhập hàng)
   const [invoiceTitle, setInvoiceTitle] = useState('HÓA ĐƠN BÁN HÀNG')
@@ -214,7 +273,120 @@ export function SystemView() {
 
   useEffect(() => {
     void load()
+    void apiGet<{ authRequired: boolean; hasCustomPassword: boolean }>('/api/auth')
+      .then((res) => {
+        setAuthRequired(Boolean(res.authRequired))
+        setHasCustomPassword(Boolean(res.hasCustomPassword))
+      })
+      .catch(() => null)
   }, [load])
+
+  const handleToggleAuthRequired = async (checked: boolean) => {
+    setAuthRequired(checked)
+    try {
+      await apiPatch('/api/auth', { authRequired: checked })
+      toast({
+        title: checked ? 'Đã bật khóa mật khẩu khi vào CMS' : 'Đã tắt khóa mật khẩu tự động',
+        description: checked
+          ? 'Mọi truy cập mới sẽ cần nhập mật khẩu quản trị tại /login.'
+          : 'Truy cập nội bộ không cần đăng nhập lại.',
+      })
+    } catch (e) {
+      setAuthRequired(!checked)
+      toast({
+        title: 'Không thể cập nhật chính sách bảo mật',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleSavePassword = async () => {
+    if (newPassword.trim().length < 4) {
+      toast({ title: 'Mật khẩu quá ngắn', description: 'Mật khẩu mới phải từ 4 ký tự trở lên.', variant: 'destructive' })
+      return
+    }
+    setSavingPassword(true)
+    try {
+      await apiPatch('/api/auth', {
+        currentPassword: currentPassword.trim(),
+        newPassword: newPassword.trim(),
+      })
+      setHasCustomPassword(true)
+      setAuthRequired(true)
+      setCurrentPassword('')
+      setNewPassword('')
+      toast({
+        title: 'Đã cập nhật mật khẩu Quản trị viên',
+        description: 'Mật khẩu mới đã có hiệu lực và chế độ bảo vệ đăng nhập đã được bật.',
+      })
+    } catch (e) {
+      toast({
+        title: 'Đổi mật khẩu thất bại',
+        description: e instanceof Error ? e.message : 'Vui lòng kiểm tra lại mật khẩu hiện tại',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' })
+      router.push('/login')
+    } catch {
+      router.push('/login')
+    }
+  }
+
+  const handleDownloadBackup = () => {
+    trackClientBehavior({
+      category: 'EXPORT',
+      action: 'DATA_EXPORT',
+      module: 'system',
+      summary: 'Tải bản sao lưu cơ sở dữ liệu SQLite (.db)',
+    })
+    window.open('/api/system/backup', '_blank')
+    toast({
+      title: 'Đang tải bản sao lưu Database (.db)',
+      description: 'Tệp sao lưu SQLite đã được xuất về máy tính của bạn.',
+    })
+  }
+
+  const handleGoLiveReset = async () => {
+    if (resetConfirmCode.trim().toUpperCase() !== 'GO-LIVE') {
+      toast({
+        title: 'Mã xác nhận chưa đúng',
+        description: 'Vui lòng nhập chính xác chữ GO-LIVE để xác nhận.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setResetLoading(true)
+    try {
+      const res = await apiPost<{ message: string; cleared: { orders: number; shipments: number } }>('/api/system/reset', {
+        confirmCode: resetConfirmCode.trim(),
+        clearCustomers: resetClearCustomers,
+        resetStockZero,
+      })
+      setResetDialogOpen(false)
+      setResetConfirmCode('')
+      toast({
+        title: '🚀 Hệ thống đã sẵn sàng Vận hành Thực tế!',
+        description: `${res.message} (Đã dọn ${res.cleared.orders} đơn mẫu & ${res.cleared.shipments} vận đơn mẫu).`,
+      })
+      void loadPeriods()
+    } catch (e) {
+      toast({
+        title: 'Không thể làm sạch dữ liệu mẫu',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   useEffect(() => {
     void loadPeriods()
@@ -418,16 +590,82 @@ export function SystemView() {
       : ''
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
-        title="Hệ thống"
-        description="Thông tin đơn vị, kỳ kế toán, AI và giá trị mặc định của Invoice Pro"
+        title="Trung tâm Cấu hình Hệ thống"
+        description="Quản lý tập trung Danh mục hàng hóa, Loại sản phẩm, Quy đổi định lượng (Kg ⇄ Gr), Thông tin đơn vị, Hóa đơn VAT, AI & Bảo mật"
       />
+
+      {/* Thanh phân nhóm Cấu hình Hệ thống mở rộng (Modular Settings Hub) */}
+      <div className="overflow-x-auto rounded-xl border bg-card p-1.5 shadow-xs">
+        <div className="flex min-w-max items-center gap-1.5">
+          {(
+            [
+              {
+                id: 'CATALOG_MASTER' as const,
+                label: 'Danh mục, Loại SP & Quy đổi ĐVT',
+                sub: 'Danh mục · Kg⇄Gr · Đơn vị tính · Đặc tính',
+                icon: Scale,
+              },
+              {
+                id: 'COMPANY_INVOICE' as const,
+                label: 'Đơn vị, Hóa đơn VAT & Kỳ kế toán',
+                sub: 'Thông tin pháp lý · Mẫu HĐ VietQR · Chốt sổ',
+                icon: ReceiptText,
+              },
+              {
+                id: 'SECURITY_AI_DATA' as const,
+                label: 'Bảo mật, AI & Dữ liệu Go-Live',
+                sub: 'Gemini AI · Mật khẩu · Nhân sự RBAC · Sao lưu .db',
+                icon: ShieldCheck,
+              },
+              {
+                id: 'ALL' as const,
+                label: 'Toàn bộ cấu hình',
+                sub: 'Xem tất cả trên 1 trang',
+                icon: Layers,
+              },
+            ]
+          ).map((tab) => {
+            const Icon = tab.icon
+            const active = activeSection === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveSection(tab.id)}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-lg px-3.5 py-2 text-left transition-all',
+                  active
+                    ? 'bg-[#0066CC] text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                )}
+              >
+                <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-white' : 'text-[#0066CC] dark:text-sky-400')} />
+                <div>
+                  <p className="text-xs font-bold leading-tight">{tab.label}</p>
+                  <p className={cn('text-[10px] leading-tight', active ? 'text-sky-100' : 'text-muted-foreground')}>
+                    {tab.sub}
+                  </p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Nhóm 1: Cấu hình Danh mục, Loại sản phẩm, Quy đổi Định lượng & Đặc tính */}
+      {(activeSection === 'CATALOG_MASTER' || activeSection === 'ALL') && (
+        <SystemCatalogSettings activeSubTab={catalogSubTab} onSubTabChange={setCatalogSubTab} />
+      )}
 
       {error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        (activeSection === 'COMPANY_INVOICE' || activeSection === 'SECURITY_AI_DATA' || activeSection === 'ALL') && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {(activeSection === 'COMPANY_INVOICE' || activeSection === 'ALL') && (
+              <>
           {/* Thông tin đơn vị */}
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
@@ -774,7 +1012,7 @@ export function SystemView() {
                 <TableSkeleton rows={4} />
               ) : (
                 <div className="overflow-hidden rounded-xl border">
-                  <Table>
+                  <Table disableColumnCustomizer>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Kỳ</TableHead>
@@ -840,6 +1078,43 @@ export function SystemView() {
             </CardContent>
           </Card>
 
+          {/* Giá trị mặc định */}
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Percent className="h-5 w-5 text-sky-500" />
+                Giá trị mặc định
+              </CardTitle>
+              <CardDescription>Áp dụng cho hóa đơn mới tạo ở module Nhập hàng / Xuất hàng</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="h-9 w-48 animate-pulse rounded-md bg-muted" />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Select value={vatDefault} onValueChange={(value) => void changeVatDefault(value)}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VAT_RATES.map((rate) => (
+                        <SelectItem key={rate} value={String(rate)}>
+                          VAT {rate}%
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {savingVat && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  <p className="text-xs text-muted-foreground">Thuế suất VAT điền sẵn khi tạo hóa đơn</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+              </>
+            )}
+
+            {(activeSection === 'SECURITY_AI_DATA' || activeSection === 'ALL') && (
+              <>
           {/* Gemini AI — card nền tối */}
           <Card className="border-slate-800 bg-slate-900 text-slate-100 lg:col-span-2 dark:bg-slate-950">
             <CardHeader>
@@ -903,39 +1178,6 @@ export function SystemView() {
             </CardContent>
           </Card>
 
-          {/* Giá trị mặc định */}
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Percent className="h-5 w-5 text-sky-500" />
-                Giá trị mặc định
-              </CardTitle>
-              <CardDescription>Áp dụng cho hóa đơn mới tạo ở module Nhập hàng / Xuất hàng</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-9 w-48 animate-pulse rounded-md bg-muted" />
-              ) : (
-                <div className="flex items-center gap-3">
-                  <Select value={vatDefault} onValueChange={(value) => void changeVatDefault(value)}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VAT_RATES.map((rate) => (
-                        <SelectItem key={rate} value={String(rate)}>
-                          VAT {rate}%
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {savingVat && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                  <p className="text-xs text-muted-foreground">Thuế suất VAT điền sẵn khi tạo hóa đơn</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Về hệ thống */}
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
@@ -976,8 +1218,208 @@ export function SystemView() {
               </div>
             </CardContent>
           </Card>
-        </div>
+
+          {/* Bảo mật & Mật khẩu Quản trị */}
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                  Bảo mật & Đăng nhập Quản trị
+                </CardTitle>
+                <Badge variant={authRequired ? 'default' : 'outline'} className={authRequired ? 'bg-emerald-600 text-white' : ''}>
+                  {authRequired ? 'Đang bảo vệ' : 'Mở nội bộ'}
+                </Badge>
+              </div>
+              <CardDescription>
+                Cấu hình mật khẩu truy cập CMS và khóa bảo vệ phiên làm việc
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {onNavigate && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-900/60 dark:bg-sky-950/30">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="flex items-center gap-1.5 text-sm font-semibold text-sky-900 dark:text-sky-200">
+                      <Users className="h-4 w-4 text-[#0066CC]" />
+                      Quản trị Đa Tài khoản, Phân quyền RBAC &amp; Nhật ký Hành vi
+                    </p>
+                    <p className="text-xs text-sky-800/80 dark:text-sky-300/80">
+                      Phân quyền 6 vai trò (Chủ tiệm, Quản lý, Thu ngân POS, Thủ kho, Kế toán, Marketing), cấp mã PIN 4–6 số &amp; giám sát hành vi thời gian thực.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-[#0066CC] text-white hover:bg-[#0055B3]"
+                    onClick={() => onNavigate('iam')}
+                  >
+                    Mở Nhân sự &amp; Hành vi Log
+                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2.5">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Yêu cầu đăng nhập khi mở CMS</p>
+                  <p className="text-xs text-muted-foreground">
+                    Bật để bắt buộc nhập mật khẩu tại trang <code>/login</code>
+                  </p>
+                </div>
+                <Switch
+                  checked={authRequired}
+                  onCheckedChange={(checked) => void handleToggleAuthRequired(checked)}
+                  aria-label="Bật/tắt yêu cầu đăng nhập"
+                />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {hasCustomPassword && (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="current-admin-pwd">Mật khẩu hiện tại</Label>
+                    <Input
+                      id="current-admin-pwd"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Nhập mật khẩu hiện tại"
+                    />
+                  </div>
+                )}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="new-admin-pwd">
+                    {hasCustomPassword ? 'Mật khẩu mới' : 'Đặt mật khẩu quản trị mới (mặc định: admin)'}
+                  </Label>
+                  <Input
+                    id="new-admin-pwd"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Tối thiểu 4 ký tự..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button onClick={() => void handleSavePassword()} disabled={savingPassword || !newPassword.trim()}>
+                  {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  Lưu mật khẩu
+                </Button>
+                <Button variant="outline" onClick={() => void handleLogout()}>
+                  <LogOut className="h-4 w-4" />
+                  Khóa phiên / Đăng xuất
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quản trị Dữ liệu & Đưa vào Vận hành (Go-Live) */}
+          <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/40 via-background to-background shadow-sm dark:border-emerald-900/60 dark:from-emerald-950/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Rocket className="h-5 w-5 text-emerald-600" />
+                Sao lưu & Đưa vào Vận hành Thực tế (Go-Live)
+              </CardTitle>
+              <CardDescription>
+                Sao lưu toàn bộ cơ sở dữ liệu SQLite hoặc dọn sạch dữ liệu giao dịch mẫu để bắt đầu bán hàng thật
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border bg-card p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Trước khi chính thức vận hành:</p>
+                <p>• Tải bản sao lưu <code>.db</code> về máy để lưu trữ an toàn mọi dữ liệu hiện tại.</p>
+                <p>• Khi bấm <strong>Làm sạch dữ liệu mẫu (Go-Live)</strong>, hệ thống sẽ xóa đơn hàng/vận đơn/hóa đơn mẫu, tắt chế độ giả lập 30s, nhưng <strong>giữ nguyên 100% sản phẩm Ưu Đàm, BOM, kênh bán & mẫu hóa đơn VietQR</strong>.</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button variant="outline" onClick={handleDownloadBackup}>
+                  <Download className="h-4 w-4 text-emerald-600" />
+                  Tải bản sao lưu Database (.db)
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setResetConfirmCode('')
+                    setResetDialogOpen(true)
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Làm sạch dữ liệu mẫu (Go-Live)
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+              </>
+            )}
+          </div>
+        )
       )}
+
+      {/* Dialog xác nhận Làm sạch dữ liệu mẫu (Go-Live) */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600">
+              <Rocket className="h-5 w-5" />
+              Khởi tạo Vận hành Thực tế (Go-Live Reset)
+            </DialogTitle>
+            <DialogDescription>
+              Thao tác này sẽ xóa toàn bộ đơn hàng, vận đơn, hóa đơn mua/bán, tin nhắn và nhật ký mẫu để tiệm bắt đầu hạch toán từ con số thật. Danh mục sản phẩm Ưu Đàm, BOM, kênh bán và cấu hình hóa đơn được giữ nguyên.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="reset-clear-customers"
+                checked={resetClearCustomers}
+                onCheckedChange={(v) => setResetClearCustomers(Boolean(v))}
+              />
+              <Label htmlFor="reset-clear-customers" className="text-sm font-normal leading-snug cursor-pointer">
+                Xóa luôn danh sách khách hàng mẫu (nếu bỏ chọn: giữ hồ sơ khách nhưng đặt lại điểm thưởng = 0)
+              </Label>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="reset-stock-zero"
+                checked={resetStockZero}
+                onCheckedChange={(v) => setResetStockZero(Boolean(v))}
+              />
+              <Label htmlFor="reset-stock-zero" className="text-sm font-normal leading-snug cursor-pointer">
+                Đặt lại tồn kho tất cả sản phẩm về 0 (nếu bỏ chọn: giữ nguyên số tồn hiện tại làm Tồn đầu kỳ Go-Live)
+              </Label>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="golive-confirm-input">
+                Nhập chữ <strong className="font-mono text-rose-600">GO-LIVE</strong> để xác nhận:
+              </Label>
+              <Input
+                id="golive-confirm-input"
+                value={resetConfirmCode}
+                onChange={(e) => setResetConfirmCode(e.target.value)}
+                placeholder="GO-LIVE"
+                className="font-mono uppercase"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)} disabled={resetLoading}>
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleGoLiveReset()}
+              disabled={resetLoading || resetConfirmCode.trim().toUpperCase() !== 'GO-LIVE'}
+            >
+              {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              Xác nhận Go-Live
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm chốt sổ */}
       <ConfirmDialog

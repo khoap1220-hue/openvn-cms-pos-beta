@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const listings = await db.channelListing.findMany({
-      where: { productId: id, ...(channelIds ? { channelId: { in: channelIds } } : {}) },
+      where: { productId: id, channel: { connected: true }, ...(channelIds ? { channelId: { in: channelIds } } : {}) },
       include: { channel: { select: { id: true, key: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     })

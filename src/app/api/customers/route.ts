@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { recordLineageChange } from '@/lib/ledger'
 import { computeTier } from '@/lib/types'
+import { getActiveLoyaltyPolicy, computeTierWithPolicy } from '@/lib/loyalty-policy'
 import { getLineageMeta } from '@/lib/lineage-server'
 
 export const dynamic = 'force-dynamic'
@@ -19,13 +20,16 @@ export async function GET(req: NextRequest) {
       where.OR = [{ name: { contains: search } }, { phone: { contains: search } }, { email: { contains: search } }, { memberCode: { contains: search } }]
     }
 
-    const customers = await db.customer.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        orders: { where: { status: { not: 'CANCELLED' } }, select: { total: true, createdAt: true } },
-      },
-    })
+    const [customers, activePolicy] = await Promise.all([
+      db.customer.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          orders: { where: { status: { not: 'CANCELLED' } }, select: { total: true, createdAt: true } },
+        },
+      }),
+      getActiveLoyaltyPolicy().catch(() => null),
+    ])
 
     const data = customers.map((c) => {
       const totalSpent = c.orders.reduce((s, o) => s + o.total, 0)
@@ -40,7 +44,7 @@ export async function GET(req: NextRequest) {
         memberCode: c.memberCode,
         memberAt: c.memberAt,
         points: c.points,
-        tier: c.isMember ? computeTier(totalSpent) : null,
+        tier: c.isMember ? (activePolicy ? computeTierWithPolicy(totalSpent, activePolicy) : computeTier(totalSpent)) : null,
         originSource: 'MANUAL_ADMIN' as string,
         changeCount: 0,
         stats: {
@@ -92,10 +96,23 @@ export async function POST(req: NextRequest) {
     const { name, phone, email, address } = body
     if (!name?.trim()) return NextResponse.json({ error: 'Vui lòng nhập tên khách hàng' }, { status: 400 })
 
+    const trimmedPhone = phone?.trim() || null
+    if (trimmedPhone) {
+      const existing = await db.customer.findFirst({
+        where: { phone: trimmedPhone },
+      })
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Số điện thoại này đã được đăng ký cho khách hàng khác' },
+          { status: 400 }
+        )
+      }
+    }
+
     const customer = await db.customer.create({
       data: {
         name: name.trim(),
-        phone: phone?.trim() || null,
+        phone: trimmedPhone,
         email: email?.trim() || null,
         address: address?.trim() || null,
       },

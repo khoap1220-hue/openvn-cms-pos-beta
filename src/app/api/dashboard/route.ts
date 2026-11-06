@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import type { DashboardData } from '@/lib/types'
 
@@ -10,14 +10,18 @@ function startOfDay(d: Date): Date {
   return x
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url)
+    const daysParam = parseInt(searchParams.get('days') || '14', 10)
+    const days = [7, 14, 30, 90].includes(daysParam) ? daysParam : 14
+
     const now = new Date()
     const todayStart = startOfDay(now)
     const yesterdayStart = new Date(todayStart.getTime() - 86400000)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const d14Start = new Date(todayStart.getTime() - 13 * 86400000)
+    const rangeStart = new Date(todayStart.getTime() - (days - 1) * 86400000)
     const d30Start = new Date(todayStart.getTime() - 29 * 86400000)
 
     const notCancelled = { not: 'CANCELLED' } as const
@@ -63,13 +67,13 @@ export async function GET() {
       }),
     ])
 
-    // Doanh thu & đơn theo ngày (14 ngày gần nhất)
+    // Doanh thu & đơn theo ngày (days ngày gần nhất)
     const recentOrdersForChart = await db.order.findMany({
-      where: { createdAt: { gte: d14Start }, status: notCancelled },
+      where: { createdAt: { gte: rangeStart }, status: notCancelled },
       select: { createdAt: true, total: true },
     })
     const dayMap = new Map<string, { revenue: number; orders: number }>()
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < days; i++) {
       const d = new Date(todayStart.getTime() - i * 86400000)
       dayMap.set(d.toISOString().slice(0, 10), { revenue: 0, orders: 0 })
     }

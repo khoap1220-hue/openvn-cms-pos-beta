@@ -1,0 +1,11 @@
+node_modules
+mini-services/realtime/node_modules
+.next
+.git
+.agents
+agent-ctx
+tool-results
+download
+*.tsbuildinfo
+npm-debug.log*
+.env.local

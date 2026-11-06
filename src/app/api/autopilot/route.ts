@@ -30,3 +30,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Không thể cập nhật cấu hình' }, { status: 500 })
   }
 }
+
+export const PUT = PATCH
+export const POST = PATCH

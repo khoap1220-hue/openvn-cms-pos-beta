@@ -40,8 +40,35 @@ export interface LedgerInput {
   changedFields?: string[] | null
 }
 
+async function resolveRequestOperatorLabel(): Promise<string | null> {
+  try {
+    const mod = await import('next/headers')
+    const h = await mod.headers()
+    const rawName = h.get('x-staff-name')
+    const rawRole = h.get('x-staff-role')
+    if (rawName) {
+      const decoded = decodeURIComponent(rawName)
+      return rawRole ? `${decoded} [${rawRole}]` : decoded
+    }
+  } catch {
+    // Đang chạy ngoài ngữ cảnh Next.js HTTP Request (VD: Agent timer hoặc CLI script)
+  }
+  return null
+}
+
 export async function logLedger(input: LedgerInput): Promise<void> {
   try {
+    let resolvedActorName = input.actorName ?? null
+    if (
+      (!resolvedActorName ||
+        resolvedActorName === 'Người vận hành' ||
+        resolvedActorName === 'Quản trị viên') &&
+      (input.actor === 'OPERATOR' || !input.actor)
+    ) {
+      const staffLabel = await resolveRequestOperatorLabel()
+      if (staffLabel) resolvedActorName = staffLabel
+    }
+
     await db.ledgerEntry.create({
       data: {
         scope: input.scope,
@@ -53,7 +80,7 @@ export async function logLedger(input: LedgerInput): Promise<void> {
         detail: input.detail != null ? JSON.stringify(input.detail) : null,
         actor: input.actor ?? 'SYSTEM',
         originSource: input.originSource ?? null,
-        actorName: input.actorName ?? null,
+        actorName: resolvedActorName,
         sourceRefCode: input.sourceRefCode ?? null,
         beforeSnapshot: input.beforeSnapshot ? JSON.stringify(input.beforeSnapshot) : null,
         afterSnapshot: input.afterSnapshot ? JSON.stringify(input.afterSnapshot) : null,

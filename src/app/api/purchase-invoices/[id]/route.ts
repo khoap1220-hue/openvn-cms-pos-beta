@@ -27,8 +27,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { id } = await params
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
-    if (String(body.action ?? '') !== 'CANCEL') {
-      return NextResponse.json({ error: 'Hành động không hợp lệ (chỉ hỗ trợ CANCEL)' }, { status: 400 })
+    const action = String(body.action ?? '')
+    if (action === 'APPROVE') {
+      const current = await db.purchaseInvoice.findUnique({
+        where: { id },
+        include: {
+          partner: true,
+          items: { include: { product: { select: { id: true, sku: true, name: true, unit: true } } } },
+        },
+      })
+      if (!current) return NextResponse.json({ error: 'Không tìm thấy hóa đơn mua' }, { status: 404 })
+      const updated = await db.purchaseInvoice.update({
+        where: { id },
+        data: { status: 'APPROVED' },
+        include: {
+          partner: true,
+          items: { include: { product: { select: { id: true, sku: true, name: true, unit: true } } } },
+        },
+      })
+      return NextResponse.json({ invoice: updated })
+    }
+    if (action !== 'CANCEL') {
+      return NextResponse.json({ error: 'Hành động không hợp lệ (hỗ trợ CANCEL, APPROVE)' }, { status: 400 })
     }
     const invoice = await cancelPurchaseInvoice(id, body.note != null ? String(body.note) : undefined)
     return NextResponse.json({ invoice })

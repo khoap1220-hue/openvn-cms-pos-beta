@@ -74,7 +74,7 @@ export async function setSetting(key: string, enabled: boolean) {
       agent: 'SYSTEM',
       action: 'MANUAL_ACTION',
       level: enabled ? 'success' : 'warning',
-      message: `Người vận hành đã ${enabled ? 'BẬT' : 'TẮT'} chế độ «${def.label}»`,
+      message: `Đã ${enabled ? 'kích hoạt' : 'tạm ngưng'} quy trình tự động «${def.label}»`,
     })
   }
 }
@@ -149,7 +149,7 @@ async function agentConfirm(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Chốt ${itemsText} cho ${mem?.displayName ?? order.customer.name} — nhắn Zalo xác nhận xong, gói hàng liền ${order.code}`,
+      message: `Đã xác nhận đơn hàng ${order.code} (${itemsText}) cho ${mem?.displayName ?? order.customer.name} và gửi thông báo Zalo`,
       detail: content,
     })
     broadcast('order.updated', { id: order.id, status: 'CONFIRMED', code: order.code })
@@ -178,7 +178,7 @@ async function startPacking(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Vào gói ${itemsText} cho ${order.customer?.name ?? 'khách'}${hasFragile ? ' — bọc mút kỹ mấy món gốm/nến dễ vỡ' : ''} (${order.code})`,
+      message: `Chuyển đơn hàng ${order.code} (${itemsText}) sang khâu soạn hàng & đóng gói${hasFragile ? ' — áp dụng quy cách chống sốc hàng dễ vỡ' : ''}`,
     })
     broadcast('order.updated', { id: order.id, status: 'PACKING', code: order.code })
   })
@@ -193,7 +193,7 @@ async function dispatchCarrier(orderId: string) {
       where: { id: orderId },
       include: { channel: true, customer: true, items: { include: { product: true } } },
     })
-    if (!order || order.status !== 'PACKING') return
+    if (!order || !['PACKING', 'SHIPPING'].includes(order.status)) return
     const existing = await db.shipment.findUnique({ where: { orderId: order.id } })
     if (existing) return
 
@@ -240,7 +240,7 @@ async function dispatchCarrier(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Gói xong ${itemsText} → gọi ${carrier.name} qua lấy luôn cho ${mem?.displayName ?? order.customer?.name ?? 'khách'}, mã vận đơn ${tracking}`,
+      message: `Hoàn tất đóng gói đơn ${order.code} (${itemsText}) — đã khởi tạo vận đơn ${carrier.name} (${tracking}) cho ${mem?.displayName ?? order.customer?.name ?? 'khách hàng'}`,
       detail: notice,
     })
     logLedgerAsync({
@@ -298,7 +298,7 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         targetType: 'ORDER',
         targetId: order.id,
         targetLabel: order.code,
-        message: `${carrierName(shipment.carrier)} nhận hàng rồi — đơn ${order.code} của ${order.customer?.name ?? 'khách'} lên đường giao`,
+        message: `Đơn vị vận chuyển ${carrierName(shipment.carrier)} đã tiếp nhận kiện hàng ${order.code} (${order.customer?.name ?? 'khách lẻ'})`,
       })
       if (settings.master && settings.auto_care && order.customer) {
         const mem = await getMemorySnapshot(order.customer.id)
@@ -320,7 +320,7 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         targetType: 'ORDER',
         targetId: order.id,
         targetLabel: order.code,
-        message: `Hàng đang lăn bánh tới nhà ${order.customer?.name ?? 'khách'} (${order.code}) — có cập nhật là báo ngay`,
+        message: `Vận đơn ${shipment.trackingCode} (${order.code}) đang luân chuyển đến địa chỉ nhận của ${order.customer?.name ?? 'khách hàng'}`,
       })
       if (settings.master && settings.auto_care && order.customer) {
         const mem = await getMemorySnapshot(order.customer.id)
@@ -346,7 +346,7 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         targetType: 'ORDER',
         targetId: order.id,
         targetLabel: order.code,
-        message: `Tới nơi rồi! Giao thành công ${order.code} cho ${order.customer?.name ?? 'khách'} qua ${carrierName(shipment.carrier)} — COD về sạch, hoàn tất vòng đời đơn`,
+        message: `Giao hàng thành công đơn ${order.code} cho ${order.customer?.name ?? 'khách hàng'} qua ${carrierName(shipment.carrier)} — đã hoàn tất đối soát giao vận`,
       })
       logLedgerAsync({
         scope: 'AGENT',
@@ -409,7 +409,7 @@ async function agentCare(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Nhắn thăm ${mem?.displayName ?? order.customer.name} sau khi ${itemsText} tới nhà (${order.code})`,
+      message: `Đã gửi thông điệp chăm sóc sau bán hàng đến ${mem?.displayName ?? order.customer.name} cho đơn ${order.code} (${itemsText})`,
       detail: content,
     })
     logLedgerAsync({
@@ -469,7 +469,7 @@ async function requestReview(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Nhờ ${order.customer.name} chấm sao cho ${friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))} (${order.code})`,
+      message: `Đã gửi khảo sát đánh giá chất lượng đơn hàng ${order.code} (${friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))}) đến ${order.customer.name}`,
       detail: content,
     })
     logLedgerAsync({
@@ -516,7 +516,7 @@ async function submitReview(orderId: string) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `${order.customer?.name ?? 'Khách'} thả ${rating}⭐ khen ${productNames} (${order.code})`,
+      message: `Ghi nhận đánh giá ${rating}/5 sao từ ${order.customer?.name ?? 'khách hàng'} cho đơn hàng ${order.code} (${productNames})`,
       detail: comment,
     })
     // Đánh giá mới → chắt lọc lại trí nhớ khách (pain point nếu có góp ý)
@@ -631,8 +631,8 @@ async function autoReply(customerId: string, channelKey: string) {
       targetId: `${customerId}|${channelKey}`,
       targetLabel: customer.name,
       message: last.imageUrl
-        ? `Xem ảnh khách gửi rồi trả lời ${mem?.displayName ?? customer.name} đúng trọng tâm (${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'})`
-        : `Tự động trả lời ${mem?.displayName ?? customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
+        ? `Đã phân tích hình ảnh đính kèm và phản hồi ${mem?.displayName ?? customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo Cá nhân'}`
+        : `Đã phản hồi tự động tin nhắn của ${mem?.displayName ?? customer.name} trên ${channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo Cá nhân'}`,
       detail: content,
     })
   })
@@ -667,25 +667,30 @@ async function runTick() {
   }
 
   // 3. Báo đơn vị vận chuyển
+  // - Chế độ Vận hành Thực tế (simulation_mode = false): chỉ tự động tạo vận đơn sau khi kho đã xác nhận đóng gói xong (status = SHIPPING)
+  // - Chế độ Mô phỏng Demo (simulation_mode = true): tự động tạo vận đơn ngay từ bước PACKING sau 4s
   if (settings.master && settings.auto_carrier) {
+    const targetStatuses = settings.simulation_mode ? ['PACKING', 'SHIPPING'] : ['SHIPPING']
     const orders = await db.order.findMany({
-      where: { status: 'PACKING', updatedAt: { lt: since(4000) }, shipments: { none: {} } },
+      where: { status: { in: targetStatuses }, updatedAt: { lt: since(4000) }, shipments: { none: {} } },
       select: { id: true },
       take: 3,
     })
     for (const o of orders) dispatchCarrier(o.id)
   }
 
-  // 4-6. Hành trình vận chuyển (bên vận chuyển cập nhật — luôn chạy)
-  const shipments = await db.shipment.findMany({
-    where: { status: { in: ['DISPATCHED', 'PICKED_UP', 'IN_TRANSIT'] }, updatedAt: { lt: since(5000) } },
-    select: { id: true, status: true },
-    take: 5,
-  })
-  for (const s of shipments) {
-    if (s.status === 'DISPATCHED') advanceShipment(s.id, 'PICKED_UP')
-    else if (s.status === 'PICKED_UP') advanceShipment(s.id, 'IN_TRANSIT')
-    else if (s.status === 'IN_TRANSIT') advanceShipment(s.id, 'DELIVERED')
+  // 4-6. Hành trình vận chuyển tự động giả lập (CHỈ chạy khi bật simulation_mode)
+  if (settings.simulation_mode) {
+    const shipments = await db.shipment.findMany({
+      where: { status: { in: ['DISPATCHED', 'PICKED_UP', 'IN_TRANSIT'] }, updatedAt: { lt: since(5000) } },
+      select: { id: true, status: true },
+      take: 5,
+    })
+    for (const s of shipments) {
+      if (s.status === 'DISPATCHED') advanceShipment(s.id, 'PICKED_UP')
+      else if (s.status === 'PICKED_UP') advanceShipment(s.id, 'IN_TRANSIT')
+      else if (s.status === 'IN_TRANSIT') advanceShipment(s.id, 'DELIVERED')
+    }
   }
 
   // 7-9. Chuỗi sau bán (chỉ đơn trong 24h gần đây)
@@ -709,7 +714,8 @@ async function runTick() {
     ) {
       requestReview(o.id)
     }
-    if (o.reviewRating == null && o.events.some((e) => e.type === 'REVIEW_REQUESTED') && o.updatedAt < since(8000)) {
+    // Bước 9: Giả lập khách tự chấm sao đánh giá — CHỈ chạy khi bật simulation_mode
+    if (settings.simulation_mode && o.reviewRating == null && o.events.some((e) => e.type === 'REVIEW_REQUESTED') && o.updatedAt < since(8000)) {
       submitReview(o.id)
     }
   }

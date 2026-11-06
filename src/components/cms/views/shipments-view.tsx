@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   Banknote,
   CalendarClock,
+  Calculator,
   CheckCheck,
   HandCoins,
   Loader2,
@@ -17,6 +18,16 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -39,7 +50,7 @@ import { AgentBadge, ShipmentStatusBadge } from '@/components/cms/agent-badge'
 import { ShipmentLabelDialog } from '@/components/cms/shipment-label-dialog'
 import { DataLineageBadge, LineageInspectorDialog, type LineageInspectorTarget } from '@/components/cms/lineage'
 import { PeriodFilterBar, PeriodSummaryBar } from '@/components/cms/period-filter-bar'
-import { apiGet, apiPatch } from '@/lib/api'
+import { apiGet, apiPatch, apiPost } from '@/lib/api'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { CARRIERS, SHIPMENT_STATUS_LABELS } from '@/lib/agents'
@@ -119,6 +130,32 @@ export function ShipmentsView() {
   const [originSource, setOriginSource] = useState('ALL')
   const [changedFilter, setChangedFilter] = useState<ChangedFilter>('ALL')
   const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
+  const [calcOpen, setCalcOpen] = useState(false)
+  const [calcForm, setCalcForm] = useState({
+    carrier: 'GHTK',
+    province: 'Hà Nội',
+    district: 'Đống Đa',
+    weightGram: '500',
+  })
+  const [calcResult, setCalcResult] = useState<{ fee: number; estimatedDelivery: string } | null>(null)
+  const [calculating, setCalculating] = useState(false)
+
+  const handleCalculateFee = async () => {
+    setCalculating(true)
+    try {
+      const res = await apiPost<{ fee: number; estimatedDelivery: string }>('/api/shipping/calculate-fee', {
+        carrier: calcForm.carrier,
+        province: calcForm.province,
+        district: calcForm.district,
+        weightGram: Number(calcForm.weightGram) || 500,
+      })
+      setCalcResult(res)
+    } catch (err) {
+      toast({ title: 'Không thể tính phí', description: errorMessage(err), variant: 'destructive' })
+    } finally {
+      setCalculating(false)
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -198,6 +235,26 @@ export function ShipmentsView() {
     }
   }
 
+  // Cập nhật nhanh trạng thái vận đơn (đồng bộ sang đơn hàng gốc & tích điểm hội viên khi DELIVERED)
+  const advanceShipmentStatus = async (s: Shipment, nextStatus: string) => {
+    setCodBusyId(s.id)
+    try {
+      await apiPatch<{ shipment: Shipment }>(`/api/shipments/${s.id}`, { status: nextStatus })
+      toast({
+        title: `Vận đơn ${s.trackingCode} → ${SHIPMENT_STATUS_LABELS[nextStatus] ?? nextStatus}`,
+        description:
+          nextStatus === 'DELIVERED'
+            ? `Đơn ${s.order?.code ?? ''} đã tự động chuyển sang Hoàn thành & cộng điểm hội viên.`
+            : `Đã cập nhật hành trình cho đơn ${s.order?.code ?? ''}.`,
+      })
+      await load()
+    } catch (err) {
+      toast({ title: 'Không thể cập nhật vận đơn', description: errorMessage(err), variant: 'destructive' })
+    } finally {
+      setCodBusyId(null)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
@@ -236,6 +293,39 @@ export function ShipmentsView() {
 
       <Card className="border-border/70 p-0 shadow-sm">
         <CardContent className="p-0">
+          {/* OPENVN Horizontal Shipment Status Tabs */}
+          <div className="overflow-x-auto border-b border-border/60 bg-muted/20 px-3 pt-1.5">
+            <div className="flex min-w-max items-center gap-1">
+              {[
+                { key: 'ALL', label: 'Tất cả vận đơn' },
+                { key: 'PENDING_PICKUP', label: 'Chờ lấy hàng' },
+                { key: 'PICKED_UP', label: 'Đã lấy hàng' },
+                { key: 'IN_TRANSIT', label: 'Đang giao hàng' },
+                { key: 'DELIVERED', label: 'Đã giao thành công' },
+                { key: 'RETURNED', label: 'Hoàn hàng' },
+              ].map((tab) => {
+                const active = status === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStatus(tab.key)}
+                    className={`relative flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-colors ${
+                      active
+                        ? 'font-semibold text-[#0066CC] dark:text-sky-400'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {active && (
+                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-[#0066CC] dark:bg-sky-400" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="shrink-0">
               <h3 className="font-semibold">Hành trình vận chuyển</h3>
@@ -253,8 +343,17 @@ export function ShipmentsView() {
                 changedFilter={changedFilter}
                 onChangedFilterChange={setChangedFilter}
               />
-              <div className="flex flex-col gap-2 sm:flex-row">
-              <Select value={status} onValueChange={setStatus}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCalcOpen(true)}
+                  className="gap-1.5 text-xs text-[#0066CC] border-sky-200 hover:bg-sky-50 dark:border-sky-800 dark:hover:bg-sky-950"
+                >
+                  <Calculator className="h-3.5 w-3.5" />
+                  Tính cước nhanh
+                </Button>
+                <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger className="w-full sm:w-44" aria-label="Lọc trạng thái vận chuyển">
                   <SelectValue />
                 </SelectTrigger>
@@ -373,6 +472,39 @@ export function ShipmentsView() {
                             >
                               <Printer className="h-4 w-4" />
                             </Button>
+                            {s.status === 'PENDING_PICKUP' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 border-sky-200 bg-sky-50 px-2 text-[11px] font-medium text-sky-700 hover:bg-sky-100"
+                                disabled={codBusy}
+                                onClick={() => void advanceShipmentStatus(s, 'PICKED_UP')}
+                              >
+                                Đã lấy hàng
+                              </Button>
+                            )}
+                            {s.status === 'PICKED_UP' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 border-orange-200 bg-orange-50 px-2 text-[11px] font-medium text-orange-700 hover:bg-orange-100"
+                                disabled={codBusy}
+                                onClick={() => void advanceShipmentStatus(s, 'IN_TRANSIT')}
+                              >
+                                Đang giao
+                              </Button>
+                            )}
+                            {s.status === 'IN_TRANSIT' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 border-emerald-200 bg-emerald-50 px-2 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
+                                disabled={codBusy}
+                                onClick={() => void advanceShipmentStatus(s, 'DELIVERED')}
+                              >
+                                Giao xong
+                              </Button>
+                            )}
                             {s.codAmount > 0 && s.codStatus === 'PENDING' && (
                               <Button
                                 size="sm"
@@ -428,6 +560,88 @@ export function ShipmentsView() {
         }}
         target={lineageTarget}
       />
+
+      {/* Dialog Tính cước vận chuyển tự động (Safe Mock GHN/GHTK) */}
+      <Dialog open={calcOpen} onOpenChange={setCalcOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5 text-[#0066CC]" />
+              Tính cước vận chuyển tự động
+            </DialogTitle>
+            <DialogDescription>
+              Tính cước ước tính theo địa chỉ và khối lượng hàng qua GHN / GHTK.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm">
+            <div className="grid gap-1.5">
+              <Label>Đơn vị vận chuyển</Label>
+              <Select
+                value={calcForm.carrier}
+                onValueChange={(val) => setCalcForm({ ...calcForm, carrier: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GHTK">Giao Hàng Tiết Kiệm (GHTK)</SelectItem>
+                  <SelectItem value="GHN">Giao Hàng Nhanh (GHN)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-1.5">
+                <Label>Tỉnh / Thành phố</Label>
+                <Input
+                  value={calcForm.province}
+                  onChange={(e) => setCalcForm({ ...calcForm, province: e.target.value })}
+                  placeholder="Hà Nội, TP.HCM..."
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Quận / Huyện</Label>
+                <Input
+                  value={calcForm.district}
+                  onChange={(e) => setCalcForm({ ...calcForm, district: e.target.value })}
+                  placeholder="Đống Đa, Quận 1..."
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Khối lượng (gram)</Label>
+              <Input
+                type="number"
+                min={50}
+                step={50}
+                value={calcForm.weightGram}
+                onChange={(e) => setCalcForm({ ...calcForm, weightGram: e.target.value })}
+              />
+            </div>
+
+            {calcResult && (
+              <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs dark:border-sky-900 dark:bg-sky-950/50">
+                <div className="flex justify-between font-semibold text-sky-900 dark:text-sky-300">
+                  <span>Cước vận chuyển ước tính:</span>
+                  <span className="text-base font-bold text-[#0066CC]">{formatVND(calcResult.fee)}</span>
+                </div>
+                <div className="mt-1 flex justify-between text-muted-foreground">
+                  <span>Thời gian giao dự kiến:</span>
+                  <span>{calcResult.estimatedDelivery}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCalcOpen(false)}>
+              Đóng
+            </Button>
+            <Button onClick={() => void handleCalculateFee()} disabled={calculating} className="bg-[#0066CC] text-white hover:bg-[#0055B3]">
+              {calculating && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Tính cước
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

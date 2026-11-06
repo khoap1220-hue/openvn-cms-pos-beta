@@ -12,6 +12,11 @@ import { logLedger, recordLineageChange } from '@/lib/ledger'
 import { broadcast } from '@/lib/realtime'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { computeTier, pointsForTotal } from '@/lib/types'
+import {
+  getActiveLoyaltyWave,
+  computeTierWithPolicy,
+  calculateEarnedPointsWithPolicy,
+} from '@/lib/loyalty-policy'
 
 /** Sinh mã thành viên tiếp theo (TV0001, TV0002, ...) — quét mã hiện có, lấy max + 1 */
 export async function nextMemberCode(): Promise<string> {
@@ -33,16 +38,24 @@ export async function registerMember(customerId: string, actor: 'OPERATOR' | 'SY
   if (!customer) throw new Error('Không tìm thấy khách hàng')
   if (customer.isMember) throw new Error('Khách hàng này đã là thành viên')
 
+  const activeWave = await getActiveLoyaltyWave().catch(() => null)
+  const welcomeBonus = activeWave?.config.welcomeBonusPoints ?? 0
+
   const memberCode = await nextMemberCode()
   const updated = await db.customer.update({
     where: { id: customerId },
-    data: { isMember: true, memberCode, memberAt: new Date() },
+    data: {
+      isMember: true,
+      memberCode,
+      memberAt: new Date(),
+      ...(welcomeBonus > 0 ? { points: { increment: welcomeBonus } } : {}),
+    },
   })
 
   const totalSpent = await db.order
     .aggregate({ where: { customerId, status: { not: 'CANCELLED' } }, _sum: { total: true } })
     .then((r) => r._sum.total ?? 0)
-  const tier = computeTier(totalSpent)
+  const tier = activeWave ? computeTierWithPolicy(totalSpent, activeWave.config) : computeTier(totalSpent)
 
   await recordLineageChange({
     scope: 'CUSTOMER',
@@ -51,13 +64,21 @@ export async function registerMember(customerId: string, actor: 'OPERATOR' | 'SY
     entityId: customerId,
     entityCode: memberCode,
     sourceRefCode: memberCode,
-    title: `${customer.name} chính thức trở thành thành viên — mã ${memberCode}`,
+    title: `${customer.name} chính thức trở thành thành viên — mã ${memberCode}${welcomeBonus > 0 ? ` (+${welcomeBonus} điểm mở thẻ)` : ''}`,
     before: { isMember: false, points: customer.points },
-    after: { isMember: true, memberCode, points: customer.points },
+    after: { isMember: true, memberCode, points: updated.points },
     actor,
     actorName: actor === 'OPERATOR' ? 'Người vận hành' : 'Agent Tự động',
     originSource: actor === 'OPERATOR' ? 'MANUAL_ADMIN' : 'AGENT_AUTOPILOT',
-    detail: { name: customer.name, phone: customer.phone, memberCode, totalSpent, tier: tier.key },
+    detail: {
+      name: customer.name,
+      phone: customer.phone,
+      memberCode,
+      totalSpent,
+      tier: tier.key,
+      welcomeBonusPoints: welcomeBonus,
+      waveCode: activeWave?.waveCode ?? 'DOT-2026-01',
+    },
   })
   broadcast('customer.updated', { id: customerId, isMember: true, memberCode })
   dispatchWebhook('member.registered', {
@@ -125,21 +146,35 @@ export async function adjustPoints(customerId: string, mode: PointsMode, points:
  */
 export async function awardPointsForCompletedOrder(orderId: string): Promise<void> {
   try {
-    const already = await db.ledgerEntry.findFirst({
-      where: { action: 'POINTS_EARNED', entityType: 'Order', entityId: orderId },
-      select: { id: true },
-    })
-    if (already) return
-
     const order = await db.order.findUnique({
       where: { id: orderId },
       include: { customer: { select: { id: true, name: true, memberCode: true, isMember: true, points: true } } },
     })
     if (!order || order.status !== 'COMPLETED' || !order.customer) return
+
+    const already = await db.ledgerEntry.findFirst({
+      where: {
+        action: 'POINTS_EARNED',
+        OR: [
+          { entityType: 'Order', entityId: orderId },
+          { entityType: 'Customer', sourceRefCode: order.code },
+        ],
+      },
+      select: { id: true },
+    })
+    if (already) return
     const customer = order.customer
     if (!customer.isMember) return
 
-    const earned = pointsForTotal(order.total)
+    const totalSpent = await db.order
+      .aggregate({ where: { customerId: customer.id, status: { not: 'CANCELLED' } }, _sum: { total: true } })
+      .then((r) => r._sum.total ?? 0)
+
+    const activeWave = await getActiveLoyaltyWave().catch(() => null)
+    const calc = activeWave
+      ? calculateEarnedPointsWithPolicy(order.total, activeWave.config, totalSpent)
+      : { earned: pointsForTotal(order.total), basePoints: pointsForTotal(order.total), multiplier: 1.0, tierKey: computeTier(totalSpent).key }
+    const earned = calc.earned
     if (earned <= 0) return
 
     const updated = await db.customer.update({
@@ -147,10 +182,10 @@ export async function awardPointsForCompletedOrder(orderId: string): Promise<voi
       data: { points: { increment: earned } },
     })
 
-    const totalSpent = await db.order
-      .aggregate({ where: { customerId: customer.id, status: { not: 'CANCELLED' } }, _sum: { total: true } })
-      .then((r) => r._sum.total ?? 0)
-    const tier = computeTier(totalSpent)
+    const tier = activeWave ? computeTierWithPolicy(totalSpent, activeWave.config) : computeTier(totalSpent)
+    const earnRateLabel = activeWave
+      ? `1 điểm / ${activeWave.config.earnVndPerPoint.toLocaleString('vi-VN')}đ${calc.multiplier !== 1 ? ` (x${calc.multiplier})` : ''}`
+      : '1 điểm / 10.000đ'
 
     await recordLineageChange({
       scope: 'CUSTOMER',
@@ -169,7 +204,11 @@ export async function awardPointsForCompletedOrder(orderId: string): Promise<voi
         orderCode: order.code,
         orderTotal: order.total,
         earned,
-        rate: '1 điểm / 10.000đ',
+        basePoints: calc.basePoints,
+        multiplier: calc.multiplier,
+        rate: earnRateLabel,
+        waveCode: activeWave?.waveCode ?? 'DOT-2026-01',
+        waveName: activeWave?.name,
         pointsBefore: customer.points,
         pointsAfter: updated.points,
         memberCode: customer.memberCode,

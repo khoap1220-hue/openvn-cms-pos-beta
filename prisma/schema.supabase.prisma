@@ -1,0 +1,774 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id                String           @id @default(cuid())
+  sku               String           @unique
+  barcode           String?          @unique // MÃƒ Váº CH (CODE128 â€” dÃ¹ng cho in nhÃ£n & quÃ©t nhanh)
+  name              String
+  description       String?
+  categoryId        String?
+  category          Category?        @relation(fields: [categoryId], references: [id])
+  costPrice         Float            @default(0)
+  sellPrice         Float            @default(0)
+  stock             Int              @default(0)
+  lowStockThreshold Int              @default(5)
+  image             String?
+  status            String           @default("ACTIVE")
+  attributes        String? // Äáº¶C TÃNH (Invoice Pro: mÃ´ táº£ thuá»™c tÃ­nh SP)
+  unit              String           @default("sp")
+  type              String           @default("SIMPLE") // SIMPLE | COMBO â€” Combo/Set quÃ  táº·ng: thÃ nh pháº§n khai bÃ¡o á»Ÿ Äá»‹nh má»©c (BomComponent), xuáº¥t bÃ¡n tá»± trá»« kho thÃ nh pháº§n
+  fragile           Boolean          @default(false) // hÃ ng dá»… vá»¡ (gá»‘m sá»© / náº¿n / thá»§y tinh) â€” in cáº£nh bÃ¡o trÃªn phiáº¿u gá»­i hÃ ng A6
+  ownerWarehouseId  String?          // null / kho ná»™i bá»™ = hÃ ng tá»± doanh Â· trá» tá»›i PARTNER_SHOP = hÃ ng Ä‘á»‘i tÃ¡c liÃªn káº¿t bÃ¡n chÃ©o
+  crossSellRate     Float?           // % hoa há»“ng bÃ¡n chÃ©o riÃªng cho SP nÃ y (null = dÃ¹ng commissionPct cá»§a Warehouse)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  orderItems        OrderItem[]
+  listings          ChannelListing[]
+  stockMovements    StockMovement[]
+  warehouseStocks   WarehouseStock[]
+  bomFinished       BomComponent[]   @relation("BomFinished")
+  bomMaterials      BomComponent[]   @relation("BomMaterial")
+  purchaseItems     PurchaseInvoiceItem[] @relation("PurchaseItems")
+  salesItems        SalesInvoiceItem[]    @relation("SalesItems")
+}
+
+model Channel {
+  id         String           @id @default(cuid())
+  key        String           @unique
+  name       String
+  color      String           @default("#10b981")
+  connected  Boolean          @default(false)
+  feePercent Float            @default(0)
+  syncedAt   DateTime?
+  createdAt  DateTime         @default(now())
+  listings   ChannelListing[]
+  orders     Order[]
+}
+
+model ChannelListing {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  price     Float? // GIÃ BÃN RIÃŠNG trÃªn kÃªnh (null = dÃ¹ng giÃ¡ bÃ¡n chung Product.sellPrice)
+  status    String   @default("ACTIVE")
+  // Äá»’NG Bá»˜ MÃ” Táº¢ â€” Product.description lÃ  nguá»“n chÃ¢n lÃ½; báº£n sao Ä‘áº©y lÃªn kÃªnh + thá»i Ä‘iá»ƒm Ä‘á»“ng bá»™
+  description         String?
+  descriptionSyncedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, channelId])
+}
+
+model Customer {
+  id         String          @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  isMember   Boolean         @default(false) // false = KhÃ¡ch hÃ ng Â· true = ThÃ nh viÃªn (chÆ°Æ¡ng trÃ¬nh khÃ¡ch hÃ ng thÃ¢n thiáº¿t)
+  memberCode String?         @unique // MÃƒ THÃ€NH VIÃŠN cáº¥p khi Ä‘Äƒng kÃ½ (TV0001, TV0002, ...)
+  memberAt   DateTime?       // thá»i Ä‘iá»ƒm nÃ¢ng cáº¥p thÃ nh viÃªn
+  points     Int             @default(0) // Ä‘iá»ƒm tÃ­ch lÅ©y: 1 Ä‘iá»ƒm / 10.000Ä‘ Ä‘Æ¡n hoÃ n táº¥t â€” dÃ¹ng Ä‘á»•i quÃ /giáº£m giÃ¡
+  // ===== TRÃ NHá»š DÃ€I Háº N + CHÃ‚N DUNG KHÃCH HÃ€NG (Long-term Context Summary) =====
+  avatarUrl       String?    // áº£nh Ä‘áº¡i diá»‡n (DiceBear/URL) â€” null thÃ¬ render chá»¯ cÃ¡i Ä‘áº§u
+  salutation      String?    // cÃ¡ch xÆ°ng hÃ´ cá»‘ Ä‘á»‹nh: "Em - Chá»‹ Nhung", "Em - Anh QuÃ¢n"
+  inferredProfile String?    // JSON nháº­n diá»‡n tá»« tÃªn + avatar: {gender, ageHint, style, note}
+  contextSummary  String?    // tÃ³m táº¯t ngá»¯ cáº£nh tÃ­ch lÅ©y qua Ä‘Æ¡n/chat/Ä‘Ã¡nh giÃ¡
+  preferences     String?    // JSON máº£ng sá»Ÿ thÃ­ch/nhu cáº§u: gu mÃ¹i hÆ°Æ¡ng, mua dÃ¹ng/biáº¿u, DIY...
+  painPoints      String?    // JSON máº£ng váº¥n Ä‘á» tá»«ng gáº·p/gÃ³p Ã½: "náº¯p gá»— chÆ°a khÃ­t"...
+  nextFollowUp    String?    // gá»£i Ã½ thá»i Ä‘iá»ƒm/nhu cáº§u chÄƒm sÃ³c tiáº¿p theo
+  memoryUpdatedAt DateTime?  // láº§n cháº¯t lá»c trÃ­ nhá»› gáº§n nháº¥t
+  createdAt  DateTime        @default(now())
+  orders     Order[]
+  messages   DirectMessage[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  channelId     String
+  channel       Channel     @relation(fields: [channelId], references: [id])
+  status        String      @default("PENDING")
+  paymentMethod String      @default("COD")
+  paymentStatus String      @default("UNPAID")
+  subtotal      Float       @default(0)
+  shippingFee   Float       @default(0)
+  total         Float       @default(0)
+  warehouseId   String?     // Kho xuáº¥t hÃ ng cá»§a Ä‘Æ¡n (máº·c Ä‘á»‹nh: Kho Trung TÃ¢m Æ¯u ÄÃ m)
+  voucherCode   String?     // MÃ£ giáº£m giÃ¡ / Voucher Ä‘Ã£ Ã¡p dá»¥ng
+  discountAmount Float      @default(0) // Tá»•ng sá»‘ tiá»n chiáº¿t kháº¥u + voucher + Ä‘á»•i Ä‘iá»ƒm
+  platformFeePct Float      @default(0) // snapshot % phÃ­ sÃ n TMÄT lÃºc táº¡o Ä‘Æ¡n (tá»« Channel.feePercent)
+  platformFee    Float      @default(0) // snapshot tiá»n phÃ­ sÃ n (subtotal Ã— pct/100) â€” trá»« khi Ä‘á»‘i soÃ¡t Ä‘á»ƒ tÃ­nh lá»£i nhuáº­n thá»±c nháº­n
+  note          String?
+  address       String?
+  reviewRating  Int?
+  reviewComment String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         OrderItem[]
+  shipments     Shipment[]
+  events        OrderEvent[]
+  afterSalesCases AfterSalesCase[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+  price     Float   @default(0)
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String?
+  type        String
+  quantity    Int
+  stockAfter  Int
+  note        String?
+  createdAt   DateTime @default(now())
+}
+
+// ===== Lá»›p váº­n hÃ nh tá»± Ä‘á»™ng (Agent Autopilot) =====
+
+model Shipment {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier      String // GHN | GHTK | VIETTEL | JT | NINJA
+  trackingCode String   @unique
+  status       String   @default("DISPATCHED") // DISPATCHED | PICKED_UP | IN_TRANSIT | DELIVERED | RETURNED
+  fee          Float    @default(0)
+  codStatus    String   @default("PENDING") // PENDING (chá» Ä‘á»‘i soÃ¡t) | RECEIVED (Ä‘Ã£ nháº­n COD) | RECONCILED (Ä‘Ã£ Ä‘á»‘i soÃ¡t vÃ o sá»•)
+  codAmount    Float    @default(0) // tiá»n thu há»™ dá»± kiáº¿n (COD)
+  codReceived  Float    @default(0) // tiá»n COD thá»±c nháº­n tá»« ÄVVC chuyá»ƒn vá»
+  codReceivedAt DateTime?
+  codNote      String?
+  dispatchedBy String   @default("AGENT") // AGENT | OPERATOR
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AgentActivity {
+  id          String   @id @default(cuid())
+  agent       String // CONFIRM_AGENT | LOGISTICS_AGENT | CARE_AGENT | REVIEW_AGENT | SUPPORT_AGENT
+  action      String // CONFIRM_ORDER | START_PACKING | NOTIFY_CARRIER | PICKUP | IN_TRANSIT | DELIVERY_NOTICE | CARE_MESSAGE | REQUEST_REVIEW | AUTO_REPLY | ORDER_RECEIVED | MANUAL_ACTION
+  level       String   @default("info") // info | success | warning | error
+  targetType  String? // ORDER | CUSTOMER | CONVERSATION
+  targetId    String?
+  targetLabel String?
+  message     String
+  detail      String?
+  createdAt   DateTime @default(now())
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type      String // CREATED | CONFIRMED | PACKING | CARRIER_DISPATCHED | PICKED_UP | IN_TRANSIT | DELIVERED | CARE_SENT | REVIEW_REQUESTED | REVIEW_RECEIVED | STATUS_CHANGED | CANCELLED
+  actor     String // AGENT | OPERATOR | SYSTEM | CUSTOMER
+  title     String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model DirectMessage {
+  id             String    @id @default(cuid())
+  channelKey     String // ZALO_OA | ZALO_PERSONAL
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  sender         String // CUSTOMER | AGENT | OPERATOR
+  agentName      String?
+  content        String
+  relatedOrderId String?
+  isAuto         Boolean   @default(false)
+  readAt         DateTime?
+  // ===== MULTIMODAL + REACTIONS =====
+  imageUrl       String?   // áº£nh khÃ¡ch Ä‘Ã­nh kÃ¨m (URL/dataURL)
+  imageAnalysis  String?   // AI mÃ´ táº£/nháº­n diá»‡n ná»™i dung áº£nh
+  reactions      String?   // JSON máº£ng reaction Agent tháº£: [{emoji:"â¤ï¸", agent:"SUPPORT_AGENT", at}]
+  createdAt      DateTime  @default(now())
+}
+
+model AutomationSetting {
+  key       String   @id // master | auto_confirm | auto_carrier | auto_care | auto_review | auto_reply
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// Sá»” DATA â€” sá»• cÃ¡i tá»•ng: má»i dá»¯ liá»‡u & thao tÃ¡c Ä‘á»u ghi vÃ o Ä‘Ã¢y
+// ============================================================
+
+model LedgerEntry {
+  id         String   @id @default(cuid())
+  scope      String // ORDER | INVOICE | INVENTORY | AGENT | WEBHOOK | PARTNER | BOM | AFTERSALES | PERIOD | SETTINGS | CHANNEL | MESSAGE | CUSTOMER | SYSTEM
+  action     String
+  entityType String?
+  entityId   String?
+  entityCode String?
+  title      String
+  detail     String? // JSON chi tiáº¿t
+  actor      String   @default("SYSTEM") // AGENT | OPERATOR | SYSTEM | CUSTOMER | API
+
+  // ===== DATA PROVENANCE â€” truy xuáº¥t nguá»“n gá»‘c & kiá»ƒm toÃ¡n thay Ä‘á»•i =====
+  originSource   String? // SHOPEE_SYNC | ZALO_OA | POS | AGENT_AUTOPILOT | BARCODE_SCAN | MANUAL_ADMIN | SYSTEM_SEED â€” nguá»“n gá»‘c sinh dá»¯ liá»‡u
+  actorName      String? // tÃªn hiá»ƒn thá»‹ cá»§a ngÆ°á»i/Agent thá»±c hiá»‡n ("Agent Kho váº­n", "NgÆ°á»i váº­n hÃ nh", "Æ¯u ÄÃ m Admin")
+  sourceRefCode  String? // mÃ£ chá»©ng tá»« gá»‘c liÃªn káº¿t (DH261024-xxxx, PXK..., GHTK..., TV0001...)
+  beforeSnapshot String? // JSON tráº¡ng thÃ¡i TRÆ¯á»šC khi thay Ä‘á»•i (null = báº£n ghi khá»Ÿi táº¡o)
+  afterSnapshot  String? // JSON tráº¡ng thÃ¡i SAU khi thay Ä‘á»•i
+  changedFields  String? // JSON máº£ng tÃªn trÆ°á»ng thay Ä‘á»•i, vd: ["status","codStatus","stock"]
+
+  createdAt  DateTime @default(now())
+
+  @@index([scope])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([originSource])
+}
+
+// ============================================================
+// INVOICE PRO â€” Háº¡ch toÃ¡n ná»™i bá»™ & Quáº£n lÃ½ hÃ³a Ä‘Æ¡n
+// ============================================================
+
+model Partner {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  name             String // TÃªn Ä‘Æ¡n vá»‹
+  taxCode          String? // MÃ£ sá»‘ thuáº¿ (MST)
+  address          String?
+  phone            String?
+  email            String?
+  type             String   @default("SUPPLIER") // SUPPLIER | CUSTOMER | BOTH
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  purchaseInvoices PurchaseInvoice[]
+  salesInvoices    SalesInvoice[]
+}
+
+model BomComponent {
+  id                 String   @id @default(cuid())
+  productId          String // thÃ nh pháº©m
+  product            Product  @relation("BomFinished", fields: [productId], references: [id], onDelete: Cascade)
+  componentProductId String // nguyÃªn váº­t liá»‡u
+  componentProduct   Product  @relation("BomMaterial", fields: [componentProductId], references: [id], onDelete: Cascade)
+  quantity           Float    @default(1) // Ä‘á»‹nh má»©c cho 1 thÃ nh pháº©m
+  createdAt          DateTime @default(now())
+
+  @@unique([productId, componentProductId])
+}
+
+model PurchaseInvoice {
+  id          String                @id @default(cuid())
+  code        String                @unique
+  partnerId   String?
+  partner     Partner?              @relation(fields: [partnerId], references: [id])
+  invoiceDate DateTime              @default(now())
+  subtotal    Float                 @default(0)
+  vatRate     Float                 @default(8)
+  vatAmount   Float                 @default(0)
+  total       Float                 @default(0)
+  status      String                @default("POSTED") // POSTED | CANCELLED
+  note        String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  items       PurchaseInvoiceItem[]
+}
+
+model PurchaseInvoiceItem {
+  id        String          @id @default(cuid())
+  invoiceId String
+  invoice   PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation("PurchaseItems", fields: [productId], references: [id])
+  quantity  Float           @default(1)
+  unitPrice Float           @default(0)
+  amount    Float           @default(0)
+}
+
+model SalesInvoice {
+  id          String             @id @default(cuid())
+  code        String             @unique
+  orderId     String?
+  partnerId   String?
+  partner     Partner?           @relation(fields: [partnerId], references: [id])
+  invoiceDate DateTime           @default(now())
+  subtotal    Float              @default(0)
+  vatRate     Float              @default(8)
+  vatAmount   Float              @default(0)
+  total       Float              @default(0)
+  status      String             @default("POSTED") // POSTED | CANCELLED
+  note        String?
+  // THIáº¾T Láº¬P HÃ“A ÄÆ N â€” ghi sá»‘ & snapshot máº«u in lÃºc táº¡o (hÃ³a Ä‘Æ¡n cÅ© giá»¯ nguyÃªn máº«u sá»‘/kÃ½ hiá»‡u)
+  invoiceNo     Int?    // Sá» HÃ“A ÄÆ N â€” tÄƒng dáº§n toÃ n cá»¥c, báº¯t Ä‘áº§u tá»« setting invoice_number_start
+  series        String? // KÃ½ hiá»‡u chá»¥p láº¡i lÃºc táº¡o (vd AA/26E)
+  templateCode  String? // Máº«u sá»‘ chá»¥p láº¡i lÃºc táº¡o (vd 01GTKT0/001)
+  paymentMethod String? // HÃ¬nh thá»©c thanh toÃ¡n chá»¥p tá»« Ä‘Æ¡n hÃ ng (COD | BANKING | MOMO | CARD)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  items       SalesInvoiceItem[]
+
+  @@index([invoiceNo])
+}
+
+model SalesInvoiceItem {
+  id        String       @id @default(cuid())
+  invoiceId String
+  invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product      @relation("SalesItems", fields: [productId], references: [id])
+  quantity  Float        @default(1)
+  unitPrice Float        @default(0)
+  amount    Float        @default(0)
+}
+
+model AccountingPeriod {
+  id        String    @id @default(cuid())
+  year      Int
+  quarter   Int
+  status    String    @default("OPEN") // OPEN | CLOSED
+  closedAt  DateTime?
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([year, quarter])
+}
+
+model AppSetting {
+  key       String   @id // gemini_api_key | company_name | company_tax | company_address | vat_default
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ===== Sau bÃ¡n hÃ ng: Äá»•i tráº£ / Báº£o hÃ nh =====
+
+model AfterSalesCase {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type         String // RETURN | EXCHANGE | WARRANTY
+  status       String   @default("OPEN") // OPEN | PROCESSING | RESOLVED | REJECTED
+  reason       String
+  resolution   String?
+  refundAmount Float    @default(0)
+  handledBy    String   @default("OPERATOR") // OPERATOR | AGENT
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ===== API & Webhook â€” tÃ­ch há»£p hai chiá»u =====
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  key        String    @unique
+  secret     String
+  active     Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  name       String
+  url        String
+  secret     String
+  events     String // chuá»—i phÃ¢n tÃ¡ch dáº¥u pháº©y, * = táº¥t cáº£
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id           String          @id @default(cuid())
+  endpointId   String
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event        String
+  payload      String
+  signature    String
+  status       String          @default("PENDING") // PENDING | SUCCESS | FAILED
+  attempts     Int             @default(0)
+  responseCode Int?
+  error        String?
+  createdAt    DateTime        @default(now())
+}
+
+model IntegrationCredential {
+  id        String   @id @default(cuid())
+  provider  String // GHN | GHTK | VIETTEL | JT | NINJA | ZALO_OA | PAYOS | GEMINI
+  name      String
+  config    String // JSON
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider])
+}
+
+// ============================================================
+// ÄA KHO & LIÃŠN Káº¾T SHOP BÃN CHÃ‰O + CHÆ¯Æ NG TRÃŒNH VOUCHER
+// ============================================================
+
+model Warehouse {
+  id            String           @id @default(cuid())
+  code          String           @unique // KHO-TRUNG-TAM | KHO-CN-Q1 | SHOP-GOM-ZEN | SHOP-TRAM-AN-LAC
+  name          String
+  type          String           @default("INTERNAL") // INTERNAL (Kho ná»™i bá»™ / Chi nhÃ¡nh) | PARTNER_SHOP (Shop Ä‘á»‘i tÃ¡c liÃªn káº¿t bÃ¡n chÃ©o)
+  address       String?
+  phone         String?
+  managerName   String?
+  commissionPct Float            @default(15) // % hoa há»“ng bÃ¡n chÃ©o khi bÃ¡n há»™ hÃ ng cá»§a Shop liÃªn káº¿t
+  isDefault     Boolean          @default(false)
+  active        Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  stocks        WarehouseStock[]
+}
+
+model WarehouseStock {
+  id          String    @id @default(cuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity    Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([warehouseId, productId])
+}
+
+model Voucher {
+  id             String    @id @default(cuid())
+  code           String    @unique // UUDAM10 | PHATDAN50K | LIENKET15 | FREESHIP0D
+  title          String
+  description    String?
+  discountType   String    @default("PERCENT") // PERCENT | FIXED | FREESHIP
+  discountValue  Float     @default(10) // 10 (%) hoáº·c 50000 (Ä‘)
+  maxDiscount    Float?    // Tráº§n giáº£m tá»‘i Ä‘a cho PERCENT (vd: 50000)
+  minOrderAmount Float     @default(0) // ÄÆ¡n tá»‘i thiá»ƒu Ä‘Æ°á»£c Ã¡p dá»¥ng
+  usageLimit     Int?      // null = khÃ´ng giá»›i háº¡n
+  usedCount      Int       @default(0)
+  scope          String    @default("ALL") // ALL (Má»i Ä‘Æ¡n) | ALLIANCE (Æ¯u Ä‘Ã£i mua chÃ©o LiÃªn Shop)
+  active         Boolean   @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ============================================================
+// AUTO SOCIAL MODULE: CRM CAMPAIGNS & MULTI-PLATFORM PUBLISHING
+// ============================================================
+
+model Campaign {
+  id                String          @id @default(cuid())
+  code              String          @unique // MÃ£ chiáº¿n dá»‹ch: CP-202610-001, CP-VULAN-2026
+  name              String          // TÃªn chÆ°Æ¡ng trÃ¬nh
+  title             String?         // TiÃªu Ä‘á» hiá»ƒn thá»‹ truyá»n thÃ´ng (fallback vá» name náº¿u null)
+  description       String?         // MÃ´ táº£ chi tiáº¿t thÃ´ng Ä‘iá»‡p & má»¥c tiÃªu
+  startDate         DateTime        // Thá»i gian báº¯t Ä‘áº§u
+  endDate           DateTime        // Thá»i gian káº¿t thÃºc
+  status            String          @default("UPCOMING") // UPCOMING | RUNNING | ENDED | CANCELLED
+  discountPercent   Float?          // % giáº£m giÃ¡ chung náº¿u cÃ³ (vd: 10)
+  discountAmount    Float?          // Sá»‘ tiá»n giáº£m trá»±c tiáº¿p náº¿u cÃ³ (vd: 50000)
+  voucherId         String?         // ID voucher chÃ­nh liÃªn káº¿t
+  voucherCode       String?         // Snapshot mÃ£ voucher (UUDAM10...) Ä‘á»ƒ AI Ä‘á»c trá»±c tiáº¿p
+  appliedProductIds String?         // JSON máº£ng ID sáº£n pháº©m Ã¡p dá»¥ng: ["prod_1", "prod_2"]
+  appliedVoucherIds String?         // JSON máº£ng ID voucher Ã¡p dá»¥ng: ["vouch_1", "vouch_2"]
+  productOverrides  String?         // JSON map ghi Ä‘Ã¨ giÃ¡/chiáº¿t kháº¥u riÃªng tá»«ng SP: {"prodId": {"specialPrice": 99000, "discountPercent": 20}}
+  bannerUrl         String?         // Banner chÃ­nh cá»§a chiáº¿n dá»‹ch
+  tags              String?         // JSON máº£ng tá»« khÃ³a: ["vulan", "muavuon", "uudam"]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  plans             SocialPlan[]
+  posts             SocialPost[]
+  contentSources    ContentSource[]
+
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model ContentSource {
+  id             String              @id @default(cuid())
+  name           String              // TÃªn nguá»“n tÆ° liá»‡u (vd: Kho áº£nh Google Drive Vu Lan 2026)
+  driveFolderUrl String              // URL thÆ° má»¥c Google Drive cÃ´ng khai
+  folderId       String?             // ID thÆ° má»¥c bÃ³c tÃ¡ch tá»« Drive URL
+  description    String?             // Ghi chÃº mÃ´ táº£
+  campaignId     String?             // LiÃªn káº¿t vá»›i Campaign (náº¿u cÃ³)
+  campaign       Campaign?           @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  productId      String?             // LiÃªn káº¿t vá»›i Product (náº¿u cÃ³)
+  syncStatus     String              @default("IDLE") // IDLE | SYNCING | SYNCED | ERROR
+  lastSyncedAt   DateTime?           // Thá»i Ä‘iá»ƒm Ä‘á»“ng bá»™ thÃ nh cÃ´ng gáº§n nháº¥t
+  syncError      String?             // ThÃ´ng bÃ¡o lá»—i chi tiáº¿t náº¿u Ä‘á»“ng bá»™ tháº¥t báº¡i
+  itemCount      Int                 @default(0) // Tá»•ng sá»‘ tá»‡p/thÆ° má»¥c quÃ©t Ä‘Æ°á»£c
+  fileTree       String?             // JSON cáº¥u trÃºc cÃ¢y thÆ° má»¥c phÃ¢n cáº¥p & tÃ³m táº¯t
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  items          ContentSourceItem[]
+
+  @@index([campaignId])
+  @@index([syncStatus])
+}
+
+model ContentSourceItem {
+  id              String        @id @default(cuid())
+  contentSourceId String
+  contentSource   ContentSource @relation(fields: [contentSourceId], references: [id], onDelete: Cascade)
+  driveFileId     String        // ID tá»‡p trÃªn Google Drive
+  name            String        // TÃªn tá»‡p
+  mimeType        String        // Loáº¡i MIME (image/jpeg, video/mp4, application/vnd.google-apps.document...)
+  fileType        String        // IMAGE | VIDEO | DOCUMENT | SHEET | FOLDER | OTHER
+  sizeBytes       Int?          // Dung lÆ°á»£ng tá»‡p tÃ­nh theo byte
+  webViewLink     String?       // Link xem trÃªn trÃ¬nh duyá»‡t
+  downloadUrl     String?       // Link táº£i trá»±c tiáº¿p
+  thumbnailUrl    String?       // Link áº£nh thu nhá»
+  parentFolderId  String?       // ID thÆ° má»¥c cha (há»— trá»£ duyá»‡t cÃ¢y 3 cáº¥p)
+  path            String?       // ÄÆ°á»ng dáº«n tÆ°Æ¡ng Ä‘á»‘i: /VuLan/HinhAnh/Anh1.jpg
+  textContent     String?       // Ná»™i dung text trÃ­ch xuáº¥t tá»« Google Docs / Docx / Sheet / txt
+  metadata        String?       // JSON thÃ´ng sá»‘ bá»• sung (chiá»u rá»™ng, cao, sá»‘ sheets...)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([contentSourceId])
+  @@index([fileType])
+  @@index([driveFileId])
+}
+
+model SocialPlan {
+  id             String       @id @default(cuid())
+  campaignId     String?
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title          String       // TiÃªu Ä‘á» káº¿ hoáº¡ch: Lá»‹ch Ä‘Äƒng 7 kÃªnh chiáº¿n dá»‹ch Vu Lan
+  description    String?      // TÃ³m táº¯t Ä‘á»‹nh hÆ°á»›ng ná»™i dung
+  targetAudience String?      // Äá»‘i tÆ°á»£ng Ä‘á»™c giáº£ má»¥c tiÃªu
+  brandTone      String?      @default("Trang nhÃ£, tá»« bi, hÆ°á»›ng thiá»‡n, chÃ¢n thÃ nh Æ¯u ÄÃ m")
+  status         String       @default("DRAFT") // DRAFT | GENERATED | APPROVED | ARCHIVED
+  aiModel        String?      @default("gemini-2.0-flash")
+  promptUsed     String?      // Prompt há»‡ thá»‘ng sá»­ dá»¥ng khi sinh káº¿ hoáº¡ch
+  startDate      DateTime?
+  endDate        DateTime?
+  totalPosts     Int          @default(0)
+  approvedPosts  Int          @default(0)
+  publishedPosts Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  posts          SocialPost[]
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+model SocialPost {
+  id               String      @id @default(cuid())
+  planId           String?
+  plan             SocialPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  campaignId       String?
+  campaign         Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  
+  // 7 ná»n táº£ng: FACEBOOK | ZALO_OA | WEBSITE | EXTERNAL_CMS | INSTAGRAM | TIKTOK | THREADS
+  channel          String
+  
+  title            String?     // TiÃªu Ä‘á» bÃ i viáº¿t (cho Website Blog, Article)
+  slug             String?     // Slug duy nháº¥t hiá»ƒn thá»‹ trÃªn website cÃ´ng khai (/blog/[slug])
+  content          String      // Ná»™i dung chÃ­nh (caption / post copy / ká»‹ch báº£n)
+  excerpt          String?     // TÃ³m táº¯t ngáº¯n hiá»ƒn thá»‹ á»Ÿ card hoáº·c SEO
+  mediaUrls        String?     // JSON máº£ng URL áº£nh/video: ["https://..."]
+  mediaType        String?     @default("IMAGE") // NONE | IMAGE | VIDEO | CAROUSEL
+  hashtags         String?     // JSON máº£ng hoáº·c chuá»—i hashtag: "#uudam #vulan"
+  targetUrl        String?     // LiÃªn káº¿t Ä‘Ã­ch kÃªu gá»i hÃ nh Ä‘á»™ng (CTA link)
+  
+  // VÃ²ng Ä‘á»i duyá»‡t & Ä‘Äƒng: DRAFT | PENDING_APPROVAL | APPROVED | SCHEDULED | PUBLISHING | PUBLISHED | FAILED | REJECTED
+  status           String      @default("DRAFT")
+  
+  scheduledAt      DateTime?   // Thá»i gian háº¹n giá» Ä‘Äƒng
+  publishedAt      DateTime?   // Thá»i gian thá»±c táº¿ Ä‘Äƒng thÃ nh cÃ´ng
+  
+  // Duyá»‡t bÃ i (R4)
+  approvalNote     String?     // Ã kiáº¿n pháº£n há»“i / lÃ½ do tá»« chá»‘i cá»§a chá»§ tiá»‡m
+  approvedBy       String?     // NgÆ°á»i duyá»‡t
+  approvedAt       DateTime?
+  
+  // KhÃ³a chá»‘ng xuáº¥t báº£n trÃ¹ng láº·p (Concurrency Idempotency Lock - FEAT-REV-03)
+  isPublishing     Boolean     @default(false)
+  
+  // Káº¿t quáº£ xuáº¥t báº£n & truy váº¿t lá»—i (FEAT-REV-05)
+  externalPostId   String?     // ID bÃ i viáº¿t tráº£ vá» tá»« ná»n táº£ng (fb_post_123, zalo_msg_456...)
+  externalPostUrl  String?     // Link xem bÃ i viáº¿t tháº­t trÃªn MXH
+  publishError     String?     // Chi tiáº¿t lá»—i náº¿u Ä‘Äƒng tháº¥t báº¡i
+  retryCount       Int         @default(0) // Sá»‘ láº§n Ä‘Ã£ thá»­ láº¡i
+  isMock           Boolean     @default(true) // Cá» Ä‘Ã¡nh dáº¥u xuáº¥t báº£n qua adapter Safe Mock hay Live
+  payloadSnapshot  String?     // JSON snapshot toÃ n bá»™ payload gá»­i Ä‘i
+  responseSnapshot String?     // JSON snapshot response tráº£ vá» tá»« adapter
+  
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([campaignId])
+  @@index([planId])
+  @@index([channel])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([slug])
+}
+
+model SocialChannelConfig {
+  id              String   @id @default(cuid())
+  // Ná»n táº£ng: FACEBOOK | ZALO_OA | WEBSITE | EXTERNAL_CMS | INSTAGRAM | TIKTOK | THREADS
+  platform        String   @unique
+  name            String   // TÃªn hiá»ƒn thá»‹: Fanpage Facebook Æ¯u ÄÃ m, Zalo OA...
+  enabled         Boolean  @default(true)
+  isMock          Boolean  @default(true) // true: Safe Mock; false: Live API
+  credentials     String?  // JSON lÆ°u tokens, page IDs, webhooks (báº£o máº­t)
+  characterLimit  Int      @default(2000) // Giá»›i háº¡n kÃ½ tá»± tá»‘i Ä‘a cá»§a ná»n táº£ng
+  supportsVideo   Boolean  @default(true)
+  supportsImages  Boolean  @default(true)
+  maxImages       Int      @default(10)
+  requiresMedia   Boolean  @default(false) // Báº¯t buá»™c cÃ³ media (Instagram, TikTok)
+  autoPublish     Boolean  @default(false) // Tá»± Ä‘á»™ng phÃ¡t lá»‡nh khi tá»›i giá» háº¹n
+  defaultHashtags String?  // Hashtag máº·c Ä‘á»‹nh cho kÃªnh
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  entityType   String   // Campaign | ContentSource | SocialPlan | SocialPost | SocialChannelConfig
+  entityId     String   // ID báº£n ghi tÃ¡c Ä‘á»™ng
+  action       String   // CREATE | UPDATE | DELETE | SYNC | AI_GENERATE | APPROVE | REJECT | RESCHEDULE | PUBLISH | RETRY | ERROR
+  actor        String   @default("OPERATOR") // OPERATOR | AI | SYSTEM | CRON
+  actorName    String?  // TÃªn ngÆ°á»i thao tÃ¡c ("Chá»§ tiá»‡m Æ¯u ÄÃ m", "Gemini Social AI")
+  details      String?  // JSON lÆ°u diff trÆ°á»›c/sau, payload request, hoáº·c response
+  status       String   @default("SUCCESS") // SUCCESS | FAILED | WARNING
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================
+// IAM & BEHAVIOR AUDIT: ÄÄ‚NG NHáº¬P ÄA TÃ€I KHOáº¢N, PHÃ‚N QUYá»€N RBAC & NHáº¬T KÃ HÃ€NH VI
+// ============================================================
+
+model StaffUser {
+  id                 String         @id @default(cuid())
+  username           String         @unique // admin | quanly | thungan | thukho | ketoan | marketing
+  displayName        String         // Há» tÃªn & chá»©c danh hiá»ƒn thá»‹
+  email              String?
+  phone              String?
+  avatarColor        String         @default("#0066CC")
+  role               String         @default("CASHIER_POS") // ADMIN | MANAGER | CASHIER_POS | WAREHOUSE | ACCOUNTANT | MARKETING
+  passwordHash       String         // BÄƒm SHA-256 cÃ³ salt, tuyá»‡t Ä‘á»‘i khÃ´ng lÆ°u plaintext
+  pinHash            String?        // BÄƒm mÃ£ PIN 4-6 sá»‘ Ä‘Äƒng nháº­p nhanh táº¡i quáº§y POS / Ä‘iá»‡n thoáº¡i
+  customPermissions  String?        // JSON ghi Ä‘Ã¨ quyá»n chi tiáº¿t theo domain: {"finance":"READ","pos":"FULL"}
+  allowedWarehouseId String?        // Giá»›i háº¡n kho xuáº¥t bÃ¡n (náº¿u lÃ  nhÃ¢n viÃªn chi nhÃ¡nh)
+  status             String         @default("ACTIVE") // ACTIVE | LOCKED
+  failedLoginCount   Int            @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  lastSeenAt         DateTime?
+  note               String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  sessions           StaffSession[]
+  behaviorLogs       BehaviorLog[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model StaffSession {
+  id            String     @id @default(cuid())
+  userId        String
+  user          StaffUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress     String?
+  userAgent     String?
+  deviceType    String     @default("DESKTOP") // MOBILE | TABLET | DESKTOP
+  deviceLabel   String?    // VD: "iPhone Â· Safari (Mobile)", "Windows Â· Chrome (Desktop)"
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+  lastActiveAt  DateTime   @default(now())
+  createdAt     DateTime   @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model BehaviorLog {
+  id         String     @id @default(cuid())
+  userId     String?
+  user       StaffUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId  String?
+  username   String?
+  actorName  String     // TÃªn hiá»ƒn thá»‹ ngÆ°á»i thao tÃ¡c hoáº·c "KhÃ¡ch chÆ°a Ä‘Äƒng nháº­p" / "API Key"
+  actorRole  String     @default("ANONYMOUS") // ADMIN | MANAGER | CASHIER_POS | WAREHOUSE | ACCOUNTANT | MARKETING | API_KEY | ANONYMOUS
+  category   String     // AUTH | NAVIGATION | MUTATION | EXPORT | SECURITY | IAM
+  action     String     // LOGIN_SUCCESS | LOGIN_FAILED | LOGIN_LOCKED | LOGOUT | SESSION_REVOKED | VIEW_MODULE | QUICK_SEARCH | API_MUTATION | DATA_EXPORT | PRINT_DOCUMENT | PERMISSION_DENIED | USER_CREATED | USER_UPDATED | ROLE_CHANGED | PASSWORD_CHANGED | POLICY_UPDATED
+  module     String?    // dashboard | pos | orders | inventory | accounting | iam | system ...
+  method     String?    // GET | POST | PATCH | PUT | DELETE | UI
+  path       String?    // /api/orders | /pos | /?view=orders ...
+  targetType String?
+  targetCode String?
+  summary    String     // TÃ³m táº¯t hÃ nh vi tiáº¿ng Viá»‡t rÃµ nghÄ©a
+  metadata   String?    // JSON ngá»¯ cáº£nh Ä‘Ã£ áº©n toÃ n bá»™ máº­t kháº©u/token/secret
+  riskLevel  String     @default("LOW") // LOW | MEDIUM | HIGH
+  status     String     @default("SUCCESS") // SUCCESS | DENIED | FAILED
+  statusCode Int?
+  durationMs Int?       // Thá»i lÆ°á»£ng lÆ°u trang (ms) hoáº·c Ä‘á»™ trá»… xá»­ lÃ½
+  ipAddress  String?
+  deviceType String?    // MOBILE | TABLET | DESKTOP | API
+  userAgent  String?
+  createdAt  DateTime   @default(now())
+
+  @@index([createdAt])
+  @@index([category])
+  @@index([userId])
+  @@index([riskLevel])
+  @@index([module])
+}
+
+model SecurityPolicy {
+  id                  String   @id @default("default")
+  authRequired        Boolean  @default(false) // Báº¯t buá»™c Ä‘Äƒng nháº­p khi má»Ÿ CMS & POS
+  maxFailedAttempts   Int      @default(5)     // Sá»‘ láº§n sai máº­t kháº©u tá»‘i Ä‘a trÆ°á»›c khi khÃ³a táº¡m
+  lockoutMinutes      Int      @default(10)    // Thá»i gian khÃ³a táº¡m tÃ i khoáº£n (phÃºt)
+  sessionTtlDays      Int      @default(14)    // Thá»i háº¡n phiÃªn Ä‘Äƒng nháº­p (ngÃ y)
+  showQuickLoginHints Boolean  @default(true)  // Hiá»ƒn thá»‹ gá»£i Ã½ chá»n nhanh tÃ i khoáº£n ca trá»±c táº¡i /login
+  trackNavigation     Boolean  @default(true)  // Ghi nháº­n hÃ nh vi chuyá»ƒn mÃ n hÃ¬nh & thá»i gian thao tÃ¡c
+  updatedAt           DateTime @updatedAt
+}
+

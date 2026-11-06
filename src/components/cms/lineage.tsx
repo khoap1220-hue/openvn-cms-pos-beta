@@ -152,7 +152,7 @@ function SnapshotGrid({ snapshot, tone }: { snapshot: Record<string, unknown>; t
 /** Bảng đối chiếu Trước (đỏ nhạt) → Sau (xanh nhạt) của từng trường thay đổi */
 function DiffTable({ changedFields, before, after }: { changedFields: string[]; before: Record<string, unknown> | null; after: Record<string, unknown> | null }) {
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-xs">
         <thead>
           <tr className="bg-muted/60 text-left text-muted-foreground">

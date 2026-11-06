@@ -46,7 +46,7 @@ export interface InvoicePrintData {
   vatRate: number
   vatAmount: number
   total: number
-  status: 'POSTED' | 'CANCELLED'
+  status: 'POSTED' | 'CANCELLED' | 'DRAFT' | 'APPROVED' | 'PARTIALLY_RECEIVED'
   note: string | null
   partner: { name: string; taxCode: string | null; address?: string | null; phone?: string | null } | null
   order?: { code: string } | null

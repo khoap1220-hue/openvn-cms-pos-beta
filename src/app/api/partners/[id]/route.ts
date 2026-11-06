@@ -115,3 +115,5 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: message }, { status: 400 })
   }
 }
+
+export const PUT = PATCH

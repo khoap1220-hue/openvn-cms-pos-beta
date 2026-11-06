@@ -1,0 +1,7 @@
+{
+  "name": "@/lib",
+  "type": "module",
+  "exports": {
+    "./escpos": "./escpos.ts"
+  }
+}

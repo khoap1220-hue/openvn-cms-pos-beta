@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiGet, apiPatch, apiPost } from '@/lib/api'
-import { formatNumber, formatVND } from '@/lib/format'
+import { formatAttributesReadable, formatNumber, formatVND } from '@/lib/format'
 import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/cms/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,6 +34,9 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { FastStockTerminal } from './fast-stock-terminal'
+import { WarehouseModuleNav } from '@/components/cms/warehouse-module-nav'
+import type { ViewId } from '@/components/cms/app-sidebar'
 import {
   Boxes,
   Gift,
@@ -103,7 +106,8 @@ function ComboBadge() {
   )
 }
 
-export function BomView() {
+export function BomView({ onNavigate }: { onNavigate?: (view: ViewId) => void } = {}) {
+  const [activeSection, setActiveSection] = useState<'PRODUCTION' | 'BOM_SETUP'>('PRODUCTION')
   const [groups, setGroups] = useState<BomGroup[] | null>(null)
   const [products, setProducts] = useState<ProductLite[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -244,18 +248,21 @@ export function BomView() {
   }
 
   const getAttrEdit = (p: ProductLite) =>
-    attrEdits[p.id] ?? { attributes: p.attributes ?? '', unit: p.unit ?? '' }
+    attrEdits[p.id] ?? { attributes: formatAttributesReadable(p.attributes).text, unit: p.unit ?? '' }
 
-  const setAttrEdit = (id: string, patch: Partial<{ attributes: string; unit: string }>) =>
+  const setAttrEdit = (p: ProductLite, patch: Partial<{ attributes: string; unit: string }>) =>
     setAttrEdits((prev) => ({
       ...prev,
-      [id]: { ...(prev[id] ?? { attributes: '', unit: '' }), ...patch },
+      [p.id]: {
+        ...(prev[p.id] ?? { attributes: formatAttributesReadable(p.attributes).text, unit: p.unit ?? '' }),
+        ...patch,
+      },
     }))
 
   const attrDirty = (p: ProductLite) => {
     const edit = attrEdits[p.id]
     if (!edit) return false
-    return edit.attributes !== (p.attributes ?? '') || edit.unit !== (p.unit ?? '')
+    return edit.attributes !== formatAttributesReadable(p.attributes).text || edit.unit !== (p.unit ?? '')
   }
 
   const handleSaveAttr = async (p: ProductLite) => {
@@ -292,12 +299,57 @@ export function BomView() {
 
   return (
     <div>
-      <PageHeader
-        title="Kho hàng & Định mức"
-        description="Định mức nguyên vật liệu (BOM) — khi xuất bán thành phẩm, hệ thống tự động trừ định mức VLT"
-      />
+      <WarehouseModuleNav active="bom" onNavigate={onNavigate} />
 
-      {error ? (
+      <PageHeader
+        title="Sản xuất & Định mức (BOM)"
+        description="Lập phiếu sản xuất thành phẩm (tự động trừ nguyên vật liệu theo định mức và cộng kho thành phẩm) & quản lý công thức định mức (BOM)"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-muted/50 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveSection('PRODUCTION')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition',
+                activeSection === 'PRODUCTION'
+                  ? 'bg-[#0066CC] text-white shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Boxes className="h-3.5 w-3.5" />
+              1. Lập phiếu sản xuất thành phẩm
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('BOM_SETUP')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition',
+                activeSection === 'BOM_SETUP'
+                  ? 'bg-[#0066CC] text-white shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <ListTree className="h-3.5 w-3.5" />
+              2. Công thức Định mức (BOM) &amp; Combo ({groups?.length ?? 0})
+            </button>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => openConfig()}>
+            <Plus className="h-4 w-4" />
+            Cấu hình định mức
+          </Button>
+        </div>
+      </PageHeader>
+
+      {activeSection === 'PRODUCTION' ? (
+        <div className="mb-8">
+          <FastStockTerminal
+            defaultMode="PRODUCTION"
+            allowedModes={['PRODUCTION']}
+            onCompleted={() => void load()}
+          />
+        </div>
+      ) : error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : (
         <>
@@ -565,27 +617,45 @@ export function BomView() {
                       {attrRows.map((p) => {
                         const edit = getAttrEdit(p)
                         const dirty = attrDirty(p)
+                        const parsedAttr = formatAttributesReadable(edit.attributes || p.attributes)
                         return (
                           <TableRow key={p.id}>
                             <TableCell className="whitespace-nowrap font-mono text-xs">{p.sku}</TableCell>
                             <TableCell>
-                              <p className="max-w-[180px] truncate font-medium">{p.name}</p>
+                              <p className="min-w-[200px] max-w-[320px] font-medium leading-snug" title={p.name}>
+                                {p.name}
+                              </p>
                             </TableCell>
                             <TableCell>
                               <Input
                                 value={edit.unit}
-                                onChange={(e) => setAttrEdit(p.id, { unit: e.target.value })}
+                                onChange={(e) => setAttrEdit(p, { unit: e.target.value })}
                                 placeholder="cái"
                                 className="h-8 w-20 text-sm"
                               />
                             </TableCell>
                             <TableCell>
-                              <Input
-                                value={edit.attributes}
-                                onChange={(e) => setAttrEdit(p.id, { attributes: e.target.value })}
-                                placeholder={ATTR_PLACEHOLDER}
-                                className="h-8 text-sm"
-                              />
+                              <div className="space-y-1.5">
+                                {parsedAttr.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {parsedAttr.tags.map((tag, idx) => (
+                                      <Badge
+                                        key={idx}
+                                        variant="secondary"
+                                        className="px-1.5 py-0 text-[10.5px] font-normal text-foreground/85"
+                                      >
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                                <Input
+                                  value={edit.attributes}
+                                  onChange={(e) => setAttrEdit(p, { attributes: e.target.value })}
+                                  placeholder={ATTR_PLACEHOLDER}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Button

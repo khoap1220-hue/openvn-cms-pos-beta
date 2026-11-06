@@ -10,6 +10,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const method = (options?.method ?? 'GET').toUpperCase()
   try {
     const res = await fetch(url, {
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       ...options,
     })

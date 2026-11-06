@@ -44,6 +44,27 @@ export async function syncComboStock(tx: DbClient, comboProductId: string): Prom
 }
 
 /**
+ * Khi tồn kho của 1 hoặc nhiều sản phẩm thành phần thay đổi (nhập/xuất/điều chỉnh/mua/bán/hoàn kho),
+ * tự động tìm mọi sản phẩm COMBO có chứa thành phần đó và đồng bộ lại tồn kho hiển thị của combo.
+ */
+export async function syncCombosUsingComponents(tx: DbClient, componentProductIds: string[]): Promise<void> {
+  const uniqueIds = Array.from(new Set(componentProductIds.filter(Boolean)))
+  if (uniqueIds.length === 0) return
+  const client = (tx ?? db) as PrismaClient
+  const parentRows = await client.bomComponent.findMany({
+    where: {
+      componentProductId: { in: uniqueIds },
+      product: { type: 'COMBO' },
+    },
+    select: { productId: true },
+  })
+  const comboIds = Array.from(new Set(parentRows.map((r) => r.productId)))
+  for (const comboId of comboIds) {
+    await syncComboStock(client, comboId)
+  }
+}
+
+/**
  * Kiểm tra & trừ kho thành phần khi xuất bán combo.
  * demands: Map componentProductId → tổng số lượng thành phần cần (đã × số combo).
  * Trả về danh sách kết quả trừ kho (nếu thiếu vẫn trừ tối đa về 0 kèm warning, như BOM định mức).

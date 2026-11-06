@@ -1,0 +1,773 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id                String           @id @default(cuid())
+  sku               String           @unique
+  barcode           String?          @unique // MÃ VẠCH (CODE128 — dùng cho in nhãn & quét nhanh)
+  name              String
+  description       String?
+  categoryId        String?
+  category          Category?        @relation(fields: [categoryId], references: [id])
+  costPrice         Float            @default(0)
+  sellPrice         Float            @default(0)
+  stock             Int              @default(0)
+  lowStockThreshold Int              @default(5)
+  image             String?
+  status            String           @default("ACTIVE")
+  attributes        String? // ĐẶC TÍNH (Invoice Pro: mô tả thuộc tính SP)
+  unit              String           @default("sp")
+  type              String           @default("SIMPLE") // SIMPLE | COMBO — Combo/Set quà tặng: thành phần khai báo ở Định mức (BomComponent), xuất bán tự trừ kho thành phần
+  fragile           Boolean          @default(false) // hàng dễ vỡ (gốm sứ / nến / thủy tinh) — in cảnh báo trên phiếu gửi hàng A6
+  ownerWarehouseId  String?          // null / kho nội bộ = hàng tự doanh · trỏ tới PARTNER_SHOP = hàng đối tác liên kết bán chéo
+  crossSellRate     Float?           // % hoa hồng bán chéo riêng cho SP này (null = dùng commissionPct của Warehouse)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  orderItems        OrderItem[]
+  listings          ChannelListing[]
+  stockMovements    StockMovement[]
+  warehouseStocks   WarehouseStock[]
+  bomFinished       BomComponent[]   @relation("BomFinished")
+  bomMaterials      BomComponent[]   @relation("BomMaterial")
+  purchaseItems     PurchaseInvoiceItem[] @relation("PurchaseItems")
+  salesItems        SalesInvoiceItem[]    @relation("SalesItems")
+}
+
+model Channel {
+  id         String           @id @default(cuid())
+  key        String           @unique
+  name       String
+  color      String           @default("#10b981")
+  connected  Boolean          @default(false)
+  feePercent Float            @default(0)
+  syncedAt   DateTime?
+  createdAt  DateTime         @default(now())
+  listings   ChannelListing[]
+  orders     Order[]
+}
+
+model ChannelListing {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  price     Float? // GIÁ BÁN RIÊNG trên kênh (null = dùng giá bán chung Product.sellPrice)
+  status    String   @default("ACTIVE")
+  // ĐỒNG BỘ MÔ TẢ — Product.description là nguồn chân lý; bản sao đẩy lên kênh + thời điểm đồng bộ
+  description         String?
+  descriptionSyncedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, channelId])
+}
+
+model Customer {
+  id         String          @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  isMember   Boolean         @default(false) // false = Khách hàng · true = Thành viên (chương trình khách hàng thân thiết)
+  memberCode String?         @unique // MÃ THÀNH VIÊN cấp khi đăng ký (TV0001, TV0002, ...)
+  memberAt   DateTime?       // thời điểm nâng cấp thành viên
+  points     Int             @default(0) // điểm tích lũy: 1 điểm / 10.000đ đơn hoàn tất — dùng đổi quà/giảm giá
+  // ===== TRÍ NHỚ DÀI HẠN + CHÂN DUNG KHÁCH HÀNG (Long-term Context Summary) =====
+  avatarUrl       String?    // ảnh đại diện (DiceBear/URL) — null thì render chữ cái đầu
+  salutation      String?    // cách xưng hô cố định: "Em - Chị Nhung", "Em - Anh Quân"
+  inferredProfile String?    // JSON nhận diện từ tên + avatar: {gender, ageHint, style, note}
+  contextSummary  String?    // tóm tắt ngữ cảnh tích lũy qua đơn/chat/đánh giá
+  preferences     String?    // JSON mảng sở thích/nhu cầu: gu mùi hương, mua dùng/biếu, DIY...
+  painPoints      String?    // JSON mảng vấn đề từng gặp/góp ý: "nắp gỗ chưa khít"...
+  nextFollowUp    String?    // gợi ý thời điểm/nhu cầu chăm sóc tiếp theo
+  memoryUpdatedAt DateTime?  // lần chắt lọc trí nhớ gần nhất
+  createdAt  DateTime        @default(now())
+  orders     Order[]
+  messages   DirectMessage[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  channelId     String
+  channel       Channel     @relation(fields: [channelId], references: [id])
+  status        String      @default("PENDING")
+  paymentMethod String      @default("COD")
+  paymentStatus String      @default("UNPAID")
+  subtotal      Float       @default(0)
+  shippingFee   Float       @default(0)
+  total         Float       @default(0)
+  warehouseId   String?     // Kho xuất hàng của đơn (mặc định: Kho Trung Tâm Ưu Đàm)
+  voucherCode   String?     // Mã giảm giá / Voucher đã áp dụng
+  discountAmount Float      @default(0) // Tổng số tiền chiết khấu + voucher + đổi điểm
+  platformFeePct Float      @default(0) // snapshot % phí sàn TMĐT lúc tạo đơn (từ Channel.feePercent)
+  platformFee    Float      @default(0) // snapshot tiền phí sàn (subtotal × pct/100) — trừ khi đối soát để tính lợi nhuận thực nhận
+  note          String?
+  address       String?
+  reviewRating  Int?
+  reviewComment String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         OrderItem[]
+  shipments     Shipment[]
+  events        OrderEvent[]
+  afterSalesCases AfterSalesCase[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+  price     Float   @default(0)
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String?
+  type        String
+  quantity    Int
+  stockAfter  Int
+  note        String?
+  createdAt   DateTime @default(now())
+}
+
+// ===== Lớp vận hành tự động (Agent Autopilot) =====
+
+model Shipment {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier      String // GHN | GHTK | VIETTEL | JT | NINJA
+  trackingCode String   @unique
+  status       String   @default("DISPATCHED") // DISPATCHED | PICKED_UP | IN_TRANSIT | DELIVERED | RETURNED
+  fee          Float    @default(0)
+  codStatus    String   @default("PENDING") // PENDING (chờ đối soát) | RECEIVED (đã nhận COD) | RECONCILED (đã đối soát vào sổ)
+  codAmount    Float    @default(0) // tiền thu hộ dự kiến (COD)
+  codReceived  Float    @default(0) // tiền COD thực nhận từ ĐVVC chuyển về
+  codReceivedAt DateTime?
+  codNote      String?
+  dispatchedBy String   @default("AGENT") // AGENT | OPERATOR
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AgentActivity {
+  id          String   @id @default(cuid())
+  agent       String // CONFIRM_AGENT | LOGISTICS_AGENT | CARE_AGENT | REVIEW_AGENT | SUPPORT_AGENT
+  action      String // CONFIRM_ORDER | START_PACKING | NOTIFY_CARRIER | PICKUP | IN_TRANSIT | DELIVERY_NOTICE | CARE_MESSAGE | REQUEST_REVIEW | AUTO_REPLY | ORDER_RECEIVED | MANUAL_ACTION
+  level       String   @default("info") // info | success | warning | error
+  targetType  String? // ORDER | CUSTOMER | CONVERSATION
+  targetId    String?
+  targetLabel String?
+  message     String
+  detail      String?
+  createdAt   DateTime @default(now())
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type      String // CREATED | CONFIRMED | PACKING | CARRIER_DISPATCHED | PICKED_UP | IN_TRANSIT | DELIVERED | CARE_SENT | REVIEW_REQUESTED | REVIEW_RECEIVED | STATUS_CHANGED | CANCELLED
+  actor     String // AGENT | OPERATOR | SYSTEM | CUSTOMER
+  title     String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model DirectMessage {
+  id             String    @id @default(cuid())
+  channelKey     String // ZALO_OA | ZALO_PERSONAL
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  sender         String // CUSTOMER | AGENT | OPERATOR
+  agentName      String?
+  content        String
+  relatedOrderId String?
+  isAuto         Boolean   @default(false)
+  readAt         DateTime?
+  // ===== MULTIMODAL + REACTIONS =====
+  imageUrl       String?   // ảnh khách đính kèm (URL/dataURL)
+  imageAnalysis  String?   // AI mô tả/nhận diện nội dung ảnh
+  reactions      String?   // JSON mảng reaction Agent thả: [{emoji:"❤️", agent:"SUPPORT_AGENT", at}]
+  createdAt      DateTime  @default(now())
+}
+
+model AutomationSetting {
+  key       String   @id // master | auto_confirm | auto_carrier | auto_care | auto_review | auto_reply
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// SỔ DATA — sổ cái tổng: mọi dữ liệu & thao tác đều ghi vào đây
+// ============================================================
+
+model LedgerEntry {
+  id         String   @id @default(cuid())
+  scope      String // ORDER | INVOICE | INVENTORY | AGENT | WEBHOOK | PARTNER | BOM | AFTERSALES | PERIOD | SETTINGS | CHANNEL | MESSAGE | CUSTOMER | SYSTEM
+  action     String
+  entityType String?
+  entityId   String?
+  entityCode String?
+  title      String
+  detail     String? // JSON chi tiết
+  actor      String   @default("SYSTEM") // AGENT | OPERATOR | SYSTEM | CUSTOMER | API
+
+  // ===== DATA PROVENANCE — truy xuất nguồn gốc & kiểm toán thay đổi =====
+  originSource   String? // SHOPEE_SYNC | ZALO_OA | POS | AGENT_AUTOPILOT | BARCODE_SCAN | MANUAL_ADMIN | SYSTEM_SEED — nguồn gốc sinh dữ liệu
+  actorName      String? // tên hiển thị của người/Agent thực hiện ("Agent Kho vận", "Người vận hành", "Ưu Đàm Admin")
+  sourceRefCode  String? // mã chứng từ gốc liên kết (DH261024-xxxx, PXK..., GHTK..., TV0001...)
+  beforeSnapshot String? // JSON trạng thái TRƯỚC khi thay đổi (null = bản ghi khởi tạo)
+  afterSnapshot  String? // JSON trạng thái SAU khi thay đổi
+  changedFields  String? // JSON mảng tên trường thay đổi, vd: ["status","codStatus","stock"]
+
+  createdAt  DateTime @default(now())
+
+  @@index([scope])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([originSource])
+}
+
+// ============================================================
+// INVOICE PRO — Hạch toán nội bộ & Quản lý hóa đơn
+// ============================================================
+
+model Partner {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  name             String // Tên đơn vị
+  taxCode          String? // Mã số thuế (MST)
+  address          String?
+  phone            String?
+  email            String?
+  type             String   @default("SUPPLIER") // SUPPLIER | CUSTOMER | BOTH
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  purchaseInvoices PurchaseInvoice[]
+  salesInvoices    SalesInvoice[]
+}
+
+model BomComponent {
+  id                 String   @id @default(cuid())
+  productId          String // thành phẩm
+  product            Product  @relation("BomFinished", fields: [productId], references: [id], onDelete: Cascade)
+  componentProductId String // nguyên vật liệu
+  componentProduct   Product  @relation("BomMaterial", fields: [componentProductId], references: [id], onDelete: Cascade)
+  quantity           Float    @default(1) // định mức cho 1 thành phẩm
+  createdAt          DateTime @default(now())
+
+  @@unique([productId, componentProductId])
+}
+
+model PurchaseInvoice {
+  id          String                @id @default(cuid())
+  code        String                @unique
+  partnerId   String?
+  partner     Partner?              @relation(fields: [partnerId], references: [id])
+  invoiceDate DateTime              @default(now())
+  subtotal    Float                 @default(0)
+  vatRate     Float                 @default(8)
+  vatAmount   Float                 @default(0)
+  total       Float                 @default(0)
+  status      String                @default("POSTED") // POSTED | CANCELLED
+  note        String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  items       PurchaseInvoiceItem[]
+}
+
+model PurchaseInvoiceItem {
+  id        String          @id @default(cuid())
+  invoiceId String
+  invoice   PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation("PurchaseItems", fields: [productId], references: [id])
+  quantity  Float           @default(1)
+  unitPrice Float           @default(0)
+  amount    Float           @default(0)
+}
+
+model SalesInvoice {
+  id          String             @id @default(cuid())
+  code        String             @unique
+  orderId     String?
+  partnerId   String?
+  partner     Partner?           @relation(fields: [partnerId], references: [id])
+  invoiceDate DateTime           @default(now())
+  subtotal    Float              @default(0)
+  vatRate     Float              @default(8)
+  vatAmount   Float              @default(0)
+  total       Float              @default(0)
+  status      String             @default("POSTED") // POSTED | CANCELLED
+  note        String?
+  // THIẾT LẬP HÓA ĐƠN — ghi số & snapshot mẫu in lúc tạo (hóa đơn cũ giữ nguyên mẫu số/ký hiệu)
+  invoiceNo     Int?    // SỐ HÓA ĐƠN — tăng dần toàn cục, bắt đầu từ setting invoice_number_start
+  series        String? // Ký hiệu chụp lại lúc tạo (vd AA/26E)
+  templateCode  String? // Mẫu số chụp lại lúc tạo (vd 01GTKT0/001)
+  paymentMethod String? // Hình thức thanh toán chụp từ đơn hàng (COD | BANKING | MOMO | CARD)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  items       SalesInvoiceItem[]
+
+  @@index([invoiceNo])
+}
+
+model SalesInvoiceItem {
+  id        String       @id @default(cuid())
+  invoiceId String
+  invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product      @relation("SalesItems", fields: [productId], references: [id])
+  quantity  Float        @default(1)
+  unitPrice Float        @default(0)
+  amount    Float        @default(0)
+}
+
+model AccountingPeriod {
+  id        String    @id @default(cuid())
+  year      Int
+  quarter   Int
+  status    String    @default("OPEN") // OPEN | CLOSED
+  closedAt  DateTime?
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([year, quarter])
+}
+
+model AppSetting {
+  key       String   @id // gemini_api_key | company_name | company_tax | company_address | vat_default
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ===== Sau bán hàng: Đổi trả / Bảo hành =====
+
+model AfterSalesCase {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type         String // RETURN | EXCHANGE | WARRANTY
+  status       String   @default("OPEN") // OPEN | PROCESSING | RESOLVED | REJECTED
+  reason       String
+  resolution   String?
+  refundAmount Float    @default(0)
+  handledBy    String   @default("OPERATOR") // OPERATOR | AGENT
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ===== API & Webhook — tích hợp hai chiều =====
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  key        String    @unique
+  secret     String
+  active     Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  name       String
+  url        String
+  secret     String
+  events     String // chuỗi phân tách dấu phẩy, * = tất cả
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id           String          @id @default(cuid())
+  endpointId   String
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event        String
+  payload      String
+  signature    String
+  status       String          @default("PENDING") // PENDING | SUCCESS | FAILED
+  attempts     Int             @default(0)
+  responseCode Int?
+  error        String?
+  createdAt    DateTime        @default(now())
+}
+
+model IntegrationCredential {
+  id        String   @id @default(cuid())
+  provider  String // GHN | GHTK | VIETTEL | JT | NINJA | ZALO_OA | PAYOS | GEMINI
+  name      String
+  config    String // JSON
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider])
+}
+
+// ============================================================
+// ĐA KHO & LIÊN KẾT SHOP BÁN CHÉO + CHƯƠNG TRÌNH VOUCHER
+// ============================================================
+
+model Warehouse {
+  id            String           @id @default(cuid())
+  code          String           @unique // KHO-TRUNG-TAM | KHO-CN-Q1 | SHOP-GOM-ZEN | SHOP-TRAM-AN-LAC
+  name          String
+  type          String           @default("INTERNAL") // INTERNAL (Kho nội bộ / Chi nhánh) | PARTNER_SHOP (Shop đối tác liên kết bán chéo)
+  address       String?
+  phone         String?
+  managerName   String?
+  commissionPct Float            @default(15) // % hoa hồng bán chéo khi bán hộ hàng của Shop liên kết
+  isDefault     Boolean          @default(false)
+  active        Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  stocks        WarehouseStock[]
+}
+
+model WarehouseStock {
+  id          String    @id @default(cuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity    Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([warehouseId, productId])
+}
+
+model Voucher {
+  id             String    @id @default(cuid())
+  code           String    @unique // UUDAM10 | PHATDAN50K | LIENKET15 | FREESHIP0D
+  title          String
+  description    String?
+  discountType   String    @default("PERCENT") // PERCENT | FIXED | FREESHIP
+  discountValue  Float     @default(10) // 10 (%) hoặc 50000 (đ)
+  maxDiscount    Float?    // Trần giảm tối đa cho PERCENT (vd: 50000)
+  minOrderAmount Float     @default(0) // Đơn tối thiểu được áp dụng
+  usageLimit     Int?      // null = không giới hạn
+  usedCount      Int       @default(0)
+  scope          String    @default("ALL") // ALL (Mọi đơn) | ALLIANCE (Ưu đãi mua chéo Liên Shop)
+  active         Boolean   @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ============================================================
+// AUTO SOCIAL MODULE: CRM CAMPAIGNS & MULTI-PLATFORM PUBLISHING
+// ============================================================
+
+model Campaign {
+  id                String          @id @default(cuid())
+  code              String          @unique // Mã chiến dịch: CP-202610-001, CP-VULAN-2026
+  name              String          // Tên chương trình
+  title             String?         // Tiêu đề hiển thị truyền thông (fallback về name nếu null)
+  description       String?         // Mô tả chi tiết thông điệp & mục tiêu
+  startDate         DateTime        // Thời gian bắt đầu
+  endDate           DateTime        // Thời gian kết thúc
+  status            String          @default("UPCOMING") // UPCOMING | RUNNING | ENDED | CANCELLED
+  discountPercent   Float?          // % giảm giá chung nếu có (vd: 10)
+  discountAmount    Float?          // Số tiền giảm trực tiếp nếu có (vd: 50000)
+  voucherId         String?         // ID voucher chính liên kết
+  voucherCode       String?         // Snapshot mã voucher (UUDAM10...) để AI đọc trực tiếp
+  appliedProductIds String?         // JSON mảng ID sản phẩm áp dụng: ["prod_1", "prod_2"]
+  appliedVoucherIds String?         // JSON mảng ID voucher áp dụng: ["vouch_1", "vouch_2"]
+  productOverrides  String?         // JSON map ghi đè giá/chiết khấu riêng từng SP: {"prodId": {"specialPrice": 99000, "discountPercent": 20}}
+  bannerUrl         String?         // Banner chính của chiến dịch
+  tags              String?         // JSON mảng từ khóa: ["vulan", "muavuon", "uudam"]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  plans             SocialPlan[]
+  posts             SocialPost[]
+  contentSources    ContentSource[]
+
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model ContentSource {
+  id             String              @id @default(cuid())
+  name           String              // Tên nguồn tư liệu (vd: Kho ảnh Google Drive Vu Lan 2026)
+  driveFolderUrl String              // URL thư mục Google Drive công khai
+  folderId       String?             // ID thư mục bóc tách từ Drive URL
+  description    String?             // Ghi chú mô tả
+  campaignId     String?             // Liên kết với Campaign (nếu có)
+  campaign       Campaign?           @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  productId      String?             // Liên kết với Product (nếu có)
+  syncStatus     String              @default("IDLE") // IDLE | SYNCING | SYNCED | ERROR
+  lastSyncedAt   DateTime?           // Thời điểm đồng bộ thành công gần nhất
+  syncError      String?             // Thông báo lỗi chi tiết nếu đồng bộ thất bại
+  itemCount      Int                 @default(0) // Tổng số tệp/thư mục quét được
+  fileTree       String?             // JSON cấu trúc cây thư mục phân cấp & tóm tắt
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  items          ContentSourceItem[]
+
+  @@index([campaignId])
+  @@index([syncStatus])
+}
+
+model ContentSourceItem {
+  id              String        @id @default(cuid())
+  contentSourceId String
+  contentSource   ContentSource @relation(fields: [contentSourceId], references: [id], onDelete: Cascade)
+  driveFileId     String        // ID tệp trên Google Drive
+  name            String        // Tên tệp
+  mimeType        String        // Loại MIME (image/jpeg, video/mp4, application/vnd.google-apps.document...)
+  fileType        String        // IMAGE | VIDEO | DOCUMENT | SHEET | FOLDER | OTHER
+  sizeBytes       Int?          // Dung lượng tệp tính theo byte
+  webViewLink     String?       // Link xem trên trình duyệt
+  downloadUrl     String?       // Link tải trực tiếp
+  thumbnailUrl    String?       // Link ảnh thu nhỏ
+  parentFolderId  String?       // ID thư mục cha (hỗ trợ duyệt cây 3 cấp)
+  path            String?       // Đường dẫn tương đối: /VuLan/HinhAnh/Anh1.jpg
+  textContent     String?       // Nội dung text trích xuất từ Google Docs / Docx / Sheet / txt
+  metadata        String?       // JSON thông số bổ sung (chiều rộng, cao, số sheets...)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([contentSourceId])
+  @@index([fileType])
+  @@index([driveFileId])
+}
+
+model SocialPlan {
+  id             String       @id @default(cuid())
+  campaignId     String?
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title          String       // Tiêu đề kế hoạch: Lịch đăng 7 kênh chiến dịch Vu Lan
+  description    String?      // Tóm tắt định hướng nội dung
+  targetAudience String?      // Đối tượng độc giả mục tiêu
+  brandTone      String?      @default("Trang nhã, từ bi, hướng thiện, chân thành Ưu Đàm")
+  status         String       @default("DRAFT") // DRAFT | GENERATED | APPROVED | ARCHIVED
+  aiModel        String?      @default("gemini-2.0-flash")
+  promptUsed     String?      // Prompt hệ thống sử dụng khi sinh kế hoạch
+  startDate      DateTime?
+  endDate        DateTime?
+  totalPosts     Int          @default(0)
+  approvedPosts  Int          @default(0)
+  publishedPosts Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  posts          SocialPost[]
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+model SocialPost {
+  id               String      @id @default(cuid())
+  planId           String?
+  plan             SocialPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  campaignId       String?
+  campaign         Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  
+  // 7 nền tảng: FACEBOOK | ZALO_OA | WEBSITE | EXTERNAL_CMS | INSTAGRAM | TIKTOK | THREADS
+  channel          String
+  
+  title            String?     // Tiêu đề bài viết (cho Website Blog, Article)
+  slug             String?     // Slug duy nhất hiển thị trên website công khai (/blog/[slug])
+  content          String      // Nội dung chính (caption / post copy / kịch bản)
+  excerpt          String?     // Tóm tắt ngắn hiển thị ở card hoặc SEO
+  mediaUrls        String?     // JSON mảng URL ảnh/video: ["https://..."]
+  mediaType        String?     @default("IMAGE") // NONE | IMAGE | VIDEO | CAROUSEL
+  hashtags         String?     // JSON mảng hoặc chuỗi hashtag: "#uudam #vulan"
+  targetUrl        String?     // Liên kết đích kêu gọi hành động (CTA link)
+  
+  // Vòng đời duyệt & đăng: DRAFT | PENDING_APPROVAL | APPROVED | SCHEDULED | PUBLISHING | PUBLISHED | FAILED | REJECTED
+  status           String      @default("DRAFT")
+  
+  scheduledAt      DateTime?   // Thời gian hẹn giờ đăng
+  publishedAt      DateTime?   // Thời gian thực tế đăng thành công
+  
+  // Duyệt bài (R4)
+  approvalNote     String?     // Ý kiến phản hồi / lý do từ chối của chủ tiệm
+  approvedBy       String?     // Người duyệt
+  approvedAt       DateTime?
+  
+  // Khóa chống xuất bản trùng lặp (Concurrency Idempotency Lock - FEAT-REV-03)
+  isPublishing     Boolean     @default(false)
+  
+  // Kết quả xuất bản & truy vết lỗi (FEAT-REV-05)
+  externalPostId   String?     // ID bài viết trả về từ nền tảng (fb_post_123, zalo_msg_456...)
+  externalPostUrl  String?     // Link xem bài viết thật trên MXH
+  publishError     String?     // Chi tiết lỗi nếu đăng thất bại
+  retryCount       Int         @default(0) // Số lần đã thử lại
+  isMock           Boolean     @default(true) // Cờ đánh dấu xuất bản qua adapter Safe Mock hay Live
+  payloadSnapshot  String?     // JSON snapshot toàn bộ payload gửi đi
+  responseSnapshot String?     // JSON snapshot response trả về từ adapter
+  
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([campaignId])
+  @@index([planId])
+  @@index([channel])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([slug])
+}
+
+model SocialChannelConfig {
+  id              String   @id @default(cuid())
+  // Nền tảng: FACEBOOK | ZALO_OA | WEBSITE | EXTERNAL_CMS | INSTAGRAM | TIKTOK | THREADS
+  platform        String   @unique
+  name            String   // Tên hiển thị: Fanpage Facebook Ưu Đàm, Zalo OA...
+  enabled         Boolean  @default(true)
+  isMock          Boolean  @default(true) // true: Safe Mock; false: Live API
+  credentials     String?  // JSON lưu tokens, page IDs, webhooks (bảo mật)
+  characterLimit  Int      @default(2000) // Giới hạn ký tự tối đa của nền tảng
+  supportsVideo   Boolean  @default(true)
+  supportsImages  Boolean  @default(true)
+  maxImages       Int      @default(10)
+  requiresMedia   Boolean  @default(false) // Bắt buộc có media (Instagram, TikTok)
+  autoPublish     Boolean  @default(false) // Tự động phát lệnh khi tới giờ hẹn
+  defaultHashtags String?  // Hashtag mặc định cho kênh
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  entityType   String   // Campaign | ContentSource | SocialPlan | SocialPost | SocialChannelConfig
+  entityId     String   // ID bản ghi tác động
+  action       String   // CREATE | UPDATE | DELETE | SYNC | AI_GENERATE | APPROVE | REJECT | RESCHEDULE | PUBLISH | RETRY | ERROR
+  actor        String   @default("OPERATOR") // OPERATOR | AI | SYSTEM | CRON
+  actorName    String?  // Tên người thao tác ("Chủ tiệm Ưu Đàm", "Gemini Social AI")
+  details      String?  // JSON lưu diff trước/sau, payload request, hoặc response
+  status       String   @default("SUCCESS") // SUCCESS | FAILED | WARNING
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================
+// IAM & BEHAVIOR AUDIT: ĐĂNG NHẬP ĐA TÀI KHOẢN, PHÂN QUYỀN RBAC & NHẬT KÝ HÀNH VI
+// ============================================================
+
+model StaffUser {
+  id                 String         @id @default(cuid())
+  username           String         @unique // admin | quanly | thungan | thukho | ketoan | marketing
+  displayName        String         // Họ tên & chức danh hiển thị
+  email              String?
+  phone              String?
+  avatarColor        String         @default("#0066CC")
+  role               String         @default("CASHIER_POS") // ADMIN | MANAGER | CASHIER_POS | WAREHOUSE | ACCOUNTANT | MARKETING
+  passwordHash       String         // Băm SHA-256 có salt, tuyệt đối không lưu plaintext
+  pinHash            String?        // Băm mã PIN 4-6 số đăng nhập nhanh tại quầy POS / điện thoại
+  customPermissions  String?        // JSON ghi đè quyền chi tiết theo domain: {"finance":"READ","pos":"FULL"}
+  allowedWarehouseId String?        // Giới hạn kho xuất bán (nếu là nhân viên chi nhánh)
+  status             String         @default("ACTIVE") // ACTIVE | LOCKED
+  failedLoginCount   Int            @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  lastSeenAt         DateTime?
+  note               String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  sessions           StaffSession[]
+  behaviorLogs       BehaviorLog[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model StaffSession {
+  id            String     @id @default(cuid())
+  userId        String
+  user          StaffUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress     String?
+  userAgent     String?
+  deviceType    String     @default("DESKTOP") // MOBILE | TABLET | DESKTOP
+  deviceLabel   String?    // VD: "iPhone · Safari (Mobile)", "Windows · Chrome (Desktop)"
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+  lastActiveAt  DateTime   @default(now())
+  createdAt     DateTime   @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model BehaviorLog {
+  id         String     @id @default(cuid())
+  userId     String?
+  user       StaffUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId  String?
+  username   String?
+  actorName  String     // Tên hiển thị người thao tác hoặc "Khách chưa đăng nhập" / "API Key"
+  actorRole  String     @default("ANONYMOUS") // ADMIN | MANAGER | CASHIER_POS | WAREHOUSE | ACCOUNTANT | MARKETING | API_KEY | ANONYMOUS
+  category   String     // AUTH | NAVIGATION | MUTATION | EXPORT | SECURITY | IAM
+  action     String     // LOGIN_SUCCESS | LOGIN_FAILED | LOGIN_LOCKED | LOGOUT | SESSION_REVOKED | VIEW_MODULE | QUICK_SEARCH | API_MUTATION | DATA_EXPORT | PRINT_DOCUMENT | PERMISSION_DENIED | USER_CREATED | USER_UPDATED | ROLE_CHANGED | PASSWORD_CHANGED | POLICY_UPDATED
+  module     String?    // dashboard | pos | orders | inventory | accounting | iam | system ...
+  method     String?    // GET | POST | PATCH | PUT | DELETE | UI
+  path       String?    // /api/orders | /pos | /?view=orders ...
+  targetType String?
+  targetCode String?
+  summary    String     // Tóm tắt hành vi tiếng Việt rõ nghĩa
+  metadata   String?    // JSON ngữ cảnh đã ẩn toàn bộ mật khẩu/token/secret
+  riskLevel  String     @default("LOW") // LOW | MEDIUM | HIGH
+  status     String     @default("SUCCESS") // SUCCESS | DENIED | FAILED
+  statusCode Int?
+  durationMs Int?       // Thời lượng lưu trang (ms) hoặc độ trễ xử lý
+  ipAddress  String?
+  deviceType String?    // MOBILE | TABLET | DESKTOP | API
+  userAgent  String?
+  createdAt  DateTime   @default(now())
+
+  @@index([createdAt])
+  @@index([category])
+  @@index([userId])
+  @@index([riskLevel])
+  @@index([module])
+}
+
+model SecurityPolicy {
+  id                  String   @id @default("default")
+  authRequired        Boolean  @default(false) // Bắt buộc đăng nhập khi mở CMS & POS
+  maxFailedAttempts   Int      @default(5)     // Số lần sai mật khẩu tối đa trước khi khóa tạm
+  lockoutMinutes      Int      @default(10)    // Thời gian khóa tạm tài khoản (phút)
+  sessionTtlDays      Int      @default(14)    // Thời hạn phiên đăng nhập (ngày)
+  showQuickLoginHints Boolean  @default(true)  // Hiển thị gợi ý chọn nhanh tài khoản ca trực tại /login
+  trackNavigation     Boolean  @default(true)  // Ghi nhận hành vi chuyển màn hình & thời gian thao tác
+  updatedAt           DateTime @updatedAt
+}

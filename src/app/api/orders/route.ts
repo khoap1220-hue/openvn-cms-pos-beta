@@ -147,6 +147,12 @@ export async function POST(req: NextRequest) {
       address: (body.address as string) || undefined,
       note: (body.note as string) || undefined,
       paymentMethod: (body.paymentMethod as string) || undefined,
+      warehouseId: (body.warehouseId as string) || undefined,
+      voucherCode: (body.voucherCode as string) || undefined,
+      shippingFee: body.shippingFee !== undefined ? Number(body.shippingFee) : undefined,
+      discountAmount: body.discountAmount !== undefined ? Number(body.discountAmount) : undefined,
+      redeemPoints: body.redeemPoints !== undefined ? Number(body.redeemPoints) : undefined,
+      instantComplete: Boolean(body.instantComplete),
     })
     return NextResponse.json({ order }, { status: 201 })
   } catch (error) {

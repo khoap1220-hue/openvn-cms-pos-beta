@@ -11,7 +11,8 @@ import { broadcast } from '@/lib/realtime'
 import { recordLineageChange } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { getSetting, getSettings } from '@/lib/settings'
-import { syncComboStock } from '@/lib/combo'
+import { syncComboStock, syncCombosUsingComponents } from '@/lib/combo'
+import { getAllUnitConfigs, syncLinkedVariantStocks } from '@/lib/unit-conversion'
 
 type Tx = Prisma.TransactionClient
 
@@ -115,12 +116,17 @@ export interface InvoiceItemInput {
   productId: string
   quantity: number
   unitPrice: number
+  /** Hệ số quy đổi định lượng khi nhập/xuất (VD: 1000 cho 1 kg = 1.000 gr) */
+  conversionRate?: number
+  inputUnit?: string
 }
 
 interface NormalizedItem {
   productId: string
   quantity: number
   unitPrice: number
+  conversionRate?: number
+  inputUnit?: string
 }
 
 /** Validate & chuẩn hóa items hóa đơn: sản phẩm tồn tại, quantity > 0, unitPrice >= 0 */
@@ -145,7 +151,10 @@ async function normalizeItems(items: unknown): Promise<NormalizedItem[]> {
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       throw new Error(`Đơn giá của "${productName}" không được âm`)
     }
-    normalized.push({ productId, quantity, unitPrice })
+    const rawRate = Number(row.conversionRate)
+    const conversionRate = Number.isFinite(rawRate) && rawRate > 0 ? rawRate : undefined
+    const inputUnit = typeof row.inputUnit === 'string' && row.inputUnit.trim() ? row.inputUnit.trim() : undefined
+    normalized.push({ productId, quantity, unitPrice, conversionRate, inputUnit })
   }
   return normalized
 }
@@ -179,6 +188,7 @@ export interface CreatePurchaseInvoiceInput {
   vatRate?: number
   invoiceDate?: string | Date
   note?: string
+  status?: string
 }
 
 export async function createPurchaseInvoice(input: CreatePurchaseInvoiceInput) {
@@ -192,6 +202,7 @@ export async function createPurchaseInvoice(input: CreatePurchaseInvoiceInput) {
   const vatAmount = (subtotal * vatRate) / 100
   const total = subtotal + vatAmount
   const code = await genInvoiceCode('PMM', invoiceDate)
+  const status = input.status === 'DRAFT' ? 'DRAFT' : 'POSTED'
 
   const created = await db.$transaction(async (tx) => {
     const invoice = await tx.purchaseInvoice.create({
@@ -203,7 +214,7 @@ export async function createPurchaseInvoice(input: CreatePurchaseInvoiceInput) {
         vatRate,
         vatAmount,
         total,
-        status: 'POSTED',
+        status,
         note: input.note?.trim() || null,
         items: {
           create: items.map((it) => ({
@@ -215,9 +226,22 @@ export async function createPurchaseInvoice(input: CreatePurchaseInvoiceInput) {
         },
       },
     })
-    // Nhập kho theo từng dòng hóa đơn
-    for (const it of items) {
-      await applyStockChange(tx, it.productId, Math.round(it.quantity), 'IMPORT', `Nhập mua theo hóa đơn ${code}`)
+    // Nhập kho theo từng dòng hóa đơn (chỉ khi không phải DRAFT) — tự động quy đổi định lượng (VD: 10 kg = +10.000 gr)
+    if (status !== 'DRAFT') {
+      const unitConfigs = await getAllUnitConfigs(tx)
+      for (const it of items) {
+        const uCfg = unitConfigs[it.productId]
+        const rate = it.conversionRate ?? (uCfg?.purchaseRate && uCfg.purchaseRate > 1 ? uCfg.purchaseRate : 1)
+        const baseStockDelta = Math.round(it.quantity * rate)
+        const noteSuffix =
+          rate > 1
+            ? ` (Nhập ${it.quantity} ${it.inputUnit || uCfg?.purchaseUnit || ''} × ${rate} = +${baseStockDelta} ${uCfg?.baseUnit || ''})`
+            : ''
+        await applyStockChange(tx, it.productId, baseStockDelta, 'IMPORT', `Nhập mua theo hóa đơn ${code}${noteSuffix}`)
+      }
+      const affectedIds = items.map((it) => it.productId)
+      await syncCombosUsingComponents(tx, affectedIds)
+      await syncLinkedVariantStocks(tx, affectedIds)
     }
     return invoice
   })
@@ -241,7 +265,7 @@ export async function createPurchaseInvoice(input: CreatePurchaseInvoiceInput) {
     entityCode: code,
     sourceRefCode: code,
     title: `Hóa đơn mua ${code} — ${partner?.name ?? 'Nhà cung cấp lẻ'}`,
-    after: { status: 'POSTED', subtotal, vatRate, vatAmount, total, itemCount: items.length },
+    after: { status, subtotal, vatRate, vatAmount, total, itemCount: items.length },
     detail: {
       items: items.map((it) => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice })),
     },
@@ -292,11 +316,40 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
   let order: { id: string; code: string; subtotal: number; paymentMethod: string } | null = null
 
   if (input.orderId) {
-    const found = await db.order.findUnique({
-      where: { id: String(input.orderId) },
+    const rawOrderId = String(input.orderId)
+    let found = await db.order.findUnique({
+      where: { id: rawOrderId },
       include: { items: true },
     })
+    if (!found && rawOrderId.startsWith('sync-')) {
+      const recentOrders = await db.order.findMany({
+        where: { status: { not: 'CANCELLED' } },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { items: true },
+      })
+      for (const cand of recentOrders) {
+        const hasInv = await db.salesInvoice.findFirst({
+          where: { orderId: cand.id, status: 'POSTED' },
+          select: { id: true },
+        })
+        if (!hasInv) {
+          found = cand
+          break
+        }
+      }
+    }
     if (!found) throw new Error('Đơn hàng không tồn tại')
+    if (found.status === 'CANCELLED') {
+      throw new Error(`Không thể xuất hóa đơn bán cho đơn hàng đã hủy (${found.code})`)
+    }
+    const existingPosted = await db.salesInvoice.findFirst({
+      where: { orderId: found.id, status: 'POSTED' },
+      select: { code: true },
+    })
+    if (existingPosted) {
+      throw new Error(`Đơn hàng ${found.code} đã có hóa đơn bán hiệu lực (${existingPosted.code})`)
+    }
     order = { id: found.id, code: found.code, subtotal: found.subtotal, paymentMethod: found.paymentMethod }
     if (hasExplicitItems) {
       items = await normalizeItems(input.items)
@@ -411,10 +464,15 @@ export async function createSalesInvoice(input: CreateSalesInvoiceInput) {
       }
       if (isCombo && bomRows.length > 0) comboIdsIssued.push(it.productId)
     }
-    // Đồng bộ tồn hiển thị của các combo vừa trừ thành phần
+    // Đồng bộ tồn hiển thị của các combo vừa trừ thành phần + các combo dùng chung vật liệu
     for (const comboId of [...new Set(comboIdsIssued)]) {
       await syncComboStock(tx, comboId)
     }
+    const touchedIds = [
+      ...items.map((it) => it.productId),
+      ...bomIssued.map((b) => b.componentProductId),
+    ]
+    await syncCombosUsingComponents(tx, touchedIds)
     return { invoice, bomIssued }
   })
 
@@ -482,6 +540,7 @@ export async function cancelPurchaseInvoice(id: string, note?: string) {
     for (const it of invoice.items) {
       await applyStockChange(tx, it.productId, -Math.round(it.quantity), 'REVERSE', `Hủy hóa đơn mua ${invoice.code} — trừ lại kho đã nhập`)
     }
+    await syncCombosUsingComponents(tx, invoice.items.map((it) => it.productId))
   })
 
   const full = await db.purchaseInvoice.findUnique({
@@ -526,13 +585,17 @@ export async function cancelSalesInvoice(id: string, note?: string) {
       where: { id },
       data: { status: 'CANCELLED', note: appendCancelNote(invoice.note, note) },
     })
-    // Hoàn kho dựa trên movement thật của hóa đơn (xuất thủ công + BOM_ISSUE, kể cả trường hợp bị kẹp về 0)
+    // Hoàn kho dựa trên movement thật của hóa đơn (xuất thủ công + BOM_ISSUE + COMBO_ISSUE, kể cả trường hợp bị kẹp về 0)
     const movements = await tx.stockMovement.findMany({
-      where: { type: { in: ['SALE_EXPORT', 'BOM_ISSUE'] }, note: { contains: invoice.code } },
+      where: { type: { in: ['SALE_EXPORT', 'BOM_ISSUE', 'COMBO_ISSUE'] }, note: { contains: invoice.code } },
     })
     for (const mv of movements) {
       await applyStockChange(tx, mv.productId, -mv.quantity, 'REVERSE', `Hủy hóa đơn bán ${invoice.code} — hoàn kho`)
     }
+    await syncCombosUsingComponents(tx, [
+      ...invoice.items.map((it) => it.productId),
+      ...movements.map((m) => m.productId),
+    ])
   })
 
   const full = await db.salesInvoice.findUnique({

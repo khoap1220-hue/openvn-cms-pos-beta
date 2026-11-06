@@ -82,7 +82,10 @@ export function ChannelsView() {
     setTogglingId(channel.id)
     try {
       await apiPatch<{ channel: Channel }>(`/api/channels/${channel.id}`, { connected: false })
-      toast({ title: `Đã ngắt kết nối kênh ${channel.name}` })
+      toast({
+        title: `Đã tắt bán / ngắt kết nối kênh ${channel.name}`,
+        description: 'Toàn bộ sản phẩm đã được đồng bộ gỡ khỏi danh sách bán trên kênh.',
+      })
       setPendingDisconnect(null)
       await load()
     } catch (e) {

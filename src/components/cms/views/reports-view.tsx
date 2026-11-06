@@ -269,21 +269,23 @@ export function ReportsView() {
                 {loading ? (
                   <Skeleton className="h-[300px] w-full" />
                 ) : (
-                  <div className="grid h-[300px] grid-cols-2 items-center">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={data?.statusDistribution ?? []} dataKey="count" nameKey="status" innerRadius={50} outerRadius={85} paddingAngle={3} strokeWidth={0}>
-                          {(data?.statusDistribution ?? []).map((s) => (
-                            <Cell key={s.status} fill={statusColors[s.status] ?? '#a3a3a3'} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value, name) => [`${formatNumber(Number(value))} đơn`, name]}
-                          contentStyle={{ borderRadius: 12, border: '1px solid hsl(var(--border))', fontSize: 13 }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="space-y-2 pr-2">
+                  <div className="grid grid-cols-1 gap-3 sm:h-[300px] sm:grid-cols-2 sm:items-center">
+                    <div className="h-[210px] w-full sm:h-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={data?.statusDistribution ?? []} dataKey="count" nameKey="status" innerRadius={50} outerRadius={85} paddingAngle={3} strokeWidth={0}>
+                            {(data?.statusDistribution ?? []).map((s) => (
+                              <Cell key={s.status} fill={statusColors[s.status] ?? '#a3a3a3'} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value, name) => [`${formatNumber(Number(value))} đơn`, name]}
+                            contentStyle={{ borderRadius: 12, border: '1px solid hsl(var(--border))', fontSize: 13 }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2 px-1 sm:pr-2">
                       {(data?.statusDistribution ?? []).map((s) => (
                         <div key={s.status} className="flex items-center justify-between gap-2 text-sm">
                           <OrderStatusBadge status={s.status} />

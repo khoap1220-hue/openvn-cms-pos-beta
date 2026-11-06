@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "OPENVN Shopee Auto-Sync",
+  "version": "1.0.0",
+  "description": "Tự động trích xuất và đồng bộ Cookie phiên Shopee Kênh Người Bán về hệ thống OPENVN CMS/POS",
+  "permissions": [
+    "cookies",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://banhang.shopee.vn/*",
+    "*://*.shopee.vn/*",
+    "http://127.0.0.1:51898/*",
+    "http://127.0.0.1:3010/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "OPENVN Shopee Auto-Sync"
+  }
+}

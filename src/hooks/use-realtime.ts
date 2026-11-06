@@ -50,11 +50,42 @@ function stopPolling() {
   pollTimer = null
 }
 
+function isRemoteTunnel(): boolean {
+  if (typeof window === 'undefined') return false
+  if (window.location.port === '81') return false
+  return window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+}
+
+function resolveSocketUrl(): string {
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_REALTIME_URL) {
+    return process.env.NEXT_PUBLIC_REALTIME_URL
+  }
+  if (typeof window !== 'undefined') {
+    // Nếu qua Caddy gateway (:81) thì giữ query XTransformPort=3003
+    if (window.location.port === '81') {
+      return '/?XTransformPort=3003'
+    }
+    // Nếu truy cập qua Cloudflare Tunnel / domain từ xa: đi qua origin hiện tại (Next.js rewrite ?EIO=* -> :3013)
+    if (isRemoteTunnel()) {
+      return window.location.origin
+    }
+    const realtimePort = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_REALTIME_PORT) || '3013'
+    return `${window.location.protocol}//${window.location.hostname}:${realtimePort}`
+  }
+  return '/?XTransformPort=3003'
+}
+
 function ensureSocket() {
   if (socket) return
-  // KHÔNG đổi path '/': Caddy gateway dùng nó để forward tới đúng port
-  socket = io('/?XTransformPort=3003', {
-    transports: ['websocket', 'polling'],
+  if (typeof window !== 'undefined' && (window.location.hostname.endsWith('.github.io') || isRemoteTunnel())) {
+    startPolling()
+    setMode('polling')
+    return
+  }
+  // Hỗ trợ truy cập trực tiếp (localhost:3010 -> :3013), qua Caddy (:81) và qua Cloudflare Tunnel (rewrite ?EIO=*)
+  socket = io(resolveSocketUrl(), {
+    path: '/',
+    transports: isRemoteTunnel() ? ['polling'] : ['websocket', 'polling'],
     forceNew: true,
     reconnection: true,
     reconnectionAttempts: Infinity,

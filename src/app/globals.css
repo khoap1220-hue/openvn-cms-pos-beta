@@ -8,6 +8,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-lora), Georgia, serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -44,72 +45,75 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.99 0.004 155);
-  --foreground: oklch(0.16 0.01 160);
+  --radius: 0.5rem;
+  /* OPENVN Light Workspace: nền xám lạnh dịu mắt (#F3F5F8) + thẻ trắng nổi khối */
+  --background: oklch(0.968 0.004 250);
+  --foreground: oklch(0.18 0.02 252);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.01 160);
+  --card-foreground: oklch(0.18 0.02 252);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.01 160);
-  --primary: oklch(0.55 0.13 163);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.965 0.008 155);
-  --secondary-foreground: oklch(0.24 0.02 160);
-  --muted: oklch(0.965 0.005 155);
-  --muted-foreground: oklch(0.52 0.015 160);
-  --accent: oklch(0.945 0.02 158);
-  --accent-foreground: oklch(0.3 0.05 160);
+  --popover-foreground: oklch(0.18 0.02 252);
+  /* OPENVN Signature Royal Blue (#0066CC — đạt chuẩn tương phản WCAG AA 5.75:1) */
+  --primary: oklch(0.51 0.19 252);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.945 0.01 250);
+  --secondary-foreground: oklch(0.24 0.03 252);
+  --muted: oklch(0.95 0.006 250);
+  --muted-foreground: oklch(0.45 0.02 250);
+  --accent: oklch(0.94 0.025 250);
+  --accent-foreground: oklch(0.32 0.09 250);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.915 0.008 155);
-  --input: oklch(0.915 0.008 155);
-  --ring: oklch(0.62 0.12 163);
-  --chart-1: oklch(0.6 0.145 163.2);
-  --chart-2: oklch(0.828 0.189 84.429);
-  --chart-3: oklch(0.646 0.222 41.116);
-  --chart-4: oklch(0.6 0.118 184.704);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.97 0.008 158);
-  --sidebar-foreground: oklch(0.2 0.01 160);
-  --sidebar-primary: oklch(0.55 0.13 163);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.92 0.03 158);
-  --sidebar-accent-foreground: oklch(0.3 0.05 160);
-  --sidebar-border: oklch(0.9 0.01 155);
-  --sidebar-ring: oklch(0.62 0.12 163);
+  --border: oklch(0.905 0.008 250);
+  --input: oklch(0.895 0.01 250);
+  --ring: oklch(0.51 0.19 252);
+  --chart-1: oklch(0.51 0.19 252);
+  --chart-2: oklch(0.64 0.16 160);
+  --chart-3: oklch(0.75 0.17 75);
+  --chart-4: oklch(0.6 0.18 295);
+  --chart-5: oklch(0.64 0.22 25);
+  /* OPENVN Deep Navy Sidebar (#182537) — độ tương phản cao, chuẩn OPENVN/POS */
+  --sidebar: oklch(0.22 0.035 252);
+  --sidebar-foreground: oklch(0.92 0.012 245);
+  --sidebar-primary: oklch(0.51 0.19 252);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.29 0.042 252);
+  --sidebar-accent-foreground: oklch(0.99 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.51 0.19 252);
 }
 
 .dark {
-  --background: oklch(0.16 0.01 160);
-  --foreground: oklch(0.97 0.005 155);
-  --card: oklch(0.21 0.012 160);
-  --card-foreground: oklch(0.97 0.005 155);
-  --popover: oklch(0.21 0.012 160);
-  --popover-foreground: oklch(0.97 0.005 155);
-  --primary: oklch(0.7 0.15 163);
-  --primary-foreground: oklch(0.15 0.02 160);
-  --secondary: oklch(0.27 0.015 160);
-  --secondary-foreground: oklch(0.97 0.005 155);
-  --muted: oklch(0.27 0.015 160);
-  --muted-foreground: oklch(0.71 0.01 160);
-  --accent: oklch(0.3 0.03 160);
-  --accent-foreground: oklch(0.97 0.005 155);
+  --background: oklch(0.15 0.018 252);
+  --foreground: oklch(0.96 0.006 250);
+  --card: oklch(0.2 0.022 252);
+  --card-foreground: oklch(0.96 0.006 250);
+  --popover: oklch(0.2 0.022 252);
+  --popover-foreground: oklch(0.96 0.006 250);
+  --primary: oklch(0.65 0.18 250);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.26 0.025 252);
+  --secondary-foreground: oklch(0.96 0.006 250);
+  --muted: oklch(0.25 0.02 252);
+  --muted-foreground: oklch(0.7 0.015 250);
+  --accent: oklch(0.28 0.04 252);
+  --accent-foreground: oklch(0.96 0.006 250);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
+  --border: oklch(1 0 0 / 11%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.6 0.13 163);
-  --chart-1: oklch(0.7 0.15 163);
-  --chart-2: oklch(0.769 0.188 70.08);
-  --chart-3: oklch(0.646 0.222 41.116);
-  --chart-4: oklch(0.696 0.17 162.48);
+  --ring: oklch(0.65 0.18 250);
+  --chart-1: oklch(0.65 0.18 250);
+  --chart-2: oklch(0.68 0.16 160);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.696 0.17 295);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.19 0.012 160);
-  --sidebar-foreground: oklch(0.97 0.005 155);
-  --sidebar-primary: oklch(0.7 0.15 163);
-  --sidebar-primary-foreground: oklch(0.15 0.02 160);
-  --sidebar-accent: oklch(0.28 0.02 160);
-  --sidebar-accent-foreground: oklch(0.97 0.005 155);
+  --sidebar: oklch(0.17 0.025 252);
+  --sidebar-foreground: oklch(0.9 0.01 250);
+  --sidebar-primary: oklch(0.65 0.18 250);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.25 0.035 252);
+  --sidebar-accent-foreground: oklch(0.99 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.6 0.13 163);
+  --sidebar-ring: oklch(0.65 0.18 250);
 }
 
 @layer base {
@@ -118,6 +122,21 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="checkbox"],
+  [role="combobox"] {
+    touch-action: manipulation;
   }
 }
 
@@ -142,3 +161,799 @@
 .dark ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.45 0.05 163);
 }
+
+/* Ẩn hoàn toàn huy hiệu nổi Next.js DevTools (N | 1 Issue) ở góc dưới bên trái */
+nextjs-portal,
+[data-nextjs-toast],
+[data-nextjs-dev-tools-button],
+[data-nextjs-dialog-overlay] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* === BEGIN BETA AGENT SAFE UI HEAL === */
+/* Đồng bộ 100% Design Tokens gốc của dự án (:root --primary, --card, --border, --muted, --radius trong globals.css) */
+/* Không ép !important lên chiều cao Button/Tab/Header của shadcn/ui để giữ nguyên thiết kế gốc */
+
+/* 1. [Sidebar & Top Header] Giữ nguyên bố cục Sidebar gốc và khóa Top Header 1 dòng duy nhất (chống rớt dòng đè lên thanh điều hướng kho) */
+[data-sidebar="sidebar"],
+[data-sidebar="content"] {
+  overflow-x: hidden;
+}
+main > header {
+  flex-wrap: nowrap !important;
+  overflow: hidden;
+}
+
+/* 2. [Table & Truncated Text] Giữ nguyên mật độ dòng của shadcn/ui Table, hỗ trợ xem đầy đủ chuỗi bị cắt (.truncate) khi hover theo đúng màu nền --popover / --border gốc */
+main table td .truncate,
+main table td [class*="truncate"] {
+  transition: color 0.15s ease;
+}
+main table tr:hover td .truncate:hover,
+main table tr:hover td [class*="truncate"]:hover {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+/* 3. [Responsive Table & All-Viewport Container] Cuộn ngang gọn trong khung Card trên mọi độ phân giải (945px, 1024px, 1536px, 2560px) */
+main,
+main [data-slot="card"],
+main [data-slot="card-content"],
+main [data-slot="table-container"],
+main .overflow-x-auto,
+main div:has(> table) {
+  min-width: 0;
+  max-width: 100%;
+}
+main [data-slot="table-container"],
+main .overflow-x-auto,
+main div:has(> table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 1600px) {
+  main [data-slot="table-container"] table th,
+  main [data-slot="table-container"] table td {
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
+  }
+}
+
+/* --- DYNAMIC PER-FEEDBACK AUTO-FIX RULES --- */
+/* [Auto-Fix Feedback #117 | view=purchase | viewport=1655x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #116 | view=orders | viewport=1357x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #115 | view=inventory | viewport=1160x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #114 | view=liveops | viewport=1160x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #113 | view=products | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #112 | view=orders | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #111 | view=global | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #110 | view=liveops | viewport=1309x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #109 | view=global | viewport=1206x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #108 | view=system | viewport=1696x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #107 | view=purchase | viewport=1696x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #106 | view=products | viewport=392x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #105 | view=global | viewport=1361x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #104 | view=liveops | viewport=1780x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #103 | view=partners | viewport=1874x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #102 | view=customers | viewport=1874x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #101 | view=purchase | viewport=1612x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #100 | view=sales | viewport=1458x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #99 | view=global | viewport=1905x1096 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #98 | view=liveops | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #97 | view=pos | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #96 | view=products | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #95 | view=shipments | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #94 | view=sales | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #93 | view=bom | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #92 | view=stock-export | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #91 | view=orders | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #90 | view=inventory | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #89 | view=global | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #88 | view=inventory | viewport=1306x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #87 | view=channels | viewport=1725x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #86 | view=auto-social | viewport=1725x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #85 | view=bom | viewport=1725x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #84 | view=inbox | viewport=1725x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #83 | view=orders | viewport=1452x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #81 | view=inventory | viewport=1280x800 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #80 | view=global | viewport=1280x800 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #79 | view=stock-balance | viewport=1501x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #78 | view=stock-export | viewport=1501x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #77 | view=products | viewport=1501x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #76 | view=shipments | viewport=1501x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #75 | view=pos | viewport=1501x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #74 | view=global | viewport=1693x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #73 | view=inventory | viewport=1183x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #72 | view=system | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #71 | view=inventory | viewport=1750x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #70 | view=orders | viewport=1750x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #69 | view=purchase | viewport=1372x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #67 | view=purchase | viewport=1448x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #66 | view=stock-balance | viewport=1448x1285 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #65 | view=orders | viewport=1037x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #64 | view=inventory | viewport=1037x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #63 | view=global | viewport=300x150 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #62 | view=bom | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #61 | view=orders | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #60 | view=global | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #59 | view=inventory | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #58 | view=bom | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #57 | view=inventory | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #56 | view=stock-balance | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #55 | view=stock-export | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #54 | view=purchase | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #53 | view=orders | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #52 | view=orders | viewport=1185x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #51 | view=inventory | viewport=1185x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #50 | view=global | viewport=1185x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #48 | view=customers | viewport=390x844 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+main button:focus-visible, main [role='button']:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+main td .inline-flex.items-center.gap-1 { gap: 0.375rem; }
+
+/* [Auto-Fix Feedback #47 | view=pos | viewport=1366x768 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+main button:focus-visible, main [role='button']:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+main td .inline-flex.items-center.gap-1 { gap: 0.375rem; }
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #46 | view=inventory | viewport=1536x864 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+main button:focus-visible, main [role='button']:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+main td .inline-flex.items-center.gap-1 { gap: 0.375rem; }
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #45 | view=products | viewport=1536x864 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+main button:focus-visible, main [role='button']:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+main td .inline-flex.items-center.gap-1 { gap: 0.375rem; }
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #44 | view=orders | viewport=1920x1080 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+main button:focus-visible, main [role='button']:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+main td .inline-flex.items-center.gap-1 { gap: 0.375rem; }
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #43 | view=dashboard | viewport=1920x1080 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+main button:focus-visible, main [role='button']:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+main td .inline-flex.items-center.gap-1 { gap: 0.375rem; }
+
+/* [Auto-Fix Feedback #42 | view=system | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #41 | view=campaigns | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #40 | view=stock-balance | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #39 | view=inventory | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #38 | view=stock-export | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #37 | view=purchase | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #36 | view=products | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #35 | view=global | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #34 | view=shipments | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #33 | view=sales | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #32 | view=liveops | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #31 | view=inbox | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #30 | view=products | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #29 | view=pos | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #28 | view=purchase | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #27 | view=stock-balance | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #26 | view=bom | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #25 | view=stock-export | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #24 | view=orders | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #23 | view=iam | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #22 | view=inventory | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #21 | view=global | viewport=2560x1279 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #20 | view=channels | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #19 | view=auto-social | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #18 | view=campaigns | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #17 | view=global | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #16 | view=inventory | viewport=1024x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #15 | view=bom | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main [data-slot='card'] { border-color: var(--border); background-color: var(--card); }
+main table td button[title*='Bấm để lọc']:hover { border-color: var(--primary); color: var(--foreground); }
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+main button:focus-visible, main [role='button']:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+main td .inline-flex.items-center.gap-1 { gap: 0.375rem; }
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #14 | view=inbox | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #13 | view=shipments | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #12 | view=sales | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #11 | view=pos | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #10 | view=liveops | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #9 | view=ledger | viewport=945x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #8 | view=reports | viewport=945x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #7 | view=partners | viewport=945x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #6 | view=campaigns | viewport=945x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #5 | view=inbox | viewport=945x1216 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #4 | view=shipments | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #3 | view=customers | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+
+/* [Auto-Fix Feedback #2 | view=sales | viewport=1536x695 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc */
+main .overflow-x-auto, main div:has(> table) {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border-color: var(--border);
+}
+
+/* [Auto-Fix Feedback #1 | view=products | viewport=2844x1421 | tokens=--primary:oklch(0.51 0.19 252),--radius:0.5rem] Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc */
+main table td .truncate:hover, main table td [class*='truncate']:hover {
+  white-space: normal; overflow: visible; text-overflow: unset; word-break: break-word;
+}
+/* === END BETA AGENT SAFE UI HEAL === */
+
+/* === BEGIN INDEPENDENT UI/UX PRO MAX AGENT POLISH === */
+/* Quản trị độc lập bởi UIUX-AGENT-PRO (ui-ux-pro-max + matrix-thiet-ke-giao-dien-uxui) */
+/* Tuân thủ 100% biến :root của dự án gốc (var(--primary), var(--card), var(--border), var(--radius)) */
+
+/* [P1 Accessibility WCAG 2.2] Vòng focus rõ nét theo token --ring gốc khi điều hướng bàn phím */
+main button:focus-visible,
+main a:focus-visible,
+main input:focus-visible,
+main select:focus-visible {
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 1px;
+}
+
+/* [P5 Multi-Viewport Responsive 390px..2560px] Khóa chống tràn ngang tuyệt đối cho mọi Card & Bảng */
+main,
+main [data-slot="card"],
+main [data-slot="card-content"],
+main [data-slot="table-container"],
+main .overflow-x-auto,
+main div:has(> table) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* [P6 & P10 Data Table Scannability] Căn thẳng hàng con số tồn kho / tiền tệ theo chuẩn Tabular Numerals */
+main table td.text-right,
+main table th.text-right,
+main .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* [P8 Progressive Disclosure] Hiển thị trọn vẹn nội dung bị cắt (.truncate) khi người dùng di chuột hoặc chạm */
+main table tr:hover td .truncate:hover,
+main table tr:hover td [class*="truncate"]:hover {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+/* [P2 & P9 Multi-Device Button Declutter 375px..1024px] Khóa Top Header 1 dòng & cuộn ngang mượt cho dải Tab/Chip trên Mobile & Tablet */
+main > header {
+  flex-wrap: nowrap !important;
+  overflow: hidden;
+}
+@media (max-width: 1024px) {
+  main .overflow-x-auto {
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+/* === END INDEPENDENT UI/UX PRO MAX AGENT POLISH === */

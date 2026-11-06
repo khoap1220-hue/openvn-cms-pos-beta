@@ -1,0 +1,52 @@
+/* === BEGIN INDEPENDENT UI/UX PRO MAX AGENT POLISH === */
+/* Quản trị độc lập bởi UIUX-AGENT-PRO (ui-ux-pro-max + matrix-thiet-ke-giao-dien-uxui) */
+/* Tuân thủ 100% biến :root của dự án gốc (var(--primary), var(--card), var(--border), var(--radius)) */
+
+/* [P1 Accessibility WCAG 2.2] Vòng focus rõ nét theo token --ring gốc khi điều hướng bàn phím */
+main button:focus-visible,
+main a:focus-visible,
+main input:focus-visible,
+main select:focus-visible {
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 1px;
+}
+
+/* [P5 Multi-Viewport Responsive 390px..2560px] Khóa chống tràn ngang tuyệt đối cho mọi Card & Bảng */
+main,
+main [data-slot="card"],
+main [data-slot="card-content"],
+main [data-slot="table-container"],
+main .overflow-x-auto,
+main div:has(> table) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* [P6 & P10 Data Table Scannability] Căn thẳng hàng con số tồn kho / tiền tệ theo chuẩn Tabular Numerals */
+main table td.text-right,
+main table th.text-right,
+main .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* [P8 Progressive Disclosure] Hiển thị trọn vẹn nội dung bị cắt (.truncate) khi người dùng di chuột hoặc chạm */
+main table tr:hover td .truncate:hover,
+main table tr:hover td [class*="truncate"]:hover {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+/* [P2 & P9 Multi-Device Button Declutter 375px..1024px] Khóa Top Header 1 dòng & cuộn ngang mượt cho dải Tab/Chip trên Mobile & Tablet */
+main > header {
+  flex-wrap: nowrap !important;
+  overflow: hidden;
+}
+@media (max-width: 1024px) {
+  main .overflow-x-auto {
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+/* === END INDEPENDENT UI/UX PRO MAX AGENT POLISH === */

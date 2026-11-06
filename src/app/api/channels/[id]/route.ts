@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { logLedger } from '@/lib/ledger'
+import { broadcast } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,8 +30,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updated = await db.channel.update({ where: { id }, data })
 
-    // Khi kết nối lại: tự động đẩy các sản phẩm ACTIVE lên kênh nếu chưa có
-    if (data.connected === true) {
+    // Khi kết nối lại HOẶC bấm Đồng bộ (sync = true): tự động đồng bộ toàn bộ sản phẩm ACTIVE lên kênh
+    let syncedListings = 0
+    if (data.connected === true || sync === true) {
       const products = await db.product.findMany({ where: { status: 'ACTIVE' }, select: { id: true } })
       const existingListings = await db.channelListing.findMany({ where: { channelId: id }, select: { productId: true } })
       const existingIds = new Set(existingListings.map((l) => l.productId))
@@ -37,11 +40,43 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (toAdd.length > 0) {
         await db.channelListing.createMany({ data: toAdd.map((p) => ({ productId: p.id, channelId: id })) })
       }
+      syncedListings = products.length
+
+      if (sync === true) {
+        await logLedger({
+          scope: 'SETTINGS',
+          action: 'CHANNEL_SYNCED',
+          entityType: 'Channel',
+          entityId: updated.id,
+          entityCode: updated.key,
+          title: `Đồng bộ kênh bán «${updated.name}» (${syncedListings} sản phẩm ACTIVE, thêm mới ${toAdd.length})`,
+          detail: { channelKey: updated.key, syncedListings, addedListings: toAdd.length },
+          actor: 'OPERATOR',
+        })
+      }
+    } else if (data.connected === false) {
+      // Khi ngắt kết nối / tắt bán kênh: tự động gỡ toàn bộ listings của kênh này để đồng bộ tức thì
+      const removed = await db.channelListing.deleteMany({ where: { channelId: id } })
+      await logLedger({
+        scope: 'SETTINGS',
+        action: 'CHANNEL_DISCONNECTED',
+        entityType: 'Channel',
+        entityId: updated.id,
+        entityCode: updated.key,
+        title: `Tắt bán / Ngắt kết nối kênh «${updated.name}» (đã gỡ ${removed.count} sản phẩm khỏi kênh)`,
+        detail: { channelKey: updated.key, removedListings: removed.count },
+        actor: 'OPERATOR',
+      })
+      broadcast('product.updated', { channelId: id, disconnected: true })
     }
 
-    return NextResponse.json({ channel: updated })
+    broadcast('channel.updated', { id: updated.id, key: updated.key, connected: updated.connected })
+    broadcast('product.updated', { channelId: updated.id, connected: updated.connected })
+    return NextResponse.json({ channel: updated, syncedListings })
   } catch (error) {
     console.error('Channel PATCH error:', error)
     return NextResponse.json({ error: 'Không thể cập nhật kênh' }, { status: 500 })
   }
 }
+
+export const PUT = PATCH

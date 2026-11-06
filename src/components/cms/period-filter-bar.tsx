@@ -4,7 +4,8 @@
 // (Đầu kỳ → Phát sinh trong kỳ → Cuối kỳ) dùng chung cho Sổ Data, Tồn kho,
 // Vận chuyển, Đơn hàng. Hỗ trợ query params: from, to, originSource, onlyChanged.
 
-import { CalendarRange } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarRange, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
 import {
@@ -55,8 +56,47 @@ export function PeriodFilterBar({
   onChangedFilterChange,
   className,
 }: PeriodFilterBarProps) {
+  const [mobileExpanded, setMobileExpanded] = useState(false)
+  const activeCount =
+    (value.preset !== 'ALL' ? 1 : 0) +
+    (showOrigin && originSource !== 'ALL' ? 1 : 0) +
+    (showChanged && changedFilter !== 'ALL' ? 1 : 0)
+
   return (
-    <div className={cn('flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center', className)}>
+    <div className={cn('flex flex-col gap-2', className)}>
+      {/* Nút thu gọn / mở rộng bộ lọc kỳ & nguồn gốc trên điện thoại (< sm) */}
+      <div className="flex items-center justify-between sm:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileExpanded((v) => !v)}
+          className={cn(
+            'inline-flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors',
+            activeCount > 0 || mobileExpanded
+              ? 'border-[#0066CC]/40 bg-sky-50/70 text-[#0066CC] dark:border-sky-800 dark:bg-sky-950/35 dark:text-sky-300'
+              : 'border-border bg-card text-muted-foreground'
+          )}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>
+              Lọc kỳ &amp; Nguồn gốc ({PERIOD_PRESET_LABELS[value.preset]})
+            </span>
+            {activeCount > 0 && (
+              <span className="rounded-full bg-[#0066CC] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                {activeCount}
+              </span>
+            )}
+          </span>
+          {mobileExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+      </div>
+
+      <div
+        className={cn(
+          'flex-col gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-center',
+          mobileExpanded ? 'flex rounded-xl border bg-muted/25 p-2.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0' : 'hidden sm:flex'
+        )}
+      >
       {/* Chọn nhanh kỳ */}
       <div className="flex items-center gap-2">
         <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -132,6 +172,7 @@ export function PeriodFilterBar({
           </SelectContent>
         </Select>
       )}
+      </div>
     </div>
   )
 }

@@ -130,3 +130,5 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Không thể xóa webhook' }, { status: 500 })
   }
 }
+
+export const PUT = PATCH

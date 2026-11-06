@@ -146,10 +146,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: người vận hành tự báo đơn vị vận chuyển (khi tắt auto_carrier)
+// POST: người vận hành tự báo đơn vị vận chuyển (khi tắt auto_carrier hoặc ở chế độ Vận hành thực tế)
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { orderId?: string; carrier?: string }
+    const body = (await req.json()) as { orderId?: string; carrier?: string; fee?: number }
     if (!body.orderId) return NextResponse.json({ error: 'Thiếu mã đơn hàng' }, { status: 400 })
 
     const order = await db.order.findUnique({
@@ -165,19 +165,28 @@ export async function POST(req: NextRequest) {
 
     const carrier = CARRIERS.find((c) => c.key === body.carrier) ?? CARRIERS[Math.floor(Math.random() * CARRIERS.length)]
     const tracking = makeTrackingCode(carrier.key)
+    const customFee = Number(body.fee)
+    const finalFee = Number.isFinite(customFee) && customFee >= 0 ? Math.round(customFee) : order.shippingFee
+
     const shipment = await db.shipment.create({
       data: {
         orderId: order.id,
         carrier: carrier.key,
         trackingCode: tracking,
         status: 'DISPATCHED',
-        fee: order.shippingFee,
+        fee: finalFee,
         codAmount: order.paymentMethod === 'COD' ? order.total : 0,
         codStatus: 'PENDING',
         dispatchedBy: 'OPERATOR',
       },
       include: { order: true },
     })
+
+    // Đồng bộ trạng thái đơn hàng sang SHIPPING khi đã tạo vận đơn bàn giao ĐVVC
+    if (['PENDING', 'CONFIRMED', 'PACKING'].includes(order.status)) {
+      await db.order.update({ where: { id: order.id }, data: { status: 'SHIPPING' } })
+      broadcast('order.updated', { id: order.id, status: 'SHIPPING', code: order.code })
+    }
 
     await logEvent(order.id, 'CARRIER_DISPATCHED', 'OPERATOR', `Người vận hành báo ${carrier.name} lấy hàng — mã vận đơn ${tracking}`)
     // DATA LINEAGE — snapshot gốc vận đơn
@@ -221,7 +230,7 @@ export async function POST(req: NextRequest) {
       targetType: 'ORDER',
       targetId: order.id,
       targetLabel: order.code,
-      message: `Người vận hành tự báo ${carrier.name} lấy hàng đơn ${order.code} — mã vận đơn ${tracking}`,
+      message: `Điều phối thủ công đơn vị ${carrier.name} lấy hàng đơn ${order.code} — mã vận đơn ${tracking}`,
     })
     broadcast('shipment.updated', { id: shipment.id, orderId: order.id, status: 'DISPATCHED', code: order.code })
 

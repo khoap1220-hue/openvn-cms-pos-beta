@@ -522,7 +522,7 @@ export function LedgerView() {
               description="Thử đổi phạm vi, khoảng thời gian hoặc từ khóa tìm kiếm."
             />
           ) : (
-            <div className="max-h-[480px] overflow-y-auto overflow-x-auto rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border lg:max-h-[540px] lg:overflow-y-auto">
               <Table className="min-w-[920px]">
                 <TableHeader className="sticky top-0 bg-background">
                   <TableRow>

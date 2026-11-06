@@ -25,7 +25,7 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return // mutation luôn đi thẳng mạng (UI tự xếp hàng offline)
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
-  if (url.pathname.startsWith('/_next/webpack-hmr') || url.pathname.includes('hot-reload')) return
+  if (url.pathname.startsWith('/_next/webpack-hmr') || url.pathname.includes('hot-reload') || url.searchParams.has('EIO')) return
 
   // Network-first với fallback cache
   event.respondWith(

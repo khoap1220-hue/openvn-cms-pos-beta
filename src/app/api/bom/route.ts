@@ -2,14 +2,101 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
 import { syncComboStock } from '@/lib/combo'
+import { getAllUnitConfigs } from '@/lib/unit-conversion'
 
 export const dynamic = 'force-dynamic'
+
+let defaultProductionBomsSeeded = false
+
+async function ensureDefaultProductionBomsSeeded() {
+  if (defaultProductionBomsSeeded) return
+  defaultProductionBomsSeeded = true
+  try {
+    const skus = ['UD-TC-001', 'UD-TC-006', 'UD-TC-007', 'UD-SAP-001', 'UD-SAP-002', 'UD-VL-001']
+    const prods = await db.product.findMany({
+      where: { sku: { in: skus } },
+      select: { id: true, sku: true },
+    })
+    const bySku = new Map(prods.map((p) => [p.sku, p.id]))
+    const sap1 = bySku.get('UD-SAP-001')
+    const sap2 = bySku.get('UD-SAP-002')
+    const bac = bySku.get('UD-VL-001')
+    if (!sap1 || !bac) return
+
+    const recipes: Array<{ targetSku: string; items: Array<{ componentId: string; quantity: number }> }> = [
+      {
+        targetSku: 'UD-TC-001',
+        items: [
+          { componentId: sap1, quantity: 180 },
+          { componentId: bac, quantity: 1 },
+        ],
+      },
+      {
+        targetSku: 'UD-TC-006',
+        items: [
+          { componentId: sap1, quantity: 220 },
+          { componentId: bac, quantity: 1 },
+        ],
+      },
+      {
+        targetSku: 'UD-TC-007',
+        items: [
+          { componentId: sap2 || sap1, quantity: 250 },
+          { componentId: bac, quantity: 1 },
+        ],
+      },
+    ]
+
+    for (const r of recipes) {
+      const pid = bySku.get(r.targetSku)
+      if (!pid) continue
+      const existingCount = await db.bomComponent.count({ where: { productId: pid } })
+      if (existingCount === 0) {
+        await db.bomComponent.createMany({
+          data: r.items.map((it) => ({
+            productId: pid,
+            componentProductId: it.componentId,
+            quantity: it.quantity,
+          })),
+        })
+      }
+    }
+  } catch (err) {
+    console.warn('Skip seeding default production BOMs:', err)
+  }
+}
 
 // GET ?productId → định mức của 1 thành phẩm; không param → tất cả group theo thành phẩm
 export async function GET(req: NextRequest) {
   try {
+    await ensureDefaultProductionBomsSeeded()
+    const unitMap = await getAllUnitConfigs()
     const { searchParams } = new URL(req.url)
     const productId = searchParams.get('productId')?.trim()
+
+    const enrichComponentProduct = (cp: {
+      id: string
+      sku: string
+      name: string
+      unit: string
+      stock: number
+      costPrice: number
+    }) => {
+      const uCfg = unitMap[cp.id]
+      const purchaseRate = Math.max(1, Number(uCfg?.purchaseRate) || 1)
+      // Nếu sản phẩm lưu theo gr/ml có hệ số quy đổi (VD: 1 kg = 1.000 gr) và costPrice đang lưu theo đơn vị mua (VD: 52.000₫/kg)
+      const baseUnitCost =
+        purchaseRate > 1 && cp.costPrice >= purchaseRate
+          ? Math.round(cp.costPrice / purchaseRate)
+          : cp.costPrice
+      return {
+        ...cp,
+        costPrice: baseUnitCost,
+        rawCostPrice: cp.costPrice,
+        purchaseRate,
+        purchaseUnit: uCfg?.purchaseUnit || cp.unit,
+      }
+    }
 
     if (productId) {
       const product = await db.product.findUnique({ where: { id: productId }, select: { id: true } })
@@ -21,7 +108,13 @@ export async function GET(req: NextRequest) {
           componentProduct: { select: { id: true, sku: true, name: true, unit: true, stock: true, costPrice: true } },
         },
       })
-      return NextResponse.json({ productId, components })
+      return NextResponse.json({
+        productId,
+        components: components.map((c) => ({
+          ...c,
+          componentProduct: enrichComponentProduct(c.componentProduct),
+        })),
+      })
     }
 
     const all = await db.bomComponent.findMany({
@@ -40,7 +133,21 @@ export async function GET(req: NextRequest) {
         productName: string
         unit: string
         stock: number
-        components: Array<{ id: string; quantity: number; componentProduct: { id: string; sku: string; name: string; unit: string; stock: number; costPrice: number } }>
+        components: Array<{
+          id: string
+          quantity: number
+          componentProduct: {
+            id: string
+            sku: string
+            name: string
+            unit: string
+            stock: number
+            costPrice: number
+            rawCostPrice?: number
+            purchaseRate?: number
+            purchaseUnit?: string
+          }
+        }>
       }
     >()
     for (const bom of all) {
@@ -55,7 +162,7 @@ export async function GET(req: NextRequest) {
       group.components.push({
         id: bom.id,
         quantity: bom.quantity,
-        componentProduct: bom.componentProduct,
+        componentProduct: enrichComponentProduct(bom.componentProduct),
       })
       groups.set(bom.productId, group)
     }

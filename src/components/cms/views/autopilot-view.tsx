@@ -88,9 +88,9 @@ export function AutopilotView() {
     try {
       const res = await apiPatch<{ settings: Record<string, boolean> }>('/api/autopilot', { key, enabled })
       setData((prev) => (prev ? { ...prev, settings: res.settings } : prev))
-      toast({ title: `${enabled ? 'Đã bật' : 'Đã tắt'} «${label}»`, description: enabled ? 'Agent tiếp quản nhiệm vụ này.' : 'Nhiệm vụ chuyển về xử lý thủ công.' })
+      toast({ title: `${enabled ? 'Đã kích hoạt' : 'Đã tạm ngưng'} «${label}»`, description: enabled ? 'Hệ thống AI đã tiếp nhận quy trình tự động này.' : 'Quy trình đã chuyển về chế độ phê duyệt thủ công.' })
     } catch (error) {
-      toast({ title: 'Lỗi', description: error instanceof Error ? error.message : 'Không thể cập nhật', variant: 'destructive' })
+      toast({ title: 'Không thể cập nhật cấu hình', description: error instanceof Error ? error.message : 'Vui lòng thử lại sau', variant: 'destructive' })
     }
   }
 
@@ -108,10 +108,10 @@ export function AutopilotView() {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-bold">Đội Agent tự vận hành</h2>
-                {master ? <Badge className="bg-emerald-600 text-white">5/5 trực 24/7</Badge> : <Badge className="bg-amber-500 text-white">TẮT TOÀN BỘ</Badge>}
+                <h2 className="font-bold">Hệ thống Quy tắc Điều phối Tự động AI</h2>
+                {master ? <Badge className="bg-emerald-600 text-white">5/5 TÁC NHÂN TRỰC TUYẾN</Badge> : <Badge className="bg-amber-500 text-white">ĐIỀU HÀNH THỦ CÔNG</Badge>}
               </div>
-              <p className="text-sm text-muted-foreground">Công tắc tổng điều khiển mọi Agent. Tắt nghĩa là bạn phải tự làm tất cả.</p>
+              <p className="text-sm text-muted-foreground">Khóa tổng điều khiển toàn bộ quy trình tự động hóa. Khi tạm ngưng, các nghiệp vụ chuyển về chế độ phê duyệt thủ công.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -120,8 +120,8 @@ export function AutopilotView() {
             ))}
             <Switch
               checked={master}
-              onCheckedChange={(v) => toggle('master', v, 'Agent Autopilot')}
-              aria-label="Bật/tắt toàn bộ Agent"
+              onCheckedChange={(v) => toggle('master', v, 'Điều phối Tự động AI')}
+              aria-label="Kích hoạt hoặc tạm ngưng hệ thống Điều phối Tự động AI"
               className="scale-125"
             />
           </div>
@@ -147,9 +147,9 @@ export function AutopilotView() {
                     <p className="text-sm text-muted-foreground">{def.desc}</p>
                     <p className="mt-3 text-xs">
                       {enabled ? (
-                        <span className="font-medium text-emerald-600">● Agent đang phụ trách nhiệm vụ này</span>
+                        <span className="font-medium text-emerald-600">● Đang kích hoạt tự động</span>
                       ) : (
-                        <span className="font-medium text-amber-600">○ Đang xử lý thủ công</span>
+                        <span className="font-medium text-amber-600">○ Phê duyệt thủ công</span>
                       )}
                     </p>
                   </CardContent>
@@ -164,7 +164,7 @@ export function AutopilotView() {
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-base">
             <span className="flex items-center gap-2">
               <ScrollText className="h-4 w-4 text-primary" />
-              Nhật ký hoạt động Agent — lưu vĩnh viễn
+              Nhật ký Tác vụ AI Lưu trữ Toàn vẹn
             </span>
             <div className="flex items-center gap-2">
               {log?.byAgent
@@ -175,11 +175,11 @@ export function AutopilotView() {
                   </Badge>
                 ))}
               <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger className="h-8 w-44 text-xs" aria-label="Lọc theo Agent">
+                <SelectTrigger className="h-8 w-44 text-xs" aria-label="Lọc theo tác nhân AI">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">Tất cả Agent</SelectItem>
+                  <SelectItem value="ALL">Tất cả tác nhân AI</SelectItem>
                   {AGENT_ORDER.map((a) => (
                     <SelectItem key={a} value={a}>
                       {AGENTS[a].name}
@@ -190,9 +190,9 @@ export function AutopilotView() {
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="max-h-[560px] overflow-y-auto p-4 pt-4 [scrollbar-width:thin]">
+        <CardContent className="p-4 pt-4 lg:max-h-[560px] lg:overflow-y-auto [scrollbar-width:thin]">
           {!log || log.activities.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Chưa có hoạt động nào được ghi nhận.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Chưa có tác vụ tự động nào được ghi nhận.</p>
           ) : (
             <div className="space-y-1">
               {log.activities.map((a) => (
@@ -219,7 +219,7 @@ export function AutopilotView() {
 
       <div className="flex items-center justify-center gap-2 pb-2 text-xs text-muted-foreground">
         <Bot className="h-3.5 w-3.5" />
-        Mọi thao tác của Agent đều được lưu trữ vĩnh viễn trong cơ sở dữ liệu — kiểm toán đầy đủ, không mất dữ liệu.
+        Mọi tác vụ điều hành AI đều được ghi nhận bất biến trong cơ sở dữ liệu phục vụ đối soát và kiểm toán vận hành.
       </div>
     </div>
   )

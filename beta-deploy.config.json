@@ -1,0 +1,13 @@
+{
+  "project_name": "openvn-cms-pos-beta",
+  "project_path": "E:\\Z.AI\\workspace-57aaf18c-d0b6-44bc-8c6d-cf1574a56005 (1)",
+  "target_provider": "github_pages",
+  "repo_full_name": "khoap1220-hue/openvn-cms-pos-beta",
+  "live_url": "https://khoap1220-hue.github.io/openvn-cms-pos-beta/",
+  "local_port": 3010,
+  "cloud_sync_topic": "openvn_sync2way_openvn_cms_pos_beta_v1",
+  "feedback_topic": "openvn_fb_openvn_cms_pos_beta_v1",
+  "feedback_dir": "beta-feedback",
+  "mcp_engine_dir": "E:\\MCP SKILL DELOY FREE BETA",
+  "updated_at": "2026-11-06T01:34:51Z"
+}

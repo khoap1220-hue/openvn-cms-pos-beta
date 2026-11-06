@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
+import { logEvent } from '@/lib/agent-log'
 import { recordLineageChangeAsync } from '@/lib/ledger'
+import { awardPointsForCompletedOrder } from '@/lib/member'
+import { syncComboStock, syncCombosUsingComponents } from '@/lib/combo'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +77,111 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data.codReceivedAt = new Date()
     }
 
-    const updated = await db.shipment.update({ where: { id }, data, include: { order: true } })
+    let updated
+    if (data.status === 'RETURNED' && shipment.status !== 'RETURNED') {
+      // Vận đơn hoàn hàng về kho -> tự động hủy đơn hàng gốc & hoàn trả tồn kho nguyên khối trong transaction
+      updated = await db.$transaction(async (tx) => {
+        const shipmentUpdated = await tx.shipment.update({ where: { id }, data, include: { order: true } })
+
+        if (shipmentUpdated.order.status !== 'CANCELLED') {
+          await tx.order.update({
+            where: { id: shipmentUpdated.orderId },
+            data: { status: 'CANCELLED' },
+          })
+          const orderItems = await tx.orderItem.findMany({ where: { orderId: shipmentUpdated.orderId } })
+          const comboIdsToSync = new Set<string>()
+          const restockedProductIds: string[] = []
+          for (const item of orderItems) {
+            const product = await tx.product.findUnique({ where: { id: item.productId } })
+            if (!product) continue
+            if (product.type === 'COMBO') {
+              const components = await tx.bomComponent.findMany({
+                where: { productId: product.id },
+              })
+              for (const row of components) {
+                const qty = Math.round(row.quantity * item.quantity)
+                if (qty <= 0) continue
+                const comp = await tx.product.findUnique({ where: { id: row.componentProductId } })
+                if (!comp) continue
+                const after = comp.stock + qty
+                await tx.product.update({ where: { id: row.componentProductId }, data: { stock: after } })
+                await tx.stockMovement.create({
+                  data: {
+                    productId: row.componentProductId,
+                    type: 'IMPORT',
+                    quantity: qty,
+                    stockAfter: after,
+                    note: `Hoàn thành phần combo "${product.name}" × ${item.quantity} do vận đơn ${shipmentUpdated.trackingCode} hoàn trả (${shipmentUpdated.order.code})`,
+                  },
+                })
+                restockedProductIds.push(row.componentProductId)
+              }
+              comboIdsToSync.add(product.id)
+              continue
+            }
+            const after = product.stock + item.quantity
+            await tx.product.update({ where: { id: product.id }, data: { stock: after } })
+            await tx.stockMovement.create({
+              data: {
+                productId: product.id,
+                type: 'IMPORT',
+                quantity: item.quantity,
+                stockAfter: after,
+                note: `Hoàn kho do vận đơn ${shipmentUpdated.trackingCode} hoàn trả (${shipmentUpdated.order.code})`,
+              },
+            })
+            restockedProductIds.push(product.id)
+          }
+          for (const comboId of comboIdsToSync) await syncComboStock(tx, comboId)
+          if (restockedProductIds.length > 0) await syncCombosUsingComponents(tx, restockedProductIds)
+        }
+
+        return shipmentUpdated
+      })
+
+      await logEvent(
+        updated.orderId,
+        'STATUS_CHANGED',
+        'OPERATOR',
+        `Vận đơn ${updated.trackingCode} hoàn hàng về kho — đã tự động hủy đơn & hoàn trả tồn kho`
+      )
+      broadcast('order.updated', { id: updated.orderId, status: 'CANCELLED', code: updated.order.code })
+    } else {
+      updated = await db.shipment.update({ where: { id }, data, include: { order: true } })
+
+      // Đồng bộ trạng thái đơn hàng cha khi vận đơn giao thành công / đối soát COD
+      if (data.status === 'DELIVERED' && updated.order.status !== 'COMPLETED' && updated.order.status !== 'CANCELLED') {
+        await db.order.update({
+          where: { id: updated.orderId },
+          data: { status: 'COMPLETED', paymentStatus: 'PAID' },
+        })
+        await logEvent(updated.orderId, 'DELIVERED', 'OPERATOR', `Vận đơn ${updated.trackingCode} đã giao thành công — đơn hoàn tất`)
+        await awardPointsForCompletedOrder(updated.orderId)
+        broadcast('order.updated', { id: updated.orderId, status: 'COMPLETED', paymentStatus: 'PAID', code: updated.order.code })
+      } else if (
+        (data.codStatus === 'RECEIVED' || data.codStatus === 'RECONCILED') &&
+        updated.order.paymentStatus !== 'PAID'
+      ) {
+        await db.order.update({
+          where: { id: updated.orderId },
+          data: { paymentStatus: 'PAID' },
+        })
+        broadcast('order.updated', { id: updated.orderId, paymentStatus: 'PAID', code: updated.order.code })
+      } else if (data.status && data.status !== shipment.status && ['PICKED_UP', 'IN_TRANSIT'].includes(data.status)) {
+        if (updated.order.status !== 'SHIPPING' && updated.order.status !== 'COMPLETED' && updated.order.status !== 'CANCELLED') {
+          await db.order.update({ where: { id: updated.orderId }, data: { status: 'SHIPPING' } })
+        }
+        await logEvent(
+          updated.orderId,
+          data.status,
+          'OPERATOR',
+          data.status === 'PICKED_UP'
+            ? `ĐVVC đã lấy hàng (${updated.trackingCode})`
+            : `Đơn hàng đang trên đường giao (${updated.trackingCode})`
+        )
+        broadcast('order.updated', { id: updated.orderId, status: 'SHIPPING', code: updated.order.code })
+      }
+    }
 
     const codChanged = data.codStatus !== undefined || data.codReceived !== undefined
 
@@ -136,3 +243,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Không thể cập nhật vận đơn' }, { status: 500 })
   }
 }
+
+export const PUT = PATCH

@@ -38,6 +38,10 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import { BarcodeScanner } from '@/components/cms/barcode-scanner'
+import { FastStockTerminal } from '@/components/cms/views/fast-stock-terminal'
+import { WarehouseModuleNav } from '@/components/cms/warehouse-module-nav'
+import type { ViewId } from '@/components/cms/app-sidebar'
+import { cn } from '@/lib/utils'
 import { InvoicePrintDialog } from '@/components/cms/invoice-print'
 import type { InvoicePrintData } from '@/components/cms/invoice-print'
 import { DataLineageBadge, LineageInspectorDialog } from '@/components/cms/lineage'
@@ -54,6 +58,7 @@ import {
   Trash2,
   Wallet,
   X,
+  Zap,
 } from 'lucide-react'
 
 interface ProductLite {
@@ -79,7 +84,7 @@ interface InvoiceItemRow {
   quantity: number
   unitPrice: number
   amount: number
-  product: { sku: string; name: string; unit: string }
+  product: { id?: string; sku: string; name: string; unit: string }
 }
 
 interface PurchaseInvoice {
@@ -90,7 +95,7 @@ interface PurchaseInvoice {
   vatRate: number
   vatAmount: number
   total: number
-  status: 'POSTED' | 'CANCELLED'
+  status: 'POSTED' | 'CANCELLED' | 'DRAFT' | 'APPROVED' | 'PARTIALLY_RECEIVED'
   note: string | null
   partner: { name: string; taxCode: string | null } | null
   items: InvoiceItemRow[]
@@ -108,7 +113,7 @@ interface PurchaseInvoiceDetail {
   vatRate: number
   vatAmount: number
   total: number
-  status: 'POSTED' | 'CANCELLED'
+  status: 'POSTED' | 'CANCELLED' | 'DRAFT' | 'APPROVED' | 'PARTIALLY_RECEIVED'
   note: string | null
   partner: { name: string; taxCode: string | null; address?: string | null; phone?: string | null } | null
   items: InvoiceItemRow[]
@@ -139,7 +144,7 @@ const todayInput = () => {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-export function PurchaseView() {
+export function PurchaseView({ onNavigate }: { onNavigate?: (view: ViewId) => void } = {}) {
   const [invoices, setInvoices] = useState<InvoiceWithLineage[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -172,14 +177,22 @@ export function PurchaseView() {
     })
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [showFastTerminal, setShowFastTerminal] = useState(true)
   const [form, setForm] = useState<{
     partnerId: string
     invoiceDate: string
     vatRate: string
     note: string
-  }>({ partnerId: 'none', invoiceDate: todayInput(), vatRate: '8', note: '' })
+    status: 'POSTED' | 'DRAFT'
+  }>({ partnerId: 'none', invoiceDate: todayInput(), vatRate: '8', note: '', status: 'POSTED' })
   const [rows, setRows] = useState<DraftRow[]>([{ productId: '', quantity: '', unitPrice: '' }])
   const [submitting, setSubmitting] = useState(false)
+  const [approving, setApproving] = useState(false)
+  const [receiveTarget, setReceiveTarget] = useState<PurchaseInvoice | null>(null)
+  const [receiveItems, setReceiveItems] = useState<
+    Array<{ productId: string; name: string; sku: string; quantity: number; receivedQuantity: number }>
+  >([])
+  const [receiving, setReceiving] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -223,7 +236,7 @@ export function PurchaseView() {
   }, [])
 
   const openCreate = () => {
-    setForm({ partnerId: 'none', invoiceDate: todayInput(), vatRate: '8', note: '' })
+    setForm({ partnerId: 'none', invoiceDate: todayInput(), vatRate: '8', note: '', status: 'POSTED' })
     setRows([{ productId: '', quantity: '', unitPrice: '' }])
     setDialogOpen(true)
     void loadDialogData()
@@ -312,21 +325,88 @@ export function PurchaseView() {
         vatRate: Number(form.vatRate) || 0,
         invoiceDate: form.invoiceDate || undefined,
         note: form.note.trim() || undefined,
+        status: form.status,
       })
       toast({
-        title: 'Đã ghi sổ hóa đơn mua',
-        description: 'Chi phí & tồn kho đã được cập nhật theo hóa đơn.',
+        title: form.status === 'DRAFT' ? 'Đã tạo đơn đặt hàng PO (Nháp)' : 'Đã ghi sổ hóa đơn mua',
+        description: form.status === 'DRAFT' ? 'Đơn PO đã lưu nháp, duyệt và nhận hàng khi hàng về.' : 'Chi phí & tồn kho đã được cập nhật theo hóa đơn.',
       })
       setDialogOpen(false)
       await load()
     } catch (e) {
       toast({
-        title: 'Ghi sổ hóa đơn mua thất bại',
+        title: 'Tạo hóa đơn/đơn PO thất bại',
         description: e instanceof Error ? e.message : 'Vui lòng thử lại',
         variant: 'destructive',
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleApprove = async (inv: PurchaseInvoice) => {
+    setApproving(true)
+    try {
+      await apiPost<{ invoice: PurchaseInvoice }>(`/api/purchase-invoices/${inv.id}`, { action: 'APPROVE' })
+      toast({
+        title: 'Đã duyệt đơn PO',
+        description: `${inv.code} đã được duyệt. Có thể tiến hành nhận hàng.`,
+      })
+      setDetail(null)
+      await load()
+    } catch (e) {
+      toast({
+        title: 'Duyệt PO thất bại',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setApproving(false)
+    }
+  }
+
+  const openReceive = (inv: PurchaseInvoice) => {
+    if (products === null) void loadDialogData()
+    setReceiveTarget(inv)
+    setReceiveItems(
+      inv.items.map((it) => {
+        const prod = (products ?? []).find((p) => p.sku === it.product.sku)
+        return {
+          productId: it.product.id ?? prod?.id ?? '',
+          name: it.product.name,
+          sku: it.product.sku,
+          quantity: it.quantity,
+          receivedQuantity: it.quantity,
+        }
+      })
+    )
+  }
+
+  const handleReceive = async () => {
+    if (!receiveTarget) return
+    setReceiving(true)
+    try {
+      await apiPost(`/api/purchase-invoices/${receiveTarget.id}/receive`, {
+        items: receiveItems.map((it) => ({
+          productId: it.productId,
+          receivedQuantity: Number(it.receivedQuantity),
+        })),
+      })
+      toast({
+        title: 'Đã nhận hàng PO',
+        description: `Tồn kho đã tăng theo số lượng thực nhận của ${receiveTarget.code}`,
+      })
+      setReceiveTarget(null)
+      setDetail(null)
+      await load()
+    } catch (e) {
+      toast({
+        title: 'Nhận hàng thất bại',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setReceiving(false)
     }
   }
 
@@ -405,17 +485,59 @@ export function PurchaseView() {
 
   return (
     <div>
+      <WarehouseModuleNav active="purchase" onNavigate={onNavigate} />
+
       <PageHeader
-        title="Nhập hàng"
-        description="Hóa đơn mua nguyên vật liệu — ghi sổ chi phí, thuế VAT đầu vào và nhập kho"
+        title="Nhập kho & Hóa đơn mua hàng"
+        description="Nhập kho nguyên vật liệu (tự động quy đổi Kg ⇄ Gr, Lít ⇄ ml), hàng hóa mua sẵn và quản lý hóa đơn mua hàng từ Nhà cung cấp"
       >
-        <Button onClick={openCreate}>
-          <PackagePlus className="h-4 w-4" />
-          Tạo hóa đơn mua
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-muted/50 p-1">
+            <button
+              type="button"
+              onClick={() => setShowFastTerminal(true)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition',
+                showFastTerminal
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <PackagePlus className="h-3.5 w-3.5" />
+              1. Lập phiếu Nhập kho (NVL &amp; Hàng mua)
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFastTerminal(false)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition',
+                !showFastTerminal
+                  ? 'bg-[#0066CC] text-white shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              2. Hóa đơn mua hàng NCC ({invoices?.length ?? 0})
+            </button>
+          </div>
+          <Button variant="outline" size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            Lập Hóa đơn mua VAT / PO
+          </Button>
+        </div>
       </PageHeader>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {showFastTerminal ? (
+        <div className="mb-8">
+          <FastStockTerminal
+            defaultMode="IMPORT"
+            allowedModes={['IMPORT']}
+            onCompleted={() => void load()}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Tổng chi"
           value={loading ? '' : formatCompactVND(totalExpense)}
@@ -546,11 +668,27 @@ export function PurchaseView() {
                         {formatVND(inv.total)}
                       </TableCell>
                       <TableCell>
-                        {inv.status === 'POSTED' ? (
+                        {inv.status === 'DRAFT' && (
+                          <Badge className="border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                            Đơn PO (Nháp)
+                          </Badge>
+                        )}
+                        {inv.status === 'APPROVED' && (
+                          <Badge className="border-transparent bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400">
+                            Đã duyệt PO
+                          </Badge>
+                        )}
+                        {inv.status === 'PARTIALLY_RECEIVED' && (
+                          <Badge className="border-transparent bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                            Nhận một phần
+                          </Badge>
+                        )}
+                        {(inv.status === 'POSTED' || (inv.status as string) === 'RECEIVED') && (
                           <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
                             Đã ghi sổ
                           </Badge>
-                        ) : (
+                        )}
+                        {inv.status === 'CANCELLED' && (
                           <Badge variant="secondary">Đã hủy</Badge>
                         )}
                       </TableCell>
@@ -581,6 +719,8 @@ export function PurchaseView() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Dialog chi tiết hóa đơn */}
       <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
@@ -590,11 +730,27 @@ export function PurchaseView() {
               <DialogHeader>
                 <DialogTitle className="flex flex-wrap items-center gap-2">
                   <span className="font-mono">{detail.code}</span>
-                  {detail.status === 'POSTED' ? (
+                  {detail.status === 'DRAFT' && (
+                    <Badge className="border-transparent bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                      Đơn PO (Nháp)
+                    </Badge>
+                  )}
+                  {detail.status === 'APPROVED' && (
+                    <Badge className="border-transparent bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400">
+                      Đã duyệt PO
+                    </Badge>
+                  )}
+                  {detail.status === 'PARTIALLY_RECEIVED' && (
+                    <Badge className="border-transparent bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                      Nhận một phần
+                    </Badge>
+                  )}
+                  {(detail.status === 'POSTED' || (detail.status as string) === 'RECEIVED') && (
                     <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
                       Đã ghi sổ
                     </Badge>
-                  ) : (
+                  )}
+                  {detail.status === 'CANCELLED' && (
                     <Badge variant="secondary">Đã hủy</Badge>
                   )}
                 </DialogTitle>
@@ -646,18 +802,32 @@ export function PurchaseView() {
                 </div>
                 {detail.note && <p className="pt-1 text-xs text-muted-foreground">Ghi chú: {detail.note}</p>}
               </div>
-              {detail.status === 'POSTED' && (
-                <DialogFooter>
+              <DialogFooter className="gap-2">
+                {detail.status === 'DRAFT' && (
+                  <Button onClick={() => void handleApprove(detail)} disabled={approving} className="bg-sky-600 hover:bg-sky-700 text-white">
+                    {approving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                    Duyệt PO
+                  </Button>
+                )}
+                {(detail.status === 'APPROVED' || detail.status === 'PARTIALLY_RECEIVED') && (
+                  <Button onClick={() => openReceive(detail)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    <PackagePlus className="mr-1.5 h-4 w-4" />
+                    Nhận hàng vào kho
+                  </Button>
+                )}
+                {detail.status === 'POSTED' && (
                   <Button variant="outline" onClick={() => void openPrint()} disabled={printLoading}>
                     {printLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                     In hóa đơn
                   </Button>
+                )}
+                {detail.status !== 'CANCELLED' && (
                   <Button variant="destructive" onClick={() => setCancelTarget(detail)}>
                     <Trash2 className="h-4 w-4" />
                     Hủy hóa đơn
                   </Button>
-                </DialogFooter>
-              )}
+                )}
+              </DialogFooter>
             </>
           )}
         </DialogContent>
@@ -801,6 +971,19 @@ export function PurchaseView() {
             </div>
 
             <div className="grid gap-2">
+              <Label htmlFor="purchase-status">Hình thức lập đơn</Label>
+              <Select value={form.status} onValueChange={(value: 'POSTED' | 'DRAFT') => setForm({ ...form, status: value })}>
+                <SelectTrigger id="purchase-status" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="POSTED">Hóa đơn mua &amp; Nhập kho ngay</SelectItem>
+                  <SelectItem value="DRAFT">Đơn đặt hàng PO nháp (Duyệt &amp; Nhận hàng sau)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
               <Label htmlFor="purchase-note">Ghi chú</Label>
               <Textarea
                 id="purchase-note"
@@ -820,7 +1003,67 @@ export function PurchaseView() {
               disabled={submitting || !openDialogReady || rows.length === 0}
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Ghi sổ hóa đơn
+              {form.status === 'DRAFT' ? 'Lưu đơn PO nháp' : 'Ghi sổ hóa đơn'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Nhận hàng vào kho (PO Receiving) */}
+      <Dialog open={receiveTarget !== null} onOpenChange={(open) => !open && setReceiveTarget(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Nhận hàng PO: {receiveTarget?.code}</DialogTitle>
+            <DialogDescription>
+              Nhập số lượng thực nhận của từng mặt hàng để tăng tồn kho tự động.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sản phẩm</TableHead>
+                    <TableHead className="text-right">SL đặt</TableHead>
+                    <TableHead className="w-32 text-right">SL thực nhận</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {receiveItems.map((item, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        <p className="text-sm font-medium">{item.name}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{item.sku}</p>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{item.quantity}</TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.quantity}
+                          value={item.receivedQuantity}
+                          onChange={(e) => {
+                            const val = Number(e.target.value)
+                            setReceiveItems((prev) =>
+                              prev.map((it, i) => (i === idx ? { ...it, receivedQuantity: val } : it))
+                            )
+                          }}
+                          className="h-8 text-right tabular-nums"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReceiveTarget(null)} disabled={receiving}>
+              Hủy
+            </Button>
+            <Button onClick={() => void handleReceive()} disabled={receiving} className="bg-emerald-600 text-white hover:bg-emerald-700">
+              {receiving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Xác nhận nhận hàng
             </Button>
           </DialogFooter>
         </DialogContent>

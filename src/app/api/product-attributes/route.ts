@@ -16,7 +16,26 @@ export async function PATCH(req: NextRequest) {
 
     const data: { attributes?: string | null; unit?: string } = {}
     if (body.attributes !== undefined) {
-      data.attributes = body.attributes === null ? null : String(body.attributes).trim() || null
+      const nextRaw = body.attributes === null ? null : String(body.attributes).trim() || null
+      const prevRaw = (product.attributes ?? '').trim()
+      if (prevRaw.startsWith('{') && prevRaw.endsWith('}')) {
+        try {
+          const parsedPrev = JSON.parse(prevRaw) as Record<string, unknown>
+          if (nextRaw && nextRaw.startsWith('{') && nextRaw.endsWith('}')) {
+            data.attributes = nextRaw
+          } else if (nextRaw) {
+            parsedPrev.customSummary = nextRaw
+            data.attributes = JSON.stringify(parsedPrev)
+          } else {
+            delete parsedPrev.customSummary
+            data.attributes = JSON.stringify(parsedPrev)
+          }
+        } catch {
+          data.attributes = nextRaw
+        }
+      } else {
+        data.attributes = nextRaw
+      }
     }
     if (body.unit !== undefined) {
       const unit = String(body.unit).trim()
@@ -47,3 +66,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 })
   }
 }
+
+export const PUT = PATCH
+export const POST = PATCH

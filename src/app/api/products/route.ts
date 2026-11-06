@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { comboAvailableFromRows, comboCostFromRows } from '@/lib/combo'
+import { ensureWarehousesAndVouchersSeeded, syncProductWarehouseStock } from '@/lib/warehouse-service'
+import {
+  ensureUnitConversionsSeeded,
+  getAllUnitConfigs,
+  saveProductUnitConfig,
+  syncLinkedVariantStocks,
+} from '@/lib/unit-conversion'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +41,8 @@ function parseListingsInput(raw: unknown): { listings: Map<string, number | null
 
 export async function GET(req: NextRequest) {
   try {
+    await Promise.all([ensureWarehousesAndVouchersSeeded(), ensureUnitConversionsSeeded()])
+    const unitConfigs = await getAllUnitConfigs()
     const { searchParams } = new URL(req.url)
     const search = searchParams.get('search')?.trim()
     const status = searchParams.get('status')
@@ -55,7 +64,7 @@ export async function GET(req: NextRequest) {
     }
     if (status && status !== 'ALL') where.status = status
     if (categoryId && categoryId !== 'ALL') where.categoryId = categoryId
-    if (channelId && channelId !== 'ALL') where.listings = { some: { channelId } }
+    if (channelId && channelId !== 'ALL') where.listings = { some: { channelId, channel: { connected: true }, status: 'ACTIVE' } }
 
     const products = await db.product.findMany({
       where,
@@ -63,7 +72,11 @@ export async function GET(req: NextRequest) {
       include: {
         category: { select: { id: true, name: true, slug: true } },
         listings: {
-          include: { channel: { select: { id: true, key: true, name: true, color: true } } },
+          where: { channel: { connected: true }, status: 'ACTIVE' },
+          include: { channel: { select: { id: true, key: true, name: true, color: true, connected: true } } },
+        },
+        warehouseStocks: {
+          include: { warehouse: { select: { id: true, code: true, name: true, type: true, commissionPct: true } } },
         },
         bomFinished: {
           include: { componentProduct: { select: { id: true, sku: true, name: true, unit: true, costPrice: true, stock: true } } },
@@ -71,11 +84,12 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    // COMBO/SET quà tặng: trả kèm thành phần + giá vốn gộp + số bộ có thể đóng được
+    // COMBO/SET quà tặng + gắn cấu hình quy đổi định lượng (unitConfig)
     const withCombo = products.map((p) => {
+      const unitConfig = unitConfigs[p.id] ?? null
       if (p.type !== 'COMBO') {
         const { bomFinished: _bc, ...rest } = p
-        return rest
+        return { ...rest, unitConfig }
       }
       const components = p.bomFinished.map((row) => ({
         productId: row.componentProduct.id,
@@ -89,6 +103,7 @@ export async function GET(req: NextRequest) {
       const { bomFinished, ...rest } = p
       return {
         ...rest,
+        unitConfig,
         components,
         comboCostPrice: comboCostFromRows(bomFinished),
         comboAvailable: comboAvailableFromRows(bomFinished),
@@ -106,7 +121,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { sku, name, description, categoryId, costPrice, sellPrice, stock, lowStockThreshold, status, listingChannelIds } = body
-    const productType = body.type === 'COMBO' ? 'COMBO' : 'SIMPLE'
+    const productType = typeof body.type === 'string' && body.type.trim() ? body.type.trim().toUpperCase() : 'SIMPLE'
+    const baseUnitInput = typeof body.unit === 'string' && body.unit.trim() ? body.unit.trim() : 'sp'
 
     if (!sku?.trim() || !name?.trim()) {
       return NextResponse.json({ error: 'Vui lòng nhập SKU và tên sản phẩm' }, { status: 400 })
@@ -162,7 +178,13 @@ export async function POST(req: NextRequest) {
       targetListings = channelIds.map((channelId) => ({ channelId, price: parsed.listings.get(channelId) ?? null }))
     }
 
-    const initialStock = Number(stock) || 0
+    const rawStock = Number(stock) || 0
+    const unitCfgInput = body.unitConfig && typeof body.unitConfig === 'object' ? body.unitConfig : null
+    const purchaseRate = unitCfgInput ? Math.max(1, Number(unitCfgInput.purchaseRate) || 1) : 1
+    // Nếu nhập kho ban đầu theo đơn vị chẵn (VD: 10 kg) và bật convertInitialStock -> tự quy đổi ra 10.000 gr
+    const initialStock =
+      body.convertInitialStock && purchaseRate > 1 ? Math.round(rawStock * purchaseRate) : Math.round(rawStock)
+
     const product = await db.product.create({
       data: {
         sku: sku.trim(),
@@ -173,17 +195,41 @@ export async function POST(req: NextRequest) {
         costPrice: Number(costPrice) || 0,
         sellPrice: Number(sellPrice),
         stock: initialStock,
-        lowStockThreshold: Number(lowStockThreshold) || 5,
+        lowStockThreshold:
+          lowStockThreshold !== undefined && Number.isFinite(Number(lowStockThreshold)) && Number(lowStockThreshold) >= 0
+            ? Math.round(Number(lowStockThreshold))
+            : 5,
         status: status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
         image: imageInput,
+        unit: unitCfgInput?.baseUnit ? String(unitCfgInput.baseUnit).trim() : baseUnitInput,
         type: productType,
       },
     })
 
-    if (initialStock > 0) {
-      await db.stockMovement.create({
-        data: { productId: product.id, type: 'IMPORT', quantity: initialStock, stockAfter: initialStock, note: 'Nhập kho khi tạo sản phẩm' },
+    if (unitCfgInput) {
+      await saveProductUnitConfig(product.id, {
+        baseUnit: String(unitCfgInput.baseUnit || baseUnitInput).trim(),
+        purchaseUnit: String(unitCfgInput.purchaseUnit || baseUnitInput).trim(),
+        purchaseRate,
+        sellUnit: String(unitCfgInput.sellUnit || baseUnitInput).trim(),
+        sellRate: Math.max(1, Number(unitCfgInput.sellRate) || 1),
+        posQuickQuantities: Array.isArray(unitCfgInput.posQuickQuantities) ? unitCfgInput.posQuickQuantities : undefined,
+        linkedBaseProductId: unitCfgInput.linkedBaseProductId ? String(unitCfgInput.linkedBaseProductId) : null,
       })
+      if (unitCfgInput.linkedBaseProductId) {
+        await syncLinkedVariantStocks(db, [String(unitCfgInput.linkedBaseProductId)])
+      }
+    }
+
+    if (initialStock > 0) {
+      const noteText =
+        body.convertInitialStock && purchaseRate > 1
+          ? `Nhập kho ban đầu ${rawStock} ${unitCfgInput?.purchaseUnit || ''} (tự quy đổi ×${purchaseRate} = +${initialStock} ${product.unit})`
+          : 'Nhập kho khi tạo sản phẩm'
+      await db.stockMovement.create({
+        data: { productId: product.id, type: 'IMPORT', quantity: initialStock, stockAfter: initialStock, note: noteText },
+      })
+      await syncProductWarehouseStock(product.id, body.ownerWarehouseId ? String(body.ownerWarehouseId) : null)
     }
 
     if (hasListingsInput) {

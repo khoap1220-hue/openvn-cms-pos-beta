@@ -35,7 +35,29 @@ export interface ProductListing {
   /** bản mô tả đã đồng bộ lên kênh (null = chưa từng đẩy) */
   description?: string | null
   descriptionSyncedAt?: string | null
-  channel?: Pick<Channel, 'id' | 'key' | 'name' | 'color'> | null
+  channel?: (Pick<Channel, 'id' | 'key' | 'name' | 'color'> & { connected?: boolean }) | null
+}
+
+export interface ProductUnitConfig {
+  productId: string
+  baseUnit: string
+  purchaseUnit: string
+  purchaseRate: number
+  sellUnit: string
+  sellRate: number
+  posQuickQuantities: number[]
+  linkedBaseProductId?: string | null
+  updatedAt?: string
+}
+
+export interface ProductTypeInfo {
+  code: string
+  name: string
+  description: string
+  badgeColor: string
+  supportsConversion: boolean
+  deductLinkedBaseOnSale?: boolean
+  isSystem?: boolean
 }
 
 export interface Product {
@@ -44,6 +66,7 @@ export interface Product {
   barcode: string | null
   name: string
   description: string | null
+  attributes?: string | null
   categoryId: string | null
   category?: Category | null
   costPrice: number
@@ -52,10 +75,17 @@ export interface Product {
   lowStockThreshold: number
   image: string | null
   status: string
-  /** SIMPLE | COMBO — Combo/Set quà tặng: thành phần khai báo ở Định mức (BomComponent) */
+  unit?: string
+  /** SIMPLE | WEIGHT_BULK | PACKAGED_VARIANT | MATERIAL | COMBO */
   type?: string
+  /** Cấu hình quy đổi định lượng Nhập (kg/lít/thùng) ⇄ Kho gốc (gr/ml/cái) ⇄ Bán */
+  unitConfig?: ProductUnitConfig | null
   /** hàng dễ vỡ (gốm sứ / nến / thủy tinh) — in cảnh báo trên phiếu gửi hàng */
   fragile?: boolean
+  /** Kho sở hữu hoặc Shop đối tác liên kết bán chéo */
+  ownerWarehouseId?: string | null
+  crossSellRate?: number | null
+  warehouseStocks?: Array<{ warehouseId: string; quantity: number; warehouse?: { id: string; code: string; name: string; type: string; commissionPct: number } }>
   /** (COMBO) thành phần + giá vốn gộp tính từ Định mức — do API trả về khi có */
   components?: Array<{ productId: string; sku: string; name: string; quantity: number; unit: string; costPrice: number; stock: number }>
   comboCostPrice?: number
@@ -422,6 +452,10 @@ export interface LiveOpsData {
     messagesToday: number
     unread: number
     automationRate: number
+    codUnreconciledCount?: number
+    codUnreconciledAmount?: number
+    lowStockCount?: number
+    posOrdersToday?: number
   }
   pipeline: Array<{ key: string; label: string; count: number }>
   activities: AgentActivity[]
@@ -440,16 +474,70 @@ export const CHANNEL_KEY_LABELS: Record<string, string> = {
 }
 
 export const AGENT_ACTION_LABELS: Record<string, string> = {
-  ORDER_RECEIVED: 'Nhận đơn mới',
-  CONFIRM_ORDER: 'Xác nhận đơn',
-  START_PACKING: 'Soạn hàng',
-  NOTIFY_CARRIER: 'Báo ĐVVC',
-  PICKUP: 'Lấy hàng',
-  IN_TRANSIT: 'Đang giao',
-  DELIVERY_NOTICE: 'Báo giao hàng',
-  CARE_MESSAGE: 'Chăm sóc',
-  REQUEST_REVIEW: 'Xin đánh giá',
-  REVIEW_RECEIVED: 'Nhận đánh giá',
-  AUTO_REPLY: 'Trả lời tự động',
-  MANUAL_ACTION: 'Xử lý thủ công',
+  ORDER_RECEIVED: 'Tiếp nhận đơn mới',
+  CONFIRM_ORDER: 'Xác nhận đơn hàng',
+  START_PACKING: 'Lập phiếu đóng gói',
+  NOTIFY_CARRIER: 'Điều phối vận chuyển',
+  PICKUP: 'Bàn giao ĐVVC',
+  IN_TRANSIT: 'Đang luân chuyển',
+  DELIVERY_NOTICE: 'Thông báo phát hàng',
+  CARE_MESSAGE: 'Chăm sóc sau bán',
+  REQUEST_REVIEW: 'Khảo sát chất lượng',
+  REVIEW_RECEIVED: 'Ghi nhận đánh giá',
+  AUTO_REPLY: 'Phản hồi tự động',
+  MANUAL_ACTION: 'Điều phối thủ công',
 }
+
+// ===== Đa Kho & Liên kết Shop Bán chéo + Chương trình Voucher =====
+
+export interface WarehouseInfo {
+  id: string
+  code: string
+  name: string
+  type: 'INTERNAL' | 'PARTNER_SHOP' | string
+  address: string | null
+  phone: string | null
+  managerName: string | null
+  commissionPct: number
+  isDefault: boolean
+  active: boolean
+  totalStock?: number
+  skuCount?: number
+}
+
+export interface CrossSellSettlement {
+  warehouseId: string
+  code: string
+  name: string
+  managerName: string | null
+  commissionPct: number
+  unitsSold: number
+  grossRevenue: number
+  commissionAmount: number
+  netPayableToPartner: number
+  products: Array<{
+    productId: string
+    sku: string
+    name: string
+    unitsSold: number
+    revenue: number
+    commissionAmount: number
+  }>
+}
+
+export interface VoucherInfo {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  discountType: 'PERCENT' | 'FIXED' | 'FREESHIP' | string
+  discountValue: number
+  maxDiscount: number | null
+  minOrderAmount: number
+  usageLimit: number | null
+  usedCount: number
+  scope: 'ALL' | 'ALLIANCE' | string
+  active: boolean
+  expiresAt: string | null
+}
+

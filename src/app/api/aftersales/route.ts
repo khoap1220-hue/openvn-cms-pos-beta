@@ -65,11 +65,20 @@ export async function POST(req: NextRequest) {
     }
     if (!reason) return NextResponse.json({ error: 'Vui lòng nhập lý do' }, { status: 400 })
 
-    const order = await db.order.findUnique({ where: { id: orderId }, select: { id: true, code: true } })
+    const order = await db.order.findUnique({ where: { id: orderId }, select: { id: true, code: true, status: true, total: true } })
     if (!order) return NextResponse.json({ error: 'Đơn hàng không tồn tại' }, { status: 404 })
+    if (order.status === 'CANCELLED') {
+      return NextResponse.json({ error: 'Không thể tạo yêu cầu đổi trả / bảo hành cho đơn hàng đã hủy' }, { status: 400 })
+    }
 
     const handledBy = (HANDLERS as readonly string[]).includes(String(body.handledBy ?? '')) ? String(body.handledBy) : 'OPERATOR'
     const refundAmount = Number(body.refundAmount)
+    if (Number.isFinite(refundAmount) && refundAmount > order.total) {
+      return NextResponse.json(
+        { error: `Số tiền hoàn trả (${refundAmount.toLocaleString('vi-VN')}đ) không được vượt quá tổng đơn hàng (${order.total.toLocaleString('vi-VN')}đ)` },
+        { status: 400 }
+      )
+    }
 
     const created = await db.afterSalesCase.create({
       data: {

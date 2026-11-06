@@ -1,7 +1,7 @@
 // Broadcast realtime event qua mini-service socket.io (port 3003).
 // Fire-and-forget: lỗi kết nối không ảnh hưởng nghiệp vụ chính.
 
-const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3003'
+const REALTIME_URL = process.env.REALTIME_URL || `http://localhost:${process.env.REALTIME_PORT || '3013'}`
 
 export type CmsEventType =
   | 'order.created'
@@ -16,6 +16,11 @@ export type CmsEventType =
   | 'ledger.new'
   | 'customer.updated'
   | 'product.updated'
+  | 'inventory.updated'
+  | 'channel.updated'
+  | 'loyalty.policy.updated'
+  | 'campaign.wave.updated'
+  | 'behavior.new'
 
 export function broadcast(type: CmsEventType, payload?: unknown): void {
   const body = JSON.stringify({

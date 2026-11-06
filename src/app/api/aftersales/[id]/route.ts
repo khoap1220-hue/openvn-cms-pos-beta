@@ -66,3 +66,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: message }, { status: 400 })
   }
 }
+
+export const PUT = PATCH

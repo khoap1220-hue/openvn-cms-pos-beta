@@ -10,11 +10,11 @@ export interface AgentMeta {
 
 export const AGENTS: Record<string, AgentMeta> = {
   SYSTEM: { key: 'SYSTEM', name: 'Hệ thống', short: 'HỆ THỐNG', badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', dotClass: 'bg-slate-400' },
-  CONFIRM_AGENT: { key: 'CONFIRM_AGENT', name: 'Agent Tư vấn', short: 'TƯ VẤN', badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400', dotClass: 'bg-emerald-500' },
-  LOGISTICS_AGENT: { key: 'LOGISTICS_AGENT', name: 'Agent Kho vận', short: 'KHO VẬN', badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400', dotClass: 'bg-amber-500' },
-  CARE_AGENT: { key: 'CARE_AGENT', name: 'Agent CSKH', short: 'CSKH', badgeClass: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400', dotClass: 'bg-violet-500' },
-  REVIEW_AGENT: { key: 'REVIEW_AGENT', name: 'Agent Đánh giá', short: 'ĐÁNH GIÁ', badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400', dotClass: 'bg-rose-500' },
-  SUPPORT_AGENT: { key: 'SUPPORT_AGENT', name: 'Agent Hỗ trợ 24/7', short: 'HỖ TRỢ', badgeClass: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400', dotClass: 'bg-teal-500' },
+  CONFIRM_AGENT: { key: 'CONFIRM_AGENT', name: 'AI Tiếp nhận & Tư vấn', short: 'TIẾP NHẬN', badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400', dotClass: 'bg-emerald-500' },
+  LOGISTICS_AGENT: { key: 'LOGISTICS_AGENT', name: 'AI Điều phối Kho vận', short: 'KHO VẬN', badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400', dotClass: 'bg-amber-500' },
+  CARE_AGENT: { key: 'CARE_AGENT', name: 'AI Chăm sóc Khách hàng', short: 'CSKH', badgeClass: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400', dotClass: 'bg-violet-500' },
+  REVIEW_AGENT: { key: 'REVIEW_AGENT', name: 'AI Quản trị Chất lượng', short: 'CHẤT LƯỢNG', badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400', dotClass: 'bg-rose-500' },
+  SUPPORT_AGENT: { key: 'SUPPORT_AGENT', name: 'AI Phản hồi Đa kênh 24/7', short: 'TRỰC TUYẾN 24/7', badgeClass: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400', dotClass: 'bg-teal-500' },
 }
 
 export const AGENT_ORDER = ['CONFIRM_AGENT', 'LOGISTICS_AGENT', 'CARE_AGENT', 'REVIEW_AGENT', 'SUPPORT_AGENT'] as const
@@ -49,11 +49,11 @@ export function makeTrackingCode(carrierKey: string): string {
 }
 
 export const SHIPMENT_STATUS_LABELS: Record<string, string> = {
-  DISPATCHED: 'Đã báo shipper',
+  DISPATCHED: 'Chờ lấy hàng',
   PICKED_UP: 'Đã lấy hàng',
-  IN_TRANSIT: 'Đang giao',
-  DELIVERED: 'Đã giao',
-  RETURNED: 'Đang hoàn về',
+  IN_TRANSIT: 'Đang luân chuyển',
+  DELIVERED: 'Đã giao thành công',
+  RETURNED: 'Đang hoàn trả',
 }
 
 // ===== Công tắc tự động hóa (dùng chung client/server) =====
@@ -67,39 +67,45 @@ export interface AutomationDef {
 export const AUTOMATION_DEFS: AutomationDef[] = [
   {
     key: 'master',
-    label: 'Agent Autopilot',
-    desc: 'Công tắc tổng. Khi BẬT, đội Agent tự vận hành toàn bộ quy trình bán hàng — người vận hành chỉ cần giám sát.',
+    label: 'Hệ thống Điều phối Tự động AI',
+    desc: 'Công tắc điều hành tổng thể. Khi kích hoạt, tổ hợp tác nhân AI tự động điều phối toàn trình xử lý đơn đa kênh theo thời gian thực.',
     agent: null,
   },
   {
     key: 'auto_confirm',
-    label: 'Tự xác nhận đơn qua Zalo',
-    desc: 'Nhận đơn từ Zalo OA / Zalo cá nhân / mọi kênh → Agent Tư vấn tự kiểm tra kho và soạn tin xác nhận đơn gửi khách.',
+    label: 'Tự động xác nhận đơn đa kênh',
+    desc: 'Tiếp nhận đơn từ Zalo OA, Zalo Cá nhân và các sàn TMĐT → AI Tiếp nhận đối chiếu tồn kho và gửi thông báo xác nhận đơn hàng.',
     agent: 'CONFIRM_AGENT',
   },
   {
     key: 'auto_carrier',
-    label: 'Tự báo đơn vị vận chuyển',
-    desc: 'Khi đơn được soạn & đóng gói xong → Agent Kho vận tự báo GHN / GHTK / Viettel Post / J&T / Ninja Van đến lấy hàng và nhận mã vận đơn.',
+    label: 'Tự động điều phối đơn vị vận chuyển',
+    desc: 'Khi đơn hoàn tất đóng gói xuất kho → AI Điều phối Kho vận kết nối GHN / GHTK / Viettel Post / J&T / Ninja Van để tạo mã vận đơn và đặt lịch lấy hàng.',
     agent: 'LOGISTICS_AGENT',
   },
   {
     key: 'auto_care',
-    label: 'Chăm sóc sau bán',
-    desc: 'Báo khách từng bước hành trình vận chuyển, nhắn cảm ơn khi giao thành công và hỏi thăm trải nghiệm.',
+    label: 'Chăm sóc hành trình sau bán',
+    desc: 'Cập nhật tự động tiến độ giao vận cho khách hàng, gửi thông điệp tri ân và hướng dẫn sử dụng sau khi phát hàng thành công.',
     agent: 'CARE_AGENT',
   },
   {
     key: 'auto_review',
-    label: 'Tự xin đánh giá',
-    desc: 'Gửi yêu cầu đánh giá sau khi khách nhận hàng, tiếp nhận và tổng hợp điểm sao về hệ thống.',
+    label: 'Khảo sát & Ghi nhận đánh giá chất lượng',
+    desc: 'Tự động gửi khảo sát mức độ hài lòng sau khi hoàn tất đơn và tổng hợp chỉ số chất lượng dịch vụ về hệ thống.',
     agent: 'REVIEW_AGENT',
   },
   {
     key: 'auto_reply',
-    label: 'AI trả lời tin nhắn 24/7',
-    desc: 'Agent Hỗ trợ đọc hiểu tin nhắn Zalo của khách và trả lời tự động mọi lúc, kể cả ngoài giờ.',
+    label: 'Tư vấn & Phản hồi khách hàng 24/7',
+    desc: 'AI Phản hồi Đa kênh phân tích ngữ cảnh tin nhắn và hình ảnh khách gửi để tư vấn tức thì trong và ngoài giờ hành chính.',
     agent: 'SUPPORT_AGENT',
+  },
+  {
+    key: 'simulation_mode',
+    label: 'Chế độ Kiểm thử Nhanh (Sandbox 30s)',
+    desc: 'Khi TẮT (Môi trường thực tế): Tuân thủ kiểm đếm mã vạch đóng gói và đồng bộ trạng thái thật từ ĐVVC. Khi BẬT: Tự động mô phỏng chu trình giao vận & đánh giá trong 30 giây.',
+    agent: null,
   },
 ]
 
@@ -110,6 +116,7 @@ export const DEFAULT_SETTINGS: Record<string, boolean> = {
   auto_care: true,
   auto_review: true,
   auto_reply: true,
+  simulation_mode: false,
 }
 
 // ===== Mẫu tin nhắn Zalo (dự phòng khi LLM không khả dụng) — giọng chủ tiệm Ưu Đàm =====

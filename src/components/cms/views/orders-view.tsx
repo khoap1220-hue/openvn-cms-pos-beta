@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Calculator,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -12,20 +13,24 @@ import {
   MoreHorizontal,
   PackageCheck,
   Plus,
+  Printer,
   ScanLine,
   Search,
   ShoppingCart,
   Trash2,
   Wallet,
+  XCircle,
 } from 'lucide-react'
 
 import { apiGet, apiPatch, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import { ORDER_STATUSES, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/types'
-import type { Channel, Order, OrderItem, Product } from '@/lib/types'
+import type { Channel, Order, OrderItem, Product, VoucherInfo, WarehouseInfo } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 
 import { BarcodeScanner } from '@/components/cms/barcode-scanner'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ShippingSlipBatchPrint } from '@/components/cms/shipping-slip-batch-print'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -101,20 +106,26 @@ interface CreateOrderItem {
 
 interface CreateOrderFormState {
   channelId: string
+  warehouseId: string
   customerName: string
   customerPhone: string
   address: string
   note: string
   paymentMethod: string
+  voucherCode: string
+  discountAmount: string
 }
 
 const EMPTY_CREATE_FORM: CreateOrderFormState = {
   channelId: '',
+  warehouseId: '',
   customerName: '',
   customerPhone: '',
   address: '',
   note: '',
   paymentMethod: 'COD',
+  voucherCode: '',
+  discountAmount: '0',
 }
 
 const EVENT_ACTOR_LABELS: Record<string, string> = {
@@ -243,6 +254,78 @@ export function OrdersView() {
     remaining: number
   } | null>(null)
 
+  // ===== Xử lý hàng loạt (Bulk Selection & Operations - M3) =====
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([])
+  const [bulkConfirmLoading, setBulkConfirmLoading] = useState(false)
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
+  const [bulkConfirmResult, setBulkConfirmResult] = useState<{
+    success: boolean
+    processedCount: number
+    rejectedCount: number
+    results: Array<{
+      orderId: string
+      orderCode?: string
+      status: 'CONFIRMED' | 'REJECTED'
+      reason?: string
+    }>
+  } | null>(null)
+  const [batchSlipsOpen, setBatchSlipsOpen] = useState(false)
+
+  const isAllSelected = orders.length > 0 && orders.every((o) => selectedOrderIds.includes(o.id))
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      const currentIds = new Set(orders.map((o) => o.id))
+      setSelectedOrderIds((prev) => prev.filter((id) => !currentIds.has(id)))
+    } else {
+      const currentIds = orders.map((o) => o.id)
+      setSelectedOrderIds((prev) => Array.from(new Set([...prev, ...currentIds])))
+    }
+  }
+
+  const handleToggleSelectOrder = (id: string) => {
+    setSelectedOrderIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const handleBulkConfirm = async () => {
+    if (selectedOrderIds.length === 0) return
+    setBulkConfirmLoading(true)
+    try {
+      const res = await apiPost<{
+        success: boolean
+        processedCount: number
+        rejectedCount: number
+        results: Array<{
+          orderId: string
+          orderCode?: string
+          status: 'CONFIRMED' | 'REJECTED'
+          reason?: string
+        }>
+      }>('/api/orders/bulk-confirm', { orderIds: selectedOrderIds })
+      setBulkConfirmResult(res)
+      setBulkConfirmOpen(true)
+      toast({
+        title: `Đã xử lý ${res.processedCount} đơn hàng`,
+        description:
+          res.rejectedCount > 0
+            ? `Có ${res.rejectedCount} đơn bị từ chối do không đủ điều kiện`
+            : 'Tất cả đơn đã được xác nhận thành công',
+      })
+      setSelectedOrderIds([])
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      toast({
+        title: 'Không thể xác nhận hàng loạt',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setBulkConfirmLoading(false)
+    }
+  }
+
   // Realtime: Agent tự cập nhật đơn → tự refresh danh sách + dialog chi tiết;
   // WS hỏng → polling 10s → reload danh sách IM LẶNG (không flash skeleton, không đụng dialog chi tiết)
   const realtimeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -273,6 +356,7 @@ export function OrdersView() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [markingPaid, setMarkingPaid] = useState(false)
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+  const [quickBusyOrderId, setQuickBusyOrderId] = useState<string | null>(null)
   // Kiểm đếm đóng gói: số món đã quét theo từng dòng (key = productId) — chỉ là state phiên, không lưu server
   const [scannedCounts, setScannedCounts] = useState<Record<string, number>>({})
 
@@ -291,6 +375,8 @@ export function OrdersView() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState<CreateOrderFormState>(EMPTY_CREATE_FORM)
   const [createProducts, setCreateProducts] = useState<Product[]>([])
+  const [createWarehouses, setCreateWarehouses] = useState<WarehouseInfo[]>([])
+  const [createVouchers, setCreateVouchers] = useState<VoucherInfo[]>([])
   const [createLoadingProducts, setCreateLoadingProducts] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -340,7 +426,10 @@ export function OrdersView() {
           remaining: number
         }
       }>(`/api/orders?${params.toString()}`)
-      setOrders(data.orders)
+      const cleanOrders = (data.orders ?? []).filter(
+        (o) => Boolean(o.code) || Number.isFinite(Number(o.total))
+      )
+      setOrders(cleanOrders)
       setTotal(data.total)
       setTotalPages(Math.max(1, data.totalPages))
       setPeriodStats(data.period ?? null)
@@ -485,6 +574,27 @@ export function OrdersView() {
     void handleUpdateStatus('CANCELLED')
   }
 
+  // ===== Thao tác nhanh 1-click trên từng dòng đơn hàng chuẩn OPENVN =====
+  const handleQuickRowAction = async (order: OrderWithLineage, target: string) => {
+    setQuickBusyOrderId(order.id)
+    try {
+      await apiPatch<{ order: Order }>(`/api/orders/${order.id}`, { status: target })
+      toast({
+        title: `Đã chuyển trạng thái đơn ${order.code}`,
+        description: `${ORDER_STATUS_LABELS[order.status] ?? order.status} → ${ORDER_STATUS_LABELS[target] ?? target}`,
+      })
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      toast({
+        title: 'Không thể cập nhật nhanh đơn hàng',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setQuickBusyOrderId(null)
+    }
+  }
+
   // ===== Kiểm đếm đóng gói bằng mã vạch (đơn đang PACKING) =====
   const handlePackingScan = (raw: string) => {
     if (!detail || detail.status !== 'PACKING') return
@@ -624,9 +734,21 @@ export function OrdersView() {
     if (!createOpen) return
     let cancelled = false
     setCreateLoadingProducts(true)
-    apiGet<{ products: Product[] }>('/api/products?status=ACTIVE')
-      .then((data) => {
-        if (!cancelled) setCreateProducts(data.products)
+    Promise.all([
+      apiGet<{ products: Product[] }>('/api/products?status=ACTIVE'),
+      apiGet<{ warehouses: WarehouseInfo[] }>('/api/warehouses').catch(() => ({ warehouses: [] })),
+      apiGet<{ vouchers: VoucherInfo[] }>('/api/vouchers').catch(() => ({ vouchers: [] })),
+    ])
+      .then(([prodData, whData, vchData]) => {
+        if (!cancelled) {
+          setCreateProducts(prodData.products)
+          setCreateWarehouses(whData.warehouses)
+          setCreateVouchers(vchData.vouchers.filter((v) => v.active))
+          const defWh = whData.warehouses.find((w) => w.isDefault) ?? whData.warehouses[0]
+          if (defWh) {
+            setCreateForm((prev) => ({ ...prev, warehouseId: prev.warehouseId || defWh.id }))
+          }
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -656,6 +778,18 @@ export function OrdersView() {
   const createTotal = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [items]
+  )
+  const createShippingFee = useMemo(
+    () => (items.length === 0 ? 0 : createTotal >= 500000 ? 0 : 30000),
+    [items.length, createTotal]
+  )
+  const createDiscount = useMemo(
+    () => Math.max(0, Math.min(createTotal + createShippingFee, Math.round(Number(createForm.discountAmount) || 0))),
+    [createForm.discountAmount, createTotal, createShippingFee]
+  )
+  const createGrandTotal = useMemo(
+    () => Math.max(0, createTotal + createShippingFee - createDiscount),
+    [createTotal, createShippingFee, createDiscount]
   )
 
   const handleAddItem = () => {
@@ -706,16 +840,51 @@ export function OrdersView() {
     }
     setSubmitting(true)
     try {
+      const nowDate = new Date()
+      const yy = String(nowDate.getFullYear()).slice(-2)
+      const mm = String(nowDate.getMonth() + 1).padStart(2, '0')
+      const dd = String(nowDate.getDate()).padStart(2, '0')
+      const fallbackCode = `DH${yy}${mm}${dd}-${String(Math.floor(1000 + Math.random() * 9000))}`
+      const selectedChannel = channels.find((c) => c.id === createForm.channelId)
+
       const data = await apiPost<{ order: Order }>('/api/orders', {
+        code: fallbackCode,
         channelId: createForm.channelId,
+        channel: selectedChannel
+          ? {
+              id: selectedChannel.id,
+              key: selectedChannel.key,
+              name: selectedChannel.name,
+              color: selectedChannel.color,
+            }
+          : undefined,
+        warehouseId: createForm.warehouseId || undefined,
+        voucherCode: createForm.voucherCode || undefined,
+        discountAmount: createDiscount,
+        subtotal: createTotal,
+        shippingFee: createShippingFee,
+        total: createGrandTotal,
+        status: 'CONFIRMED',
+        paymentStatus: 'UNPAID',
         customerName: createForm.customerName.trim(),
         customerPhone: createForm.customerPhone.trim(),
+        customer: {
+          id: 'manual-cust',
+          name: createForm.customerName.trim(),
+          phone: createForm.customerPhone.trim() || null,
+        },
         address: createForm.address.trim(),
         note: createForm.note.trim(),
         paymentMethod: createForm.paymentMethod,
-        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        items: items.map((i, idx) => ({
+          id: `ord-item-${Date.now()}-${idx}`,
+          productId: i.productId,
+          quantity: i.quantity,
+          price: i.price,
+          product: { id: i.productId, sku: i.sku, name: i.name },
+        })),
       })
-      toast({ title: 'Đã tạo đơn hàng', description: `Mã đơn ${data.order.code}` })
+      toast({ title: 'Đã tạo đơn hàng', description: `Mã đơn ${data.order?.code || fallbackCode}` })
       setCreateOpen(false)
       setPage(1)
       setRefreshKey((k) => k + 1)
@@ -756,10 +925,42 @@ export function OrdersView() {
   return (
     <div>
       <PageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn hàng từ tất cả các kênh bán">
-        <Button onClick={openCreate}>
-          <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn
+        <Button className="bg-[#0066CC] font-semibold text-white hover:bg-[#0055B3]" onClick={openCreate}>
+          <Plus className="mr-1.5 h-4 w-4" /> Tạo đơn hàng
         </Button>
       </PageHeader>
+
+      {/* Thanh Tab trạng thái đơn hàng ngang chuẩn OPENVN */}
+      <div className="mb-3 flex items-center gap-1 overflow-x-auto rounded-xl border border-border/80 bg-card p-1.5 shadow-2xs">
+        {[
+          { key: 'ALL', label: 'Tất cả đơn hàng' },
+          { key: 'PENDING', label: 'Chờ xác nhận' },
+          { key: 'CONFIRMED', label: 'Đã xác nhận' },
+          { key: 'PACKING', label: 'Đang đóng gói' },
+          { key: 'SHIPPING', label: 'Đang giao hàng' },
+          { key: 'COMPLETED', label: 'Hoàn thành' },
+          { key: 'CANCELLED', label: 'Đã hủy' },
+        ].map((tab) => {
+          const active = statusFilter === tab.key
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => {
+                setStatusFilter(tab.key)
+                setPage(1)
+              }}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                active
+                  ? 'bg-[#0066CC] font-semibold text-white shadow-xs'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-col gap-2">
@@ -774,44 +975,46 @@ export function OrdersView() {
             aria-label="Tìm kiếm đơn hàng"
           />
         </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo trạng thái">
-            <SelectValue placeholder="Tất cả trạng thái" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
-            {ORDER_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {ORDER_STATUS_LABELS[s] ?? s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={channelFilter}
-          onValueChange={(v) => {
-            setChannelFilter(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo kênh bán">
-            <SelectValue placeholder="Tất cả kênh" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Tất cả kênh</SelectItem>
-            {channels.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo trạng thái">
+              <SelectValue placeholder="Tất cả trạng thái" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+              {ORDER_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {ORDER_STATUS_LABELS[s] ?? s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={channelFilter}
+            onValueChange={(v) => {
+              setChannelFilter(v)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo kênh bán">
+              <SelectValue placeholder="Tất cả kênh" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Tất cả kênh</SelectItem>
+              {channels.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         </div>
 
         {/* Bộ lọc Kỳ kế toán + Nguồn gốc dữ liệu + Trạng thái thay đổi */}
@@ -863,25 +1066,94 @@ export function OrdersView() {
               <p className="text-[11px] text-muted-foreground">Đối chiếu Kỳ đơn hàng — tính theo bộ lọc thời gian hiện tại.</p>
             </div>
           )}
+
+          {/* Thanh tác vụ hàng loạt (Bulk Action Bar) */}
+          {selectedOrderIds.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50/95 px-4 py-2.5 shadow-xs dark:border-blue-900/60 dark:bg-blue-950/40">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-[#0066CC] font-semibold text-white hover:bg-[#0055B3]">
+                  Đã chọn {selectedOrderIds.length} đơn hàng
+                </Badge>
+                <span className="hidden text-xs text-muted-foreground sm:inline">
+                  (trên tổng {total} đơn)
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  className="bg-[#0088FF] text-xs font-semibold text-white hover:bg-[#0077E6]"
+                  disabled={bulkConfirmLoading}
+                  onClick={() => void handleBulkConfirm()}
+                >
+                  {bulkConfirmLoading ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <PackageCheck className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Xác nhận hàng loạt
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-neutral-300 bg-white text-xs font-semibold hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900"
+                  onClick={() => setBatchSlipsOpen(true)}
+                >
+                  <Printer className="mr-1.5 h-3.5 w-3.5" />
+                  In phiếu giao hàng (A6)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedOrderIds([])}
+                >
+                  Bỏ chọn
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto rounded-lg border">
-            <Table className="min-w-[1080px]">
+            <Table tableId="orders-main" className="min-w-[1120px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Mã đơn</TableHead>
+                  <TableHead locked className="w-12 text-center">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleToggleSelectAll}
+                      aria-label="Chọn tất cả đơn hàng"
+                    />
+                  </TableHead>
+                  <TableHead locked>Mã đơn</TableHead>
                   <TableHead>Kênh</TableHead>
                   <TableHead>Nguồn gốc & Lịch sử</TableHead>
                   <TableHead>Khách hàng</TableHead>
+                  <TableHead defaultHidden>SĐT Khách</TableHead>
                   <TableHead>Sản phẩm</TableHead>
+                  <TableHead defaultHidden className="text-right">Tạm tính</TableHead>
+                  <TableHead defaultHidden className="text-right">Phí ship</TableHead>
+                  <TableHead defaultHidden className="text-right">Phí sàn TMĐT</TableHead>
                   <TableHead className="text-right">Tổng tiền</TableHead>
                   <TableHead>Thanh toán</TableHead>
                   <TableHead>Trạng thái</TableHead>
+                  <TableHead defaultHidden>Địa chỉ / Ghi chú</TableHead>
                   <TableHead>Thời gian</TableHead>
-                  <TableHead className="text-right">Hành động</TableHead>
+                  <TableHead locked className="text-right">Hành động</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders.map((o) => (
-                  <TableRow key={o.id}>
+                  <TableRow
+                    key={o.id}
+                    className={selectedOrderIds.includes(o.id) ? 'bg-blue-50/40 dark:bg-blue-950/20' : undefined}
+                  >
+                    <TableCell className="w-12 text-center">
+                      <Checkbox
+                        checked={selectedOrderIds.includes(o.id)}
+                        onCheckedChange={() => handleToggleSelectOrder(o.id)}
+                        aria-label={`Chọn đơn hàng ${o.code}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-mono text-sm font-medium">{o.code}</TableCell>
                     <TableCell>
                       <ChannelBadge channel={o.channel} className="text-xs" />
@@ -900,7 +1172,20 @@ export function OrdersView() {
                         <p className="text-xs text-muted-foreground">{o.customer.phone}</p>
                       )}
                     </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {o.customer?.phone ?? '—'}
+                    </TableCell>
                     <TableCell className="max-w-[180px] truncate text-sm">{itemsSummary(o)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">
+                      {formatVND(o.subtotal ?? o.total)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">
+                      {formatVND(o.shippingFee ?? 0)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-xs text-amber-700 dark:text-amber-400">
+                      {formatVND(o.platformFee ?? 0)}
+                      {o.platformFeePct ? ` (${o.platformFeePct}%)` : ''}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-right font-semibold">
                       {formatVND(o.total)}
                     </TableCell>
@@ -910,13 +1195,60 @@ export function OrdersView() {
                     <TableCell>
                       <OrderStatusBadge status={o.status} />
                     </TableCell>
+                    <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground" title={o.address || o.note || undefined}>
+                      {o.address || o.note || '—'}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                       {formatDateTime(o.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => openDetail(o.id)}>
-                        <Eye className="mr-1 h-4 w-4" /> Chi tiết
-                      </Button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {o.status === 'PENDING' && (
+                          <Button
+                            size="sm"
+                            className="h-8 bg-[#0088FF] px-2.5 text-xs font-semibold text-white hover:bg-[#0077E6]"
+                            disabled={quickBusyOrderId === o.id}
+                            onClick={() => void handleQuickRowAction(o, 'CONFIRMED')}
+                          >
+                            {quickBusyOrderId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Duyệt đơn'}
+                          </Button>
+                        )}
+                        {o.status === 'CONFIRMED' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 bg-violet-100 px-2.5 text-xs font-semibold text-violet-700 hover:bg-violet-200 dark:bg-violet-950 dark:text-violet-300"
+                            disabled={quickBusyOrderId === o.id}
+                            onClick={() => void handleQuickRowAction(o, 'PACKING')}
+                          >
+                            {quickBusyOrderId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Đóng gói'}
+                          </Button>
+                        )}
+                        {o.status === 'PACKING' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 bg-amber-100 px-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300"
+                            onClick={() => openDetail(o.id)}
+                          >
+                            <ScanLine className="mr-1 h-3.5 w-3.5" /> Quét đóng gói
+                          </Button>
+                        )}
+                        {o.status === 'SHIPPING' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 bg-emerald-100 px-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
+                            disabled={quickBusyOrderId === o.id}
+                            onClick={() => void handleQuickRowAction(o, 'COMPLETED')}
+                          >
+                            {quickBusyOrderId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Hoàn tất'}
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" className="h-8" onClick={() => openDetail(o.id)}>
+                          <Eye className="mr-1 h-3.5 w-3.5" /> Chi tiết
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -954,21 +1286,24 @@ export function OrdersView() {
         </>
       )}
 
-      {/* Dialog chi tiết đơn hàng */}
+      {/* Dialog chi tiết đơn hàng — Bố cục 2 cột rộng rãi trên màn hình lớn */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2.5">
               {detail ? (
                 <>
-                  <span className="font-mono">{detail.code}</span>
+                  <span className="font-mono text-xl">{detail.code}</span>
                   <OrderStatusBadge status={detail.status} />
+                  <PaymentStatusBadge status={detail.paymentStatus} />
                 </>
               ) : (
                 'Chi tiết đơn hàng'
               )}
             </DialogTitle>
-            <DialogDescription>Thông tin chi tiết và các sản phẩm trong đơn hàng.</DialogDescription>
+            <DialogDescription>
+              Thông tin chi tiết đơn hàng, cập nhật trạng thái và đối soát thanh toán.
+            </DialogDescription>
           </DialogHeader>
 
           {detailLoading && !detail ? (
@@ -980,159 +1315,215 @@ export function OrdersView() {
           ) : detailError ? (
             <ErrorState message={detailError} onRetry={() => setDetailReload((k) => k + 1)} />
           ) : detail ? (
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <InfoField label="Kênh bán">
-                  <ChannelBadge channel={detail.channel} />
-                </InfoField>
-                <InfoField label="Khách hàng">{detail.customer?.name ?? 'Khách lẻ'}</InfoField>
-                <InfoField label="Số điện thoại">{detail.customer?.phone ?? '—'}</InfoField>
-                <InfoField label="Địa chỉ">{detail.address ?? '—'}</InfoField>
-                <InfoField label="Thanh toán">
-                  <span>{PAYMENT_METHOD_LABELS[detail.paymentMethod] ?? detail.paymentMethod}</span>
-                  <PaymentStatusBadge status={detail.paymentStatus} />
-                </InfoField>
-                <InfoField label="Ghi chú">{detail.note ?? '—'}</InfoField>
-              </div>
-
-              <Separator />
-
-              <div className="overflow-x-auto rounded-lg border">
-                <Table className="min-w-[420px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Sản phẩm</TableHead>
-                      <TableHead className="text-right">Đơn giá</TableHead>
-                      <TableHead className="text-center">SL</TableHead>
-                      <TableHead className="text-right">Thành tiền</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detail.items.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                          Đơn hàng không có sản phẩm nào.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      detail.items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <p className="text-sm font-medium">
-                              {item.product?.name ?? 'Sản phẩm đã xóa'}
-                            </p>
-                            {item.product?.sku && (
-                              <p className="text-xs text-muted-foreground">{item.product.sku}</p>
-                            )}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-right text-sm">
-                            {formatVND(item.price)}
-                          </TableCell>
-                          <TableCell className="text-center text-sm">{item.quantity}</TableCell>
-                          <TableCell className="whitespace-nowrap text-right text-sm font-medium">
-                            {formatVND(item.price * item.quantity)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tạm tính</span>
-                  <span>{formatVND(detail.subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phí vận chuyển</span>
-                  <span>{formatVND(detail.shippingFee)}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between text-base font-semibold">
-                  <span>Tổng cộng</span>
-                  <span className="text-primary">{formatVND(detail.total)}</span>
-                </div>
-              </div>
-
-              {/* Đối soát — tóm tắt tài chính: phí sàn snapshot + giá vốn → lợi nhuận thực nhận */}
-              <div className="ml-auto w-full max-w-xs space-y-1.5 border-t pt-3 text-sm">
-                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <Calculator className="h-3.5 w-3.5" />
-                  Đối soát
-                </p>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tạm thu (hàng)</span>
-                  <span>{formatVND(detail.subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phí ship</span>
-                  <span>{formatVND(detail.shippingFee)}</span>
-                </div>
-                {platformFee > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Phí sàn</span>
-                    <span className="text-rose-600 dark:text-rose-400">
-                      {formatVND(platformFee)} ({detail.platformFeePct ?? 0}%)
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Giá vốn</span>
-                  <span>{formatVND(costTotal)}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between text-base font-semibold">
-                  <span>Lợi nhuận thực nhận</span>
-                  <span
-                    className={
-                      netProfit >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-rose-600 dark:text-rose-400'
-                    }
-                  >
-                    {formatVND(netProfit)}
+            <div className="space-y-5">
+              {/* Thanh thao tác nhanh ngay đầu hộp thoại để không cần cuộn xuống cuối */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200/80 bg-blue-50/50 p-3 dark:border-blue-900/60 dark:bg-blue-950/30">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Thao tác nhanh:
                   </span>
+                  {nextStatuses.map((s) => (
+                    <Button
+                      key={s}
+                      size="sm"
+                      variant={s === 'CANCELLED' ? 'outline' : 'default'}
+                      disabled={updatingStatus}
+                      onClick={() => handleStatusSelect(s)}
+                      className={
+                        s === 'CANCELLED'
+                          ? 'h-8 border-red-300 text-xs text-red-600 hover:bg-red-50'
+                          : 'h-8 bg-[#0066CC] text-xs text-white hover:bg-[#0055B3]'
+                      }
+                    >
+                      Chuyển: {ORDER_STATUS_LABELS[s] ?? s}
+                    </Button>
+                  ))}
+                  {nextStatuses.length === 0 && (
+                    <span className="text-xs text-muted-foreground">Đơn đã ở trạng thái cuối</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {detail.paymentStatus === 'UNPAID' && (
+                    <Button
+                      size="sm"
+                      className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                      onClick={() => void handleMarkPaid()}
+                      disabled={markingPaid}
+                    >
+                      {markingPaid ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Wallet className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Đánh dấu đã thanh toán
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              {detail.shipments && detail.shipments.length > 0 && detail.shipments[0] && (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">
-                      {carrierName(detail.shipments[0].carrier)} —{' '}
-                      <span className="font-mono text-xs">{detail.shipments[0].trackingCode}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Báo bởi {detail.shipments[0].dispatchedBy === 'AGENT' ? 'Agent Kho vận (tự động)' : 'Người vận hành'} · Phí {formatVND(detail.shipments[0].fee)}
-                    </p>
+              {/* Lưới 2 cột trên màn hình lớn: Trái (7 cột) = Khách + Sản phẩm + Đóng gói | Phải (5 cột) = Tài chính + Vận đơn + Hành trình */}
+              <div className="grid gap-5 lg:grid-cols-12">
+                <div className="space-y-4 lg:col-span-7">
+                  <div className="grid gap-3 rounded-xl border bg-muted/20 p-3.5 sm:grid-cols-3">
+                    <InfoField label="Kênh bán">
+                      <ChannelBadge channel={detail.channel} />
+                    </InfoField>
+                    <InfoField label="Khách hàng">{detail.customer?.name ?? 'Khách lẻ'}</InfoField>
+                    <InfoField label="Số điện thoại">{detail.customer?.phone ?? '—'}</InfoField>
+                    <InfoField label="Thanh toán">
+                      <span>{PAYMENT_METHOD_LABELS[detail.paymentMethod] ?? detail.paymentMethod}</span>
+                    </InfoField>
+                    <InfoField label="Địa chỉ giao hàng">{detail.address ?? '—'}</InfoField>
+                    <InfoField label="Ghi chú đơn">{detail.note ?? '—'}</InfoField>
                   </div>
-                  <ShipmentStatusBadge status={detail.shipments[0].status} />
-                </div>
-              )}
 
-              {detail.events && detail.events.length > 0 && (
-                <div>
-                  <p className="mb-3 text-sm font-semibold">Hành trình xử lý (Agent + người vận hành)</p>
-                  <div className="max-h-64 space-y-0 overflow-y-auto pr-1 [scrollbar-width:thin]">
-                    {[...detail.events].reverse().map((ev, idx, arr) => (
-                      <div key={ev.id} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_ACTOR_DOTS[ev.actor] ?? 'bg-slate-400'}`} />
-                          {idx < arr.length - 1 && <span className="w-px flex-1 bg-border" />}
-                        </div>
-                        <div className="min-w-0 flex-1 pb-3">
-                          <p className="text-sm leading-snug">{ev.title}</p>
-                          {ev.detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ev.detail}</p>}
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">
-                            {EVENT_ACTOR_LABELS[ev.actor] ?? ev.actor} · {formatDateTime(ev.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto rounded-lg border">
+                    <Table className="min-w-[420px]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Sản phẩm</TableHead>
+                          <TableHead className="text-right">Đơn giá</TableHead>
+                          <TableHead className="text-center">SL</TableHead>
+                          <TableHead className="text-right">Thành tiền</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detail.items.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                              Đơn hàng không có sản phẩm nào.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          detail.items.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell>
+                                <p className="text-sm font-medium">
+                                  {item.product?.name ?? 'Sản phẩm đã xóa'}
+                                </p>
+                                {item.product?.sku && (
+                                  <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+                                )}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-right text-sm">
+                                {formatVND(item.price)}
+                              </TableCell>
+                              <TableCell className="text-center text-sm">{item.quantity}</TableCell>
+                              <TableCell className="whitespace-nowrap text-right text-sm font-medium">
+                                {formatVND(item.price * item.quantity)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
                   </div>
                 </div>
-              )}
+
+                {/* Cột phải (5 phần): Tóm tắt thanh toán + Đối soát lợi nhuận + Vận đơn + Hành trình */}
+                <div className="space-y-4 lg:col-span-5">
+                  <div className="grid gap-3 rounded-xl border bg-card p-4 shadow-xs sm:grid-cols-2 lg:grid-cols-1">
+                    <div className="space-y-1.5 text-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Giá trị đơn hàng
+                      </p>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tạm tính</span>
+                        <span>{formatVND(detail.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Phí vận chuyển</span>
+                        <span>{formatVND(detail.shippingFee)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between text-base font-bold">
+                        <span>Tổng cộng</span>
+                        <span className="text-primary">{formatVND(detail.total)}</span>
+                      </div>
+                    </div>
+
+                    {/* Đối soát — tóm tắt tài chính: phí sàn snapshot + giá vốn → lợi nhuận thực nhận */}
+                    <div className="space-y-1.5 border-t pt-3 text-sm sm:border-t-0 sm:border-l sm:pl-3 sm:pt-0 lg:border-l-0 lg:border-t lg:pl-0 lg:pt-3">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <Calculator className="h-3.5 w-3.5" />
+                        Đối soát lợi nhuận
+                      </p>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tạm thu (hàng)</span>
+                        <span>{formatVND(detail.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Phí ship</span>
+                        <span>{formatVND(detail.shippingFee)}</span>
+                      </div>
+                      {platformFee > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Phí sàn</span>
+                          <span className="text-rose-600 dark:text-rose-400">
+                            {formatVND(platformFee)} ({detail.platformFeePct ?? 0}%)
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Giá vốn</span>
+                        <span>{formatVND(costTotal)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between text-base font-bold">
+                        <span>Lợi nhuận thực nhận</span>
+                        <span
+                          className={
+                            netProfit >= 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-rose-600 dark:text-rose-400'
+                          }
+                        >
+                          {formatVND(netProfit)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {detail.shipments && detail.shipments.length > 0 && detail.shipments[0] && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {carrierName(detail.shipments[0].carrier)} —{' '}
+                          <span className="font-mono text-xs">{detail.shipments[0].trackingCode}</span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Báo bởi {detail.shipments[0].dispatchedBy === 'AGENT' ? 'Agent Kho vận (tự động)' : 'Người vận hành'} · Phí {formatVND(detail.shipments[0].fee)}
+                        </p>
+                      </div>
+                      <ShipmentStatusBadge status={detail.shipments[0].status} />
+                    </div>
+                  )}
+
+                  {detail.events && detail.events.length > 0 && (
+                    <div className="rounded-xl border p-3.5">
+                      <p className="mb-3 text-sm font-semibold">Hành trình xử lý (Agent + người vận hành)</p>
+                      <div className="max-h-56 space-y-0 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                        {[...detail.events].reverse().map((ev, idx, arr) => (
+                          <div key={ev.id} className="flex gap-3">
+                            <div className="flex flex-col items-center">
+                              <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_ACTOR_DOTS[ev.actor] ?? 'bg-slate-400'}`} />
+                              {idx < arr.length - 1 && <span className="w-px flex-1 bg-border" />}
+                            </div>
+                            <div className="min-w-0 flex-1 pb-3">
+                              <p className="text-sm leading-snug">{ev.title}</p>
+                              {ev.detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ev.detail}</p>}
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {EVENT_ACTOR_LABELS[ev.actor] ?? ev.actor} · {formatDateTime(ev.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {typeof detail.reviewRating === 'number' && detail.reviewRating != null && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/30">
@@ -1249,7 +1640,6 @@ export function OrdersView() {
                   {detail.status === 'PACKING' && (
                     <CardContent className="space-y-3">
                       <BarcodeScanner
-                        autoFocus
                         onScan={handlePackingScan}
                         hint="Quét mã vạch sản phẩm để kiểm đếm — quét 1 lần = 1 món đã bỏ vào thùng"
                       />
@@ -1474,6 +1864,9 @@ export function OrdersView() {
                 <Label htmlFor="order-customer-phone">Số điện thoại</Label>
                 <Input
                   id="order-customer-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   value={createForm.customerPhone}
                   onChange={(e) => setCreateForm((f) => ({ ...f, customerPhone: e.target.value }))}
                   placeholder="VD: 0901234567"
@@ -1560,19 +1953,99 @@ export function OrdersView() {
                     )}
                   </SelectContent>
                 </Select>
-                <Input
-                  type="number"
-                  min={1}
-                  step={1}
-                  className="w-full sm:w-20"
-                  value={selectedQty}
-                  onChange={(e) => setSelectedQty(e.target.value)}
-                  aria-label="Số lượng"
-                />
-                <Button variant="secondary" onClick={handleAddItem}>
-                  <Plus className="mr-1 h-4 w-4" /> Thêm
-                </Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-lg border bg-background">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-11 w-10 rounded-r-none md:h-9 md:w-8"
+                      onClick={() =>
+                        setSelectedQty((q) => String(Math.max(1, (Number(q) || 1) - 1)))
+                      }
+                      aria-label="Giảm số lượng chọn"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </Button>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      className="w-14 border-0 px-1 text-center font-semibold shadow-none focus-visible:ring-0 sm:w-14"
+                      value={selectedQty}
+                      onChange={(e) => setSelectedQty(e.target.value)}
+                      aria-label="Số lượng"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-11 w-10 rounded-l-none md:h-9 md:w-8"
+                      onClick={() =>
+                        setSelectedQty((q) => String((Number(q) || 1) + 1))
+                      }
+                      aria-label="Tăng số lượng chọn"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-11 flex-1 font-semibold md:h-9 sm:flex-none"
+                    onClick={handleAddItem}
+                  >
+                    <Plus className="mr-1 h-4 w-4" /> Thêm món
+                  </Button>
+                </div>
               </div>
+
+              {/* Chạm 1 lần để thêm nhanh sản phẩm phổ biến trên điện thoại */}
+              {filteredCreateProducts.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+                  <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
+                    Chạm thêm nhanh:
+                  </span>
+                  {filteredCreateProducts
+                    .filter((p) => p.stock > 0)
+                    .slice(0, 5)
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setItems((prev) => {
+                            const existing = prev.find((i) => i.productId === p.id)
+                            if (existing) {
+                              if (existing.quantity >= p.stock) return prev
+                              return prev.map((i) =>
+                                i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i
+                              )
+                            }
+                            return [
+                              ...prev,
+                              {
+                                productId: p.id,
+                                sku: p.sku,
+                                name: p.name,
+                                price: p.sellPrice,
+                                quantity: 1,
+                                maxStock: p.stock,
+                              },
+                            ]
+                          })
+                        }}
+                        className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-[#0066CC] hover:bg-sky-50/70 active:scale-95 dark:hover:bg-sky-950/30"
+                      >
+                        <Plus className="h-3 w-3 text-[#0066CC]" />
+                        <span className="max-w-[140px] truncate">{p.name}</span>
+                        <span className="font-semibold text-[#0066CC] dark:text-sky-400">
+                          {formatNumber(Math.round(p.sellPrice / 1000))}k
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -1630,13 +2103,171 @@ export function OrdersView() {
                 </div>
               )}
             </div>
+
+            {/* Khung Kho xuất, Khuyến mãi / Voucher & Tổng thanh toán */}
+            <div className="space-y-3 rounded-xl border bg-muted/25 p-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">Kho xuất hàng / Điểm liên kết</Label>
+                  <Select
+                    value={createForm.warehouseId}
+                    onValueChange={(v) => setCreateForm((f) => ({ ...f, warehouseId: v }))}
+                  >
+                    <SelectTrigger className="mt-1 h-8 text-xs">
+                      <SelectValue placeholder="Chọn kho xuất hàng" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {createWarehouses.map((wh) => (
+                        <SelectItem key={wh.id} value={wh.id}>
+                          {wh.name} {wh.type === 'PARTNER_SHOP' ? `(Liên kết · HH ${wh.commissionPct}%)` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Chiết khấu / Giảm giá (đ)</Label>
+                    {Number(createForm.discountAmount) > 0 && (
+                      <span className="text-[11px] font-semibold text-emerald-700 tabular-nums dark:text-emerald-400">
+                        -{formatVND(Number(createForm.discountAmount))}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={5000}
+                    value={createForm.discountAmount}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({ ...f, voucherCode: '', discountAmount: e.target.value }))
+                    }
+                    className="mt-1 text-xs tabular-nums md:h-8"
+                  />
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    {Number(createForm.discountAmount) > 0 && Number(createForm.discountAmount) < 1000 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCreateForm((f) => ({
+                            ...f,
+                            voucherCode: '',
+                            discountAmount: String(Math.round(Number(f.discountAmount) * 1000)),
+                          }))
+                        }
+                        className="min-h-7 rounded border border-emerald-400 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+                      >
+                        + .000 ({formatVND(Math.round(Number(createForm.discountAmount) * 1000))})
+                      </button>
+                    )}
+                    {[
+                      { label: '-10k', val: 10000 },
+                      { label: '-20k', val: 20000 },
+                      { label: '-50k', val: 50000 },
+                      { label: '0đ', val: 0 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() =>
+                          setCreateForm((f) => ({
+                            ...f,
+                            voucherCode: '',
+                            discountAmount: String(Math.min(createTotal || preset.val, preset.val)),
+                          }))
+                        }
+                        className="min-h-7 rounded border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:border-primary hover:text-primary"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {createVouchers.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Chọn nhanh Mã khuyến mãi / Voucher:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {createVouchers.map((v) => {
+                      const active = createForm.voucherCode === v.code
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => {
+                            if (createTotal < v.minOrderAmount) {
+                              toast({
+                                title: `Chưa đủ điều kiện mã ${v.code}`,
+                                description: `Đơn tối thiểu ${formatVND(v.minOrderAmount)}`,
+                                variant: 'destructive',
+                              })
+                              return
+                            }
+                            let d = 0
+                            if (v.discountType === 'PERCENT') {
+                              d = Math.round((createTotal * v.discountValue) / 100)
+                              if (v.maxDiscount && v.maxDiscount > 0) d = Math.min(d, v.maxDiscount)
+                            } else if (v.discountType === 'FIXED') {
+                              d = Math.min(createTotal, Math.round(v.discountValue))
+                            } else if (v.discountType === 'FREESHIP') {
+                              d = Math.min(createShippingFee > 0 ? createShippingFee : 30000, Math.round(v.discountValue))
+                            }
+                            setCreateForm((f) => ({
+                              ...f,
+                              voucherCode: v.code,
+                              discountAmount: String(d),
+                            }))
+                          }}
+                          className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition-all ${
+                            active
+                              ? 'border-emerald-600 bg-emerald-700 text-white'
+                              : 'border-border bg-background text-foreground hover:border-primary'
+                          }`}
+                        >
+                          {v.code} ·{' '}
+                          {v.discountType === 'PERCENT'
+                            ? `-${v.discountValue}%`
+                            : v.discountType === 'FREESHIP'
+                              ? 'Freeship'
+                              : `-${formatNumber(v.discountValue / 1000)}k`}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1 border-t pt-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tạm tính hàng hóa</span>
+                  <span className="font-semibold tabular-nums">{formatVND(createTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Phí giao hàng {createTotal >= 500000 ? '(Đã được Freeship ≥ 500k)' : '(Freeship cho đơn ≥ 500k)'}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {createShippingFee === 0 && createTotal > 0 ? '0 đ (Freeship)' : formatVND(createShippingFee)}
+                  </span>
+                </div>
+                {createDiscount > 0 && (
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                    <span>Giảm giá {createForm.voucherCode ? `(${createForm.voucherCode})` : ''}</span>
+                    <span className="font-semibold tabular-nums">-{formatVND(createDiscount)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-0">
-            <p className="text-sm">
-              Tạm tính:{' '}
-              <span className="text-base font-semibold text-primary">{formatVND(createTotal)}</span>
-            </p>
+            <div>
+              <p className="text-xs text-muted-foreground">Tổng thanh toán (Khách cần trả):</p>
+              <p className="text-lg font-extrabold text-primary tabular-nums">{formatVND(createGrandTotal)}</p>
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={submitting}>
                 Hủy
@@ -1747,6 +2378,93 @@ export function OrdersView() {
           if (!o) setLineageTarget(null)
         }}
         target={lineageTarget}
+      />
+
+      {/* Dialog Kết quả xác nhận đơn hàng hàng loạt (Bulk Confirm Results) */}
+      <Dialog open={bulkConfirmOpen} onOpenChange={setBulkConfirmOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <PackageCheck className="h-5 w-5 text-primary" />
+              Kết quả xác nhận đơn hàng hàng loạt
+            </DialogTitle>
+            <DialogDescription>
+              Hệ thống đã kiểm tra tính hợp lệ và đối soát tồn kho cho từng đơn hàng.
+            </DialogDescription>
+          </DialogHeader>
+
+          {bulkConfirmResult && (
+            <div className="space-y-4 py-1">
+              {/* Thẻ tóm tắt kết quả */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Đã xác nhận</p>
+                  <p className="text-2xl font-black text-emerald-800 dark:text-emerald-300">
+                    {bulkConfirmResult.processedCount}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-rose-200 bg-rose-50/80 p-3 text-center dark:border-rose-900/60 dark:bg-rose-950/30">
+                  <p className="text-xs font-semibold text-rose-700 dark:text-rose-400">Bị từ chối</p>
+                  <p className="text-2xl font-black text-rose-800 dark:text-rose-300">
+                    {bulkConfirmResult.rejectedCount}
+                  </p>
+                </div>
+              </div>
+
+              {/* Chi tiết từng đơn */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Chi tiết kết quả theo mã đơn
+                </p>
+                <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-2 [scrollbar-width:thin]">
+                  {bulkConfirmResult.results.map((r, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-start justify-between gap-2 rounded-md p-2 text-xs ${
+                        r.status === 'CONFIRMED'
+                          ? 'bg-emerald-50/60 text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300'
+                          : 'bg-rose-50/60 text-rose-900 dark:bg-rose-950/20 dark:text-rose-300'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 font-mono font-bold">
+                          {r.status === 'CONFIRMED' ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                          ) : (
+                            <XCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                          )}
+                          <span>{r.orderCode ?? r.orderId}</span>
+                        </div>
+                        {r.reason && (
+                          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                            Lý do: <span className="font-semibold text-rose-700 dark:text-rose-400">{r.reason}</span>
+                          </p>
+                        )}
+                      </div>
+                      <Badge
+                        variant={r.status === 'CONFIRMED' ? 'default' : 'destructive'}
+                        className="text-[10px]"
+                      >
+                        {r.status === 'CONFIRMED' ? 'Đã duyệt' : 'Từ chối'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setBulkConfirmOpen(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal In phiếu giao hàng hàng loạt (A6 Batch Shipping Slips) */}
+      <ShippingSlipBatchPrint
+        open={batchSlipsOpen}
+        onOpenChange={setBatchSlipsOpen}
+        orderIds={selectedOrderIds}
       />
     </div>
   )

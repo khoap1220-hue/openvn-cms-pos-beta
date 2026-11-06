@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { apiGet, apiPost } from '@/lib/api'
-import { formatCompactVND, formatDateTime, formatNumber, formatVND } from '@/lib/format'
+import { formatAttributesReadable, formatCompactVND, formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
 import { StatCard } from '@/components/cms/stat-card'
 import { Badge } from '@/components/ui/badge'
@@ -452,8 +452,11 @@ export function InvoiceDashboardView({ onNavigate }: { onNavigate?: (view: strin
                                 <p className="max-w-[220px] truncate font-medium">{row.name}</p>
                               </TableCell>
                               <TableCell className="hidden max-w-[200px] md:table-cell">
-                                <span className="block truncate text-sm text-muted-foreground" title={row.attributes ?? undefined}>
-                                  {row.attributes || '—'}
+                                <span
+                                  className="block truncate text-sm text-muted-foreground"
+                                  title={formatAttributesReadable(row.attributes).text || undefined}
+                                >
+                                  {formatAttributesReadable(row.attributes).text || '—'}
                                 </span>
                               </TableCell>
                               <TableCell className="whitespace-nowrap text-right font-medium tabular-nums text-emerald-600 dark:text-emerald-400">

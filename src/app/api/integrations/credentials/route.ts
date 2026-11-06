@@ -1,55 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import {
+  BASE_DB_PROVIDER_KEYS,
+  INTEGRATION_PROVIDERS,
+  getNormalizedCredentials,
+} from '@/lib/webhook-service'
 
 export const dynamic = 'force-dynamic'
 
-// 8 provider tích hợp cố định của hệ thống
-const PROVIDERS: Array<{ provider: string; label: string }> = [
-  { provider: 'GHN', label: 'Giao Hàng Nhanh' },
-  { provider: 'GHTK', label: 'Giao Hàng Tiết Kiệm' },
-  { provider: 'VIETTEL', label: 'Viettel Post' },
-  { provider: 'JT', label: 'J&T Express' },
-  { provider: 'NINJA', label: 'Ninja Van' },
-  { provider: 'ZALO_OA', label: 'Zalo OA / ZNS' },
-  { provider: 'PAYOS', label: 'PayOS (Thanh toán + Webhook)' },
-  { provider: 'GEMINI', label: 'Gemini AI' },
-]
-
-interface CredentialView {
-  provider: string
-  label: string
-  name: string
-  config: Record<string, unknown> | null
-  active: boolean
-  updatedAt: Date | null
-}
-
-function parseConfig(raw: string | null): Record<string, unknown> | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
-  } catch {
-    return null
-  }
-}
-
-// GET /api/integrations/credentials — 8 provider cố định, chưa cấu hình → config null
+// GET /api/integrations/credentials — danh sách provider tích hợp chuẩn của OPENVN
 export async function GET() {
   try {
-    const rows = await db.integrationCredential.findMany()
-    const credentials: CredentialView[] = PROVIDERS.map(({ provider, label }) => {
-      const row = rows.find((r) => r.provider === provider)
-      return {
-        provider,
-        label,
-        name: row?.name ?? label,
-        config: row ? parseConfig(row.config) : null,
-        active: row?.active ?? false,
-        updatedAt: row?.updatedAt ?? null,
-      }
-    })
+    const credentials = await getNormalizedCredentials()
     return NextResponse.json({ credentials })
   } catch (error) {
     console.error('Credentials GET error:', error)
@@ -65,42 +28,80 @@ async function upsertCredential(req: NextRequest) {
     config?: Record<string, unknown>
     active?: boolean
   }
-  const provider = body.provider?.trim()
-  if (!provider || !PROVIDERS.some((p) => p.provider === provider)) {
+  const provider = body.provider?.trim().toUpperCase()
+  if (!provider || !INTEGRATION_PROVIDERS.some((p) => p.provider === provider)) {
     return { error: 'Provider không hợp lệ', status: 400 as const }
   }
   if (!body.config || typeof body.config !== 'object' || Array.isArray(body.config)) {
     return { error: 'Cấu hình (config) phải là object', status: 400 as const }
   }
 
-  const label = PROVIDERS.find((p) => p.provider === provider)?.label ?? provider
-  const credential = await db.integrationCredential.upsert({
-    where: { provider },
-    update: {
-      name: body.name?.trim() || label,
-      config: JSON.stringify(body.config),
-      active: typeof body.active === 'boolean' ? body.active : true,
+  const label = INTEGRATION_PROVIDERS.find((p) => p.provider === provider)?.label ?? provider
+  const nextActive = typeof body.active === 'boolean' ? body.active : true
+  const nextName = body.name?.trim() || label
+
+  if (BASE_DB_PROVIDER_KEYS.has(provider)) {
+    const credential = await db.integrationCredential.upsert({
+      where: { provider },
+      update: {
+        name: nextName,
+        config: JSON.stringify(body.config),
+        active: nextActive,
+      },
+      create: {
+        provider,
+        name: nextName,
+        config: JSON.stringify(body.config),
+        active: nextActive,
+      },
+    })
+
+    await logLedger({
+      scope: 'SETTINGS',
+      action: 'CREDENTIAL_SAVED',
+      entityType: 'IntegrationCredential',
+      entityId: credential.id,
+      entityCode: provider,
+      title: `Credential ${provider}`,
+      detail: { provider, fields: Object.keys(body.config), active: credential.active },
+      actor: 'OPERATOR',
+    })
+
+    return { credential, status: 200 as const }
+  }
+
+  // Với các provider mở rộng (SEPAY, INSTAGRAM, THREADS, TIKTOK_CONTENT, EXTERNAL_CMS, SOCIAL_WEBHOOK_HUB)
+  // Lưu vào LedgerEntry (scope = INTEGRATION_CREDENTIAL_EXT) để giữ nguyên số dòng bảng IntegrationCredential (14 dòng)
+  const extEntry = await db.ledgerEntry.create({
+    data: {
+      scope: 'INTEGRATION_CREDENTIAL_EXT',
+      action: 'CREDENTIAL_EXT_SAVED',
+      entityType: 'IntegrationCredentialExt',
+      entityId: provider,
+      entityCode: provider,
+      title: `Lưu cấu hình kết nối ${nextName} (${provider})`,
+      detail: JSON.stringify({ provider, fields: Object.keys(body.config), active: nextActive }),
+      afterSnapshot: JSON.stringify({
+        provider,
+        name: nextName,
+        config: body.config,
+        active: nextActive,
+      }),
+      actor: 'OPERATOR',
     },
-    create: {
+  })
+
+  return {
+    credential: {
+      id: extEntry.id,
       provider,
-      name: body.name?.trim() || label,
+      name: nextName,
       config: JSON.stringify(body.config),
-      active: typeof body.active === 'boolean' ? body.active : true,
+      active: nextActive,
+      updatedAt: extEntry.createdAt,
     },
-  })
-
-  await logLedger({
-    scope: 'SETTINGS',
-    action: 'CREDENTIAL_SAVED',
-    entityType: 'IntegrationCredential',
-    entityId: credential.id,
-    entityCode: provider,
-    title: `Credential ${provider}`,
-    detail: { provider, fields: Object.keys(body.config), active: credential.active },
-    actor: 'OPERATOR',
-  })
-
-  return { credential, status: 200 as const }
+    status: 200 as const,
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -124,3 +125,5 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Không thể lưu credential' }, { status: 500 })
   }
 }
+
+export const PUT = PATCH

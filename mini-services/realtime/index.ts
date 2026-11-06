@@ -1,8 +1,8 @@
-import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { Server } from 'socket.io';
 
-// Hardcoded on purpose: the Caddy gateway proxies to this exact port.
-const PORT = 3003;
+// Default port 3013 on local host (or REALTIME_PORT from env)
+const PORT = Number(process.env.REALTIME_PORT) || 3013;
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });

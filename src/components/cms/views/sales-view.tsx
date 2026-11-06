@@ -48,12 +48,14 @@ import {
   CircleDollarSign,
   ClipboardList,
   Eye,
+  FileCode,
   FileSpreadsheet,
   Loader2,
   Plus,
   Printer,
   Receipt,
   Search,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
   X,
@@ -95,6 +97,9 @@ interface SalesInvoice {
   total: number
   status: 'POSTED' | 'CANCELLED'
   note: string | null
+  invoiceNo?: number | null
+  series?: string | null
+  templateCode?: string | null
   partner: { name: string; taxCode: string | null; address?: string | null; phone?: string | null } | null
   order: { code: string } | null
   items: InvoiceItemRow[]
@@ -140,6 +145,16 @@ const todayInput = () => {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
+function isInvoiceSigned(invoice: { note?: string | null }): boolean {
+  return Boolean(invoice.note && invoice.note.includes('KÝ SỐ'))
+}
+
+function getInvoiceLookupCode(invoice: { note?: string | null }): string | null {
+  if (!invoice.note) return null
+  const m = invoice.note.match(/(?:Mã tra cứu|Tra cứu):\s*([^\s|\]]+)/i)
+  return m ? m[1] : null
+}
+
 export function SalesView() {
   const [invoices, setInvoices] = useState<InvoiceWithLineage[] | null>(null)
   const [uninvoiced, setUninvoiced] = useState<UninvoicedOrder[] | null>(null)
@@ -157,6 +172,7 @@ export function SalesView() {
   const [detail, setDetail] = useState<SalesInvoice | null>(null)
   const [cancelTarget, setCancelTarget] = useState<SalesInvoice | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [signingId, setSigningId] = useState<string | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogTab, setDialogTab] = useState<'order' | 'manual'>('order')
@@ -426,6 +442,70 @@ export function SalesView() {
     }
   }
 
+  const downloadXml = (inv: { id: string; code: string; status: string }) => {
+    if (inv.status === 'CANCELLED') {
+      toast({
+        variant: 'destructive',
+        title: 'Không thể xuất XML',
+        description: 'Hóa đơn đã bị hủy, không thể xuất file XML theo quy định Thuế.',
+      })
+      return
+    }
+
+    const downloadUrl = `/api/sales-invoices/${inv.id}/xml`
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = `${inv.code}.xml`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+
+    toast({
+      title: 'Đang tải XML hóa đơn',
+      description: `Đã bắt đầu tải tệp XML chuẩn QĐ 1450 cho hóa đơn ${inv.code}`,
+    })
+  }
+
+  const handleSign = async (inv: { id: string; code: string; status: string }, provider = 'MOCK_VNPT') => {
+    if (inv.status === 'CANCELLED') {
+      toast({
+        variant: 'destructive',
+        title: 'Không thể ký số',
+        description: 'Không thể ký số hóa đơn đã bị hủy.',
+      })
+      return
+    }
+
+    try {
+      setSigningId(inv.id)
+      const res = await apiPost<{
+        success: boolean
+        signature: { lookupCode: string; signedAt: string }
+        provider: string
+      }>(`/api/sales-invoices/${inv.id}/sign`, { provider })
+
+      if (res.success) {
+        toast({
+          title: 'Ký số hóa đơn thành công',
+          description: `Đã ký số điện tử qua ${res.provider}. Mã tra cứu: ${res.signature.lookupCode}`,
+        })
+        await load()
+        if (detail && detail.id === inv.id) {
+          const updated = await apiGet<{ invoice: SalesInvoice }>(`/api/sales-invoices/${inv.id}`)
+          if (updated.invoice) setDetail(updated.invoice)
+        }
+      }
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Ký số thất bại',
+        description: err instanceof Error ? err.message : 'Lỗi kết nối bộ ký số hóa đơn',
+      })
+    } finally {
+      setSigningId(null)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -546,61 +626,121 @@ export function SalesView() {
                     <TableHead className="text-right">VAT</TableHead>
                     <TableHead className="text-right">Tổng cộng</TableHead>
                     <TableHead>Trạng thái</TableHead>
+                    <TableHead>Ký số</TableHead>
                     <TableHead className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
-                    <TableHead className="w-12" />
+                    <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((inv) => (
-                    <TableRow key={inv.id} className={inv.status === 'CANCELLED' ? 'opacity-60' : undefined}>
-                      <TableCell className="whitespace-nowrap font-mono text-xs font-medium">{inv.code}</TableCell>
-                      <TableCell className="whitespace-nowrap text-sm">{formatDate(inv.invoiceDate)}</TableCell>
-                      <TableCell>
-                        <p className="max-w-[160px] truncate font-medium">{inv.partner?.name ?? 'Khách lẻ'}</p>
-                        {inv.partner?.taxCode && (
-                          <p className="font-mono text-xs text-muted-foreground">{inv.partner.taxCode}</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap font-mono text-xs">
-                        {inv.order?.code ?? '—'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(inv.subtotal)}</TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums text-sky-700 dark:text-sky-400">
-                        {inv.vatRate}% · {formatVND(inv.vatAmount)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">
-                        {formatVND(inv.total)}
-                      </TableCell>
-                      <TableCell>
-                        {inv.status === 'POSTED' ? (
-                          <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
-                            Đã ghi sổ
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Đã hủy</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <DataLineageBadge
-                          originSource={inv.originSource}
-                          changeCount={inv.changeCount}
-                          onInspect={() => openLineage(inv)}
-                          compact
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setDetail(inv)}
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {invoices.map((inv) => {
+                    const signed = isInvoiceSigned(inv)
+                    const lookup = getInvoiceLookupCode(inv)
+                    const isCancelled = inv.status === 'CANCELLED'
+
+                    return (
+                      <TableRow key={inv.id} className={isCancelled ? 'opacity-60' : undefined}>
+                        <TableCell className="whitespace-nowrap font-mono text-xs font-medium">{inv.code}</TableCell>
+                        <TableCell className="whitespace-nowrap text-sm">{formatDate(inv.invoiceDate)}</TableCell>
+                        <TableCell>
+                          <p className="max-w-[160px] truncate font-medium">{inv.partner?.name ?? 'Khách lẻ'}</p>
+                          {inv.partner?.taxCode && (
+                            <p className="font-mono text-xs text-muted-foreground">{inv.partner.taxCode}</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap font-mono text-xs">
+                          {inv.order?.code ?? '—'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(inv.subtotal)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right tabular-nums text-sky-700 dark:text-sky-400">
+                          {inv.vatRate}% · {formatVND(inv.vatAmount)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">
+                          {formatVND(inv.total)}
+                        </TableCell>
+                        <TableCell>
+                          {inv.status === 'POSTED' ? (
+                            <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                              Đã ghi sổ
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Đã hủy</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {signed ? (
+                            <div className="flex flex-col gap-0.5">
+                              <Badge variant="outline" className="border-emerald-500 text-emerald-700 bg-emerald-50">
+                                <ShieldCheck className="mr-1 h-3 w-3" />
+                                Đã ký số
+                              </Badge>
+                              {lookup && (
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                  {lookup}
+                                </span>
+                              )}
+                            </div>
+                          ) : isCancelled ? (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              Không áp dụng
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-amber-700 bg-amber-50">
+                              Chưa ký số
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <DataLineageBadge
+                            originSource={inv.originSource}
+                            changeCount={inv.changeCount}
+                            onInspect={() => openLineage(inv)}
+                            compact
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1 text-xs"
+                              onClick={() => downloadXml(inv)}
+                              disabled={isCancelled}
+                              title={isCancelled ? 'Hóa đơn đã hủy không thể xuất XML' : 'Tải tệp XML QĐ 1450'}
+                            >
+                              <FileCode className="h-3.5 w-3.5 text-blue-600" />
+                              <span className="hidden sm:inline">Tải XML</span>
+                            </Button>
+                            {!signed && !isCancelled && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1 text-xs border-emerald-500/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-700"
+                                onClick={() => void handleSign(inv)}
+                                disabled={signingId === inv.id}
+                                title="Ký số hóa đơn điện tử"
+                              >
+                                {signingId === inv.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                )}
+                                <span className="hidden sm:inline">Ký số</span>
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setDetail(inv)}
+                              title="Xem chi tiết"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -623,12 +763,51 @@ export function SalesView() {
                   ) : (
                     <Badge variant="secondary">Đã hủy</Badge>
                   )}
+                  {isInvoiceSigned(detail) ? (
+                    <Badge variant="outline" className="border-emerald-500 text-emerald-700 bg-emerald-50">
+                      <ShieldCheck className="mr-1 h-3 w-3" />
+                      Đã ký số
+                    </Badge>
+                  ) : (
+                    detail.status === 'POSTED' && (
+                      <Badge variant="outline" className="text-amber-700 bg-amber-50">
+                        Chưa ký số
+                      </Badge>
+                    )
+                  )}
                 </DialogTitle>
                 <DialogDescription>
                   {formatDate(detail.invoiceDate)} — {detail.partner?.name ?? 'Khách lẻ'}
                   {detail.order ? ` · từ đơn ${detail.order.code}` : ' · tạo thủ công'}
                 </DialogDescription>
               </DialogHeader>
+
+              {/* Thông tin đối tác & ký số điện tử */}
+              <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-muted-foreground">Người mua: </span>
+                    <span className="font-medium">{detail.partner?.name || 'Khách lẻ'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Mã số thuế: </span>
+                    <span className="font-mono font-medium">{detail.partner?.taxCode || '—'}</span>
+                  </div>
+                </div>
+                {detail.partner?.address && (
+                  <div>
+                    <span className="text-muted-foreground">Địa chỉ: </span>
+                    <span>{detail.partner.address}</span>
+                  </div>
+                )}
+                {getInvoiceLookupCode(detail) && (
+                  <div className="pt-1 text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>Mã tra cứu hóa đơn điện tử: </span>
+                    <span className="font-mono">{getInvoiceLookupCode(detail)}</span>
+                  </div>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -673,15 +852,43 @@ export function SalesView() {
                 {detail.note && <p className="pt-1 text-xs text-muted-foreground">Ghi chú: {detail.note}</p>}
               </div>
               {detail.status === 'POSTED' && (
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => void openPrint()} disabled={printLoading}>
-                    {printLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                    In hóa đơn
-                  </Button>
-                  <Button variant="destructive" onClick={() => setCancelTarget(detail)}>
-                    <Trash2 className="h-4 w-4" />
-                    Hủy hóa đơn
-                  </Button>
+                <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadXml(detail)}
+                      disabled={(detail.status as string) === 'CANCELLED'}
+                    >
+                      <FileCode className="h-4 w-4 mr-1 text-blue-600" />
+                      Tải XML
+                    </Button>
+                    {!isInvoiceSigned(detail) && (
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => void handleSign(detail)}
+                        disabled={signingId === detail.id}
+                      >
+                        {signingId === detail.id ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <ShieldCheck className="h-4 w-4 mr-1" />
+                        )}
+                        Ký số (Mock)
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => void openPrint()} disabled={printLoading}>
+                      {printLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                      In hóa đơn
+                    </Button>
+                    <Button variant="destructive" onClick={() => setCancelTarget(detail)}>
+                      <Trash2 className="h-4 w-4" />
+                      Hủy hóa đơn
+                    </Button>
+                  </div>
                 </DialogFooter>
               )}
             </>
@@ -922,3 +1129,7 @@ export function SalesView() {
     </div>
   )
 }
+
+export { SalesView as SalesInvoicesView }
+export default SalesView
+

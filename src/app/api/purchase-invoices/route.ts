@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       vatRate: body.vatRate != null ? Number(body.vatRate) : undefined,
       invoiceDate: body.invoiceDate != null ? String(body.invoiceDate) : undefined,
       note: body.note != null ? String(body.note) : undefined,
+      status: body.status != null ? String(body.status) : undefined,
     })
     return NextResponse.json({ invoice }, { status: 201 })
   } catch (error) {

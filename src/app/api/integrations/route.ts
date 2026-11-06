@@ -1,19 +1,25 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { WEBHOOK_EVENTS } from '@/lib/webhook-service'
+import {
+  WEBHOOK_EVENTS,
+  ensureIntegrationsSeeded,
+  getNormalizedCredentials,
+} from '@/lib/webhook-service'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/integrations — tổng hợp một lần toàn bộ cấu hình tích hợp
 export async function GET() {
   try {
+    await ensureIntegrationsSeeded()
+
     const [apiKeys, webhooks, credentials, deliveriesSuccess, deliveriesFailed] = await Promise.all([
       db.apiKey.findMany({ orderBy: { createdAt: 'desc' } }),
       db.webhookEndpoint.findMany({
         orderBy: { createdAt: 'desc' },
         include: { deliveries: { orderBy: { createdAt: 'desc' }, take: 5 } },
       }),
-      db.integrationCredential.findMany({ orderBy: { provider: 'asc' } }),
+      getNormalizedCredentials(),
       db.webhookDelivery.count({ where: { status: 'SUCCESS' } }),
       db.webhookDelivery.count({ where: { status: 'FAILED' } }),
     ])

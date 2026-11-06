@@ -4,7 +4,7 @@
 // người vận hành vào chat thay Agent; hỗ trợ ảnh khách gửi (Vision) + thẻ "Chân dung & Trí nhớ AI".
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Bot, ImagePlus, Loader2, MessageSquare, RefreshCw, Send, Sparkles, User } from 'lucide-react'
+import { ArrowLeft, Bot, ImagePlus, Loader2, MessageSquare, RefreshCw, Send, Sparkles, Upload, User } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -92,6 +92,9 @@ export function InboxView() {
   const [memoryLoading, setMemoryLoading] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
   const [pendingImage, setPendingImage] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [mobilePanel, setMobilePanel] = useState<'chat' | 'memory'>('chat')
+  const dragCounter = useRef(0)
   const fileRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -240,6 +243,51 @@ export function InboxView() {
     reader.readAsDataURL(file)
   }
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current += 1
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current -= 1
+    if (dragCounter.current <= 0) {
+      setIsDragging(false)
+      dragCounter.current = 0
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    dragCounter.current = 0
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      const file = files[0]
+      if (file.type.startsWith('image/')) {
+        attachImage(file)
+        toast({ title: 'Đã đính kèm ảnh', description: file.name })
+      } else {
+        toast({
+          title: 'Định dạng không hợp lệ',
+          description: 'Chỉ hỗ trợ kéo thả tệp hình ảnh (PNG, JPG, WEBP)',
+          variant: 'destructive',
+        })
+      }
+    }
+  }
+
   const runScenario = async (scenario: string) => {
     if (!selected || scenarioSending) return
     setScenarioSending(scenario)
@@ -297,7 +345,7 @@ export function InboxView() {
       <CardContent className="grid p-0 lg:grid-cols-[320px_1fr_300px]">
         {/* Danh sách hội thoại */}
         <div className={cn('flex-col border-r', selected ? 'hidden lg:flex' : 'flex')} style={{ minHeight: 480 }}>
-          <div className="max-h-[62vh] min-h-[430px] overflow-y-auto [scrollbar-width:thin]">
+          <div className="lg:max-h-[62vh] lg:min-h-[430px] lg:overflow-y-auto [scrollbar-width:thin]">
             {loading ? (
               <div className="space-y-3 p-4">
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -305,12 +353,15 @@ export function InboxView() {
                 ))}
               </div>
             ) : visible.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">Chưa có hội thoại nào. Dùng «Mô phỏng khách nhắn tin» ở Buồng lái để thử.</p>
+              <p className="p-8 text-center text-sm text-muted-foreground">Chưa có hội thoại khách hàng nào. Bạn có thể khởi tạo hội thoại mẫu tại Trung tâm Điều hành AI để kiểm thử.</p>
             ) : (
               visible.map((conv) => (
                 <button
                   key={conv.key}
-                  onClick={() => openConversation(conv)}
+                  onClick={() => {
+                    setMobilePanel('chat')
+                    openConversation(conv)
+                  }}
                   className={cn(
                     'flex w-full items-start gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/60',
                     selected?.key === conv.key && 'bg-primary/5',
@@ -341,7 +392,22 @@ export function InboxView() {
         </div>
 
         {/* Khung chat */}
-        <div className={cn('flex min-h-[480px] flex-col', selected ? 'flex' : 'hidden lg:flex')}>
+        <div
+          className={cn('relative flex min-h-[480px] flex-col', selected ? 'flex' : 'hidden lg:flex', isDragging && 'ring-2 ring-primary ring-inset')}
+          onDragEnter={selected ? handleDragEnter : undefined}
+          onDragOver={selected ? handleDragOver : undefined}
+          onDragLeave={selected ? handleDragLeave : undefined}
+          onDrop={selected ? handleDrop : undefined}
+        >
+          {isDragging && selected && (
+            <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 p-6 text-center backdrop-blur-sm">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Upload className="h-6 w-6 animate-bounce" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Thả ảnh vào đây để đính kèm</p>
+              <p className="text-xs text-muted-foreground">Hỗ trợ JPG, PNG, WEBP — Hệ thống sẽ nén tối ưu và gửi cho khách</p>
+            </div>
+          )}
           {!selected ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
               <User className="h-10 w-10 text-muted-foreground/40" />
@@ -349,11 +415,18 @@ export function InboxView() {
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 border-b px-4 py-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden" onClick={() => setSelected(null)} aria-label="Quay lại danh sách">
-                  <ArrowLeft className="h-4 w-4" />
+              <div className="flex items-center gap-2 border-b px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1 px-2 text-xs lg:hidden"
+                  onClick={() => setSelected(null)}
+                  aria-label="Quay lại danh sách"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Danh sách</span>
                 </Button>
-                <CustomerAvatar customer={{ name: selected.customer.name, avatarUrl: memory?.avatarUrl }} className="h-9 w-9" />
+                <CustomerAvatar customer={{ name: selected.customer.name, avatarUrl: memory?.avatarUrl }} className="h-9 w-9 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
                     {selected.customer.name}
@@ -363,12 +436,21 @@ export function InboxView() {
                     {selected.customer.phone ?? '—'} · {CHANNEL_KEY_LABELS[selected.channelKey] ?? selected.channelKey}
                   </p>
                 </div>
+                <Button
+                  variant={mobilePanel === 'memory' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 gap-1 px-2 text-xs lg:hidden"
+                  onClick={() => setMobilePanel((p) => (p === 'chat' ? 'memory' : 'chat'))}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  {mobilePanel === 'chat' ? 'Trí nhớ AI' : 'Khung chat'}
+                </Button>
                 <Badge variant="outline" className="hidden bg-emerald-50 text-emerald-700 sm:inline-flex dark:bg-emerald-950 dark:text-emerald-400">
                   <Bot className="mr-1 h-3 w-3" /> Em (AI) đang trực
                 </Badge>
               </div>
 
-              <div ref={scrollRef} className="max-h-[46vh] min-h-[300px] flex-1 space-y-3 overflow-y-auto px-4 py-4 [scrollbar-width:thin]">
+              <div ref={scrollRef} className={cn('max-h-[52vh] min-h-[280px] flex-1 space-y-3 overflow-y-auto px-4 py-4 [scrollbar-width:thin]', mobilePanel === 'memory' && 'hidden lg:block')}>
                 {messagesLoading ? (
                   <div className="space-y-2">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -437,7 +519,7 @@ export function InboxView() {
               </div>
 
               {/* Kịch bản test ảnh khách gửi */}
-              <div className="flex flex-wrap items-center gap-1.5 border-t px-3 pt-2">
+              <div className={cn('flex flex-wrap items-center gap-1.5 border-t px-3 pt-2', mobilePanel === 'memory' && 'hidden lg:flex')}>
                 <span className="text-[11px] font-medium text-muted-foreground">Giả lập khách gửi ảnh:</span>
                 {IMAGE_SCENARIOS.map((sc) => (
                   <Button key={sc.key} size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={scenarioSending !== null} onClick={() => void runScenario(sc.key)}>
@@ -447,7 +529,7 @@ export function InboxView() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-2 p-3">
+              <div className={cn('flex items-center gap-2 p-3', mobilePanel === 'memory' && 'hidden lg:flex')}>
                 {pendingImage && (
                   <div className="relative shrink-0">
                     { }
@@ -498,7 +580,7 @@ export function InboxView() {
         </div>
 
         {/* Sidebar: Chân dung & Trí nhớ AI */}
-        <div className={cn('border-t lg:border-l lg:border-t-0', selected ? 'block' : 'hidden lg:block')}>
+        <div className={cn('border-t lg:border-l lg:border-t-0', selected && mobilePanel === 'memory' ? 'block' : 'hidden lg:block')}>
           {!selected ? (
             <p className="p-6 text-center text-xs text-muted-foreground">Chọn hội thoại để xem chân dung & trí nhớ AI của khách.</p>
           ) : memoryLoading ? (
@@ -508,7 +590,7 @@ export function InboxView() {
               <Skeleton className="h-16 w-full" />
             </div>
           ) : memory ? (
-            <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4 [scrollbar-width:thin]">
+            <div className="space-y-3 p-4 lg:max-h-[70vh] lg:overflow-y-auto [scrollbar-width:thin]">
               <div className="flex items-center justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                   <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-hidden />
