@@ -1,9 +1,22 @@
+# Blueprint Render Free Tier - OPENVN CMS & Shopee 24/7 Backend Service
 services:
   - type: web
-    name: openvn-cms-pos-beta
+    name: openvn-cms-pos-backend
     runtime: docker
     plan: free
+    branch: main
+    autoDeployTrigger: "off"
     healthCheckPath: /api/health
     envVars:
       - key: BETA_MODE
         value: "true"
+      - key: NODE_ENV
+        value: "production"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: CMS_ADMIN_PASSWORD
+        sync: false
+      - key: CMS_API_KEY
+        value: "191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955"

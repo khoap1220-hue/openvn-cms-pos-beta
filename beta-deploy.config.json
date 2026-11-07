@@ -5,9 +5,37 @@
   "repo_full_name": "khoap1220-hue/openvn-cms-pos-beta",
   "live_url": "https://khoap1220-hue.github.io/openvn-cms-pos-beta/",
   "local_port": 3010,
+  "sync_2way_enabled": false,
+  "isolated_sandbox_db": "db/beta_sandbox.db",
   "cloud_sync_topic": "openvn_sync2way_openvn_cms_pos_beta_v1",
   "feedback_topic": "openvn_fb_openvn_cms_pos_beta_v1",
   "feedback_dir": "beta-feedback",
   "mcp_engine_dir": "E:\\MCP SKILL DELOY FREE BETA",
-  "updated_at": "2026-11-06T01:34:51Z"
+  "updated_at": "2026-11-07T01:59:36Z",
+  "cicd": {
+    "schema_version": 1,
+    "template_version": 1,
+    "target": "render",
+    "stack": "node",
+    "branch": "main",
+    "repo": "khoap1220-hue/openvn-cms-pos-beta",
+    "live_url": "https://openvn-cms-pos-backend.onrender.com",
+    "health_path": "/health",
+    "health_url": "https://openvn-cms-pos-backend.onrender.com/health",
+    "python_version": "3.12",
+    "node_version": "20",
+    "start_command": "",
+    "lint_command": "npm run lint --if-present",
+    "test_command": "",
+    "required_secrets": [
+      "RENDER_DEPLOY_HOOK_URL"
+    ],
+    "optional_secrets": [],
+    "required_vars": [
+      "BETA_HEALTH_URL"
+    ],
+    "optional_vars": [],
+    "workflow": ".github/workflows/beta-cicd.yml",
+    "updated_at": "2026-11-07T02:07:22Z"
+  }
 }

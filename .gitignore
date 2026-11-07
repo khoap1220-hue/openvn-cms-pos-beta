@@ -64,3 +64,5 @@ db/*.db-shm
 db/*.bak*
 *.db-wal
 *.db-shm
+.env
+!.env.example
