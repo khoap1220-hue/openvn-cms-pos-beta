@@ -236,7 +236,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
 
   // Kênh POS (ưu tiên channel key === 'POS')
   const posChannel = useMemo(
-    () => channels.find((c) => c.key.toUpperCase() === 'POS') ?? channels[0] ?? null,
+    () => channels.find((c) => (c?.key ?? '').toUpperCase() === 'POS') ?? channels[0] ?? null,
     [channels]
   )
 
@@ -276,9 +276,10 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           campaigns: [],
         })),
       ])
+      const validChannels = (chRes.channels ?? []).filter((c) => c && typeof c.key === 'string')
       setProducts(prodRes.products)
       setCategories(catRes.categories)
-      setChannels(chRes.channels)
+      setChannels(validChannels)
       setCustomers(custRes.customers)
       setWarehouses(whRes.warehouses)
       setVouchers(vchRes.vouchers.filter((v) => v.active))
@@ -294,7 +295,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         setSelectedWarehouseId(def.id)
       }
 
-      const posCh = chRes.channels.find((c) => c.key.toUpperCase() === 'POS')
+      const posCh = validChannels.find((c) => (c?.key ?? '').toUpperCase() === 'POS')
       if (posCh) {
         const ordRes = await apiGet<{ orders: Order[] }>(
           `/api/orders?channelId=${posCh.id}&pageSize=10`

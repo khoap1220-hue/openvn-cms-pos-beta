@@ -176,8 +176,8 @@ let memoryProfileCache: ShopProfileConfig | null = null
 let inflightSettingsFetch: Promise<ShopProfileConfig> | null = null
 
 export function readShopProfileCache(): ShopProfileConfig {
-  if (memoryProfileCache) return memoryProfileCache
   if (typeof window === 'undefined') return DEFAULT_SHOP_PROFILE
+  if (memoryProfileCache) return memoryProfileCache
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY)
     if (!saved) return DEFAULT_SHOP_PROFILE
@@ -202,8 +202,8 @@ export function readShopProfileCache(): ShopProfileConfig {
 }
 
 export function writeShopProfileCache(profile: ShopProfileConfig): void {
-  memoryProfileCache = profile
   if (typeof window === 'undefined') return
+  memoryProfileCache = profile
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
   } catch {
@@ -213,6 +213,12 @@ export function writeShopProfileCache(profile: ShopProfileConfig): void {
 }
 
 async function fetchShopProfileFromServer(force = false): Promise<ShopProfileConfig> {
+  if (typeof window !== 'undefined') {
+    const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
+    if (pathname === '/login' || pathname.endsWith('/login')) {
+      return readShopProfileCache()
+    }
+  }
   if (!force && inflightSettingsFetch) return inflightSettingsFetch
   inflightSettingsFetch = fetch('/api/settings', { cache: 'no-store' })
     .then(async (res) => {
@@ -230,7 +236,7 @@ async function fetchShopProfileFromServer(force = false): Promise<ShopProfileCon
 }
 
 export function useShopProfile() {
-  const [profile, setProfile] = useState<ShopProfileConfig>(() => readShopProfileCache())
+  const [profile, setProfile] = useState<ShopProfileConfig>(DEFAULT_SHOP_PROFILE)
 
   const refreshProfile = useCallback(async () => {
     const next = await fetchShopProfileFromServer(true)

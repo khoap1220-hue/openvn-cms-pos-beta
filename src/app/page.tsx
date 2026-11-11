@@ -365,6 +365,12 @@ export default function Home() {
   }, [router])
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const requested = new URLSearchParams(window.location.search).get('view')
+      if (isViewId(requested)) {
+        setActiveView(requested)
+      }
+    }
     const t = setTimeout(() => void refreshAuthContext(true), 0)
     return () => clearTimeout(t)
   }, [refreshAuthContext])
@@ -373,7 +379,11 @@ export default function Home() {
   useEffect(() => {
     if (!authLoaded || typeof window === 'undefined') return
 
-    const basePath = window.location.pathname || '/'
+    const rawPath = window.location.pathname || '/'
+    const basePath =
+      rawPath !== '/' && !rawPath.endsWith('/') && !/\.[a-z0-9]+$/i.test(rawPath)
+        ? `${rawPath}/`
+        : rawPath
     const targetUrl = activeView === 'dashboard' ? basePath : `${basePath}?view=${activeView}`
     if (`${window.location.pathname}${window.location.search}` !== targetUrl) {
       window.history.replaceState(null, '', targetUrl)
@@ -484,7 +494,7 @@ export default function Home() {
   // Phím tắt toàn cục Ctrl+K / Cmd+K mở thanh tìm kiếm nhanh chuẩn OPENVN
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      if ((e.ctrlKey || e.metaKey) && (e.key ?? '').toLowerCase() === 'k') {
         e.preventDefault()
         setQuickSearchOpen((v) => !v)
       }
@@ -953,7 +963,7 @@ export default function Home() {
 
         <footer className="mt-auto shrink-0 border-t bg-card px-4 py-3 pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:px-6 md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-between gap-1 text-center text-xs text-muted-foreground sm:flex-row sm:text-left">
-            <p>
+            <p suppressHydrationWarning>
               © {new Date().getFullYear()}{' '}
               <span className="font-semibold text-foreground">{shopProfile.brandName}</span>
               {shopProfile.brandFooterTagline ? ` — ${shopProfile.brandFooterTagline}` : ''}
