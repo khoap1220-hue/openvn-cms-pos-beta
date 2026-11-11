@@ -159,17 +159,24 @@ export const PRESET_CONVERSION_TEMPLATES = [
 ]
 
 let seededPromise: Promise<void> | null = null
+let unitConversionsSeededDone = false
+let cachedUnitConfigs: { data: Record<string, ProductUnitConfig>; expiresAt: number } | null = null
+let cachedProductTypes: { data: ProductTypeInfo[]; expiresAt: number } | null = null
 
 /**
  * Khởi tạo tự động danh mục Loại sản phẩm & Cấu hình quy đổi mẫu cho các SP nguyên liệu/định lượng
  * (VD: UD-SAP-001 và UD-SAP-002 chuyển từ 82 kg -> 82.000 gr để sẵn sàng nhập 10kg = +10.000gr và bán trừ đồng bộ).
  */
 export async function ensureUnitConversionsSeeded(): Promise<void> {
+  if (unitConversionsSeededDone) return
   if (seededPromise) return seededPromise
   seededPromise = (async () => {
     try {
       // 1. Đảm bảo danh mục Loại sản phẩm đã có trong AppSetting
-      const existingTypes = await db.appSetting.findUnique({ where: { key: PRODUCT_TYPES_SETTING_KEY } })
+      const [existingTypes, existingConv] = await Promise.all([
+        db.appSetting.findUnique({ where: { key: PRODUCT_TYPES_SETTING_KEY } }),
+        db.appSetting.findUnique({ where: { key: UNIT_CONVERSIONS_SETTING_KEY } }),
+      ])
       if (!existingTypes) {
         await db.appSetting.create({
           data: {
@@ -180,7 +187,6 @@ export async function ensureUnitConversionsSeeded(): Promise<void> {
       }
 
       // 2. Đảm bảo bảng cấu hình quy đổi định lượng đã được khởi tạo cho các SP định lượng có sẵn
-      const existingConv = await db.appSetting.findUnique({ where: { key: UNIT_CONVERSIONS_SETTING_KEY } })
       if (!existingConv) {
         const initialMap: Record<string, ProductUnitConfig> = {}
         const sapProducts = await db.product.findMany({
@@ -254,14 +260,21 @@ export async function ensureUnitConversionsSeeded(): Promise<void> {
           },
         })
       }
+      unitConversionsSeededDone = true
     } catch (err) {
       console.error('ensureUnitConversionsSeeded error:', err)
+    } finally {
+      seededPromise = null
     }
   })()
   return seededPromise
 }
 
 export async function getProductTypesCatalog(): Promise<ProductTypeInfo[]> {
+  const now = Date.now()
+  if (cachedProductTypes && cachedProductTypes.expiresAt > now) {
+    return cachedProductTypes.data
+  }
   await ensureUnitConversionsSeeded()
   const row = await db.appSetting.findUnique({ where: { key: PRODUCT_TYPES_SETTING_KEY } })
   if (!row?.value) return DEFAULT_PRODUCT_TYPES
@@ -278,7 +291,9 @@ export async function getProductTypesCatalog(): Promise<ProductTypeInfo[]> {
           })
         }
       }
-      return Array.from(byCode.values())
+      const list = Array.from(byCode.values())
+      cachedProductTypes = { data: list, expiresAt: now + 60_000 }
+      return list
     }
   } catch {
     // ignore parse error
@@ -292,18 +307,28 @@ export async function saveProductTypesCatalog(types: ProductTypeInfo[]): Promise
     create: { key: PRODUCT_TYPES_SETTING_KEY, value: JSON.stringify(types) },
     update: { value: JSON.stringify(types) },
   })
+  cachedProductTypes = { data: types, expiresAt: Date.now() + 60_000 }
   return types
 }
 
 export async function getAllUnitConfigs(tx?: DbClient): Promise<Record<string, ProductUnitConfig>> {
+  const now = Date.now()
+  if (cachedUnitConfigs && cachedUnitConfigs.expiresAt > now) {
+    return { ...cachedUnitConfigs.data }
+  }
   await ensureUnitConversionsSeeded()
   const client = (tx ?? db) as PrismaClient
   const row = await client.appSetting.findUnique({ where: { key: UNIT_CONVERSIONS_SETTING_KEY } })
-  if (!row?.value) return {}
+  if (!row?.value) {
+    cachedUnitConfigs = { data: {}, expiresAt: now + 60_000 }
+    return {}
+  }
   try {
     const parsed = JSON.parse(row.value)
     if (parsed && typeof parsed === 'object') {
-      return parsed as Record<string, ProductUnitConfig>
+      const data = parsed as Record<string, ProductUnitConfig>
+      cachedUnitConfigs = { data, expiresAt: now + 60_000 }
+      return { ...data }
     }
   } catch {
     // ignore
@@ -318,7 +343,8 @@ export async function getProductUnitConfig(productId: string, tx?: DbClient): Pr
 
 export async function saveProductUnitConfig(
   productId: string,
-  config: Partial<ProductUnitConfig> & { baseUnit?: string }
+  config: Partial<ProductUnitConfig> & { baseUnit?: string },
+  skipProductUnitUpdate = false
 ): Promise<ProductUnitConfig> {
   const all = await getAllUnitConfigs()
   const prev = all[productId]
@@ -330,6 +356,42 @@ export async function saveProductUnitConfig(
   const posQuickQuantities = Array.isArray(config.posQuickQuantities)
     ? config.posQuickQuantities.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0)
     : prev?.posQuickQuantities ?? (baseUnit === 'gr' ? [100, 200, 500, 1000] : [1])
+  const nextLinkedBaseId =
+    config.linkedBaseProductId !== undefined ? config.linkedBaseProductId : (prev?.linkedBaseProductId ?? null)
+
+  // Nếu cấu hình không thay đổi (hoặc là cấu hình mặc định 1:1 chưa từng lưu), bỏ qua ghi DB thừa
+  if (
+    prev &&
+    prev.baseUnit === baseUnit &&
+    prev.purchaseUnit === purchaseUnit &&
+    prev.purchaseRate === purchaseRate &&
+    prev.sellUnit === sellUnit &&
+    prev.sellRate === sellRate &&
+    (prev.linkedBaseProductId ?? null) === (nextLinkedBaseId ?? null) &&
+    JSON.stringify(prev.posQuickQuantities ?? []) === JSON.stringify(posQuickQuantities)
+  ) {
+    return prev
+  }
+
+  if (
+    !prev &&
+    purchaseUnit === baseUnit &&
+    purchaseRate === 1 &&
+    sellUnit === baseUnit &&
+    sellRate === 1 &&
+    !nextLinkedBaseId
+  ) {
+    return {
+      productId,
+      baseUnit,
+      purchaseUnit,
+      purchaseRate,
+      sellUnit,
+      sellRate,
+      posQuickQuantities,
+      linkedBaseProductId: null,
+    }
+  }
 
   const next: ProductUnitConfig = {
     productId,
@@ -339,23 +401,26 @@ export async function saveProductUnitConfig(
     sellUnit,
     sellRate,
     posQuickQuantities,
-    linkedBaseProductId:
-      config.linkedBaseProductId !== undefined ? config.linkedBaseProductId : (prev?.linkedBaseProductId ?? null),
+    linkedBaseProductId: nextLinkedBaseId,
     updatedAt: new Date().toISOString(),
   }
 
   all[productId] = next
-  await db.appSetting.upsert({
-    where: { key: UNIT_CONVERSIONS_SETTING_KEY },
-    create: { key: UNIT_CONVERSIONS_SETTING_KEY, value: JSON.stringify(all) },
-    update: { value: JSON.stringify(all) },
-  })
+  cachedUnitConfigs = { data: { ...all }, expiresAt: Date.now() + 60_000 }
 
-  // Đồng bộ trường unit gốc trên bảng Product
-  await db.product.updateMany({
-    where: { id: productId },
-    data: { unit: baseUnit },
-  })
+  await Promise.all([
+    db.appSetting.upsert({
+      where: { key: UNIT_CONVERSIONS_SETTING_KEY },
+      create: { key: UNIT_CONVERSIONS_SETTING_KEY, value: JSON.stringify(all) },
+      update: { value: JSON.stringify(all) },
+    }),
+    skipProductUnitUpdate
+      ? Promise.resolve()
+      : db.product.updateMany({
+          where: { id: productId },
+          data: { unit: baseUnit },
+        }),
+  ])
 
   return next
 }
@@ -364,6 +429,7 @@ export async function deleteProductUnitConfig(productId: string): Promise<void> 
   const all = await getAllUnitConfigs()
   if (all[productId]) {
     delete all[productId]
+    cachedUnitConfigs = { data: { ...all }, expiresAt: Date.now() + 60_000 }
     await db.appSetting.upsert({
       where: { key: UNIT_CONVERSIONS_SETTING_KEY },
       create: { key: UNIT_CONVERSIONS_SETTING_KEY, value: JSON.stringify(all) },
@@ -381,24 +447,29 @@ export async function syncLinkedVariantStocks(tx: DbClient, baseProductIds: stri
   if (uniqueBaseIds.length === 0) return
   const client = (tx ?? db) as PrismaClient
   const allConfigs = await getAllUnitConfigs(client)
+  const allConfigValues = Object.values(allConfigs)
 
   for (const baseId of uniqueBaseIds) {
+    const linkedVariants = allConfigValues.filter(
+      (cfg) => cfg.linkedBaseProductId === baseId && cfg.productId !== baseId
+    )
+    if (linkedVariants.length === 0) continue
+
     const baseProd = await client.product.findUnique({
       where: { id: baseId },
       select: { id: true, stock: true },
     })
     if (!baseProd) continue
 
-    const linkedVariants = Object.values(allConfigs).filter(
-      (cfg) => cfg.linkedBaseProductId === baseId && cfg.productId !== baseId
-    )
-    for (const variantCfg of linkedVariants) {
-      const rate = Math.max(1, variantCfg.sellRate || 1)
-      const availablePackages = Math.max(0, Math.floor(baseProd.stock / rate))
-      await client.product.updateMany({
-        where: { id: variantCfg.productId },
-        data: { stock: availablePackages },
+    await Promise.all(
+      linkedVariants.map((variantCfg) => {
+        const rate = Math.max(1, variantCfg.sellRate || 1)
+        const availablePackages = Math.max(0, Math.floor(baseProd.stock / rate))
+        return client.product.updateMany({
+          where: { id: variantCfg.productId },
+          data: { stock: availablePackages },
+        })
       })
-    }
+    )
   }
 }

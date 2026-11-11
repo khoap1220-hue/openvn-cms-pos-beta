@@ -74,16 +74,29 @@ export async function hashPin(username: string, pin: string): Promise<string> {
   return toHex(digest)
 }
 
+let cachedHmacKey: { secret: string; key: CryptoKey } | null = null
+const verifiedTokenCache = new Map<
+  string,
+  {
+    result: { valid: boolean; role?: RoleKey; claims?: SessionClaims }
+    expiresAt: number
+  }
+>()
+
 export async function hmacSign(message: string): Promise<string> {
   const encoder = new TextEncoder()
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(getSecret()),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(message))
+  const secret = getSecret()
+  if (!cachedHmacKey || cachedHmacKey.secret !== secret) {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+    cachedHmacKey = { secret, key }
+  }
+  const sig = await crypto.subtle.sign('HMAC', cachedHmacKey.key, encoder.encode(message))
   return toHex(sig)
 }
 
@@ -140,6 +153,12 @@ export async function verifySessionToken(
   claims?: SessionClaims
 }> {
   if (!token) return { valid: false }
+  const now = Date.now()
+  const cached = verifiedTokenCache.get(token)
+  if (cached && cached.expiresAt > now) {
+    return cached.result
+  }
+
   const parts = token.split('.')
 
   // Định dạng v2: v2.<base64url>.<sig>
@@ -151,15 +170,17 @@ export async function verifySessionToken(
     if (!json) return { valid: false }
     try {
       const parsed = JSON.parse(json) as SessionClaims
-      if (!parsed || !Number.isFinite(parsed.exp) || Date.now() > parsed.exp) {
+      if (!parsed || !Number.isFinite(parsed.exp) || now > parsed.exp) {
         return { valid: false }
       }
       const role: RoleKey = isValidRole(parsed.rol) ? parsed.rol : 'CASHIER_POS'
-      return {
+      const res = {
         valid: true,
         role,
         claims: { ...parsed, rol: role },
       }
+      verifiedTokenCache.set(token, { result: res, expiresAt: Math.min(parsed.exp, now + 60_000) })
+      return res
     } catch {
       return { valid: false }
     }

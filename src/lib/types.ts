@@ -338,6 +338,7 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
 
 export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
   IMPORT: 'Nhập kho',
+  PRODUCTION: 'Sản xuất (Trừ NVL ➔ +Thành phẩm)',
   EXPORT: 'Xuất kho',
   ADJUST: 'Điều chỉnh',
 }

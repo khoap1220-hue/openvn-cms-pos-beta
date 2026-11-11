@@ -2,7 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client'
 import fs from 'fs'
 import path from 'path'
 
-const SUPABASE_URL = "postgresql://postgres.buhflktiaxemaeekurci:zuVfrlcuoIkOnCtw@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+const SUPABASE_URL = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || ""
 
 const prisma = new PrismaClient({
   datasources: {

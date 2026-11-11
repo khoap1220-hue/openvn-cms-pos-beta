@@ -19,4 +19,4 @@ services:
       - key: CMS_ADMIN_PASSWORD
         sync: false
       - key: CMS_API_KEY
-        value: "191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955"
+        sync: false

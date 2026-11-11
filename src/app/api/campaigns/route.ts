@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logLedger } from '@/lib/ledger'
 import {
   createCampaign,
   listCampaigns,
@@ -83,6 +84,36 @@ export async function POST(req: NextRequest) {
     }
 
     const campaign = await createCampaign(body)
+    await logLedger({
+      scope: 'CAMPAIGN',
+      action: 'CAMPAIGN_CREATED',
+      entityType: 'Campaign',
+      entityId: campaign.id,
+      entityCode: campaign.code,
+      title: `[CHƯƠNG TRÌNH] Tạo mới chiến dịch ${campaign.code}: ${campaign.name} (${campaign.startDate.slice(0, 10)} ➔ ${campaign.endDate.slice(0, 10)})`,
+      detail: {
+        name: campaign.name,
+        code: campaign.code,
+        status: campaign.status,
+        discountPercent: campaign.discountPercent,
+        discountAmount: campaign.discountAmount,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        appliedProductIds: campaign.appliedProductIds,
+        productCount: campaign.appliedProductIds?.length ?? 0,
+      },
+      afterSnapshot: {
+        name: campaign.name,
+        code: campaign.code,
+        status: campaign.status,
+        discountPercent: campaign.discountPercent,
+        discountAmount: campaign.discountAmount,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+      },
+      actor: 'OPERATOR',
+      originSource: 'MANUAL_ADMIN',
+    })
     return NextResponse.json({ campaign }, { status: 201 })
   } catch (err: unknown) {
     console.error('[API /api/campaigns POST] Error:', err)

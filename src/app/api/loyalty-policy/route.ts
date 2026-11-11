@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import {
   listLoyaltyPolicyWaves,
   getActiveLoyaltyWave,
@@ -9,15 +10,21 @@ import {
 
 export async function GET() {
   try {
+    const cached = getApiCache<Record<string, unknown>>('loyalty-policy:all')
+    if (cached) {
+      return NextResponse.json(cached)
+    }
     const [waves, activeWave] = await Promise.all([
       listLoyaltyPolicyWaves(true),
       getActiveLoyaltyWave(),
     ])
-    return NextResponse.json({
+    const payload = {
       activeWave,
       policy: activeWave.config,
       waves,
-    })
+    }
+    setApiCache('loyalty-policy:all', payload, 30_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('GET /api/loyalty-policy error:', error)
     return NextResponse.json(
@@ -29,6 +36,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    invalidateApiCache()
     const body = await req.json()
     const action = String(body.action || 'CREATE_WAVE').toUpperCase()
 

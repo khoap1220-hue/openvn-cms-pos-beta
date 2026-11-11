@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { broadcast } from '@/lib/realtime'
 import { logActivity, logEvent } from '@/lib/agent-log'
 import { logLedgerAsync, recordLineageChangeAsync, inferOriginSource } from '@/lib/ledger'
+import type { OriginSource } from '@/lib/lineage'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { issueComboComponents, syncComboStock, syncCombosUsingComponents } from '@/lib/combo'
 import { adjustPoints, awardPointsForCompletedOrder } from '@/lib/member'
@@ -20,6 +21,42 @@ import {
   syncLinkedVariantStocks,
 } from '@/lib/unit-conversion'
 
+export function isMaskedOrDummyPhone(phone: unknown): boolean {
+  if (!phone || typeof phone !== 'string') return true
+  const p = phone.trim()
+  if (!p) return true
+
+  // Chứa ký tự che sao hoặc ký tự x/X
+  if (p.includes('*') || p.includes('x') || p.includes('X')) return true
+
+  // Danh sách các số điện thoại mẫu / giữ chỗ phổ biến
+  const dummySet = new Set([
+    '0900000000',
+    '0000000000',
+    '0123456789',
+    '0987654321',
+    '0999999999',
+    '0888888888',
+    '0777777777',
+    '0111111111',
+    '0222222222',
+    '0333333333',
+    '0444444444',
+    '0555555555',
+  ])
+  if (dummySet.has(p)) return true
+
+  // Lọc chỉ giữ chữ số
+  const digits = p.replace(/\D/g, '')
+  if (digits.length < 9 || digits.length > 12) return true
+
+  // Trùng lặp một chữ số duy nhất (VD: 000000000, 0999999999)
+  if (/^0(\d)\1{7,}$/.test(digits)) return true
+  if (digits === '0900000000') return true
+
+  return false
+}
+
 export interface CreateOrderInput {
   channelId: string
   items: Array<{
@@ -34,6 +71,8 @@ export interface CreateOrderInput {
   customerName?: string
   customerPhone?: string
   customerEmail?: string
+  buyerUsername?: string
+  channelCustomerRef?: string
   address?: string
   note?: string
   paymentMethod?: string
@@ -177,22 +216,62 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   let finalCustomerId: string | null = input.customerId || null
-  if (!finalCustomerId && input.customerPhone?.trim()) {
+
+  // 1. Phân giải danh tính khách hàng theo Channel Reference (VD: shopee:<buyer_username>)
+  const channelRef =
+    input.channelCustomerRef?.trim().toLowerCase() ||
+    (input.buyerUsername?.trim() ? `shopee:${input.buyerUsername.trim().toLowerCase()}` : null)
+
+  if (!finalCustomerId && channelRef) {
+    const existingByChannel = await db.customer.findFirst({
+      where: {
+        OR: [
+          { email: channelRef },
+          { inferredProfile: { contains: channelRef } },
+        ],
+      },
+      select: { id: true },
+    })
+    if (existingByChannel) {
+      finalCustomerId = existingByChannel.id
+    }
+  }
+
+  // 2. Tra cứu theo SĐT THỰC (Bỏ qua SĐT ẩn/che PII như 0900000000, ******, tránh gộp nhầm nhiều khách thành một)
+  const rawPhone = input.customerPhone?.trim() || null
+  const isMaskedPhone = isMaskedOrDummyPhone(rawPhone)
+
+  if (!finalCustomerId && rawPhone && !isMaskedPhone) {
     const existingByPhone = await db.customer.findFirst({
-      where: { phone: input.customerPhone.trim() },
+      where: { phone: rawPhone },
       select: { id: true },
     })
     if (existingByPhone) {
       finalCustomerId = existingByPhone.id
     }
   }
-  if (!finalCustomerId && input.customerName?.trim()) {
+
+  // 3. Tạo hồ sơ khách hàng mới nếu chưa tồn tại
+  if (!finalCustomerId && (input.customerName?.trim() || channelRef)) {
+    const name =
+      input.customerName?.trim() ||
+      (input.buyerUsername?.trim() ? `Shopee @${input.buyerUsername.trim()}` : 'Khách vãng lai')
+
+    const phoneToStore = isMaskedPhone ? null : rawPhone
+    const emailToStore = input.customerEmail?.trim() || channelRef || null
+
+    const profileMeta: Record<string, unknown> = {}
+    if (channelRef) profileMeta.channelRef = channelRef
+    if (input.buyerUsername) profileMeta.buyerUsername = input.buyerUsername.trim()
+    if (isMaskedPhone && rawPhone) profileMeta.maskedPhone = rawPhone
+
     const customer = await db.customer.create({
       data: {
-        name: input.customerName.trim(),
-        phone: input.customerPhone?.trim() || null,
-        email: input.customerEmail?.trim() || null,
+        name,
+        phone: phoneToStore,
+        email: emailToStore,
         address: input.address?.trim() || null,
+        inferredProfile: Object.keys(profileMeta).length > 0 ? JSON.stringify(profileMeta) : null,
       },
     })
     finalCustomerId = customer.id
@@ -314,6 +393,8 @@ export async function createOrder(input: CreateOrderInput) {
   })
 
   // Trừ kho + quy đổi định lượng đồng bộ + ghi biến động (lưu trữ vĩnh viễn)
+  const shopeeSnMatch = (input.note || '').match(/Shopee Order #([A-Za-z0-9_-]+)/i)
+  const extractedShopeeOrderSn = shopeeSnMatch?.[1] || ''
   const deductedSimpleIds: string[] = []
   for (const it of orderItems) {
     if (it.isCombo) continue // COMBO: trừ kho thành phần (dưới), không trừ kho gộp
@@ -321,8 +402,41 @@ export async function createOrder(input: CreateOrderInput) {
     if (targetProduct) {
       const deductAmt = Math.max(1, it.deductBaseQty)
       const after = Math.max(0, targetProduct.stock - deductAmt)
-      await db.product.update({ where: { id: targetProduct.id }, data: { stock: after } })
+      let prodAttrs: Record<string, unknown> = {}
+      try {
+        if (targetProduct.attributes) {
+          prodAttrs = JSON.parse(targetProduct.attributes) as Record<string, unknown>
+        }
+      } catch {
+        prodAttrs = {}
+      }
+      const openingOrigin =
+        prodAttrs.openingStockOrigin === 'CMS_WAREHOUSE' ? 'CMS_WAREHOUSE' : 'SHOPEE_MARKETPLACE'
+      const openingOriginShort =
+        openingOrigin === 'CMS_WAREHOUSE' ? 'Gốc tồn Kho CMS' : 'Gốc tồn đầu từ Sàn Shopee'
+
+      if (channel.key === 'SHOPEE') {
+        prodAttrs.lastSyncedShopeeStock = after
+        prodAttrs.liveShopeeStock = after
+        prodAttrs.unreconciledShopeeDelta = 0
+        prodAttrs.reconciliationStatus = 'RECONCILED_OK'
+        prodAttrs.lastReconciledOrderSn = extractedShopeeOrderSn || code
+        prodAttrs.lastReconciledOrderCode = code
+        prodAttrs.lastReconciledAt = new Date().toISOString()
+      }
+
+      await db.product.update({
+        where: { id: targetProduct.id },
+        data: {
+          stock: after,
+          ...(channel.key === 'SHOPEE' ? { attributes: JSON.stringify(prodAttrs) } : {}),
+        },
+      })
       await syncProductWarehouseStock(targetProduct.id, targetWarehouseId)
+      const movementNote =
+        channel.key === 'SHOPEE'
+          ? `Xuất kho cho đơn ${code} (Đối chiếu Đơn Sàn Shopee ${extractedShopeeOrderSn ? `#${extractedShopeeOrderSn}` : ''} · Trừ trên ${openingOriginShort})${it.unitSummaryNote || ''}`
+          : `Xuất kho cho đơn ${code}${it.unitSummaryNote || ''}`
       await db.stockMovement.create({
         data: {
           productId: targetProduct.id,
@@ -330,10 +444,38 @@ export async function createOrder(input: CreateOrderInput) {
           type: 'EXPORT',
           quantity: -deductAmt,
           stockAfter: after,
-          note: `Xuất kho cho đơn ${code}${it.unitSummaryNote || ''}`,
+          note: movementNote,
         },
       })
       deductedSimpleIds.push(targetProduct.id)
+      // Tự động đẩy vào Transactional Outbox (CMS -> Sàn Shopee) khi trừ kho tại POS / kênh khác
+      if (channel.key !== 'SHOPEE' && targetProduct.attributes) {
+        try {
+          const attrs = JSON.parse(targetProduct.attributes) as Record<string, unknown>
+          if (attrs.shopeeItemId && attrs.shopeeModelId) {
+            logLedgerAsync({
+              scope: 'CHANNEL',
+              action: 'OUTBOX_PENDING',
+              entityType: 'Product',
+              entityId: targetProduct.id,
+              entityCode: targetProduct.sku,
+              title: `Outbox: Đơn ${code} (${channel.name}) trừ kho [${targetProduct.sku}] → chờ đồng bộ tồn (${after}) lên Shopee`,
+              detail: {
+                orderCode: code,
+                channelKey: channel.key,
+                sku: targetProduct.sku,
+                shopeeItemId: String(attrs.shopeeItemId),
+                shopeeModelId: String(attrs.shopeeModelId),
+                targetStock: after,
+              },
+              actor: 'SYSTEM',
+              originSource: 'SHOPEE_SYNC',
+            })
+          }
+        } catch {
+          // ignore parse error
+        }
+      }
     }
   }
   if (deductedSimpleIds.length > 0) {
@@ -478,4 +620,221 @@ export async function createOrder(input: CreateOrderInput) {
   })()
 
   return order
+}
+
+export interface CancelOrderInput {
+  orderId: string
+  reason?: string
+  actor?: 'OPERATOR' | 'SYSTEM' | 'API'
+  actorName?: string
+  originSource?: OriginSource
+}
+
+export interface CancelOrderResult {
+  ok: boolean
+  alreadyCancelled: boolean
+  orderId: string
+  orderCode: string
+  restockedCount: number
+  restockedProductIds: string[]
+}
+
+export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderResult> {
+  const { orderId, reason, actor = 'SYSTEM', actorName = 'Shopee Sync', originSource = 'SHOPEE_SYNC' } = input
+
+  const targetOrder = await db.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  })
+  if (!targetOrder) {
+    throw new Error(`Đơn hàng với ID «${orderId}» không tồn tại`)
+  }
+
+  if (targetOrder.status === 'CANCELLED') {
+    return {
+      ok: true,
+      alreadyCancelled: true,
+      orderId: targetOrder.id,
+      orderCode: targetOrder.code,
+      restockedCount: 0,
+      restockedProductIds: [],
+    }
+  }
+
+  if (targetOrder.status === 'COMPLETED') {
+    throw new Error(`Không thể hủy đơn hàng đã hoàn tất (${targetOrder.code})`)
+  }
+
+  const result = await db.$transaction(async (tx) => {
+    // 1. Atomic CAS check to prevent concurrent double-cancellation
+    const updateCheck = await tx.order.updateMany({
+      where: { id: orderId, status: { not: 'CANCELLED' } },
+      data: { status: 'CANCELLED' },
+    })
+    if (updateCheck.count === 0) {
+      return { alreadyCancelled: true, restockedIds: [] }
+    }
+
+    const restockedProductIds: string[] = []
+    const comboIdsToSync = new Set<string>()
+    const targetWhId = targetOrder.warehouseId
+
+    // 2. Iterate items and restock according to product type
+    for (const item of targetOrder.items) {
+      const product = await tx.product.findUnique({ where: { id: item.productId } })
+      if (!product) continue
+
+      if (product.type === 'COMBO') {
+        // Restock individual BOM components
+        const bomRows = await tx.bomComponent.findMany({
+          where: { productId: product.id },
+          include: { componentProduct: { select: { id: true, name: true, stock: true } } },
+        })
+        for (const row of bomRows) {
+          const compQty = Math.round(row.quantity * item.quantity)
+          if (compQty <= 0) continue
+
+          const comp = await tx.product.findUnique({ where: { id: row.componentProductId } })
+          if (!comp) continue
+
+          const updatedComp = await tx.product.update({
+            where: { id: comp.id },
+            data: {
+              stock: { increment: compQty },
+              status: 'ACTIVE',
+            },
+          })
+          const afterStock = updatedComp.stock
+
+          const effectiveWhId = targetWhId || comp.ownerWarehouseId
+          if (effectiveWhId) {
+            await tx.warehouseStock.updateMany({
+              where: { warehouseId: effectiveWhId, productId: comp.id },
+              data: { quantity: { increment: compQty } },
+            })
+          }
+
+          await tx.stockMovement.create({
+            data: {
+              productId: comp.id,
+              warehouseId: effectiveWhId ?? null,
+              type: 'RETURN',
+              quantity: compQty,
+              stockAfter: afterStock,
+              note: `Hoàn thành phần combo "${product.name}" × ${item.quantity} do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
+            },
+          })
+          restockedProductIds.push(comp.id)
+        }
+        comboIdsToSync.add(product.id)
+      } else {
+        // Restock simple product
+        const updatedProduct = await tx.product.update({
+          where: { id: product.id },
+          data: {
+            stock: { increment: item.quantity },
+            status: 'ACTIVE',
+          },
+        })
+        const afterStock = updatedProduct.stock
+
+        const effectiveWhId = targetWhId || product.ownerWarehouseId
+        if (effectiveWhId) {
+          await tx.warehouseStock.updateMany({
+            where: { warehouseId: effectiveWhId, productId: product.id },
+            data: { quantity: { increment: item.quantity } },
+          })
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            warehouseId: effectiveWhId ?? null,
+            type: 'RETURN',
+            quantity: item.quantity,
+            stockAfter: afterStock,
+            note: `Hoàn kho do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
+          },
+        })
+        restockedProductIds.push(product.id)
+      }
+    }
+
+    // 3. Sync combo availability and linked variants
+    for (const comboId of comboIdsToSync) {
+      await syncComboStock(tx, comboId)
+    }
+    if (restockedProductIds.length > 0) {
+      await syncCombosUsingComponents(tx, restockedProductIds)
+      await syncLinkedVariantStocks(tx, restockedProductIds)
+    }
+
+    // 4. Restore voucher usage count if applicable
+    if (targetOrder.voucherCode) {
+      const v = await tx.voucher.findUnique({ where: { code: targetOrder.voucherCode } })
+      if (v && v.usedCount > 0) {
+        await tx.voucher.update({
+          where: { id: v.id },
+          data: { usedCount: Math.max(0, v.usedCount - 1) },
+        })
+      }
+    }
+
+    return { alreadyCancelled: false, restockedIds: restockedProductIds }
+  })
+
+  if (result.alreadyCancelled) {
+    return {
+      ok: true,
+      alreadyCancelled: true,
+      orderId: targetOrder.id,
+      orderCode: targetOrder.code,
+      restockedCount: 0,
+      restockedProductIds: [],
+    }
+  }
+
+  // 5. Ensure warehouse stock matches product stock totals
+  if (targetOrder.warehouseId) {
+    for (const pid of result.restockedIds) {
+      await syncProductWarehouseStock(pid, targetOrder.warehouseId).catch(() => null)
+    }
+  }
+
+  // 6. Timeline, Lineage & Realtime broadcast
+  await logEvent(
+    targetOrder.id,
+    'CANCELLED',
+    actor,
+    reason || `Đơn hàng bị hủy — hoàn kho tự động (${result.restockedIds.length} SKU)`
+  )
+
+  await recordLineageChangeAsync({
+    scope: 'ORDER',
+    action: 'ORDER_CANCELLED',
+    entityType: 'Order',
+    entityId: targetOrder.id,
+    entityCode: targetOrder.code,
+    title: `Hủy đơn ${targetOrder.code} — hoàn kho tự động`,
+    before: { status: targetOrder.status, paymentStatus: targetOrder.paymentStatus },
+    after: { status: 'CANCELLED', paymentStatus: targetOrder.paymentStatus },
+    actor,
+    actorName,
+    originSource,
+    detail: { restockedCount: result.restockedIds.length, reason: reason || null },
+  })
+
+  broadcast('order.updated', { id: targetOrder.id, status: 'CANCELLED', code: targetOrder.code })
+  if (result.restockedIds.length > 0) {
+    broadcast('inventory.updated', { orderId: targetOrder.id, restoredCount: result.restockedIds.length })
+  }
+
+  return {
+    ok: true,
+    alreadyCancelled: false,
+    orderId: targetOrder.id,
+    orderCode: targetOrder.code,
+    restockedCount: result.restockedIds.length,
+    restockedProductIds: result.restockedIds,
+  }
 }

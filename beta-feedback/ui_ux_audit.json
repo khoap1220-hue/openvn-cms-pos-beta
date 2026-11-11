@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-06T07:47:53Z",
+  "updated_at": "2026-11-07T01:58:37Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,17 +13,17 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-B23DA2291A28470EC751",
-    "signed_at": "2026-11-06T07:47:53Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-49BD80212115D99CA203",
+    "signed_at": "2026-11-07T01:58:37Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
-      "db_schema_sha256_before": "0c9204dcd5bcbc0c",
-      "globals_css_sha256_before": "baf543b5b03c6f66"
+      "db_schema_sha256_before": "2fabbe44ea906b24",
+      "globals_css_sha256_before": "382c38a22a3475ff"
     },
     "post_fix_acceptance": {
       "status": "POST_FIX_UIUX_VERIFIED",
-      "db_schema_sha256_after": "0c9204dcd5bcbc0c",
+      "db_schema_sha256_after": "2fabbe44ea906b24",
       "db_invariance_100pct": true,
       "css_ast_balanced": true,
       "wcag_focus_ring_verified": true,
@@ -136,8 +136,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/dashboard/route.ts",
-      "backend_sha256_before": "fe418b119096d016",
-      "backend_sha256_after": "fe418b119096d016",
+      "backend_sha256_before": "12b2f4f02200ff91",
+      "backend_sha256_after": "12b2f4f02200ff91",
       "api_invariant_verified": true
     },
     {
@@ -176,21 +176,21 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/orders/route.ts",
-      "backend_sha256_before": "e103ad7c0e37da5f",
-      "backend_sha256_after": "e103ad7c0e37da5f",
+      "backend_sha256_before": "52aef42bb0621b1c",
+      "backend_sha256_after": "52aef42bb0621b1c",
       "api_invariant_verified": true
     },
     {
       "view_key": "products",
       "tsx_file": "src/components/cms/views/products-view.tsx",
-      "sha256_before": "a69c30f50b16582f",
+      "sha256_before": "c8e27b7756107f13",
       "metrics": {
         "cards": 0,
         "tables": 4,
         "badges": 13,
         "truncate_nodes": 5,
         "nowrap_nodes": 7,
-        "accessible_labels": 26
+        "accessible_labels": 27
       },
       "findings": [
         "Phát hiện `5` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
@@ -216,8 +216,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/products/route.ts",
-      "backend_sha256_before": "44502d85a19ef104",
-      "backend_sha256_after": "44502d85a19ef104",
+      "backend_sha256_before": "a1ea4515c61f2d15",
+      "backend_sha256_after": "a1ea4515c61f2d15",
       "api_invariant_verified": true
     },
     {
@@ -256,8 +256,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/inventory/route.ts",
-      "backend_sha256_before": "da023ba42b6ce736",
-      "backend_sha256_after": "da023ba42b6ce736",
+      "backend_sha256_before": "9301aef31570f6f5",
+      "backend_sha256_after": "9301aef31570f6f5",
       "api_invariant_verified": true
     },
     {
@@ -296,8 +296,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/bom/route.ts",
-      "backend_sha256_before": "352d5653656057d4",
-      "backend_sha256_after": "352d5653656057d4",
+      "backend_sha256_before": "9844dc7e369850bc",
+      "backend_sha256_after": "9844dc7e369850bc",
       "api_invariant_verified": true
     },
     {
@@ -336,8 +336,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/orders/route.ts",
-      "backend_sha256_before": "e103ad7c0e37da5f",
-      "backend_sha256_after": "e103ad7c0e37da5f",
+      "backend_sha256_before": "52aef42bb0621b1c",
+      "backend_sha256_after": "52aef42bb0621b1c",
       "api_invariant_verified": true
     },
     {
@@ -376,8 +376,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/purchase-invoices/route.ts",
-      "backend_sha256_before": "bd5e21936880a800",
-      "backend_sha256_after": "bd5e21936880a800",
+      "backend_sha256_before": "f52e56386f86fde1",
+      "backend_sha256_after": "f52e56386f86fde1",
       "api_invariant_verified": true
     },
     {
@@ -416,8 +416,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/orders/route.ts",
-      "backend_sha256_before": "e103ad7c0e37da5f",
-      "backend_sha256_after": "e103ad7c0e37da5f",
+      "backend_sha256_before": "52aef42bb0621b1c",
+      "backend_sha256_after": "52aef42bb0621b1c",
       "api_invariant_verified": true
     },
     {
@@ -456,8 +456,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/shipments/route.ts",
-      "backend_sha256_before": "1a54ceda045f7572",
-      "backend_sha256_after": "1a54ceda045f7572",
+      "backend_sha256_before": "a9a1efd8d05db7f5",
+      "backend_sha256_after": "a9a1efd8d05db7f5",
       "api_invariant_verified": true
     },
     {
@@ -496,8 +496,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/partners/route.ts",
-      "backend_sha256_before": "39029f3793d0bdfa",
-      "backend_sha256_after": "39029f3793d0bdfa",
+      "backend_sha256_before": "47531c8ffd05de99",
+      "backend_sha256_after": "47531c8ffd05de99",
       "api_invariant_verified": true
     },
     {
@@ -538,8 +538,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/campaigns/route.ts",
-      "backend_sha256_before": "6bea3a8f10aaa774",
-      "backend_sha256_after": "6bea3a8f10aaa774",
+      "backend_sha256_before": "fc6a98925ea844ea",
+      "backend_sha256_after": "fc6a98925ea844ea",
       "api_invariant_verified": true
     },
     {
@@ -578,21 +578,21 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/reports/route.ts",
-      "backend_sha256_before": "d1990b92348bc7ca",
-      "backend_sha256_after": "d1990b92348bc7ca",
+      "backend_sha256_before": "b867c588047358a8",
+      "backend_sha256_after": "b867c588047358a8",
       "api_invariant_verified": true
     },
     {
       "view_key": "ledger",
       "tsx_file": "src/components/cms/views/ledger-view.tsx",
-      "sha256_before": "0a7b626774e2c6ee",
+      "sha256_before": "4e67470f2ee35356",
       "metrics": {
         "cards": 2,
         "tables": 3,
-        "badges": 5,
+        "badges": 10,
         "truncate_nodes": 2,
         "nowrap_nodes": 6,
-        "accessible_labels": 7
+        "accessible_labels": 8
       },
       "findings": [
         "Phát hiện `2` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",

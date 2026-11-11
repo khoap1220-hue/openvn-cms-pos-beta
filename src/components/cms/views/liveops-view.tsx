@@ -256,21 +256,25 @@ export function LiveOpsView({
                   Hệ thống Điều phối Tự động AI
                 </h2>
                 {master ? (
-                  <Badge className="bg-emerald-700 text-white">ĐANG KÍCH HOẠT</Badge>
+                  <Badge className="inline-flex h-6 items-center rounded-md bg-emerald-600 px-2.5 text-[11px] font-semibold text-white shadow-xs">
+                    ĐANG KÍCH HOẠT
+                  </Badge>
                 ) : (
-                  <Badge className="bg-amber-700 text-white">ĐIỀU HÀNH THỦ CÔNG</Badge>
+                  <Badge className="inline-flex h-6 items-center rounded-md bg-amber-600 px-2.5 text-[11px] font-semibold text-white shadow-xs">
+                    ĐIỀU HÀNH THỦ CÔNG
+                  </Badge>
                 )}
                 {simulationMode ? (
                   <Badge
                     variant="outline"
-                    className="border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                    className="inline-flex h-6 items-center rounded-md border-amber-400 bg-amber-50 px-2.5 text-[11px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
                   >
                     CHẾ ĐỘ KIỂM THỬ (SANDBOX 30S)
                   </Badge>
                 ) : (
                   <Badge
                     variant="outline"
-                    className="border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                    className="inline-flex h-6 items-center rounded-md border-sky-300 bg-sky-50 px-2.5 text-[11px] font-semibold text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
                   >
                     MÔI TRƯỜNG THỰC TẾ
                   </Badge>
@@ -368,19 +372,19 @@ export function LiveOpsView({
             {loading && <Skeleton className="h-16 w-full" />}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-t pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+          <div className="flex flex-wrap items-center gap-2.5 border-t pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
             <button
               type="button"
               onClick={() => onNavigate?.('shipments')}
-              className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-1.5 text-left text-xs transition-colors hover:bg-amber-100/70 dark:border-amber-900 dark:bg-amber-950/40"
+              className="flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50/70 px-3.5 py-2 text-left transition-colors hover:bg-amber-100/70 dark:border-amber-900 dark:bg-amber-950/40"
             >
-              <Banknote className="h-4 w-4 shrink-0 text-amber-600" />
+              <Banknote className="h-5 w-5 shrink-0 text-amber-600" />
               <div>
-                <p className="font-semibold text-foreground">
+                <p className="text-xs font-bold text-foreground sm:text-sm">
                   Công nợ COD chờ đối soát:{' '}
                   {formatCompactVND(data?.stats.codUnreconciledAmount ?? 0)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground sm:text-xs">
                   {data?.stats.codUnreconciledCount ?? 0} vận đơn chờ quyết toán quỹ
                 </p>
               </div>
@@ -389,28 +393,28 @@ export function LiveOpsView({
             <button
               type="button"
               onClick={() => onNavigate?.('inventory')}
-              className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-1.5 text-left text-xs transition-colors hover:bg-rose-100/70 dark:border-rose-900 dark:bg-rose-950/40"
+              className="flex items-center gap-2.5 rounded-lg border border-rose-200 bg-rose-50/70 px-3.5 py-2 text-left transition-colors hover:bg-rose-100/70 dark:border-rose-900 dark:bg-rose-950/40"
             >
-              <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+              <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600" />
               <div>
-                <p className="font-semibold text-foreground">
+                <p className="text-xs font-bold text-foreground sm:text-sm">
                   Cảnh báo tồn kho thấp: {data?.stats.lowStockCount ?? 0} mã
                 </p>
-                <p className="text-[11px] text-muted-foreground">Chạm định mức an toàn tối thiểu</p>
+                <p className="text-[11px] text-muted-foreground sm:text-xs">Chạm định mức an toàn tối thiểu</p>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate?.('pos')}
-              className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50/70 px-3 py-1.5 text-left text-xs transition-colors hover:bg-sky-100/70 dark:border-sky-900 dark:bg-sky-950/40"
+              className="flex items-center gap-2.5 rounded-lg border border-sky-200 bg-sky-50/70 px-3.5 py-2 text-left transition-colors hover:bg-sky-100/70 dark:border-sky-900 dark:bg-sky-950/40"
             >
-              <Store className="h-4 w-4 shrink-0 text-[#0066CC]" />
+              <Store className="h-5 w-5 shrink-0 text-[#0066CC]" />
               <div>
-                <p className="font-semibold text-foreground">
+                <p className="text-xs font-bold text-foreground sm:text-sm">
                   Giao dịch tại quầy hôm nay: {data?.stats.posOrdersToday ?? 0} đơn
                 </p>
-                <p className="text-[11px] text-muted-foreground">Truy cập Quầy Thu ngân POS</p>
+                <p className="text-[11px] text-muted-foreground sm:text-xs">Truy cập Quầy Thu ngân POS</p>
               </div>
             </button>
           </div>
@@ -508,10 +512,10 @@ export function LiveOpsView({
                   : 'Chế độ Quy trình chuẩn: Đơn khởi tạo sẽ dừng tại khâu Đóng gói để chờ kiểm đếm mã vạch và bàn giao đơn vị vận chuyển thực tế.'}
               </p>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <CardContent className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
               <Button
                 variant="outline"
-                className="justify-start"
+                className="h-10 min-h-[40px] justify-start gap-2 px-3.5 text-xs font-medium sm:text-sm"
                 disabled={simulating !== null}
                 onClick={() => simulate('zalo_order', 'Đơn hàng Zalo OA', 'oa', 'ZALO_OA')}
               >
@@ -523,7 +527,7 @@ export function LiveOpsView({
               </Button>
               <Button
                 variant="outline"
-                className="justify-start"
+                className="h-10 min-h-[40px] justify-start gap-2 px-3.5 text-xs font-medium sm:text-sm"
                 disabled={simulating !== null}
                 onClick={() =>
                   simulate('zalo_order', 'Đơn hàng Zalo Cá nhân', 'cn', 'ZALO_PERSONAL')
@@ -537,7 +541,7 @@ export function LiveOpsView({
               </Button>
               <Button
                 variant="outline"
-                className="justify-start border-orange-200 hover:bg-orange-50 dark:border-orange-900 dark:hover:bg-orange-950/40"
+                className="h-10 min-h-[40px] justify-start gap-2 border-orange-200 px-3.5 text-xs font-medium hover:bg-orange-50 dark:border-orange-900 dark:hover:bg-orange-950/40 sm:text-sm"
                 disabled={simulating !== null}
                 onClick={() => runDrill('SHOPEE', 'Shopee')}
               >
@@ -549,7 +553,7 @@ export function LiveOpsView({
               </Button>
               <Button
                 variant="outline"
-                className="justify-start border-pink-200 hover:bg-pink-50 dark:border-pink-900 dark:hover:bg-pink-950/40"
+                className="h-10 min-h-[40px] justify-start gap-2 border-pink-200 px-3.5 text-xs font-medium hover:bg-pink-50 dark:border-pink-900 dark:hover:bg-pink-950/40 sm:text-sm"
                 disabled={simulating !== null}
                 onClick={() => runDrill('TIKTOK', 'TikTok Shop')}
               >
@@ -561,7 +565,7 @@ export function LiveOpsView({
               </Button>
               <Button
                 variant="outline"
-                className="justify-start"
+                className="h-10 min-h-[40px] justify-start gap-2 px-3.5 text-xs font-medium sm:text-sm"
                 disabled={simulating !== null}
                 onClick={() => simulate('zalo_message', 'Hội thoại tư vấn khách hàng')}
               >

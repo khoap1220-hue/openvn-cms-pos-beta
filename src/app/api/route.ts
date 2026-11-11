@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { ensureMaintenanceStateHydrated } from '@/lib/settings'
 import { WEBHOOK_EVENTS, ensureIntegrationsSeeded } from '@/lib/webhook-service'
 import { ensureWarehousesAndVouchersSeeded } from '@/lib/warehouse-service'
 
@@ -8,9 +9,10 @@ export const dynamic = 'force-dynamic'
 // GET /api — OPENVN Retail & Cross-Shop Alliance API Gateway / Health & Discovery
 export async function GET() {
   try {
-    await Promise.all([
+    const [, , maintenance] = await Promise.all([
       ensureWarehousesAndVouchersSeeded(),
       ensureIntegrationsSeeded(),
+      ensureMaintenanceStateHydrated(),
     ])
 
     const [
@@ -38,6 +40,7 @@ export async function GET() {
       status: 'healthy',
       service: 'OPENVN Retail, POS & Cross-Shop Alliance API Gateway',
       version: '2.6.0',
+      maintenanceMode: maintenance.enabled,
       timestamp: new Date().toISOString(),
       metrics: {
         activeProducts: productsCount,
@@ -80,6 +83,7 @@ export async function GET() {
         integrations: '/api/integrations',
         webhooksInbound: '/api/webhooks/inbound',
         systemBackup: '/api/system/backup',
+        systemMaintenance: '/api/system/maintenance',
       },
     })
   } catch (error) {

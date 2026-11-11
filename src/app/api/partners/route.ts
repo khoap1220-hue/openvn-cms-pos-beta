@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import { getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,12 @@ async function nextPartnerCode(type: string): Promise<string> {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
+    const cacheKey = `partners:${searchParams.toString()}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const q = searchParams.get('q')?.trim()
     const type = searchParams.get('type')
 
@@ -44,7 +51,9 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({ partners })
+    const payload = { partners }
+    setApiCache(cacheKey, payload, 20_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Partners GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh sách đối tác' }, { status: 500 })
@@ -53,6 +62,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    invalidateApiCache()
     const body = (await req.json()) as Record<string, unknown>
     const name = String(body.name ?? '').trim()
     if (!name) return NextResponse.json({ error: 'Vui lòng nhập tên đơn vị' }, { status: 400 })

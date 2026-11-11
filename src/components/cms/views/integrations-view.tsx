@@ -1343,7 +1343,7 @@ export function IntegrationsView() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-xs font-bold text-emerald-900 dark:text-emerald-300">
-                        ⚡ SePay — Tự động xác nhận chuyển khoản Ngân hàng &amp; VietQR (sepay.vn)
+                        SePay — Tự động xác nhận chuyển khoản Ngân hàng &amp; VietQR (sepay.vn)
                       </p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         Nhận biến động số dư MBBank / VCB / ACB / BIDV qua Webhook, tự bóc tách mã đơn <code className="font-mono">DH...</code> và gạch nợ <code className="font-mono">PAID</code> trong 1–3s.
@@ -1374,7 +1374,7 @@ export function IntegrationsView() {
                 <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900/60 dark:bg-sky-950/25">
                   <div className="space-y-1.5">
                     <p className="text-xs font-bold text-sky-900 dark:text-sky-300">
-                      🚀 3 Cách Kết Nối Để Đăng Bài Tự Động Lên 7 Kênh Social (Auto Social)
+                      3 Cách Kết Nối Để Đăng Bài Tự Động Lên 7 Kênh Social (Auto Social)
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       <Button

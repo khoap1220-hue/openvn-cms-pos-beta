@@ -45,6 +45,10 @@ model Product {
   bomMaterials      BomComponent[]   @relation("BomMaterial")
   purchaseItems     PurchaseInvoiceItem[] @relation("PurchaseItems")
   salesItems        SalesInvoiceItem[]    @relation("SalesItems")
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([updatedAt])
 }
 
 model Channel {
@@ -74,6 +78,7 @@ model ChannelListing {
   createdAt  DateTime @default(now())
 
   @@unique([productId, channelId])
+  @@index([channelId, status])
 }
 
 model Customer {
@@ -246,6 +251,8 @@ model LedgerEntry {
   createdAt  DateTime @default(now())
 
   @@index([scope])
+  @@index([scope, action])
+  @@index([scope, entityCode])
   @@index([createdAt])
   @@index([entityType, entityId])
   @@index([originSource])

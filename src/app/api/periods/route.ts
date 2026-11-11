@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
-import { broadcast } from '@/lib/realtime'
+import { broadcast, getApiCache, setApiCache } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,17 +10,29 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const year = Number(searchParams.get('year')) || new Date().getFullYear()
-
-    for (let quarter = 1; quarter <= 4; quarter++) {
-      await db.accountingPeriod.upsert({
-        where: { year_quarter: { year, quarter } },
-        create: { year, quarter, status: 'OPEN' },
-        update: {},
-      })
+    const cacheKey = `periods:${year}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
     }
 
-    const periods = await db.accountingPeriod.findMany({ where: { year }, orderBy: { quarter: 'asc' } })
-    return NextResponse.json({ year, periods })
+    let periods = await db.accountingPeriod.findMany({ where: { year }, orderBy: { quarter: 'asc' } })
+    if (periods.length < 4) {
+      await Promise.all(
+        [1, 2, 3, 4].map((quarter) =>
+          db.accountingPeriod.upsert({
+            where: { year_quarter: { year, quarter } },
+            create: { year, quarter, status: 'OPEN' },
+            update: {},
+          })
+        )
+      )
+      periods = await db.accountingPeriod.findMany({ where: { year }, orderBy: { quarter: 'asc' } })
+    }
+
+    const payload = { year, periods }
+    setApiCache(cacheKey, payload, 30_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Periods GET error:', error)
     return NextResponse.json({ error: 'Không thể tải kỳ kế toán' }, { status: 500 })

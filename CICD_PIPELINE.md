@@ -1,6 +1,6 @@
 # CI/CD Pipeline Chuẩn — `openvn-cms-pos-beta`
 
-> Sinh bởi `free-beta-deploy-mcp` • template `v1` • cập nhật `2026-11-07T02:07:22Z`
+> Sinh bởi `free-beta-deploy-mcp` • template `v1` • cập nhật `2026-11-11T02:48:44Z`
 
 | Thuộc tính | Giá trị |
 | :--- | :--- |
@@ -8,7 +8,7 @@
 | Stack | `node` |
 | Nhánh kích hoạt | `main` |
 | Repo | `khoap1220-hue/openvn-cms-pos-beta` |
-| Health URL | https://openvn-cms-pos-backend.onrender.com/health |
+| Health URL | https://openvn-cms-pos-backend.onrender.com/api/health |
 | Workflow | [`.github/workflows/beta-cicd.yml`](./.github/workflows/beta-cicd.yml) |
 
 ## Luồng chuẩn

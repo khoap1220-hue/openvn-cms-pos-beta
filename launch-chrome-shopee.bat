@@ -19,4 +19,5 @@ start "" %CHROME_EXE% --remote-debugging-port=9222 --remote-allow-origins=* "htt
 
 echo Da kich hoat Chrome. He thong OPENVN Sync se tu dong bat Cookie lien tuc.
 timeout /t 3 > nul
+if "%NO_PAUSE%"=="" pause
 exit

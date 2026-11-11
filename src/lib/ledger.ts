@@ -20,6 +20,7 @@ export type LedgerScope =
   | 'CHANNEL'
   | 'MESSAGE'
   | 'CUSTOMER'
+  | 'CAMPAIGN'
   | 'SYSTEM'
 
 export interface LedgerInput {
@@ -40,24 +41,27 @@ export interface LedgerInput {
   changedFields?: string[] | null
 }
 
-async function resolveRequestOperatorLabel(): Promise<string | null> {
+async function resolveRequestMeta(): Promise<{ operatorLabel: string | null; isAutomatedTest: boolean }> {
   try {
     const mod = await import('next/headers')
     const h = await mod.headers()
+    const isTest = h.get('x-test-run') === 'true' || h.get('x-non-human-test') === 'true'
     const rawName = h.get('x-staff-name')
     const rawRole = h.get('x-staff-role')
     if (rawName) {
       const decoded = decodeURIComponent(rawName)
-      return rawRole ? `${decoded} [${rawRole}]` : decoded
+      return { operatorLabel: rawRole ? `${decoded} [${rawRole}]` : decoded, isAutomatedTest: isTest }
     }
+    return { operatorLabel: null, isAutomatedTest: isTest }
   } catch {
     // Đang chạy ngoài ngữ cảnh Next.js HTTP Request (VD: Agent timer hoặc CLI script)
   }
-  return null
+  return { operatorLabel: null, isAutomatedTest: false }
 }
 
 export async function logLedger(input: LedgerInput): Promise<void> {
   try {
+    const reqMeta = await resolveRequestMeta()
     let resolvedActorName = input.actorName ?? null
     if (
       (!resolvedActorName ||
@@ -65,9 +69,41 @@ export async function logLedger(input: LedgerInput): Promise<void> {
         resolvedActorName === 'Quản trị viên') &&
       (input.actor === 'OPERATOR' || !input.actor)
     ) {
-      const staffLabel = await resolveRequestOperatorLabel()
-      if (staffLabel) resolvedActorName = staffLabel
+      if (reqMeta.operatorLabel) resolvedActorName = reqMeta.operatorLabel
     }
+
+    // Tự động gắn direction = 'CMS_TO_CMS' cho các thao tác nội bộ trên CMS chưa có direction
+    let finalDetail = input.detail
+    const titleUpper = (input.title || '').toUpperCase()
+    const isCrossChannelTitle =
+      titleUpper.includes('SÀN SHOPEE ➔ CMS') ||
+      titleUpper.includes('CMS ➔ SÀN') ||
+      titleUpper.includes('CMS ➔ SHOPEE') ||
+      titleUpper.includes('SÀN ➔ SÀN') ||
+      titleUpper.includes('SÀN SHOPEE ➔ SÀN SHOPEE')
+    if (
+      !isCrossChannelTitle &&
+      (input.actor === 'OPERATOR' ||
+        input.originSource === 'MANUAL_ADMIN' ||
+        input.originSource === 'POS' ||
+        input.originSource === 'BARCODE_SCAN' ||
+        input.scope === 'INVENTORY' ||
+        input.scope === 'INVOICE' ||
+        input.scope === 'CAMPAIGN' ||
+        input.scope === 'SETTINGS' ||
+        input.scope === 'PERIOD')
+    ) {
+      if (finalDetail && typeof finalDetail === 'object' && !Array.isArray(finalDetail)) {
+        const dObj = finalDetail as Record<string, unknown>
+        if (!dObj.direction) {
+          finalDetail = { direction: 'CMS_TO_CMS', ...dObj }
+        }
+      } else if (finalDetail == null) {
+        finalDetail = { direction: 'CMS_TO_CMS' }
+      }
+    }
+
+    const finalActor = reqMeta.isAutomatedTest ? 'TEST' : (input.actor ?? 'SYSTEM')
 
     await db.ledgerEntry.create({
       data: {
@@ -77,8 +113,8 @@ export async function logLedger(input: LedgerInput): Promise<void> {
         entityType: input.entityType ?? null,
         entityId: input.entityId ?? null,
         entityCode: input.entityCode ?? null,
-        detail: input.detail != null ? JSON.stringify(input.detail) : null,
-        actor: input.actor ?? 'SYSTEM',
+        detail: finalDetail != null ? JSON.stringify(finalDetail) : null,
+        actor: finalActor,
         originSource: input.originSource ?? null,
         actorName: resolvedActorName,
         sourceRefCode: input.sourceRefCode ?? null,

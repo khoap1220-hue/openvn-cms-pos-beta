@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import { broadcast, getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import { syncComboStock } from '@/lib/combo'
 import { getAllUnitConfigs } from '@/lib/unit-conversion'
 
@@ -69,10 +70,16 @@ async function ensureDefaultProductionBomsSeeded() {
 // GET ?productId → định mức của 1 thành phẩm; không param → tất cả group theo thành phẩm
 export async function GET(req: NextRequest) {
   try {
-    await ensureDefaultProductionBomsSeeded()
-    const unitMap = await getAllUnitConfigs()
     const { searchParams } = new URL(req.url)
     const productId = searchParams.get('productId')?.trim()
+    const cacheKey = `bom:${productId || 'all'}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
+    await ensureDefaultProductionBomsSeeded()
+    const unitMap = await getAllUnitConfigs()
 
     const enrichComponentProduct = (cp: {
       id: string
@@ -108,13 +115,15 @@ export async function GET(req: NextRequest) {
           componentProduct: { select: { id: true, sku: true, name: true, unit: true, stock: true, costPrice: true } },
         },
       })
-      return NextResponse.json({
+      const payload = {
         productId,
         components: components.map((c) => ({
           ...c,
           componentProduct: enrichComponentProduct(c.componentProduct),
         })),
-      })
+      }
+      setApiCache(cacheKey, payload, 20_000)
+      return NextResponse.json(payload)
     }
 
     const all = await db.bomComponent.findMany({
@@ -167,7 +176,9 @@ export async function GET(req: NextRequest) {
       groups.set(bom.productId, group)
     }
 
-    return NextResponse.json({ groups: Array.from(groups.values()) })
+    const payload = { groups: Array.from(groups.values()) }
+    setApiCache(cacheKey, payload, 20_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('BOM GET error:', error)
     return NextResponse.json({ error: 'Không thể tải định mức nguyên vật liệu' }, { status: 500 })
@@ -254,6 +265,10 @@ export async function POST(req: NextRequest) {
         componentProduct: { select: { id: true, sku: true, name: true, unit: true, stock: true, costPrice: true } },
       },
     })
+
+    invalidateApiCache('bom:')
+    invalidateApiCache('products')
+    broadcast('inventory.updated', { productId })
 
     return NextResponse.json({ productId, components })
   } catch (error) {

@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db'
 import type { PrismaClient, Prisma } from '@prisma/client'
+import { patchProductInApiCache, invalidateApiCache } from '@/lib/realtime'
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -41,6 +42,8 @@ export async function syncComboStock(tx: DbClient, comboProductId: string): Prom
   })
   const available = comboAvailableFromRows(rows)
   await (client as PrismaClient).product.update({ where: { id: comboProductId }, data: { stock: available } })
+  patchProductInApiCache(comboProductId, { stock: available, comboAvailable: available })
+  invalidateApiCache('products:static_meta')
 }
 
 /**

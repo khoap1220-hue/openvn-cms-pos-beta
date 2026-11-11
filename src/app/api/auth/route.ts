@@ -11,9 +11,12 @@ import {
 } from '@/lib/auth'
 import {
   ensureIamSeeded,
+  getCachedSecurityPolicy,
+  invalidateStaffContextCache,
   recordBehaviorLog,
   resolveRequestStaffContext,
 } from '@/lib/behavior-server'
+import { getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import {
   ROLE_DEFINITIONS,
   type RoleKey,
@@ -54,36 +57,47 @@ export async function GET(req: NextRequest) {
     }> = []
 
     if (searchParams.get('hints') === '1' && ctx.showQuickLoginHints) {
-      const users = await db.staffUser.findMany({
-        where: { status: 'ACTIVE' },
-        orderBy: { createdAt: 'asc' },
-        take: 12,
-        select: {
-          username: true,
-          displayName: true,
-          role: true,
-          avatarColor: true,
-          pinHash: true,
-          status: true,
-        },
-      })
-      accountHints = users.map((u) => ({
-        username: u.username,
-        displayName: u.displayName,
-        role: u.role,
-        roleLabel: isValidRole(u.role) ? ROLE_DEFINITIONS[u.role].shortLabel : u.role,
-        avatarColor: u.avatarColor,
-        hasPin: Boolean(u.pinHash),
-        status: u.status,
-      }))
+      const cachedHints = getApiCache<typeof accountHints>('auth:hints')
+      if (cachedHints) {
+        accountHints = cachedHints
+      } else {
+        const users = await db.staffUser.findMany({
+          where: { status: 'ACTIVE' },
+          orderBy: { createdAt: 'asc' },
+          take: 12,
+          select: {
+            username: true,
+            displayName: true,
+            role: true,
+            avatarColor: true,
+            pinHash: true,
+            status: true,
+          },
+        })
+        accountHints = users.map((u) => ({
+          username: u.username,
+          displayName: u.displayName,
+          role: u.role,
+          roleLabel: isValidRole(u.role) ? ROLE_DEFINITIONS[u.role].shortLabel : u.role,
+          avatarColor: u.avatarColor,
+          hasPin: Boolean(u.pinHash),
+          status: u.status,
+        }))
+        setApiCache('auth:hints', accountHints, 45_000)
+      }
     }
 
-    const policy = await db.securityPolicy.findUnique({ where: { id: 'default' } })
-    const legacyPwdRow = await db.appSetting
-      .findUnique({ where: { key: 'admin_password_hash' } })
-      .catch(() => null)
+    const policy = await getCachedSecurityPolicy()
+    let hasLegacyPwd = getApiCache<boolean>('auth:legacyPwd')
+    if (hasLegacyPwd === null) {
+      const legacyPwdRow = await db.appSetting
+        .findUnique({ where: { key: 'admin_password_hash' } })
+        .catch(() => null)
+      hasLegacyPwd = Boolean(legacyPwdRow?.value)
+      setApiCache('auth:legacyPwd', hasLegacyPwd, 60_000)
+    }
 
-    const res = NextResponse.json({
+    const payload = {
       authenticated: ctx.authenticated,
       revokedOrLocked: ctx.revokedOrLocked,
       mode: ctx.mode,
@@ -103,7 +117,7 @@ export async function GET(req: NextRequest) {
           }
         : null,
       permissions: ctx.permissions,
-      hasCustomPassword: Boolean(legacyPwdRow?.value) || ctx.authenticated,
+      hasCustomPassword: hasLegacyPwd || ctx.authenticated,
       authRequired: ctx.authRequired,
       trackNavigation: ctx.trackNavigation,
       showQuickLoginHints: ctx.showQuickLoginHints,
@@ -118,7 +132,15 @@ export async function GET(req: NextRequest) {
           }
         : null,
       accountHints,
-    })
+    }
+
+    if (!ctx.revokedOrLocked) {
+      const sessionToken = req.cookies.get(SESSION_COOKIE_NAME)?.value || '__anon__'
+      const authKey = `auth:${sessionToken}:${searchParams.toString()}`
+      setApiCache(authKey, payload, 30_000)
+    }
+
+    const res = NextResponse.json(payload)
 
     if (ctx.revokedOrLocked) {
       res.cookies.delete(SESSION_COOKIE_NAME)
@@ -134,6 +156,7 @@ export async function GET(req: NextRequest) {
 // POST /api/auth — Đăng nhập bằng Tài khoản + Mật khẩu hoặc Mã PIN Ca trực (POS)
 export async function POST(req: NextRequest) {
   try {
+    invalidateStaffContextCache()
     await ensureIamSeeded()
 
     const body = (await req.json().catch(() => ({}))) as {
@@ -431,6 +454,7 @@ export async function POST(req: NextRequest) {
       maxAge: sessionTtlDays * 24 * 3600,
     })
 
+    invalidateApiCache('auth:')
     return res
   } catch (error) {
     console.error('Auth POST error:', error)
@@ -659,6 +683,7 @@ export async function PATCH(req: NextRequest) {
       where: { id: targetUser.id },
       data: updates,
     })
+    invalidateStaffContextCache()
 
     // Nếu đổi mật khẩu admin ở màn Cấu hình Hệ thống thì bật luôn chế độ bảo vệ đăng nhập
     let nextAuthRequired = ctx.authRequired
@@ -736,6 +761,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const ctx = await resolveRequestStaffContext(req)
+    invalidateStaffContextCache()
     const ip = extractClientIp(req.headers)
     const ua = req.headers.get('user-agent') ?? ''
     const { deviceType } = parseDeviceFromUserAgent(ua)
@@ -774,11 +800,13 @@ export async function DELETE(req: NextRequest) {
     const res = NextResponse.json({ ok: true })
     res.cookies.delete(SESSION_COOKIE_NAME)
     res.cookies.set(AUTH_LOCK_COOKIE_NAME, 'true', { path: '/', maxAge: 365 * 24 * 3600 })
+    invalidateApiCache('auth:')
     return res
   } catch {
     const res = NextResponse.json({ ok: true })
     res.cookies.delete(SESSION_COOKIE_NAME)
     res.cookies.set(AUTH_LOCK_COOKIE_NAME, 'true', { path: '/', maxAge: 365 * 24 * 3600 })
+    invalidateApiCache('auth:')
     return res
   }
 }

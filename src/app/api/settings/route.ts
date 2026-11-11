@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logLedger } from '@/lib/ledger'
-import { getSetting, getSettings, setSetting } from '@/lib/settings'
+import {
+  getApiCache,
+  invalidateApiCache,
+  setApiCache,
+  setMaintenanceMemoryState,
+} from '@/lib/realtime'
+import {
+  ensureMaintenanceStateHydrated,
+  getSettings,
+  setSettingsBatch,
+  writeMaintenanceStateFile,
+} from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +34,16 @@ const PUBLIC_KEYS = [
   'invoice_bank_code', // mã ngân hàng VietQR (vd VCB) — tạo mã QR chuyển khoản trên bản in hóa đơn bán
   'invoice_footer_note', // ghi chú cuối hóa đơn
   'invoice_default_note', // ghi chú mặc định khi tạo hóa đơn
+  // THIẾT LẬP THƯƠNG HIỆU & TÙY BIẾN THEO TỪNG SHOP (Sidebar, Topbar, Xưởng SX, Kho mặc định)
+  'brand_name',
+  'brand_short_name',
+  'brand_badge',
+  'brand_subtitle',
+  'brand_footer_tagline',
+  'shop_default_workshop',
+  'shop_workshop_presets',
+  'shop_default_warehouse_label',
+  'shop_storefront_url',
 ] as const
 
 const DEFAULTS: Record<string, string> = {
@@ -34,6 +55,15 @@ const DEFAULTS: Record<string, string> = {
   invoice_bank_code: '',
   invoice_footer_note: 'Cảm ơn Quý khách đã mua hàng!',
   invoice_default_note: '',
+  brand_name: 'OPENVN · Ưu Đàm',
+  brand_short_name: 'OPENVN',
+  brand_badge: 'OMNI',
+  brand_subtitle: 'Quản lý bán hàng đa kênh',
+  brand_footer_tagline: 'Quản lý bán hàng đa kênh · Agent Autopilot 100% · Invoice Pro · Offline-first',
+  shop_default_workshop: 'Xưởng đúc thủ công',
+  shop_workshop_presets: 'Xưởng đúc thủ công, Tổ đổ nến bơ tự nhiên, Tổ hoàn thiện & đóng gói',
+  shop_default_warehouse_label: 'Kho Trung Tâm',
+  shop_storefront_url: '/store',
 }
 
 /** giới hạn độ dài từng trường để chống nhồi dữ liệu */
@@ -50,11 +80,23 @@ const MAX_LENGTHS: Record<string, number> = {
   invoice_footer_note: 500,
   invoice_default_note: 500,
   invoice_logo: 600_000, // data URL ảnh logo (≈450KB ảnh gốc)
+  brand_name: 80,
+  brand_short_name: 30,
+  brand_badge: 20,
+  brand_subtitle: 120,
+  brand_footer_tagline: 240,
+  shop_default_workshop: 120,
+  shop_workshop_presets: 600,
+  shop_default_warehouse_label: 120,
+  shop_storefront_url: 240,
 }
 
 async function buildPublicSettings(): Promise<Record<string, string | boolean>> {
-  const values = await getSettings([...PUBLIC_KEYS, 'invoice_logo'])
-  const geminiKey = await getSetting('gemini_api_key')
+  const [values, maintenance] = await Promise.all([
+    getSettings([...PUBLIC_KEYS, 'invoice_logo', 'gemini_api_key']),
+    ensureMaintenanceStateHydrated(),
+  ])
+  const geminiKey = values.gemini_api_key ?? null
   const out: Record<string, string | boolean> = {
     company_name: values.company_name ?? '',
     company_tax: values.company_tax ?? '',
@@ -63,6 +105,7 @@ async function buildPublicSettings(): Promise<Record<string, string | boolean>> 
     vat_default: values.vat_default ?? '8',
     invoice_logo: values.invoice_logo ?? '',
     geminiConfigured: Boolean(geminiKey && geminiKey.trim().length > 0),
+    maintenance_mode: maintenance.enabled,
   }
   for (const key of Object.keys(DEFAULTS)) {
     out[key] = values[key] ?? DEFAULTS[key]
@@ -76,7 +119,13 @@ async function buildPublicSettings(): Promise<Record<string, string | boolean>> 
 
 export async function GET() {
   try {
-    return NextResponse.json(await buildPublicSettings())
+    const cached = getApiCache<Record<string, string | boolean>>('settings:public')
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+    const payload = await buildPublicSettings()
+    setApiCache('settings:public', payload, 60_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Settings GET error:', error)
     return NextResponse.json({ error: 'Không thể tải cấu hình hệ thống' }, { status: 500 })
@@ -109,6 +158,20 @@ export async function PATCH(req: NextRequest) {
       // cho phép truyền chuỗi rỗng để xóa key
       updates.push({ key: 'gemini_api_key', value: String(body.gemini_api_key).trim() })
     }
+    let maintenanceToggled: boolean | null = null
+    if (body.maintenance_mode !== undefined) {
+      const enabled = body.maintenance_mode === true || body.maintenance_mode === 'true' || body.maintenance_mode === '1'
+      const updatedAt = new Date().toISOString()
+      const currentMaint = await ensureMaintenanceStateHydrated()
+      writeMaintenanceStateFile({
+        enabled,
+        reason: currentMaint.reason,
+        retryAfterSec: currentMaint.retryAfterSec,
+        updatedAt,
+      })
+      setMaintenanceMemoryState({ enabled, updatedAt, hydrated: true })
+      maintenanceToggled = enabled
+    }
 
     // THIẾT LẬP HÓA ĐƠN
     if (body.invoice_number_start !== undefined) {
@@ -118,7 +181,27 @@ export async function PATCH(req: NextRequest) {
       }
       updates.push({ key: 'invoice_number_start', value: String(start) })
     }
-    for (const key of ['invoice_title', 'invoice_template_code', 'invoice_series', 'invoice_payment_method', 'invoice_bank_name', 'invoice_bank_account', 'invoice_bank_holder', 'invoice_bank_code', 'invoice_footer_note', 'invoice_default_note']) {
+    for (const key of [
+      'invoice_title',
+      'invoice_template_code',
+      'invoice_series',
+      'invoice_payment_method',
+      'invoice_bank_name',
+      'invoice_bank_account',
+      'invoice_bank_holder',
+      'invoice_bank_code',
+      'invoice_footer_note',
+      'invoice_default_note',
+      'brand_name',
+      'brand_short_name',
+      'brand_badge',
+      'brand_subtitle',
+      'brand_footer_tagline',
+      'shop_default_workshop',
+      'shop_workshop_presets',
+      'shop_default_warehouse_label',
+      'shop_storefront_url',
+    ]) {
       if (body[key] === undefined) continue
       const value = String(body[key]).trim()
       const max = MAX_LENGTHS[key] ?? 200
@@ -138,15 +221,16 @@ export async function PATCH(req: NextRequest) {
       updates.push({ key: 'invoice_logo', value })
     }
 
-    if (updates.length === 0) {
+    if (updates.length === 0 && maintenanceToggled === null) {
       return NextResponse.json({ error: 'Không có gì để cập nhật' }, { status: 400 })
     }
 
-    for (const update of updates) {
-      await setSetting(update.key, update.value)
+    const prevCached = getApiCache<Record<string, string | boolean>>('settings:public')
+    if (updates.length > 0) {
+      await setSettingsBatch(updates, prevCached)
     }
 
-    await logLedger({
+    void logLedger({
       scope: 'SETTINGS',
       action: 'SETTINGS_UPDATED',
       actor: 'OPERATOR',
@@ -159,7 +243,25 @@ export async function PATCH(req: NextRequest) {
       },
     })
 
-    return NextResponse.json(await buildPublicSettings())
+    invalidateApiCache('settings:')
+    let fresh: Record<string, string | boolean>
+    if (prevCached) {
+      fresh = { ...prevCached }
+      for (const u of updates) {
+        if (u.key === 'gemini_api_key') {
+          fresh.geminiConfigured = Boolean(u.value && u.value.trim().length > 0)
+        } else {
+          fresh[u.key] = u.value
+        }
+      }
+      if (maintenanceToggled !== null) {
+        fresh.maintenance_mode = maintenanceToggled
+      }
+    } else {
+      fresh = await buildPublicSettings()
+    }
+    setApiCache('settings:public', fresh, 60_000)
+    return NextResponse.json(fresh)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Không thể lưu cấu hình'
     console.error('Settings PATCH error:', error)

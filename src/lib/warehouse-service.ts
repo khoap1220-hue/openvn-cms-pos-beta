@@ -5,8 +5,11 @@ import { dispatchWebhook } from '@/lib/webhook-service'
 import type { CrossSellSettlement } from '@/lib/types'
 
 let seedPromise: Promise<void> | null = null
+let warehousesSeededDone = false
+let cachedDefaultWarehouseId: string | null = null
 
 export async function ensureWarehousesAndVouchersSeeded(): Promise<void> {
+  if (warehousesSeededDone) return
   if (seedPromise) {
     await seedPromise
     return
@@ -19,192 +22,34 @@ export async function ensureWarehousesAndVouchersSeeded(): Promise<void> {
         const central = await db.warehouse.create({
           data: {
             code: 'KHO-TRUNG-TAM',
-            name: 'Kho Trung Tâm Ưu Đàm',
+            name: 'Kho Trung Tâm',
             type: 'INTERNAL',
-            address: '18 Đường Hoa Ưu Đàm, Quận 1, TP.HCM',
-            phone: '0909111222',
-            managerName: 'Quản kho Ưu Đàm',
+            address: 'TP.HCM',
+            phone: '',
+            managerName: 'Quản kho',
             commissionPct: 0,
             isDefault: true,
             active: true,
           },
         })
+        cachedDefaultWarehouseId = central.id
 
-        const branchQ1 = await db.warehouse.create({
-          data: {
-            code: 'KHO-CN-Q1',
-            name: 'Kho Chi nhánh Quận 1',
-            type: 'INTERNAL',
-            address: '45 Nguyễn Huệ, Quận 1, TP.HCM',
-            phone: '0909333444',
-            managerName: 'Trần Minh Tú',
-            commissionPct: 0,
-            isDefault: false,
-            active: true,
-          },
-        })
-
-        const shopGomZen = await db.warehouse.create({
-          data: {
-            code: 'SHOP-GOM-ZEN',
-            name: 'Shop Liên kết: Gốm Trà Zen',
-            type: 'PARTNER_SHOP',
-            address: 'Showroom Gốm Zen, Quận 3, TP.HCM',
-            phone: '0912888999',
-            managerName: 'Nghệ nhân Hoàng Nam',
-            commissionPct: 15,
-            isDefault: false,
-            active: true,
-          },
-        })
-
-        const shopTramAnLac = await db.warehouse.create({
-          data: {
-            code: 'SHOP-TRAM-AN-LAC',
-            name: 'Shop Liên kết: Trầm Hương An Lạc',
-            type: 'PARTNER_SHOP',
-            address: '102 Lê Lợi, Quận 1, TP.HCM',
-            phone: '0988777666',
-            managerName: 'Chị Thanh Thảo',
-            commissionPct: 18,
-            isDefault: false,
-            active: true,
-          },
-        })
-
-        // Phân bổ tồn kho ban đầu cho các sản phẩm SIMPLE từ Product.stock
         const products = await db.product.findMany({
           where: { type: 'SIMPLE' },
         })
-
         for (const p of products) {
-          const skuUpper = p.sku.toUpperCase()
-          const isGomPartner = skuUpper.includes('TRA') || skuUpper.includes('QT')
-          const isTramPartner = skuUpper.includes('DEN')
-
-          let ownerWarehouseId: string | null = central.id
-          let crossSellRate: number | null = null
-
-          if (isGomPartner) {
-            ownerWarehouseId = shopGomZen.id
-            crossSellRate = 15
-          } else if (isTramPartner) {
-            ownerWarehouseId = shopTramAnLac.id
-            crossSellRate = 18
-          }
-
           await db.product.update({
             where: { id: p.id },
-            data: { ownerWarehouseId, crossSellRate },
+            data: { ownerWarehouseId: central.id, crossSellRate: null },
           })
-
-          const total = Math.max(0, p.stock)
-          if (isGomPartner) {
-            // Hàng liên kết Shop Gốm Zen: 60% ký gửi sẵn tại Kho Trung Tâm, 40% tại Kho Shop Gốm Zen
-            const atCentral = Math.ceil(total * 0.6)
-            const atPartner = Math.max(0, total - atCentral)
-            await db.warehouseStock.upsert({
-              where: { warehouseId_productId: { warehouseId: central.id, productId: p.id } },
-              update: { quantity: atCentral },
-              create: { warehouseId: central.id, productId: p.id, quantity: atCentral },
-            })
-            await db.warehouseStock.upsert({
-              where: { warehouseId_productId: { warehouseId: shopGomZen.id, productId: p.id } },
-              update: { quantity: atPartner },
-              create: { warehouseId: shopGomZen.id, productId: p.id, quantity: atPartner },
-            })
-          } else if (isTramPartner) {
-            const atCentral = Math.ceil(total * 0.5)
-            const atPartner = Math.max(0, total - atCentral)
-            await db.warehouseStock.upsert({
-              where: { warehouseId_productId: { warehouseId: central.id, productId: p.id } },
-              update: { quantity: atCentral },
-              create: { warehouseId: central.id, productId: p.id, quantity: atCentral },
-            })
-            await db.warehouseStock.upsert({
-              where: { warehouseId_productId: { warehouseId: shopTramAnLac.id, productId: p.id } },
-              update: { quantity: atPartner },
-              create: { warehouseId: shopTramAnLac.id, productId: p.id, quantity: atPartner },
-            })
-          } else {
-            // Hàng tự doanh Ưu Đàm: 75% tại Kho Trung Tâm, 25% tại Kho Chi nhánh Q1
-            const atCentral = Math.ceil(total * 0.75)
-            const atBranch = Math.max(0, total - atCentral)
-            await db.warehouseStock.upsert({
-              where: { warehouseId_productId: { warehouseId: central.id, productId: p.id } },
-              update: { quantity: atCentral },
-              create: { warehouseId: central.id, productId: p.id, quantity: atCentral },
-            })
-            if (atBranch > 0) {
-              await db.warehouseStock.upsert({
-                where: { warehouseId_productId: { warehouseId: branchQ1.id, productId: p.id } },
-                update: { quantity: atBranch },
-                create: { warehouseId: branchQ1.id, productId: p.id, quantity: atBranch },
-              })
-            }
-          }
+          await db.warehouseStock.upsert({
+            where: { warehouseId_productId: { warehouseId: central.id, productId: p.id } },
+            update: { quantity: Math.max(0, p.stock) },
+            create: { warehouseId: central.id, productId: p.id, quantity: Math.max(0, p.stock) },
+          })
         }
       }
-
-      const voucherCount = await db.voucher.count()
-      if (voucherCount === 0) {
-        await db.voucher.createMany({
-          data: [
-            {
-              code: 'UUDAM10',
-              title: 'Ưu đãi Ưu Đàm — Giảm 10% (Tối đa 50k)',
-              description: 'Giảm 10% tối đa 50.000đ cho đơn từ 150.000đ trên toàn hệ thống',
-              discountType: 'PERCENT',
-              discountValue: 10,
-              maxDiscount: 50000,
-              minOrderAmount: 150000,
-              usageLimit: 200,
-              usedCount: 14,
-              scope: 'ALL',
-              active: true,
-            },
-            {
-              code: 'PHATDAN50K',
-              title: 'Lễ Phật Đản & Mùa An Cư — Giảm 50.000đ',
-              description: 'Giảm trực tiếp 50.000đ cho đơn hàng từ 400.000đ',
-              discountType: 'FIXED',
-              discountValue: 50000,
-              maxDiscount: 50000,
-              minOrderAmount: 400000,
-              usageLimit: 100,
-              usedCount: 8,
-              scope: 'ALL',
-              active: true,
-            },
-            {
-              code: 'LIENKET15',
-              title: 'Trợ giá Bán chéo Liên Shop — Giảm 15%',
-              description: 'Giảm 15% tối đa 80.000đ khi mua kết hợp sản phẩm của các Shop liên kết (đơn từ 250.000đ)',
-              discountType: 'PERCENT',
-              discountValue: 15,
-              maxDiscount: 80000,
-              minOrderAmount: 250000,
-              usageLimit: 150,
-              usedCount: 5,
-              scope: 'ALLIANCE',
-              active: true,
-            },
-            {
-              code: 'FREESHIP0D',
-              title: 'Miễn phí giao hàng (Đơn từ 200k)',
-              description: 'Hỗ trợ tới 30.000đ phí vận chuyển cho đơn giao hàng từ 200.000đ',
-              discountType: 'FREESHIP',
-              discountValue: 30000,
-              maxDiscount: 30000,
-              minOrderAmount: 200000,
-              usageLimit: null,
-              usedCount: 21,
-              scope: 'ALL',
-              active: true,
-            },
-          ],
-        })
-      }
+      warehousesSeededDone = true
     } catch (e) {
       console.error('ensureWarehousesAndVouchersSeeded error:', e)
     } finally {
@@ -213,6 +58,18 @@ export async function ensureWarehousesAndVouchersSeeded(): Promise<void> {
   })()
 
   await seedPromise
+}
+
+export async function getDefaultWarehouseId(): Promise<string | null> {
+  if (cachedDefaultWarehouseId) return cachedDefaultWarehouseId
+  await ensureWarehousesAndVouchersSeeded()
+  const defaultWh = await db.warehouse.findFirst({
+    where: { isDefault: true },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  })
+  if (defaultWh?.id) cachedDefaultWarehouseId = defaultWh.id
+  return cachedDefaultWarehouseId
 }
 
 /**
@@ -237,11 +94,7 @@ export async function syncProductWarehouseStock(
 
   let targetWarehouseId = preferredWarehouseId
   if (!targetWarehouseId) {
-    const defaultWh = await db.warehouse.findFirst({
-      where: { isDefault: true },
-      orderBy: { createdAt: 'asc' },
-    })
-    targetWarehouseId = defaultWh?.id ?? product.warehouseStocks[0]?.warehouseId
+    targetWarehouseId = (await getDefaultWarehouseId()) ?? product.warehouseStocks[0]?.warehouseId
   }
   if (!targetWarehouseId) return
 

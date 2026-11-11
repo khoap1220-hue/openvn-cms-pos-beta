@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { broadcast } from '@/lib/realtime'
+import { broadcast, getApiCache, setApiCache } from '@/lib/realtime'
 import { logActivity, logEvent, sendZalo } from '@/lib/agent-log'
 import { recordLineageChangeAsync } from '@/lib/ledger'
 import { AGENTS, CARRIERS, makeTrackingCode, tCarrier, buildVoiceContext, zaloKeyOf } from '@/lib/agents'
@@ -12,6 +12,12 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
+    const cacheKey = `shipments:${searchParams.toString()}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const status = searchParams.get('status')
     const codStatus = searchParams.get('codStatus')
 
@@ -121,7 +127,7 @@ export async function GET(req: NextRequest) {
       changeCount: changedMap.get(s.id) ?? 0,
     }))
 
-    return NextResponse.json({
+    const responsePayload = {
       shipments: shipmentsWithLineage,
       stats: {
         active,
@@ -139,7 +145,9 @@ export async function GET(req: NextRequest) {
         fromDate: fromDate?.toISOString() ?? null,
         toDate: toDate?.toISOString() ?? null,
       },
-    })
+    }
+    setApiCache(cacheKey, responsePayload, 15_000)
+    return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Shipments GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh sách vận chuyển' }, { status: 500 })

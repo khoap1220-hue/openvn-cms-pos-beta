@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
+import { invalidateClientApiCache } from '@/lib/api'
 
 export interface CmsEvent {
   type: string
@@ -16,10 +17,10 @@ export interface CmsEvent {
   data: unknown
 }
 
-/** Trạng thái realtime: live = WebSocket đang kết nối, polling = fallback 10s, offline = chưa kết nối. */
+/** Trạng thái realtime: live = WebSocket đang kết nối, polling = fallback 30s, offline = chưa kết nối. */
 export type RealtimeMode = 'live' | 'polling' | 'offline'
 
-const FALLBACK_POLL_MS = 10_000
+const FALLBACK_POLL_MS = 30_000
 
 let socket: Socket | null = null
 let socketRefCount = 0
@@ -107,6 +108,9 @@ function ensureSocket() {
     setMode('polling')
   })
   socket.on('cms', (payload: CmsEvent) => {
+    if (payload.type !== 'behavior.new') {
+      invalidateClientApiCache()
+    }
     eventListeners.forEach((listener) => listener(payload))
   })
 }

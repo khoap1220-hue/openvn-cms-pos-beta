@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { broadcast } from '@/lib/realtime'
+import { broadcast, getApiCache, setApiCache } from '@/lib/realtime'
 import { logLedger } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +12,13 @@ export async function GET(req: NextRequest) {
     const customerId = searchParams.get('customerId')
     const channelKey = searchParams.get('channelKey')
 
+    if (!customerId && !channelKey) {
+      const cached = getApiCache<Record<string, unknown>>('inbox:conversations')
+      if (cached) {
+        return NextResponse.json(cached)
+      }
+    }
+
     if (customerId && channelKey) {
       const messages = await db.directMessage.findMany({
         where: { customerId, channelKey },
@@ -19,10 +26,12 @@ export async function GET(req: NextRequest) {
         take: 200,
         include: { customer: { select: { id: true, name: true, phone: true } } },
       })
-      await db.directMessage.updateMany({
-        where: { customerId, channelKey, sender: 'CUSTOMER', readAt: null },
-        data: { readAt: new Date() },
-      })
+      void db.directMessage
+        .updateMany({
+          where: { customerId, channelKey, sender: 'CUSTOMER', readAt: null },
+          data: { readAt: new Date() },
+        })
+        .catch(() => null)
       return NextResponse.json({ messages })
     }
 
@@ -69,7 +78,9 @@ export async function GET(req: NextRequest) {
       (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime(),
     )
 
-    return NextResponse.json({ conversations })
+    const payload = { conversations }
+    setApiCache('inbox:conversations', payload, 15_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Inbox GET error:', error)
     return NextResponse.json({ error: 'Không thể tải hộp thư' }, { status: 500 })

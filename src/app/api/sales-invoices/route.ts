@@ -3,12 +3,19 @@ import { db } from '@/lib/db'
 import { PeriodClosedError, createSalesInvoice, getOrderCodeMap } from '@/lib/invoice-service'
 import { quarterRange } from '@/lib/accounting'
 import { getLineageMeta } from '@/lib/lineage-server'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
+    const cacheKey = `sales-invoices:${searchParams.toString()}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const year = Number(searchParams.get('year')) || 0
     const quarter = Number(searchParams.get('quarter')) || 0
     const q = searchParams.get('q')?.trim()
@@ -32,7 +39,9 @@ export async function GET(req: NextRequest) {
           items: { include: { product: { select: { id: true, sku: true, name: true, unit: true } } } },
         },
       })
-      return NextResponse.json({ orders })
+      const payload = { orders }
+      setApiCache(cacheKey, payload, 15_000)
+      return NextResponse.json(payload)
     }
 
     const where: Record<string, unknown> = {}
@@ -58,9 +67,10 @@ export async function GET(req: NextRequest) {
     })
 
     // SalesInvoice chỉ lưu orderId — ghép mã đơn vào kết quả
-    const orderCodeMap = await getOrderCodeMap(invoices.map((inv) => inv.orderId))
-    // DATA PROVENANCE — số lần sửa + nguồn gốc theo Sổ Data
-    const lineageMeta = await getLineageMeta('SalesInvoice', invoices.map((inv) => inv.id))
+    const [orderCodeMap, lineageMeta] = await Promise.all([
+      getOrderCodeMap(invoices.map((inv) => inv.orderId)),
+      getLineageMeta('SalesInvoice', invoices.map((inv) => inv.id)),
+    ])
     const withOrder = invoices.map((inv) => ({
       ...inv,
       order: inv.orderId ? { id: inv.orderId, code: orderCodeMap.get(inv.orderId) ?? null } : null,
@@ -68,7 +78,9 @@ export async function GET(req: NextRequest) {
       changeCount: lineageMeta.get(inv.id)?.changeCount ?? 0,
     }))
 
-    return NextResponse.json({ invoices: withOrder })
+    const payload = { invoices: withOrder }
+    setApiCache(cacheKey, payload, 15_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Sales invoices GET error:', error)
     return NextResponse.json({ error: 'Không thể tải hóa đơn bán' }, { status: 500 })

@@ -13,8 +13,9 @@ node_modules
 # testing
 /coverage
 
-# next.js
+# next.js & blue-green standalone runtime
 /.next/
+/.runtime/
 /out/
 
 # production
@@ -62,7 +63,21 @@ server.log
 db/*.db-wal
 db/*.db-shm
 db/*.bak*
+db/*.sql
+db/.maintenance_state.json*
 *.db-wal
 *.db-shm
+/custom.db
 .env
 !.env.example
+
+# Shopee runtime session, queues & Python bytecode (Zero-Secret Leak)
+scripts/.shopee_session.json
+scripts/.shopee_inbound_queue.json
+scripts/.shopee_dlq.json
+scripts/.shopee_synced_state.json
+scripts/.shopee_sync.log
+__pycache__/
+*.pyc
+.github/*.bak
+.agents/teamwork/

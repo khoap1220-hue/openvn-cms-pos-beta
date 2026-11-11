@@ -3,7 +3,7 @@
   "project_path": "E:\\Z.AI\\workspace-57aaf18c-d0b6-44bc-8c6d-cf1574a56005 (1)",
   "target_provider": "github_pages",
   "repo_full_name": "khoap1220-hue/openvn-cms-pos-beta",
-  "live_url": "https://khoap1220-hue.github.io/openvn-cms-pos-beta/",
+  "live_url": "https://openvn-cms-pos-backend.onrender.com",
   "local_port": 3010,
   "sync_2way_enabled": false,
   "isolated_sandbox_db": "db/beta_sandbox.db",
@@ -20,13 +20,13 @@
     "branch": "main",
     "repo": "khoap1220-hue/openvn-cms-pos-beta",
     "live_url": "https://openvn-cms-pos-backend.onrender.com",
-    "health_path": "/health",
-    "health_url": "https://openvn-cms-pos-backend.onrender.com/health",
+    "health_path": "/api/health",
+    "health_url": "https://openvn-cms-pos-backend.onrender.com/api/health",
     "python_version": "3.12",
     "node_version": "20",
     "start_command": "",
-    "lint_command": "npm run lint --if-present",
-    "test_command": "",
+    "lint_command": "npm run lint",
+    "test_command": "npx tsc --noEmit",
     "required_secrets": [
       "RENDER_DEPLOY_HOOK_URL"
     ],
@@ -36,6 +36,6 @@
     ],
     "optional_vars": [],
     "workflow": ".github/workflows/beta-cicd.yml",
-    "updated_at": "2026-11-07T02:07:22Z"
+    "updated_at": "2026-11-11T02:48:44Z"
   }
 }

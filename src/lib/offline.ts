@@ -87,17 +87,19 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
   return { synced, failed }
 }
 
-// ===== Cache GET cho chế độ đọc offline =====
+// ===== Cache GET cho chế độ đọc offline (ghi bất đồng bộ để không chặn luồng dựng giao diện React) =====
 export function cacheGetResponse(url: string, data: unknown): void {
   if (typeof window === 'undefined') return
-  try {
-    const json = JSON.stringify(data)
-    if (json.length > MAX_CACHE_BYTES) return
-    localStorage.setItem(CACHE_PREFIX + url, json)
-    localStorage.setItem(CACHE_TS_PREFIX + url, String(Date.now()))
-  } catch {
-    // storage đầy — bỏ qua
-  }
+  setTimeout(() => {
+    try {
+      const json = JSON.stringify(data)
+      if (json.length > MAX_CACHE_BYTES) return
+      localStorage.setItem(CACHE_PREFIX + url, json)
+      localStorage.setItem(CACHE_TS_PREFIX + url, String(Date.now()))
+    } catch {
+      // storage đầy — bỏ qua
+    }
+  }, 0)
 }
 
 export function getCachedResponse<T>(url: string): T | null {

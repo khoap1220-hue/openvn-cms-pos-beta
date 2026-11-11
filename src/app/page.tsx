@@ -88,12 +88,13 @@ import { PurchaseView } from '@/components/cms/views/purchase-view'
 import { SalesView } from '@/components/cms/views/sales-view'
 import { SystemView, type SystemSectionTab } from '@/components/cms/views/system-view'
 import type { CatalogSettingsSubTab } from '@/components/cms/views/system-catalog-settings'
+import { useShopProfile } from '@/lib/shop-profile'
 import { LedgerView } from '@/components/cms/views/ledger-view'
 import { IntegrationsView } from '@/components/cms/views/integrations-view'
 import { CampaignsView } from '@/components/cms/views/campaigns-view'
 import { AutoSocialView } from '@/components/cms/views/auto-social-view'
 import { IamView } from '@/components/cms/views/iam-view'
-import { apiGet, apiPatch } from '@/lib/api'
+import { apiGet, apiPatch, prefetchCoreCmsViews } from '@/lib/api'
 import { trackClientBehavior } from '@/lib/behavior-client'
 import { getQueueSize, setupOfflineListeners } from '@/lib/offline'
 import {
@@ -343,6 +344,7 @@ export default function Home() {
       setAuthMode(res.mode ?? (res.authenticated ? 'session' : 'internal-open'))
       setTrackNavigation(res.trackNavigation ?? true)
       setAuthLoaded(true)
+      prefetchCoreCmsViews()
 
       if (isInitial && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search)
@@ -467,11 +469,12 @@ export default function Home() {
 
   const refreshBadges = useCallback(async () => {
     try {
-      const [dash, liveops] = await Promise.all([
-        apiGet<DashboardData>('/api/dashboard'),
-        apiGet<LiveOpsData>('/api/liveops'),
-      ])
-      setBadges({ pendingOrders: dash.stats.pendingOrders, lowStock: dash.stats.lowStockCount, unread: liveops.stats.unread })
+      const liveops = await apiGet<LiveOpsData>('/api/liveops')
+      setBadges({
+        pendingOrders: liveops.stats.pendingOrders ?? 0,
+        lowStock: liveops.stats.lowStockCount ?? 0,
+        unread: liveops.stats.unread ?? 0,
+      })
       setAutopilotOn(liveops.settings.master ?? true)
     } catch {
       // badge không quan trọng — bỏ qua lỗi (offline dùng cache của sidebar)
@@ -545,13 +548,18 @@ export default function Home() {
     }
   }, [])
 
+  const { profile: shopProfile, refreshProfile: refreshShopProfile } = useShopProfile()
+
   // 'realtime.poll' = WS hỏng, đang fallback polling 10s → làm mới badge im lặng
   useRealtime((e) => {
     if (!['order.created', 'order.updated', 'message.new', 'settings.updated', 'review.received', 'realtime.poll'].includes(e.type)) return
     if (badgeTimer.current) clearTimeout(badgeTimer.current)
     badgeTimer.current = setTimeout(() => {
       void refreshBadges()
-      if (e.type === 'settings.updated') void refreshPeriodStatus()
+      if (e.type === 'settings.updated') {
+        void refreshPeriodStatus()
+        void refreshShopProfile()
+      }
     }, 1200)
   })
 
@@ -564,6 +572,13 @@ export default function Home() {
   const canViewIam = canAccessView(permissions, 'iam')
   const isCurrentViewAllowed = canAccessView(permissions, activeView)
   const fallbackAllowedView = resolveFirstAllowedView(currentUser?.role, permissions)
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const viewLabel = VIEW_LABELS[activeView] || shopProfile.brandSubtitle
+      document.title = `${shopProfile.brandName} — ${viewLabel}`
+    }
+  }, [activeView, shopProfile.brandName, shopProfile.brandSubtitle])
 
   const displayStaffName = currentUser?.displayName || 'Quản trị viên'
   const displayRoleLabel = currentUser?.roleLabel || 'Toàn quyền'
@@ -580,6 +595,10 @@ export default function Home() {
       <AppSidebar
         activeView={activeView}
         onNavigate={setActiveView}
+        onOpenBrandSettings={() => {
+          setSystemSectionTab('COMPANY_INVOICE')
+          setActiveView('system')
+        }}
         badges={badges}
         autopilotOn={autopilotOn}
         status={status}
@@ -594,7 +613,9 @@ export default function Home() {
 
           {/* Định vị phân hệ hiện tại */}
           <nav aria-label="Định vị" className="flex min-w-0 shrink items-center gap-1.5 text-sm">
-            <span className="hidden shrink-0 font-bold text-[#0066CC] xl:inline dark:text-sky-400">OPENVN</span>
+            <span className="hidden shrink-0 font-bold text-[#0066CC] xl:inline dark:text-sky-400">
+              {shopProfile.brandShortName}
+            </span>
             <span className="hidden text-muted-foreground xl:inline">/</span>
             <span className="max-w-[150px] truncate font-semibold text-foreground sm:max-w-[230px] lg:max-w-[280px]">
               {VIEW_LABELS[activeView]}
@@ -605,9 +626,9 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setQuickSearchOpen(true)}
-            className="mx-auto hidden h-9 min-w-[180px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-border/80 bg-muted/50 px-3 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted md:flex"
+            className="mx-auto hidden h-9 min-w-[220px] max-w-md flex-1 items-center gap-2 rounded-lg border border-border/80 bg-muted/50 px-3.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted md:flex xl:max-w-lg"
           >
-            <Search className="h-3.5 w-3.5 shrink-0 text-[#0066CC] dark:text-sky-400" />
+            <Search className="h-4 w-4 shrink-0 text-[#0066CC] dark:text-sky-400" />
             <span className="truncate">Tìm đơn hàng (DH...), SKU, SĐT khách...</span>
             <kbd className="ml-auto shrink-0 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground">
               Ctrl K
@@ -920,6 +941,7 @@ export default function Home() {
                     onNavigate={setActiveView}
                     initialSection={systemSectionTab}
                     initialCatalogSubTab={systemCatalogSubTab}
+                    onSectionChange={setSystemSectionTab}
                   />
                 )}
                 {activeView === 'ledger' && <LedgerView />}
@@ -932,12 +954,14 @@ export default function Home() {
         <footer className="mt-auto shrink-0 border-t bg-card px-4 py-3 pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:px-6 md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-between gap-1 text-center text-xs text-muted-foreground sm:flex-row sm:text-left">
             <p>
-              © {new Date().getFullYear()} <span className="font-semibold text-foreground">OPENVN · Ưu Đàm Suite</span> — Quản lý bán hàng đa kênh · Agent Autopilot 100% · Invoice Pro · Offline-first
+              © {new Date().getFullYear()}{' '}
+              <span className="font-semibold text-foreground">{shopProfile.brandName}</span>
+              {shopProfile.brandFooterTagline ? ` — ${shopProfile.brandFooterTagline}` : ''}
             </p>
             <div className="flex items-center gap-3">
               <span>Shopee · TikTok · Lazada · Tiki · Zalo OA · POS</span>
               <a
-                href="/store"
+                href={shopProfile.storefrontUrl || '/store'}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 font-medium text-primary hover:underline"

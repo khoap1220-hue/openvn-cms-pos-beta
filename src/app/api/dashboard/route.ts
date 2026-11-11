@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 import type { DashboardData } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const daysParam = parseInt(searchParams.get('days') || '14', 10)
     const days = [7, 14, 30, 90].includes(daysParam) ? daysParam : 14
+
+    const cacheKey = `dashboard:${days}`
+    const cached = getApiCache<DashboardData>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
 
     const now = new Date()
     const todayStart = startOfDay(now)
@@ -39,6 +46,9 @@ export async function GET(req: NextRequest) {
       channels,
       recentOrders,
       lowStockProducts,
+      recentOrdersForChart,
+      monthOrders,
+      items30d,
     ] = await Promise.all([
       db.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: todayStart }, status: notCancelled } }),
       db.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: yesterdayStart, lt: todayStart }, status: notCancelled } }),
@@ -65,13 +75,21 @@ export async function GET(req: NextRequest) {
         take: 6,
         select: { id: true, sku: true, name: true, stock: true, lowStockThreshold: true },
       }),
+      db.order.findMany({
+        where: { createdAt: { gte: rangeStart }, status: notCancelled },
+        select: { createdAt: true, total: true },
+      }),
+      db.order.findMany({
+        where: { createdAt: { gte: d30Start }, status: notCancelled },
+        select: { channelId: true, total: true },
+      }),
+      db.orderItem.findMany({
+        where: { order: { createdAt: { gte: d30Start }, status: notCancelled } },
+        include: { product: { select: { id: true, sku: true, name: true } } },
+      }),
     ])
 
     // Doanh thu & đơn theo ngày (days ngày gần nhất)
-    const recentOrdersForChart = await db.order.findMany({
-      where: { createdAt: { gte: rangeStart }, status: notCancelled },
-      select: { createdAt: true, total: true },
-    })
     const dayMap = new Map<string, { revenue: number; orders: number }>()
     for (let i = 0; i < days; i++) {
       const d = new Date(todayStart.getTime() - i * 86400000)
@@ -94,10 +112,6 @@ export async function GET(req: NextRequest) {
       }))
 
     // Đơn theo kênh (30 ngày)
-    const monthOrders = await db.order.findMany({
-      where: { createdAt: { gte: d30Start }, status: notCancelled },
-      select: { channelId: true, total: true },
-    })
     const channelStats = new Map<string, { orders: number; revenue: number }>()
     for (const o of monthOrders) {
       const s = channelStats.get(o.channelId) ?? { orders: 0, revenue: 0 }
@@ -117,10 +131,6 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.revenue - a.revenue)
 
     // Top sản phẩm (30 ngày)
-    const items30d = await db.orderItem.findMany({
-      where: { order: { createdAt: { gte: d30Start }, status: notCancelled } },
-      include: { product: { select: { id: true, sku: true, name: true } } },
-    })
     const productAgg = new Map<string, { id: string; sku: string; name: string; sold: number; revenue: number }>()
     for (const it of items30d) {
       if (!it.product) continue
@@ -157,6 +167,7 @@ export async function GET(req: NextRequest) {
       topProducts,
     }
 
+    setApiCache(cacheKey, data, 15_000)
     return NextResponse.json(data)
   } catch (error) {
     console.error('Dashboard API error:', error)

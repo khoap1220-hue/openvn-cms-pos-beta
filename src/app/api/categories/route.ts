@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import { getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,11 +17,15 @@ function slugifyCategory(input: string): string {
 
 export async function GET() {
   try {
+    const cached = getApiCache<Record<string, unknown>>('categories:all')
+    if (cached) {
+      return NextResponse.json(cached)
+    }
     const categories = await db.category.findMany({
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     })
-    return NextResponse.json({
+    const payload = {
       categories: categories.map((c) => ({
         id: c.id,
         name: c.name,
@@ -28,7 +33,9 @@ export async function GET() {
         createdAt: c.createdAt.toISOString(),
         productCount: c._count.products,
       })),
-    })
+    }
+    setApiCache('categories:all', payload, 30_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Categories GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh mục' }, { status: 500 })
@@ -74,6 +81,7 @@ export async function POST(req: NextRequest) {
       detail: { name: category.name, slug: category.slug, assignedProducts: count },
     })
 
+    invalidateApiCache()
     return NextResponse.json(
       {
         category: {

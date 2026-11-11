@@ -1,5 +1,10 @@
 import { type NextFetchEvent, NextRequest, NextResponse } from 'next/server'
 import {
+  getApiCacheRawJson,
+  getMaintenanceMemoryState,
+  resolveL1CacheKey,
+} from '@/lib/realtime'
+import {
   AUTH_LOCK_COOKIE_NAME,
   SESSION_COOKIE_NAME,
   extractApiKeyFromHeaders,
@@ -22,6 +27,7 @@ import {
 const PUBLIC_PREFIXES = [
   '/login',
   '/blog',
+  '/api/health',
   '/api/auth',
   '/api/webhooks/',
   '/api/barcode',
@@ -36,6 +42,15 @@ const PUBLIC_PREFIXES = [
   '/logo.svg',
   '/robots.txt',
   '/favicon.ico',
+]
+
+const MAINTENANCE_EXEMPT_PREFIXES = [
+  '/api/system/maintenance',
+  '/api/system/backup',
+  '/api/ledger/test-guard',
+  '/api/auth',
+  '/api/health',
+  '/api/behavior-logs/internal',
 ]
 
 const STATIC_PUBLIC_ASSET_RE =
@@ -186,6 +201,22 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     sessionCache.clear()
   }
 
+  // L1 Pre-Serialized Cache Fast-Path cho GET /api/auth (< 2ms)
+  if (pathname === '/api/auth' && req.method === 'GET' && req.headers.get('x-session-check') !== '1') {
+    const sessionToken = req.cookies.get(SESSION_COOKIE_NAME)?.value || '__anon__'
+    const authKey = `auth:${sessionToken}:${req.nextUrl.searchParams.toString()}`
+    const rawJson = getApiCacheRawJson(authKey)
+    if (rawJson) {
+      return new NextResponse(rawJson, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'X-CMS-Cache': 'L1-FASTPATH',
+        },
+      })
+    }
+  }
+
   // 1. Cho phép tài nguyên tĩnh, trang công khai (/blog, /login), Socket.IO (?EIO=*) và health probe GET /api
   if (
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
@@ -194,6 +225,34 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     (pathname === '/api' && req.method === 'GET')
   ) {
     return NextResponse.next()
+  }
+
+  // 1B. Cổng bảo vệ Chế độ Bảo trì Nâng cấp An toàn (Read-Only Drain Mode trên nhánh chính)
+  const methodUpper = req.method.toUpperCase()
+  if (
+    pathname.startsWith('/api/') &&
+    !['GET', 'HEAD', 'OPTIONS'].includes(methodUpper) &&
+    !MAINTENANCE_EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  ) {
+    const maint = getMaintenanceMemoryState()
+    if (maint.enabled) {
+      const retrySec = String(maint.retryAfterSec || 120)
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'MAINTENANCE_READ_ONLY',
+          error: maint.reason,
+          retryAfterSec: maint.retryAfterSec || 120,
+        },
+        {
+          status: 503,
+          headers: {
+            'Retry-After': retrySec,
+            'X-CMS-Maintenance': 'read-only',
+          },
+        }
+      )
+    }
   }
 
   const ip = extractClientIp(req.headers)
@@ -262,8 +321,8 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     let liveRole: RoleKey = isValidRole(claims.rol) ? claims.rol : 'CASHIER_POS'
     let livePermissions: PermissionMap = resolveEffectivePermissions(liveRole, claims.ovr)
 
-    // Với thao tác ghi/xóa luôn đối chiếu trực tiếp DB; với GET cache 60 giây (tự xóa tức thì khi /api/auth hoặc /api/iam thay đổi) để đạt độ trễ < 1ms
-    if (!cached || isMutating || now - cached.checkedAt > 60_000) {
+    // Với thao tác ghi/xóa luôn đối chiếu trực tiếp DB; với GET cache 300 giây (tự xóa tức thì khi /api/auth hoặc /api/iam thay đổi) để đạt độ trễ < 1ms
+    if (!cached || isMutating || now - cached.checkedAt > 300_000) {
       try {
         const checkUrl = buildInternalLoopbackUrl(req, '/api/auth')
         const checkRes = await fetch(checkUrl, {
@@ -415,6 +474,23 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
       }
     }
 
+    // L1 Pre-Serialized Cache Fast-Path (< 2ms): trả thẳng chuỗi JSON đã serialize từ RAM sau khi đã kiểm tra RBAC
+    if (req.method === 'GET' && pathname.startsWith('/api/')) {
+      const l1Key = resolveL1CacheKey(pathname, req.nextUrl.searchParams)
+      if (l1Key) {
+        const rawJson = getApiCacheRawJson(l1Key)
+        if (rawJson) {
+          return new NextResponse(rawJson, {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'X-CMS-Cache': 'L1-FASTPATH',
+            },
+          })
+        }
+      }
+    }
+
     // Truyền định danh nhân sự đã xác thực xuống Route Handlers & Sổ Data (logLedger)
     const reqHeaders = new Headers(req.headers)
     reqHeaders.set('x-staff-uid', claims.uid)
@@ -436,7 +512,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   if (!requireAuth && lockCookie !== 'false') {
     const cachedAnon = sessionCache.get('__policy__')
     const now = Date.now()
-    if (!cachedAnon || now - cachedAnon.checkedAt > 60_000) {
+    if (!cachedAnon || now - cachedAnon.checkedAt > 300_000) {
       try {
         const checkUrl = buildInternalLoopbackUrl(req, '/api/auth')
         const checkRes = await fetch(checkUrl, {
@@ -463,6 +539,23 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   }
 
   if (!requireAuth) {
+    // L1 Pre-Serialized Cache Fast-Path (< 2ms) cho chế độ Mở Nội Bộ
+    if (req.method === 'GET' && pathname.startsWith('/api/')) {
+      const l1Key = resolveL1CacheKey(pathname, req.nextUrl.searchParams)
+      if (l1Key) {
+        const rawJson = getApiCacheRawJson(l1Key)
+        if (rawJson) {
+          return new NextResponse(rawJson, {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'X-CMS-Cache': 'L1-FASTPATH',
+            },
+          })
+        }
+      }
+    }
+
     // Chế độ Mở Nội Bộ: vẫn ghi nhật ký hành vi cho các thao tác GHI/SỬA/XÓA qua API
     if (pathname.startsWith('/api/') && shouldAutoAuditApiMutation(pathname, req.method)) {
       const desc = describeProxyMutation(req.method, pathname)

@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSettingsMap } from '@/lib/agent-engine'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    const cacheKey = 'liveops:main'
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const settings = await getSettingsMap()
     const startOfDay = new Date(new Date().setHours(0, 0, 0, 0))
     const dayAgo = new Date(Date.now() - 24 * 3600 * 1000)
@@ -96,7 +103,7 @@ export async function GET() {
     const automationRate = automationTotal > 0 ? Math.round((agentHandled / automationTotal) * 100) : 100
     const lowStockCount = activeProductsForStock.filter((p) => p.stock <= p.lowStockThreshold).length
 
-    return NextResponse.json({
+    const responsePayload = {
       settings,
       stats: {
         pendingOrders,
@@ -128,7 +135,9 @@ export async function GET() {
         pendingActive: !settings.master || !settings.auto_confirm,
         packingStuckActive: !settings.master || !settings.auto_carrier || !settings.simulation_mode,
       },
-    })
+    }
+    setApiCache(cacheKey, responsePayload, 15_000)
+    return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('LiveOps GET error:', error)
     return NextResponse.json({ error: 'Không thể tải dữ liệu Trung tâm Điều hành AI' }, { status: 500 })

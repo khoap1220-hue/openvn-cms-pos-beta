@@ -13,19 +13,20 @@ export function ProductAvatar({
   image?: string | null
   className?: string
 }) {
-  const [imgOk, setImgOk] = useState(true)
-  const showImage = Boolean(image) && imgOk
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const trimmedImage = typeof image === 'string' ? image.trim() : ''
+  const showImage = Boolean(trimmedImage) && trimmedImage !== failedUrl
 
-  const words = name.trim().split(/\s+/)
+  const words = (name || '?').trim().split(/\s+/)
   const initials = (words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2)).toUpperCase()
 
   if (showImage) {
     return (
       <img
-        src={image!}
+        src={trimmedImage}
         alt={name}
         loading="lazy"
-        onError={() => setImgOk(false)}
+        onError={() => setFailedUrl(trimmedImage)}
         className={cn(
           'h-10 w-10 shrink-0 select-none rounded-lg border border-border/60 object-cover',
           className

@@ -5,14 +5,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
+  ArrowDownLeft,
+  ArrowRight,
+  ArrowUpRight,
   CheckCircle2,
   ClipboardCheck,
+  EyeOff,
+  Filter,
+  Link2,
   Loader2,
+  Monitor,
+  RotateCcw,
   ScrollText,
   Search,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  Tag,
 } from 'lucide-react'
 
-import { apiGet } from '@/lib/api'
+import { apiGet, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -175,6 +187,11 @@ const SCOPES: Array<{ value: string; label: string; badge: string }> = [
     badge: 'border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
   },
   {
+    value: 'CAMPAIGN',
+    label: 'Chương trình & Voucher',
+    badge: 'border-transparent bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-400',
+  },
+  {
     value: 'SYSTEM',
     label: 'Hệ thống',
     badge: 'bg-muted text-muted-foreground',
@@ -258,6 +275,156 @@ function sampleText(value: unknown): string {
   return String(value)
 }
 
+interface EntryBadges {
+  direction?: {
+    type: 'SAN_TO_SAN' | 'CMS_TO_CMS' | 'INBOUND' | 'OUTBOUND'
+    label: string
+    tooltip: string
+  }
+  isPriceChange?: boolean
+  isCampaign?: boolean
+  isUnlistedAlert?: boolean
+  isSkuLink?: boolean
+  isStockReconcile?: boolean
+  reconcileReason?: string
+}
+
+function extractEntryBadges(entry: LedgerEntry): EntryBadges {
+  const title = entry.title || ''
+  const action = entry.action || ''
+  const scope = entry.scope || ''
+  const detail = entry.detail || ''
+
+  let direction: EntryBadges['direction'] | undefined
+  if (
+    title.includes('SÀN SHOPEE ➔ SÀN SHOPEE') ||
+    title.includes('SÀN ➔ SÀN') ||
+    action.startsWith('SHOPEE_INTERNAL_') ||
+    detail.includes('"direction":"SHOPEE_TO_SHOPEE"')
+  ) {
+    direction = {
+      type: 'SAN_TO_SAN',
+      label: 'Sàn ➔ Sàn',
+      tooltip: 'Thay đổi phát sinh trực tiếp trên Sàn Shopee Seller Center (Giá, Tồn, Ẩn/Hiện hoặc SP trên Sàn)',
+    }
+  } else if (
+    title.includes('SÀN SHOPEE ➔ CMS') ||
+    action.startsWith('SHOPEE_INBOUND') ||
+    action === 'OPENING_STOCK_FROM_MARKETPLACE' ||
+    action === 'SHOPEE_DIRECT_ADJUSTMENT_RECONCILED' ||
+    action === 'SHOPEE_STOCK_AWAITING_ORDER_RECONCILIATION' ||
+    action === 'SHOPEE_OPENING_STOCK_CHOICE_REQUIRED' ||
+    detail.includes('"direction":"SHOPEE_TO_CMS"')
+  ) {
+    direction = {
+      type: 'INBOUND',
+      label: 'Sàn ➔ CMS',
+      tooltip: 'Dữ liệu từ sàn Shopee kéo về cập nhật hoặc đối soát vào hệ thống CMS',
+    }
+  } else if (
+    title.includes('CMS ➔ SÀN SHOPEE') ||
+    title.includes('CMS ➔ Shopee') ||
+    action.startsWith('SHOPEE_OUTBOX') ||
+    action.startsWith('OUTBOX_') ||
+    action === 'KEEP_WAREHOUSE_STOCK_AND_PUSH' ||
+    detail.includes('"direction":"CMS_TO_SHOPEE"')
+  ) {
+    direction = {
+      type: 'OUTBOUND',
+      label: 'CMS ➔ Sàn',
+      tooltip: 'Dữ liệu từ kho CMS đẩy ra sàn Shopee (đồng bộ tồn / giá / liên kết)',
+    }
+  } else if (
+    title.includes('CMS ➔ CMS') ||
+    detail.includes('"direction":"CMS_TO_CMS"') ||
+    entry.actor === 'OPERATOR' ||
+    scope === 'INVENTORY' ||
+    scope === 'INVOICE' ||
+    scope === 'CAMPAIGN' ||
+    scope === 'SETTINGS' ||
+    scope === 'PERIOD'
+  ) {
+    direction = {
+      type: 'CMS_TO_CMS',
+      label: 'CMS ➔ CMS',
+      tooltip: 'Thao tác thay đổi nội bộ trực tiếp trong hệ thống Quản trị CMS',
+    }
+  }
+
+  const isPriceChange =
+    action === 'PRODUCT_PRICE_CHANGED' ||
+    action === 'CHANNEL_PRICE_CHANGED' ||
+    title.includes('THAY ĐỔI GIÁ BÁN') ||
+    title.includes('Cập nhật giá bán') ||
+    (detail.includes('"oldPrice"') && detail.includes('"newPrice"'))
+
+  const isCampaign =
+    scope === 'CAMPAIGN' ||
+    action.startsWith('CAMPAIGN_') ||
+    action.startsWith('VOUCHER_') ||
+    title.includes('[CHƯƠNG TRÌNH]')
+
+  const isUnlistedAlert =
+    action.includes('UNLISTED') ||
+    title.includes('TẠM ẨN') ||
+    title.includes('MỞ BÁN LẠI') ||
+    title.includes('CẢNH BÁO SÀN')
+
+  const isSkuLink =
+    action.includes('LINK') ||
+    title.includes('LIÊN KẾT') ||
+    title.includes('GHÉP NỐI')
+
+  const isStockReconcile =
+    action === 'OPENING_STOCK_FROM_MARKETPLACE' ||
+    action === 'KEEP_WAREHOUSE_STOCK_AND_PUSH' ||
+    action === 'SHOPEE_DIRECT_ADJUSTMENT_RECONCILED' ||
+    action === 'SHOPEE_STOCK_AWAITING_ORDER_RECONCILIATION' ||
+    action === 'SHOPEE_OPENING_STOCK_CHOICE_REQUIRED' ||
+    action === 'SHOPEE_ORDER_RECONCILIATION_TRIGGERED' ||
+    title.includes('GỐC TỒN ĐẦU') ||
+    title.includes('ĐỐI SOÁT TỒN SÀN') ||
+    title.includes('GIỮ TỒN KHO CMS')
+
+  let reconcileReason: string | undefined
+  if (detail && detail.includes('"reason"')) {
+    try {
+      const parsed = JSON.parse(detail) as Record<string, unknown>
+      if (typeof parsed.reason === 'string' && parsed.reason.trim()) {
+        reconcileReason = parsed.reason.trim()
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return { direction, isPriceChange, isCampaign, isUnlistedAlert, isSkuLink, isStockReconcile, reconcileReason }
+}
+
+interface PriceChangeDetail {
+  sku?: string
+  name?: string
+  oldPrice?: number
+  newPrice?: number
+  diffPrice?: number
+  percentChange?: number
+  channel?: string
+  actorName?: string
+}
+
+function parsePriceDetail(detail: string | null): PriceChangeDetail | null {
+  if (!detail) return null
+  try {
+    const obj = JSON.parse(detail)
+    if (obj && (typeof obj.oldPrice === 'number' || typeof obj.newPrice === 'number')) {
+      return obj as PriceChangeDetail
+    }
+  } catch {
+    // ignore
+  }
+  return null
+}
+
 // ===== Component =====
 
 export function LedgerView() {
@@ -272,10 +439,47 @@ export function LedgerView() {
 
   const [scopeFilter, setScopeFilter] = useState('ALL')
   const [timeFilter, setTimeFilter] = useState('ALL')
+  const [categoryFilter, setCategoryFilter] = useState<
+    'ALL' | 'PRICE' | 'CAMPAIGN' | 'SAN_TO_SAN' | 'CMS_TO_CMS' | 'INBOUND' | 'OUTBOUND'
+  >('ALL')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [restoringTest, setRestoringTest] = useState(false)
+  const [testCleanStatus, setTestCleanStatus] = useState<{ clean: boolean; leftoverCount: number } | null>(null)
 
   const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null)
+
+  const checkTestGuardStatus = useCallback(async () => {
+    try {
+      const res = await apiGet<{ ok: boolean; clean: boolean; leftoverCount: number }>('/api/ledger/test-guard')
+      setTestCleanStatus({ clean: res.clean, leftoverCount: res.leftoverCount })
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleRestoreAndCleanTest = async () => {
+    setRestoringTest(true)
+    try {
+      const res = await apiPost<{ ok: boolean; message: string }>('/api/ledger/test-guard', {
+        action: 'RESTORE_AND_CLEAN',
+      })
+      toast({
+        title: 'Đã hoàn nguyên & bảo vệ dữ liệu Beta',
+        description: res.message,
+      })
+      await checkTestGuardStatus()
+      setRefreshKey((k) => k + 1)
+    } catch (e) {
+      toast({
+        title: 'Không thể hoàn nguyên dữ liệu test',
+        description: errorMessage(e),
+        variant: 'destructive',
+      })
+    } finally {
+      setRestoringTest(false)
+    }
+  }
 
   // ===== Bộ lọc Kỳ kế toán + Nguồn gốc dữ liệu (Data Provenance) =====
   const [period, setPeriod] = useState<PeriodRange>(EMPTY_PERIOD)
@@ -290,19 +494,30 @@ export function LedgerView() {
   const [reconLoading, setReconLoading] = useState(false)
   const [reconError, setReconError] = useState<string | null>(null)
 
-  // Tìm kiếm debounce 400ms
+  // Tìm kiếm debounce siêu tốc 150ms (Zero-Flicker)
   useEffect(() => {
-    const timer = setTimeout(() => setSearch(searchInput.trim()), 400)
+    const timer = setTimeout(() => setSearch(searchInput.trim()), 150)
     return () => clearTimeout(timer)
   }, [searchInput])
 
-  // silent = true khi reload ngầm qua polling 10s: KHÔNG setLoading(true) (tránh flash skeleton),
-  // lỗi thì bỏ qua (giữ dữ liệu cũ) — chỉ cập nhật state khi fetch thành công
+  const hasLoadedOnceRef = useRef(false)
+
+  // silent = true hoặc sau lần tải đầu tiên: KHÔNG setLoading(true) (tránh flash skeleton khi chuyển bộ lọc nhanh)
   const fetchLedger = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
+    const showSkeleton = !silent && !hasLoadedOnceRef.current
+    if (showSkeleton) setLoading(true)
     try {
       const params = new URLSearchParams()
       if (scopeFilter !== 'ALL') params.set('scope', scopeFilter)
+      if (
+        categoryFilter === 'PRICE' ||
+        categoryFilter === 'SAN_TO_SAN' ||
+        categoryFilter === 'CMS_TO_CMS' ||
+        categoryFilter === 'INBOUND' ||
+        categoryFilter === 'OUTBOUND'
+      ) {
+        params.set('category', categoryFilter)
+      }
       if (search) params.set('q', search)
       if (timeFilter !== 'ALL') params.set('days', timeFilter)
       if (period.preset !== 'ALL') params.set('preset', period.preset)
@@ -321,16 +536,18 @@ export function LedgerView() {
       setCounts(data.counts ?? {})
       setPeriodStats(data.period ?? null)
       setError(null)
+      hasLoadedOnceRef.current = true
     } catch (err) {
-      if (!silent) setError(errorMessage(err))
+      if (showSkeleton) setError(errorMessage(err))
     } finally {
-      if (!silent) setLoading(false)
+      if (showSkeleton) setLoading(false)
     }
-  }, [scopeFilter, search, timeFilter, period, originSource, changedFilter, refreshKey])
+  }, [scopeFilter, categoryFilter, search, timeFilter, period, originSource, changedFilter, refreshKey])
 
   useEffect(() => {
     void fetchLedger()
-  }, [fetchLedger])
+    void checkTestGuardStatus()
+  }, [fetchLedger, checkTestGuardStatus])
 
   // Realtime: có bản ghi Sổ Data mới → refetch sau 1s (giữ nguyên filter);
   // WS hỏng → polling 10s → refetch im lặng (không loading flash)
@@ -383,8 +600,41 @@ export function LedgerView() {
     <div>
       <PageHeader
         title="Sổ Data"
-        description="Mọi dữ liệu và thao tác trong hệ thống đều được ghi lại tại đây — nhật ký tổng hợp & đối soát tự động"
-      />
+        description="Mọi dữ liệu và thao tác trong hệ thống đều được ghi lại tại đây (Sàn ➔ Sàn · CMS ➔ CMS · Sàn ➔ CMS · CMS ➔ Sàn) — tự động bảo vệ & hoàn nguyên dữ liệu Beta"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {testCleanStatus && (
+            <Badge
+              variant="outline"
+              className={cn(
+                'gap-1 px-2.5 py-1 text-xs font-medium',
+                testCleanStatus.clean
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                  : 'border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+              )}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {testCleanStatus.clean
+                ? 'Dữ liệu Beta sạch 100% (0 rác Test)'
+                : `Phát hiện ${testCleanStatus.leftoverCount} bản ghi Test`}
+            </Badge>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={restoringTest}
+            onClick={() => void handleRestoreAndCleanTest()}
+            title="Phục hồi nguyên trạng trước khi test và quét sạch mọi bản ghi phát sinh không phải từ con người"
+          >
+            {restoringTest ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
+            )}
+            Phục hồi nguyên trạng sau Test
+          </Button>
+        </div>
+      </PageHeader>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-4">
@@ -404,7 +654,12 @@ export function LedgerView() {
           <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
             <Select
               value={scopeFilter}
-              onValueChange={setScopeFilter}
+              onValueChange={(val) => {
+                setScopeFilter(val)
+                if (val !== 'CAMPAIGN' && categoryFilter === 'CAMPAIGN') {
+                  setCategoryFilter('ALL')
+                }
+              }}
             >
               <SelectTrigger className="w-full sm:w-[180px]" aria-label="Lọc theo phạm vi">
                 <SelectValue placeholder="Tất cả phạm vi" />
@@ -453,6 +708,187 @@ export function LedgerView() {
                 aria-label="Tìm kiếm trong Sổ Data"
               />
             </div>
+          </div>
+
+          {/* Thanh nút lọc nhanh nghiệp vụ: Đổi giá bán · Chương trình · Chiều đồng bộ */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border bg-muted/40 p-1.5">
+            <span className="mr-1 text-xs font-semibold text-muted-foreground flex items-center gap-1 pl-1">
+              <Filter className="h-3 w-3" /> Lọc nhanh:
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryFilter === 'ALL' && scopeFilter !== 'CAMPAIGN' && !searchInput ? 'secondary' : 'ghost'}
+              className="h-7 px-2.5 text-xs font-medium"
+              onClick={() => {
+                setCategoryFilter('ALL')
+                setSearchInput('')
+                setSearch('')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+              }}
+            >
+              Tất cả
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryFilter === 'PRICE' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-amber-300 dark:border-amber-800 font-medium',
+                categoryFilter === 'PRICE'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'text-amber-700 bg-background hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('PRICE')
+                setSearchInput('')
+                setSearch('')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+              }}
+            >
+              <Tag className="h-3 w-3" />
+              Đổi giá bán
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryFilter === 'CAMPAIGN' || scopeFilter === 'CAMPAIGN' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-fuchsia-300 dark:border-fuchsia-800 font-medium',
+                categoryFilter === 'CAMPAIGN' || scopeFilter === 'CAMPAIGN'
+                  ? 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'
+                  : 'text-fuchsia-700 bg-background hover:bg-fuchsia-50 dark:text-fuchsia-300 dark:hover:bg-fuchsia-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('CAMPAIGN')
+                setScopeFilter('CAMPAIGN')
+                setSearchInput('')
+                setSearch('')
+              }}
+            >
+              <Sparkles className="h-3 w-3" />
+              Chương trình &amp; Voucher
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryFilter === 'SAN_TO_SAN' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-orange-300 dark:border-orange-800 font-medium',
+                categoryFilter === 'SAN_TO_SAN'
+                  ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                  : 'text-orange-700 bg-background hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('SAN_TO_SAN')
+                setSearchInput('')
+                setSearch('')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+              }}
+            >
+              <Store className="h-3 w-3" />
+              Sàn ➔ Sàn
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryFilter === 'CMS_TO_CMS' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-teal-300 dark:border-teal-800 font-medium',
+                categoryFilter === 'CMS_TO_CMS'
+                  ? 'bg-teal-600 hover:bg-teal-700 text-white'
+                  : 'text-teal-700 bg-background hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('CMS_TO_CMS')
+                setSearchInput('')
+                setSearch('')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+              }}
+            >
+              <Monitor className="h-3 w-3" />
+              CMS ➔ CMS
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryFilter === 'INBOUND' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-sky-300 dark:border-sky-800 font-medium',
+                categoryFilter === 'INBOUND'
+                  ? 'bg-sky-600 hover:bg-sky-700 text-white'
+                  : 'text-sky-700 bg-background hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('INBOUND')
+                setSearchInput('')
+                setSearch('')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+              }}
+            >
+              <ArrowDownLeft className="h-3 w-3" />
+              Sàn ➔ CMS (Inbound)
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryFilter === 'OUTBOUND' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-indigo-300 dark:border-indigo-800 font-medium',
+                categoryFilter === 'OUTBOUND'
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  : 'text-indigo-700 bg-background hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('OUTBOUND')
+                setSearchInput('')
+                setSearch('')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+              }}
+            >
+              <ArrowUpRight className="h-3 w-3" />
+              CMS ➔ Sàn (Outbound)
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={searchInput === 'TẠM ẨN' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-amber-300 dark:border-amber-800 font-medium',
+                searchInput === 'TẠM ẨN'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'text-amber-700 bg-background hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('ALL')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+                setSearchInput('TẠM ẨN')
+                setSearch('TẠM ẨN')
+              }}
+            >
+              <EyeOff className="h-3 w-3" />
+              Ẩn/Hiện SP Sàn
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={searchInput === 'LIÊN KẾT' ? 'default' : 'outline'}
+              className={cn(
+                'h-7 px-2.5 text-xs gap-1 border-emerald-300 dark:border-emerald-800 font-medium',
+                searchInput === 'LIÊN KẾT'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'text-emerald-700 bg-background hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40'
+              )}
+              onClick={() => {
+                setCategoryFilter('ALL')
+                if (scopeFilter === 'CAMPAIGN') setScopeFilter('ALL')
+                setSearchInput('LIÊN KẾT')
+                setSearch('LIÊN KẾT')
+              }}
+            >
+              <Link2 className="h-3 w-3" />
+              Liên kết SKU
+            </Button>
           </div>
 
           {/* Tổng theo scope */}
@@ -541,6 +977,8 @@ export function LedgerView() {
                       label: entry.actor,
                       badge: 'bg-muted text-muted-foreground',
                     }
+                    const badges = extractEntryBadges(entry)
+                    const rowPriceInfo = badges.isPriceChange ? parsePriceDetail(entry.detail) : null
                     return (
                       <TableRow
                         key={entry.id}
@@ -556,10 +994,96 @@ export function LedgerView() {
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap font-mono text-xs">{entry.action}</TableCell>
-                        <TableCell className="max-w-[340px]">
+                        <TableCell className="max-w-[420px]">
+                          <div className="mb-1 flex flex-wrap items-center gap-1">
+                            {badges.direction && (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  'h-5 gap-1 py-0 text-[10px] font-bold',
+                                  badges.direction.type === 'SAN_TO_SAN'
+                                    ? 'border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-300'
+                                    : badges.direction.type === 'CMS_TO_CMS'
+                                      ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950/60 dark:text-teal-300'
+                                      : badges.direction.type === 'INBOUND'
+                                        ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                                        : 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+                                )}
+                                title={badges.direction.tooltip}
+                              >
+                                {badges.direction.type === 'SAN_TO_SAN' ? (
+                                  <Store className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                                ) : badges.direction.type === 'CMS_TO_CMS' ? (
+                                  <Monitor className="h-3 w-3 text-teal-600 dark:text-teal-400" />
+                                ) : badges.direction.type === 'INBOUND' ? (
+                                  <ArrowDownLeft className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                                ) : (
+                                  <ArrowUpRight className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                                )}
+                                {badges.direction.label}
+                              </Badge>
+                            )}
+                            {badges.isPriceChange && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 gap-1 border-amber-300 bg-amber-50 py-0 text-[10px] font-bold text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                              >
+                                <Tag className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                {rowPriceInfo &&
+                                rowPriceInfo.oldPrice !== undefined &&
+                                rowPriceInfo.newPrice !== undefined
+                                  ? `${formatVND(rowPriceInfo.oldPrice)} ➔ ${formatVND(rowPriceInfo.newPrice)}`
+                                  : 'Đổi giá bán'}
+                              </Badge>
+                            )}
+                            {badges.isUnlistedAlert && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 gap-1 border-amber-300 bg-amber-50 py-0 text-[10px] font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                              >
+                                <EyeOff className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                Ẩn/Hiện SP Sàn
+                              </Badge>
+                            )}
+                            {badges.isSkuLink && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 gap-1 border-emerald-300 bg-emerald-50 py-0 text-[10px] font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              >
+                                <Link2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                Liên kết SKU
+                              </Badge>
+                            )}
+                            {badges.isCampaign && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 gap-1 border-fuchsia-300 bg-fuchsia-50 py-0 text-[10px] font-bold text-fuchsia-700 dark:border-fuchsia-800 dark:bg-fuchsia-950/60 dark:text-fuchsia-300"
+                              >
+                                <Sparkles className="h-3 w-3 text-fuchsia-600 dark:text-fuchsia-400" />
+                                Chương trình
+                              </Badge>
+                            )}
+                            {badges.isStockReconcile && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 gap-1 border-violet-300 bg-violet-50 py-0 text-[10px] font-bold text-violet-800 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-300"
+                              >
+                                <ClipboardCheck className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                                Đối soát Tồn &amp; Gốc đầu kỳ
+                              </Badge>
+                            )}
+                          </div>
                           <p className="truncate text-sm font-medium" title={entry.title}>
                             {entry.title}
                           </p>
+                          {badges.reconcileReason && (
+                            <p
+                              className="mt-0.5 truncate rounded bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
+                              title={`Lý do đối soát / chốt tồn: ${badges.reconcileReason}`}
+                            >
+                              Lý do: &ldquo;{badges.reconcileReason}&rdquo;
+                            </p>
+                          )}
                           {entry.entityCode && (
                             <p className="truncate font-mono text-xs text-muted-foreground">
                               {entry.entityCode}
@@ -792,9 +1316,9 @@ export function LedgerView() {
           if (!open) setSelectedEntry(null)
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-left text-base">{selectedEntry?.title}</DialogTitle>
+            <DialogTitle className="text-left text-base leading-snug">{selectedEntry?.title}</DialogTitle>
             <DialogDescription>
               {selectedEntry && (
                 <>
@@ -811,9 +1335,154 @@ export function LedgerView() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed">
-            {prettyDetail(selectedEntry?.detail ?? null)}
-          </pre>
+
+          {selectedEntry && (() => {
+            const badges = extractEntryBadges(selectedEntry)
+            const priceInfo = parsePriceDetail(selectedEntry.detail)
+            let beforeSnap: Record<string, unknown> | null = null
+            let afterSnap: Record<string, unknown> | null = null
+            try {
+              if (selectedEntry.beforeSnapshot) beforeSnap = JSON.parse(selectedEntry.beforeSnapshot)
+              if (selectedEntry.afterSnapshot) afterSnap = JSON.parse(selectedEntry.afterSnapshot)
+            } catch {}
+            const diffKeys = Array.from(
+              new Set([...Object.keys(beforeSnap ?? {}), ...Object.keys(afterSnap ?? {})])
+            ).filter((k) => JSON.stringify(beforeSnap?.[k]) !== JSON.stringify(afterSnap?.[k]))
+
+            return (
+              <div className="space-y-3">
+                {/* Banner 4 chiều thay đổi dữ liệu */}
+                {badges.direction && (
+                  <div
+                    className={cn(
+                      'flex items-center justify-between rounded-lg border p-3 text-xs',
+                      badges.direction.type === 'SAN_TO_SAN'
+                        ? 'border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-200'
+                        : badges.direction.type === 'CMS_TO_CMS'
+                          ? 'border-teal-200 bg-teal-50 text-teal-900 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-200'
+                          : badges.direction.type === 'INBOUND'
+                            ? 'border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200'
+                            : 'border-indigo-200 bg-indigo-50 text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 font-medium">
+                      {badges.direction.type === 'SAN_TO_SAN' ? (
+                        <>
+                          <span className="rounded bg-orange-200 px-2 py-0.5 font-bold dark:bg-orange-800">SÀN SHOPEE</span>
+                          <ArrowRight className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                          <span className="rounded bg-orange-200 px-2 py-0.5 font-bold dark:bg-orange-800">SÀN SHOPEE</span>
+                        </>
+                      ) : badges.direction.type === 'CMS_TO_CMS' ? (
+                        <>
+                          <span className="rounded bg-teal-200 px-2 py-0.5 font-bold dark:bg-teal-800">KHO CMS NỘI BỘ</span>
+                          <ArrowRight className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                          <span className="rounded bg-teal-200 px-2 py-0.5 font-bold dark:bg-teal-800">KHO CMS NỘI BỘ</span>
+                        </>
+                      ) : badges.direction.type === 'INBOUND' ? (
+                        <>
+                          <span className="rounded bg-sky-200 px-2 py-0.5 font-bold dark:bg-sky-800">SÀN SHOPEE</span>
+                          <ArrowRight className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                          <span className="rounded bg-background px-2 py-0.5 font-bold shadow-sm">KHO CMS NỘI BỘ</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="rounded bg-background px-2 py-0.5 font-bold shadow-sm">KHO CMS NỘI BỘ</span>
+                          <ArrowRight className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                          <span className="rounded bg-indigo-200 px-2 py-0.5 font-bold dark:bg-indigo-800">SÀN SHOPEE</span>
+                        </>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="border-current font-mono text-[10px] uppercase">
+                      {badges.direction.type === 'SAN_TO_SAN'
+                        ? 'Shopee Internal'
+                        : badges.direction.type === 'CMS_TO_CMS'
+                          ? 'CMS Internal'
+                          : badges.direction.type === 'INBOUND'
+                            ? 'Inbound Sync'
+                            : 'Outbound Sync'}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Bảng Đối chiếu Trước -> Sau trực quan */}
+                {diffKeys.length > 0 && (
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="mb-2 text-xs font-semibold">Đối chiếu Trước ➔ Sau thay đổi</p>
+                    <div className="space-y-1.5 text-xs">
+                      {diffKeys.map((k) => (
+                        <div key={k} className="grid grid-cols-3 items-center gap-2 rounded border bg-background px-2.5 py-1.5">
+                          <span className="font-mono font-medium text-muted-foreground">{k}</span>
+                          <span className="truncate text-rose-600 line-through dark:text-rose-400">
+                            {beforeSnap?.[k] !== undefined ? String(beforeSnap[k]) : '—'}
+                          </span>
+                          <span className="truncate font-semibold text-emerald-600 dark:text-emerald-400">
+                            ➔ {afterSnap?.[k] !== undefined ? String(afterSnap[k]) : '—'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Card so sánh trực quan biến động giá bán */}
+                {priceInfo && (priceInfo.oldPrice !== undefined || priceInfo.newPrice !== undefined) && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3.5 dark:border-amber-900/60 dark:bg-amber-950/30">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                        <Tag className="h-4 w-4 text-amber-600" /> So sánh biến động giá bán
+                      </span>
+                      {priceInfo.channel && (
+                        <Badge variant="outline" className="border-amber-300 bg-background text-[11px] dark:border-amber-700">
+                          Kênh: {priceInfo.channel}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-3">
+                      <div className="rounded border bg-background p-2">
+                        <span className="block text-[11px] text-muted-foreground">Giá cũ</span>
+                        <p className="text-sm font-semibold text-muted-foreground line-through">
+                          {priceInfo.oldPrice !== undefined ? formatVND(priceInfo.oldPrice) : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded border bg-background p-2">
+                        <span className="block text-[11px] text-muted-foreground">Giá mới</span>
+                        <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                          {priceInfo.newPrice !== undefined ? formatVND(priceInfo.newPrice) : '—'}
+                        </p>
+                      </div>
+                      <div className="col-span-2 flex flex-col justify-center rounded border bg-background p-2 sm:col-span-1">
+                        <span className="block text-[11px] text-muted-foreground">Chênh lệch</span>
+                        <p
+                          className={cn(
+                            'flex items-center justify-center gap-1 text-xs font-bold',
+                            (priceInfo.diffPrice ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                          )}
+                        >
+                          {(priceInfo.diffPrice ?? 0) >= 0 ? '+' : ''}
+                          {formatVND(priceInfo.diffPrice ?? 0)}
+                          {priceInfo.percentChange !== undefined && (
+                            <span className="text-[10px] font-normal">
+                              ({(priceInfo.diffPrice ?? 0) >= 0 ? '+' : ''}{priceInfo.percentChange}%)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Raw JSON detail */}
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Dữ liệu chi tiết (Payload JSON)
+                  </p>
+                  <pre className="max-h-60 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed">
+                    {prettyDetail(selectedEntry.detail ?? null)}
+                  </pre>
+                </div>
+              </div>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 

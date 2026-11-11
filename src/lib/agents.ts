@@ -27,6 +27,7 @@ export interface CarrierMeta {
 }
 
 export const CARRIERS: CarrierMeta[] = [
+  { key: 'SPX', name: 'SPX Express', color: '#EE4D2D' },
   { key: 'GHN', name: 'Giao Hàng Nhanh', color: '#16A34A' },
   { key: 'GHTK', name: 'Giao Hàng Tiết Kiệm', color: '#EA580C' },
   { key: 'VIETTEL', name: 'Viettel Post', color: '#DC2626' },

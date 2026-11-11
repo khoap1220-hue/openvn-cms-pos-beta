@@ -46,6 +46,11 @@ function inferMobileInputAttrs(
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   const inferred = inferMobileInputAttrs(type, props)
+  const fallbackAriaLabel =
+    props["aria-label"] ??
+    (typeof props.placeholder === "string" && props.placeholder.trim()
+      ? props.placeholder.trim()
+      : props.id || props.name || "Trường nhập liệu")
 
   return (
     <input
@@ -61,6 +66,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         className
       )}
       {...props}
+      aria-label={fallbackAriaLabel}
     />
   )
 }

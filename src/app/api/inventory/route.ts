@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { recordLineageChange } from '@/lib/ledger'
+import { broadcast, getApiCache, getProductFromApiCache, patchProductInApiCache, setApiCache, invalidateApiCache } from '@/lib/realtime'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { syncCombosUsingComponents } from '@/lib/combo'
 import { syncProductWarehouseStock } from '@/lib/warehouse-service'
@@ -10,8 +11,19 @@ import { resolvePeriodRange } from '@/lib/lineage'
 
 export const dynamic = 'force-dynamic'
 
+function isOpeningStockEstablishMove(note?: string | null): boolean {
+  const n = (note ?? '').toUpperCase()
+  return n.includes('[GỐC TỒN ĐẦU')
+}
+
 function originFromNote(note?: string | null): string {
   const n = (note ?? '').toLowerCase()
+  if (n.includes('gốc tồn đầu từ sàn')) return 'SHOPEE_OPENING_STOCK'
+  if (n.includes('đối soát điều chỉnh từ sàn shopee')) return 'SHOPEE_DIRECT_ADJUST'
+  if (n.includes('đối chiếu đơn sàn shopee')) return 'SHOPEE_ORDER_RECONCILED'
+  if (n.includes('nhập thành phẩm sản xuất') || n.includes('xuất nvl sản xuất') || n.includes('[lsx-')) {
+    return 'WORKSHOP_PRODUCTION'
+  }
   if (n.includes('tồn đầu kỳ') || n.includes('seed')) return 'SYSTEM_SEED'
   if (n.includes('đơn dh') || n.includes('combo') || n.includes('hóa đơn')) return 'AGENT_AUTOPILOT'
   return 'MANUAL_ADMIN'
@@ -20,6 +32,12 @@ function originFromNote(note?: string | null): string {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
+    const cacheKey = `inventory:${searchParams.toString()}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const view = searchParams.get('view') || 'movements'
     const productId = searchParams.get('productId')
 
@@ -29,7 +47,9 @@ export async function GET(req: NextRequest) {
         orderBy: { stock: 'asc' },
         select: { id: true, sku: true, name: true, stock: true, lowStockThreshold: true, sellPrice: true },
       })
-      return NextResponse.json({ products })
+      const payload = { products }
+      setApiCache(cacheKey, payload, 15_000)
+      return NextResponse.json(payload)
     }
 
     // ===== Bộ lọc kỳ kế toán: movements trong khoảng + Đối chiếu Đầu kỳ → Trong kỳ → Cuối kỳ =====
@@ -49,7 +69,7 @@ export async function GET(req: NextRequest) {
       movWhere.createdAt = created
     }
 
-    const [movements, periodMoves] = await Promise.all([
+    const [movements, periodMoves, currentStock] = await Promise.all([
       db.stockMovement.findMany({
         where: movWhere,
         orderBy: { createdAt: 'desc' },
@@ -60,18 +80,18 @@ export async function GET(req: NextRequest) {
       db.stockMovement.findMany({
         where: productId ? { productId } : {},
         orderBy: { createdAt: 'asc' },
-        select: { quantity: true, type: true, createdAt: true },
+        select: { quantity: true, type: true, createdAt: true, note: true },
       }),
+      productId
+        ? db.product.findUnique({ where: { id: productId }, select: { stock: true } }).then((p) => p?.stock ?? 0)
+        : db.product.aggregate({ _sum: { stock: true } }).then((a) => a._sum.stock ?? 0),
     ])
 
-    // Tồn hiện tại theo phạm vi (1 SP hoặc tổng tất cả SP SIMPLE + thành phần)
-    const currentStock = productId
-      ? (await db.product.findUnique({ where: { id: productId }, select: { stock: true } }))?.stock ?? 0
-      : (await db.product.aggregate({ _sum: { stock: true } }))._sum.stock ?? 0
-
     const inRange = (d: Date) => (!fromDate || d >= fromDate) && (!toDate || d < toDate)
-    const inPeriodMoves = periodMoves.filter((m) => inRange(m.createdAt))
-    const afterToMoves = toDate ? periodMoves.filter((m) => m.createdAt >= toDate) : []
+    const inPeriodMoves = periodMoves.filter((m) => inRange(m.createdAt) && !isOpeningStockEstablishMove(m.note))
+    const afterToMoves = toDate
+      ? periodMoves.filter((m) => m.createdAt >= toDate && !isOpeningStockEstablishMove(m.note))
+      : []
 
     // Tồn cuối kỳ = tồn hiện tại − Σ(biến động SAU toDate); Tồn đầu kỳ = cuối kỳ − Σ(trong kỳ)
     const afterToDelta = afterToMoves.reduce((s, m) => s + m.quantity, 0)
@@ -88,7 +108,7 @@ export async function GET(req: NextRequest) {
     // Gắn nguồn gốc suy luận cho từng dòng movement (hiển thị badge trên UI)
     const movementsWithOrigin = movements.map((m) => ({ ...m, originSource: originFromNote(m.note) }))
 
-    return NextResponse.json({
+    const responsePayload = {
       movements: movementsWithOrigin,
       period: {
         opening,
@@ -100,17 +120,34 @@ export async function GET(req: NextRequest) {
         fromDate: fromDate?.toISOString() ?? null,
         toDate: toDate?.toISOString() ?? null,
       },
-    })
+    }
+    setApiCache(cacheKey, responsePayload, 15_000)
+    return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Inventory GET error:', error)
     return NextResponse.json({ error: 'Không thể tải dữ liệu kho' }, { status: 500 })
   }
 }
 
-// POST: nhập / xuất / điều chỉnh tồn kho (Hỗ trợ cả đơn lẻ và Phiếu Nhập/Xuất/Kiểm kê Hàng Loạt chuẩn POS)
+// POST: nhập / sản xuất / xuất / điều chỉnh tồn kho (Hỗ trợ cả đơn lẻ và Phiếu Nhập/Sản xuất/Xuất/Kiểm kê Hàng Loạt chuẩn POS)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+
+    // Nếu gọi từ Hộp thoại Thao tác kho đơn lẻ với type = 'PRODUCTION', tự động chuẩn hóa sang luồng Lệnh Sản Xuất (LSX)
+    const singleType = String(body.type || body.mode || '').toUpperCase()
+    if (!Array.isArray(body.items) && singleType === 'PRODUCTION' && body.productId) {
+      body.items = [
+        {
+          productId: body.productId,
+          quantity: body.quantity,
+          conversionRate: body.conversionRate,
+          inputUnit: body.inputUnit,
+          costPrice: body.costPrice,
+          note: body.itemNote,
+        },
+      ]
+    }
 
     // ===== CHẾ ĐỘ PHIẾU NHẬP KHO / SẢN XUẤT / XUẤT KHO / KIỂM KÊ THEO LÔ =====
     if (Array.isArray(body.items) && body.items.length > 0) {
@@ -263,6 +300,7 @@ export async function POST(req: NextRequest) {
             data: { stock: afterStock },
           })
           mat.stock = afterStock
+          patchProductInApiCache(cid, { stock: afterStock })
           await syncProductWarehouseStock(cid, warehouseId)
 
           const matNote = `[${batchCode}] Xuất NVL sản xuất (${demand.usedForLabels.join(', ')})${batchNote ? ` · ${batchNote}` : ''}`
@@ -324,6 +362,7 @@ export async function POST(req: NextRequest) {
 
           await db.product.update({ where: { id: pid }, data: updateData })
           prod.stock = afterStock
+          patchProductInApiCache(pid, { stock: afterStock, ...(updateData.costPrice ? { costPrice: updateData.costPrice } : {}) })
           await syncProductWarehouseStock(pid, warehouseId)
 
           const prodBoms = bomByProduct.get(pid) ?? []
@@ -373,6 +412,8 @@ export async function POST(req: NextRequest) {
           syncCombosUsingComponents(db, touchedIds),
           syncLinkedVariantStocks(db, touchedIds),
         ])
+        invalidateApiCache('products')
+        broadcast('inventory.updated', { batchCode, touchedIds })
 
         return NextResponse.json(
           {
@@ -380,6 +421,7 @@ export async function POST(req: NextRequest) {
             count: body.items.length,
             totalConvertedUnits: totalProducedUnits,
             movements: createdMovements,
+            movement: createdMovements[createdMovements.length - 1] ?? null,
             consumedMaterials,
           },
           { status: 201 }
@@ -472,6 +514,7 @@ export async function POST(req: NextRequest) {
 
         await db.product.update({ where: { id: pid }, data: updateData })
         prod.stock = newStock
+        patchProductInApiCache(pid, { stock: newStock, ...(updateData.costPrice ? { costPrice: updateData.costPrice } : {}) })
         await syncProductWarehouseStock(pid, warehouseId)
 
         const headerParts = [`[${batchCode}]`]
@@ -518,6 +561,8 @@ export async function POST(req: NextRequest) {
         syncCombosUsingComponents(db, touchedIds),
         syncLinkedVariantStocks(db, touchedIds),
       ])
+      invalidateApiCache('products')
+      broadcast('inventory.updated', { batchCode, touchedIds })
 
       return NextResponse.json(
         {
@@ -606,49 +651,54 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const baseNote = note?.trim() || (type === 'IMPORT' ? 'Nhập kho' : type === 'EXPORT' ? 'Xuất kho' : 'Điều chỉnh kiểm kê')
+    const baseNote = note?.trim() || (type === 'IMPORT' ? 'Nhập kho' : type === 'EXPORT' ? 'Xuất kho' : 'Điều chỉnh kho')
     const finalNote = `${baseNote}${conversionNoteSuffix}`
-    await db.product.update({ where: { id: productId }, data: { stock: newStock } })
-    await syncProductWarehouseStock(productId, body.warehouseId ? String(body.warehouseId) : null)
-    const movement = await db.stockMovement.create({
-      data: {
-        productId,
-        warehouseId: body.warehouseId ? String(body.warehouseId) : null,
-        type,
-        quantity: movementQty,
-        stockAfter: newStock,
-        note: finalNote,
-      },
-      include: { product: { select: { id: true, sku: true, name: true, stock: true } } },
-    })
+    const targetWarehouseId = body.warehouseId ? String(body.warehouseId) : null
 
-    // Đồng bộ tồn kho các sản phẩm COMBO và các phân loại đóng gói liên kết có dùng nguyên liệu này
-    await Promise.all([
-      syncCombosUsingComponents(db, [productId]),
-      syncLinkedVariantStocks(db, [productId]),
+    const [, movement] = await Promise.all([
+      db.product.update({ where: { id: productId }, data: { stock: newStock } }),
+      db.stockMovement.create({
+        data: {
+          productId,
+          warehouseId: targetWarehouseId,
+          type,
+          quantity: movementQty,
+          stockAfter: newStock,
+          note: finalNote,
+        },
+        include: { product: { select: { id: true, sku: true, name: true, stock: true } } },
+      }),
     ])
 
-    // Sổ Data: biến động kho — chụp lineage Tồn trước → Tồn sau
+    const inPlacePatched = patchProductInApiCache(productId, { stock: newStock })
+
+    // Thực thi bất đồng bộ (non-blocking) các tác vụ hậu kỳ: đồng bộ kho con, combo, ghi sổ cái & webhook
     const action = type === 'IMPORT' ? 'STOCK_IMPORT' : type === 'EXPORT' ? 'STOCK_EXPORT' : 'STOCK_ADJUST'
     const qtyText = movementQty >= 0 ? `+${movementQty}` : `${movementQty}`
     const actionLabel = type === 'IMPORT' ? 'Nhập kho' : type === 'EXPORT' ? 'Xuất kho' : 'Điều chỉnh kho'
-    await recordLineageChange({
-      scope: 'INVENTORY',
-      action,
-      entityType: 'Product',
-      entityId: productId,
-      entityCode: product.sku,
-      title: `${actionLabel} ${product.sku} ${qtyText}`,
-      before: { stock: product.stock },
-      after: { stock: newStock },
-      actor: 'OPERATOR',
-      actorName: 'Người vận hành',
-      originSource: 'MANUAL_ADMIN',
-      sourceRefCode: finalNote,
-      detail: { stockAfter: newStock, quantity: movementQty, note: finalNote },
-    })
+    void Promise.all([
+      syncProductWarehouseStock(productId, targetWarehouseId),
+      syncCombosUsingComponents(db, [productId]),
+      syncLinkedVariantStocks(db, [productId]),
+      recordLineageChange({
+        scope: 'INVENTORY',
+        action,
+        entityType: 'Product',
+        entityId: productId,
+        entityCode: product.sku,
+        title: `${actionLabel} ${product.sku} ${qtyText}`,
+        before: { stock: product.stock },
+        after: { stock: newStock },
+        actor: 'OPERATOR',
+        actorName: 'Người vận hành',
+        originSource: 'MANUAL_ADMIN',
+        sourceRefCode: finalNote,
+        detail: { stockAfter: newStock, quantity: movementQty, note: finalNote },
+      }),
+    ]).catch((bgErr) => console.error('Background inventory post-update error:', bgErr))
 
-    // Webhook outbound: biến động tồn kho
+    invalidateApiCache('inventory:')
+    broadcast('inventory.updated', { productId, sku: product.sku, stockAfter: newStock, inPlacePatched })
     dispatchWebhook('stock.movement', { productId, sku: product.sku, type, quantity: movementQty, stockAfter: newStock })
 
     return NextResponse.json({ movement }, { status: 201 })

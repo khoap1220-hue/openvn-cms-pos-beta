@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Production,
     [switch]$NoBrowser
 )
@@ -8,6 +8,7 @@ Set-Location -Path $PSScriptRoot
 
 $CmsPort = if ($env:PORT) { [int]$env:PORT } else { 3010 }
 $RealtimePort = if ($env:REALTIME_PORT) { [int]$env:REALTIME_PORT } else { 3013 }
+$ShopeePort = if ($env:SHOPEE_SYNC_PORT) { [int]$env:SHOPEE_SYNC_PORT } else { 51898 }
 $DbFilePath = (Join-Path $PSScriptRoot "db/custom.db") -replace '\\', '/'
 
 $env:HOSTNAME = "0.0.0.0"
@@ -15,13 +16,22 @@ $env:PORT = "$CmsPort"
 $env:REALTIME_PORT = "$RealtimePort"
 $env:REALTIME_URL = "http://localhost:$RealtimePort"
 $env:NEXT_PUBLIC_REALTIME_PORT = "$RealtimePort"
-$env:DATABASE_URL = "file:$DbFilePath"
+$EnvFile = Join-Path $PSScriptRoot ".env"
+if (Test-Path $EnvFile) {
+    $DbUrlLine = Get-Content $EnvFile | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+    if ($DbUrlLine) {
+        $env:DATABASE_URL = ($DbUrlLine -replace '^DATABASE_URL=', '').Trim('"').Trim("'")
+    }
+}
+if (-not $env:DATABASE_URL) {
+    $env:DATABASE_URL = "file:$DbFilePath"
+}
 
 $ModeLabel = if ($Production) { "PRODUCTION STANDALONE" } else { "DEVELOPMENT" }
 
 Write-Host "=====================================================" -ForegroundColor Green
 Write-Host "   OMNISALES · UU DAM SUITE - HE THONG VAN HANH      " -ForegroundColor Green
-Write-Host "   Che do: $ModeLabel | CMS :$CmsPort | Realtime :$RealtimePort" -ForegroundColor Cyan
+Write-Host "   Che do: $ModeLabel | CMS :$CmsPort | Realtime :$RealtimePort | Shopee :$ShopeePort" -ForegroundColor Cyan
 Write-Host "=====================================================" -ForegroundColor Green
 
 # 1. Kiem tra & cai dat dependencies neu chua co
@@ -46,15 +56,37 @@ if (-not (Test-Path "node_modules/.prisma/client")) {
 # 3. Khoi dong Realtime Socket.io Service (port 3013) neu chua chay
 $rtListen = Get-NetTCPConnection -LocalPort $RealtimePort -State Listen -ErrorAction SilentlyContinue
 if (-not $rtListen) {
-    Write-Host "[3/4] Dang khoi dong Realtime WebSocket Service (Port $RealtimePort)..." -ForegroundColor Cyan
+    Write-Host "[3/5] Dang khoi dong Realtime WebSocket Service (Port $RealtimePort)..." -ForegroundColor Cyan
     Start-Process -FilePath "node" -ArgumentList "--experimental-strip-types", "index.ts" -WorkingDirectory (Join-Path $PSScriptRoot "mini-services/realtime") -WindowStyle Hidden
     Start-Sleep -Seconds 1
 } else {
-    Write-Host "[3/4] Realtime WebSocket Service (Port $RealtimePort) da san sang." -ForegroundColor Green
+    Write-Host "[3/5] Realtime WebSocket Service (Port $RealtimePort) da san sang." -ForegroundColor Green
 }
 
-# 4. Khoi dong Next.js CMS (port 3010)
-Write-Host "[4/4] Dang khoi dong OmniSales CMS tai http://localhost:$CmsPort ..." -ForegroundColor Green
+# 4. Khoi dong Shopee Seller Sync Daemon (port 51898) neu chua chay
+$spListen = Get-NetTCPConnection -LocalPort $ShopeePort -State Listen -ErrorAction SilentlyContinue
+if (-not $spListen) {
+    Write-Host "[4/5] Dang khoi dong Shopee Seller Sync Daemon (Port $ShopeePort)..." -ForegroundColor Cyan
+    Start-Process -FilePath "python" -ArgumentList "scripts/shopee_seller_sync.py" -WorkingDirectory $PSScriptRoot -WindowStyle Hidden
+    Start-Sleep -Seconds 1
+} else {
+    Write-Host "[4/5] Shopee Seller Sync Daemon (Port $ShopeePort) da san sang." -ForegroundColor Green
+}
+
+# 5. Don dep tien trinh cu chiem cong CMS (chong xung dot split-brain IPv4/IPv6) va khoi dong Next.js CMS (port 3010)
+$existingCmsPids = Get-NetTCPConnection -LocalPort $CmsPort -State Listen -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique
+if ($existingCmsPids) {
+    foreach ($oldPid in $existingCmsPids) {
+        if ($oldPid -and $oldPid -ne $PID) {
+            Write-Host "   • Giai phong tien trinh cu tren cong $CmsPort (PID $oldPid)..." -ForegroundColor Yellow
+            Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Start-Sleep -Milliseconds 800
+}
+
+Write-Host "[5/5] Dang khoi dong OmniSales CMS tai http://localhost:$CmsPort ..." -ForegroundColor Green
 if (-not $NoBrowser) {
     Start-Job -ScriptBlock {
         param($p)
@@ -68,8 +100,15 @@ if ($Production) {
         Write-Host "Dang dong goi ban Production Standalone (npm run build)..." -ForegroundColor Cyan
         npm run build
     }
+    Write-Host "Dang dong bo Blue-Green Runtime (.runtime/standalone)..." -ForegroundColor Cyan
+    New-Item -ItemType Directory -Path ".runtime/standalone" -Force | Out-Null
+    & robocopy ".next/standalone" ".runtime/standalone" /MIR /XD db /MT:16 /R:3 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+        throw "Dong bo .runtime/standalone that bai (robocopy code $LASTEXITCODE)"
+    }
+    $global:LASTEXITCODE = 0
     $env:NODE_ENV = "production"
-    node .next/standalone/server.js
+    node .runtime/standalone/server.js
 } else {
     npm run dev
 }

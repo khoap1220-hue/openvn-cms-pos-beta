@@ -13,8 +13,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       badge.textContent = 'HOẠT ĐỘNG';
       syncText.textContent = 'Đã kết nối Live';
       syncText.style.color = '#34d399';
-      shopName.textContent = data.username || 'mystique.parfum.store';
-      shopId.textContent = data.shopId || '3812687';
+      shopName.textContent = data.username || 'thaimy1605';
+      shopId.textContent = data.shopId || '197195817';
       if (data.lastSync) {
         lastTime.textContent = new Date(data.lastSync).toLocaleTimeString('vi-VN');
       }

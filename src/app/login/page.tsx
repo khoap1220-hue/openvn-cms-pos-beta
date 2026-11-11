@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { useShopProfile } from '@/lib/shop-profile'
 import { cn } from '@/lib/utils'
 
 interface AccountHint {
@@ -52,6 +53,7 @@ function getInitials(name: string): string {
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { profile: shopProfile } = useShopProfile()
 
   const [mode, setMode] = useState<'password' | 'pin'>('password')
   const [username, setUsername] = useState('admin')
@@ -182,12 +184,14 @@ function LoginContent() {
         </div>
         <div className="mt-3 flex items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            OPENVN · Ưu Đàm Suite
+            {shopProfile.brandName}
           </h1>
-          <Badge className="bg-[#0066CC] text-[10px] font-semibold text-white">RBAC v2.6</Badge>
+          <Badge className="bg-[#0066CC] text-[10px] font-semibold text-white">
+            {shopProfile.brandBadge || 'RBAC'}
+          </Badge>
         </div>
         <p className="mt-1 max-w-md text-xs text-muted-foreground sm:text-sm">
-          Cổng Đăng nhập Nhân sự · Phân quyền Vai trò &amp; Kiểm toán Hành vi Thời gian thực
+          {shopProfile.brandSubtitle} · Cổng Đăng nhập Nhân sự &amp; Phân quyền Vai trò
         </p>
       </div>
 

@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 import type { Channel } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    const cached = getApiCache<{ channels: Channel[] }>('channels:all')
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const channels = await db.channel.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
@@ -36,7 +42,9 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ channels: data })
+    const payload = { channels: data }
+    setApiCache('channels:all', payload, 15_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Channels GET error:', error)
     return NextResponse.json({ error: 'Không thể tải kênh bán' }, { status: 500 })

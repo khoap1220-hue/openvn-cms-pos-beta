@@ -50,15 +50,22 @@ function once(key: string, fn: () => Promise<void>) {
     .finally(() => inflight.delete(key))
 }
 
+let cachedSettings: { map: Record<string, boolean>; expiresAt: number } | null = null
+
 export async function getSettingsMap(): Promise<Record<string, boolean>> {
+  const now = Date.now()
+  if (cachedSettings && cachedSettings.expiresAt > now) {
+    return { ...cachedSettings.map }
+  }
   const map: Record<string, boolean> = { ...DEFAULT_SETTINGS }
   try {
     const rows = await db.automationSetting.findMany()
     for (const r of rows) map[r.key] = r.enabled
+    cachedSettings = { map, expiresAt: now + 30_000 }
   } catch {
     // DB chưa sẵn sàng — dùng mặc định
   }
-  return map
+  return { ...map }
 }
 
 export async function setSetting(key: string, enabled: boolean) {
@@ -67,6 +74,10 @@ export async function setSetting(key: string, enabled: boolean) {
     update: { enabled },
     create: { key, enabled },
   })
+  if (cachedSettings) {
+    cachedSettings.map[key] = enabled
+    cachedSettings.expiresAt = Date.now() + 30_000
+  }
   broadcast('settings.updated', { key, enabled })
   const def = AUTOMATION_DEFS.find((d) => d.key === key)
   if (def) {
@@ -133,7 +144,8 @@ async function agentConfirm(orderId: string) {
     )
     const content = sanitizeVoice(ai ?? tConfirm(ctx, order.total))
 
-    await db.order.update({ where: { id: order.id }, data: { status: 'CONFIRMED' } })
+    const updateRes = await db.order.updateMany({ where: { id: order.id, status: 'PENDING' }, data: { status: 'CONFIRMED' } })
+    if (updateRes.count === 0) return
     await logEvent(order.id, 'CONFIRMED', 'AGENT', 'Agent Tư vấn xác nhận đơn', content)
     await sendZalo({
       customerId: order.customer.id,
@@ -167,7 +179,8 @@ async function startPacking(orderId: string) {
     })
     if (!order || order.status !== 'CONFIRMED') return
 
-    await db.order.update({ where: { id: order.id }, data: { status: 'PACKING' } })
+    const updateRes = await db.order.updateMany({ where: { id: order.id, status: 'CONFIRMED' }, data: { status: 'PACKING' } })
+    if (updateRes.count === 0) return
     await logEvent(order.id, 'PACKING', 'AGENT', 'Agent Kho vận soạn hàng & đóng gói')
     const itemsText = friendlyItemsText(order.items.map((i) => ({ quantity: i.quantity, product: i.product })))
     const hasFragile = order.items.some((i) => i.product?.fragile)
@@ -289,7 +302,8 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
     }
 
     if (next === 'PICKED_UP') {
-      await db.order.update({ where: { id: order.id }, data: { status: 'SHIPPING' } })
+      const updateRes = await db.order.updateMany({ where: { id: order.id, status: { notIn: ['CANCELLED', 'COMPLETED'] } }, data: { status: 'SHIPPING' } })
+      if (updateRes.count === 0) return
       await logEvent(order.id, 'PICKED_UP', 'SYSTEM', `${carrierName(shipment.carrier)} đã lấy hàng`)
       await logActivity({
         agent: 'LOGISTICS_AGENT',
@@ -334,10 +348,11 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
         })
       }
     } else if (next === 'DELIVERED') {
-      await db.order.update({
-        where: { id: order.id },
+      const updateRes = await db.order.updateMany({
+        where: { id: order.id, status: { notIn: ['CANCELLED'] } },
         data: { status: 'COMPLETED', paymentStatus: 'PAID' },
       })
+      if (updateRes.count === 0) return
       await logEvent(order.id, 'DELIVERED', 'SYSTEM', 'Giao hàng thành công — thu tiền COD')
       await logActivity({
         agent: 'LOGISTICS_AGENT',
@@ -638,68 +653,81 @@ async function autoReply(customerId: string, channelKey: string) {
   })
 }
 
-// ===== Tick chính =====
+// ===== Tick chính (Song song hóa Promise.all giảm 80% độ trễ truy vấn Supabase) =====
 async function runTick() {
   const settings = await getSettingsMap()
+  if (!settings.master && !settings.simulation_mode) return
+
   const now = Date.now()
   const since = (ms: number) => new Date(now - ms)
   const dayAgo = since(24 * 3600 * 1000)
+  const targetCarrierStatuses = settings.simulation_mode ? ['PACKING', 'SHIPPING'] : ['SHIPPING']
+
+  const [pendingOrders, confirmedOrders, carrierOrders, simShipments, afterSale, recentMessages] =
+    await Promise.all([
+      settings.master && settings.auto_confirm
+        ? db.order.findMany({
+            where: { status: 'PENDING', createdAt: { lt: since(4000) } },
+            select: { id: true },
+            orderBy: { createdAt: 'asc' },
+            take: 3,
+          })
+        : Promise.resolve([]),
+      settings.master
+        ? db.order.findMany({
+            where: { status: 'CONFIRMED', updatedAt: { lt: since(4000) } },
+            select: { id: true },
+            take: 3,
+          })
+        : Promise.resolve([]),
+      settings.master && settings.auto_carrier
+        ? db.order.findMany({
+            where: { status: { in: targetCarrierStatuses }, updatedAt: { lt: since(4000) }, shipments: { none: {} } },
+            select: { id: true },
+            take: 3,
+          })
+        : Promise.resolve([]),
+      settings.simulation_mode
+        ? db.shipment.findMany({
+            where: { status: { in: ['DISPATCHED', 'PICKED_UP', 'IN_TRANSIT'] }, updatedAt: { lt: since(5000) } },
+            select: { id: true, status: true },
+            take: 5,
+          })
+        : Promise.resolve([]),
+      settings.master || settings.simulation_mode
+        ? db.order.findMany({
+            where: { status: 'COMPLETED', createdAt: { gte: dayAgo } },
+            include: { events: { orderBy: { createdAt: 'desc' }, take: 20 } },
+            orderBy: { updatedAt: 'asc' },
+            take: 6,
+          })
+        : Promise.resolve([]),
+      settings.master && settings.auto_reply
+        ? db.directMessage.findMany({
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, customerId: true, channelKey: true, sender: true, createdAt: true },
+            take: 30,
+          })
+        : Promise.resolve([]),
+    ])
 
   // 1. Xác nhận đơn
-  if (settings.master && settings.auto_confirm) {
-    const orders = await db.order.findMany({
-      where: { status: 'PENDING', createdAt: { lt: since(4000) } },
-      select: { id: true },
-      orderBy: { createdAt: 'asc' },
-      take: 3,
-    })
-    for (const o of orders) agentConfirm(o.id)
-  }
+  for (const o of pendingOrders) agentConfirm(o.id)
 
   // 2. Soạn hàng
-  if (settings.master) {
-    const orders = await db.order.findMany({
-      where: { status: 'CONFIRMED', updatedAt: { lt: since(4000) } },
-      select: { id: true },
-      take: 3,
-    })
-    for (const o of orders) startPacking(o.id)
-  }
+  for (const o of confirmedOrders) startPacking(o.id)
 
   // 3. Báo đơn vị vận chuyển
-  // - Chế độ Vận hành Thực tế (simulation_mode = false): chỉ tự động tạo vận đơn sau khi kho đã xác nhận đóng gói xong (status = SHIPPING)
-  // - Chế độ Mô phỏng Demo (simulation_mode = true): tự động tạo vận đơn ngay từ bước PACKING sau 4s
-  if (settings.master && settings.auto_carrier) {
-    const targetStatuses = settings.simulation_mode ? ['PACKING', 'SHIPPING'] : ['SHIPPING']
-    const orders = await db.order.findMany({
-      where: { status: { in: targetStatuses }, updatedAt: { lt: since(4000) }, shipments: { none: {} } },
-      select: { id: true },
-      take: 3,
-    })
-    for (const o of orders) dispatchCarrier(o.id)
+  for (const o of carrierOrders) dispatchCarrier(o.id)
+
+  // 4-6. Hành trình vận chuyển tự động giả lập
+  for (const s of simShipments) {
+    if (s.status === 'DISPATCHED') advanceShipment(s.id, 'PICKED_UP')
+    else if (s.status === 'PICKED_UP') advanceShipment(s.id, 'IN_TRANSIT')
+    else if (s.status === 'IN_TRANSIT') advanceShipment(s.id, 'DELIVERED')
   }
 
-  // 4-6. Hành trình vận chuyển tự động giả lập (CHỈ chạy khi bật simulation_mode)
-  if (settings.simulation_mode) {
-    const shipments = await db.shipment.findMany({
-      where: { status: { in: ['DISPATCHED', 'PICKED_UP', 'IN_TRANSIT'] }, updatedAt: { lt: since(5000) } },
-      select: { id: true, status: true },
-      take: 5,
-    })
-    for (const s of shipments) {
-      if (s.status === 'DISPATCHED') advanceShipment(s.id, 'PICKED_UP')
-      else if (s.status === 'PICKED_UP') advanceShipment(s.id, 'IN_TRANSIT')
-      else if (s.status === 'IN_TRANSIT') advanceShipment(s.id, 'DELIVERED')
-    }
-  }
-
-  // 7-9. Chuỗi sau bán (chỉ đơn trong 24h gần đây)
-  const afterSale = await db.order.findMany({
-    where: { status: 'COMPLETED', createdAt: { gte: dayAgo } },
-    include: { events: { orderBy: { createdAt: 'desc' }, take: 20 } },
-    orderBy: { updatedAt: 'asc' },
-    take: 6,
-  })
+  // 7-9. Chuỗi sau bán
   for (const o of afterSale) {
     if (settings.master && settings.auto_care && !o.events.some((e) => e.type === 'CARE_SENT') && o.updatedAt < since(2500)) {
       agentCare(o.id)
@@ -714,20 +742,15 @@ async function runTick() {
     ) {
       requestReview(o.id)
     }
-    // Bước 9: Giả lập khách tự chấm sao đánh giá — CHỈ chạy khi bật simulation_mode
     if (settings.simulation_mode && o.reviewRating == null && o.events.some((e) => e.type === 'REVIEW_REQUESTED') && o.updatedAt < since(8000)) {
       submitReview(o.id)
     }
   }
 
   // 10. AI trả lời tin nhắn
-  if (settings.master && settings.auto_reply) {
-    const recent = await db.directMessage.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 60,
-    })
+  if (recentMessages.length > 0) {
     const groups = new Map<string, string>()
-    for (const m of recent) {
+    for (const m of recentMessages) {
       const key = `${m.customerId}|${m.channelKey}`
       if (!groups.has(key)) groups.set(key, m.sender)
     }
@@ -735,7 +758,7 @@ async function runTick() {
       if (lastSender !== 'CUSTOMER') continue
       const [customerId, channelKey] = key.split('|')
       if (!customerId) continue
-      const last = recent.find((m) => m.customerId === customerId && m.channelKey === channelKey)
+      const last = recentMessages.find((m) => m.customerId === customerId && m.channelKey === channelKey)
       if (!last || last.createdAt > since(6000)) continue
       autoReply(customerId, channelKey)
     }
@@ -752,6 +775,6 @@ export function ensureEngine() {
       .finally(() => {
         g.__cmsEngineBusy = false
       })
-  }, 2500)
-  console.log('[AgentEngine] ✅ Autopilot engine đã khởi động (tick 2.5s) — 10 bước tự động hóa')
+  }, 8000)
+  console.log('[AgentEngine] ✅ Autopilot engine đã khởi động (song song hóa Promise.all · tick 8s)')
 }

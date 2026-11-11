@@ -27,6 +27,7 @@ import {
 
 import { apiGet, apiPost } from '@/lib/api'
 import { formatCompactVND, formatDateTime, formatNumber, formatVND } from '@/lib/format'
+import { readShopProfileCache, useShopProfile } from '@/lib/shop-profile'
 import type { Category, Product, WarehouseInfo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -156,13 +157,14 @@ function createEmptySlipTab(
   const now = new Date()
   const hh = String(now.getHours()).padStart(2, '0')
   const mm = String(now.getMinutes()).padStart(2, '0')
+  const shopProfile = readShopProfileCache()
   return {
     id: `stock-slip-${Date.now()}-${index}`,
     label: defaultMode === 'PRODUCTION' ? `Lệnh SX ${index}` : `Phiếu ${index}`,
     createdAt: `${hh}:${mm}`,
     mode: defaultMode,
     warehouseId: defaultWarehouseId,
-    supplierName: defaultMode === 'PRODUCTION' ? 'Xưởng sản xuất Ưu Đàm' : '',
+    supplierName: defaultMode === 'PRODUCTION' ? shopProfile.defaultWorkshopName : '',
     note: '',
     items: [],
     customMaterialQty: {},
@@ -215,6 +217,7 @@ export function FastStockTerminal({
   allowedModes?: StockSlipMode[]
 } = {}) {
   const { toast } = useToast()
+  const { profile: shopProfile } = useShopProfile()
 
   const [products, setProducts] = useState<Product[]>([])
   const [bomGroups, setBomGroups] = useState<BomGroupInfo[]>([])
@@ -713,7 +716,7 @@ export function FastStockTerminal({
       })
 
       const whName =
-        warehouses.find((w) => w.id === activeTab.warehouseId)?.name ?? 'Kho Trung Tâm Ưu Đàm'
+        warehouses.find((w) => w.id === activeTab.warehouseId)?.name ?? shopProfile.defaultWarehouseLabel
 
       setCompletedReceipt({
         batchCode: res.batchCode,
@@ -721,7 +724,7 @@ export function FastStockTerminal({
         warehouseName: whName,
         supplierName:
           activeTab.supplierName ||
-          (activeTab.mode === 'PRODUCTION' ? 'Xưởng sản xuất Ưu Đàm' : 'Nhập trực tiếp tại kho'),
+          (activeTab.mode === 'PRODUCTION' ? shopProfile.defaultWorkshopName : 'Nhập trực tiếp tại kho'),
         completedAt: formatDateTime(new Date().toISOString()),
         totalSkus: res.count,
         totalConvertedUnits: res.totalConvertedUnits,
@@ -749,6 +752,21 @@ export function FastStockTerminal({
         customMaterialQty: {},
       }))
       setMobileSection('catalog')
+
+      // Cập nhật Optimistic tồn kho hiển thị ngay trên danh mục trước khi đồng bộ mạng
+      const stockMap = new Map<string, number>()
+      for (const it of snapshotItems) {
+        stockMap.set(it.sku, it.stockAfter)
+      }
+      if (res.consumedMaterials) {
+        for (const mat of res.consumedMaterials) {
+          stockMap.set(mat.sku, mat.stockAfter)
+        }
+      }
+      setProducts((prev) =>
+        prev.map((p) => (stockMap.has(p.sku) ? { ...p, stock: stockMap.get(p.sku)! } : p))
+      )
+
       await loadData(true)
       onCompleted?.()
     } catch (err) {
@@ -868,8 +886,8 @@ export function FastStockTerminal({
                     mode: m,
                     supplierName:
                       m === 'PRODUCTION' && !tab.supplierName
-                        ? 'Xưởng sản xuất Ưu Đàm'
-                        : m !== 'PRODUCTION' && tab.supplierName === 'Xưởng sản xuất Ưu Đàm'
+                        ? shopProfile.defaultWorkshopName
+                        : m !== 'PRODUCTION' && tab.supplierName === shopProfile.defaultWorkshopName
                           ? ''
                           : tab.supplierName,
                   }))
@@ -1351,7 +1369,7 @@ export function FastStockTerminal({
                     onValueChange={(v) => updateActiveTab((tab) => ({ ...tab, warehouseId: v }))}
                   >
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Kho Trung Tâm Ưu Đàm" />
+                      <SelectValue placeholder={shopProfile.defaultWarehouseLabel} />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses.map((w) => (
@@ -1375,15 +1393,15 @@ export function FastStockTerminal({
                     onChange={(e) => updateActiveTab((tab) => ({ ...tab, supplierName: e.target.value }))}
                     placeholder={
                       activeTab.mode === 'PRODUCTION'
-                        ? 'VD: Xưởng sản xuất Ưu Đàm...'
+                        ? `VD: ${shopProfile.defaultWorkshopName}...`
                         : 'Chọn hoặc gõ tên NCC...'
                     }
                     className="h-8 text-xs"
                   />
                   <datalist id="fast-stock-suppliers-list">
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.name} />
-                    ))}
+                    {activeTab.mode === 'PRODUCTION'
+                      ? shopProfile.workshopPresets.map((ws) => <option key={ws} value={ws} />)
+                      : suppliers.map((s) => <option key={s.id} value={s.name} />)}
                   </datalist>
                 </div>
               </div>

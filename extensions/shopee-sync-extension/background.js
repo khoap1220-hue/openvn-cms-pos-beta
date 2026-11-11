@@ -82,8 +82,8 @@ async function extractAndSyncCookies() {
         syncStatus: 'SYNCED',
         lastSync: Date.now(),
         cookieCount: Object.keys(cookieDict).length,
-        shopId: shopInfo?.shopId || '3812687',
-        username: shopInfo?.username || 'mystique.parfum.store'
+        shopId: shopInfo?.shopId || '197195817',
+        username: shopInfo?.username || 'thaimy1605'
       };
       await chrome.storage.local.set(info);
       return { success: true, ...info };

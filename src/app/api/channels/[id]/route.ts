@@ -43,6 +43,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       syncedListings = products.length
 
       if (sync === true) {
+        if (updated.key === 'SHOPEE') {
+          void fetch(`${process.env.SHOPEE_SYNC_PORT ? `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT}` : 'http://127.0.0.1:51898'}/shopee/trigger-sync`, {
+            method: 'POST',
+            signal: AbortSignal.timeout(8000),
+          }).catch(() => null)
+        }
         await logLedger({
           scope: 'SETTINGS',
           action: 'CHANNEL_SYNCED',

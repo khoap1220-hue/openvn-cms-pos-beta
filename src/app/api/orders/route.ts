@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createOrder } from '@/lib/order-service'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 import type { PeriodRange } from '@/lib/lineage'
 import { resolvePeriodRange } from '@/lib/lineage'
 
@@ -20,6 +21,12 @@ function originOfChannelKey(key?: string | null): string | null {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
+    const cacheKey = `orders:${searchParams.toString()}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const search = searchParams.get('search')?.trim()
     const status = searchParams.get('status')
     const channelId = searchParams.get('channelId')
@@ -113,7 +120,7 @@ export async function GET(req: NextRequest) {
       changeCount: changedMap.get(o.id) ?? 0,
     }))
 
-    return NextResponse.json({
+    const responsePayload = {
       orders: ordersWithLineage,
       total,
       page,
@@ -127,7 +134,9 @@ export async function GET(req: NextRequest) {
         fromDate: fromDate?.toISOString() ?? null,
         toDate: toDate?.toISOString() ?? null,
       },
-    })
+    }
+    setApiCache(cacheKey, responsePayload, 15_000)
+    return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Orders GET error:', error)
     return NextResponse.json({ error: 'Không thể tải đơn hàng' }, { status: 500 })

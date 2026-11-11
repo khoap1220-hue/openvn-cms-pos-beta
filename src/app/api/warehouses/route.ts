@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { recordLineageChange } from '@/lib/ledger'
+import { getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import {
   computeCrossSellSettlements,
   ensureWarehousesAndVouchersSeeded,
@@ -12,6 +13,11 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    const cached = getApiCache<Record<string, unknown>>('warehouses:all')
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     await ensureWarehousesAndVouchersSeeded()
 
     const [warehouses, settlements] = await Promise.all([
@@ -40,10 +46,12 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({
+    const payload = {
       warehouses: enriched,
       settlements,
-    })
+    }
+    setApiCache('warehouses:all', payload, 20_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Warehouses GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh sách kho & shop liên kết' }, { status: 500 })
@@ -52,6 +60,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    invalidateApiCache()
     await ensureWarehousesAndVouchersSeeded()
     const body = await req.json()
 

@@ -319,7 +319,7 @@ export async function POST(req: NextRequest) {
         ? 'EXPORT'
         : 'NAVIGATION'
 
-    await recordBehaviorLog({
+    void recordBehaviorLog({
       userId:
         ctx.user && !ctx.user.id.startsWith('internal') && !ctx.user.id.startsWith('apikey:')
           ? ctx.user.id

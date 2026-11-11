@@ -1,17 +1,25 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  AlertTriangle,
   ArrowRightLeft,
   Barcode,
   Boxes,
   Check,
+  CheckCircle2,
+  CheckSquare,
   ChevronLeft,
   ChevronRight,
+  CircleOff,
   Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
   FolderKanban,
   FolderPlus,
   Layers,
+  Link2,
   Loader2,
   MoreHorizontal,
   Package,
@@ -21,12 +29,14 @@ import {
   RefreshCw,
   Scale,
   Search,
+  SlidersHorizontal,
   Sparkles,
   Tags,
   Trash2,
   Upload,
   Wand2,
   X,
+  Zap,
 } from 'lucide-react'
 
 import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api'
@@ -225,6 +235,20 @@ function ChannelDescStatus({ listing, master }: { listing: ProductListing; maste
   )
 }
 
+function isProductUnlistedOnMarketplace(p: Product): boolean {
+  if (p.attributes) {
+    try {
+      const a = JSON.parse(p.attributes) as Record<string, unknown>
+      if (a.isUnlistedOnShopee === true) return true
+    } catch {}
+  }
+  const shopeeListing = (p.listings ?? []).find(
+    (l) => l.channel?.key === 'SHOPEE' || l.status === 'UNLISTED'
+  )
+  if (shopeeListing && shopeeListing.status === 'UNLISTED') return true
+  return false
+}
+
 export function ProductsView({
   onOpenSystemCatalog,
 }: {
@@ -242,7 +266,7 @@ export function ProductsView({
   const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [quickTab, setQuickTab] = useState<
-    'ALL' | 'ACTIVE' | 'LOW_STOCK' | 'COMBO' | 'INACTIVE' | 'CATEGORIES' | 'UNIT_CONVERSION'
+    'ALL' | 'ACTIVE' | 'LOW_STOCK' | 'COMBO' | 'INACTIVE' | 'UNLISTED' | 'CATEGORIES' | 'UNIT_CONVERSION'
   >('ALL')
   const [page, setPage] = useState(1)
 
@@ -308,6 +332,12 @@ export function ProductsView({
   /** Bản sao live của các listing (kèm trạng thái đồng bộ mô tả) của SP đang sửa — cập nhật sau khi sync */
   const [editingListings, setEditingListings] = useState<ProductListing[]>([])
   const [syncingDesc, setSyncingDesc] = useState(false)
+  const [syncingChannelStockId, setSyncingChannelStockId] = useState<string | null>(null)
+  const [syncingChannelStatusId, setSyncingChannelStatusId] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [syncImageToShopee, setSyncImageToShopee] = useState(true)
+  const [imageStorageInfo, setImageStorageInfo] = useState<string | null>(null)
+  const productImageInputRef = useRef<HTMLInputElement | null>(null)
 
   // ===== Xóa sản phẩm =====
   const [deleting, setDeleting] = useState<Product | null>(null)
@@ -322,6 +352,56 @@ export function ProductsView({
       list.map((p) => ({ id: p.id, sku: p.sku, name: p.name, barcode: p.barcode ?? null, sellPrice: p.sellPrice }))
     )
     setPrintOpen(true)
+  }
+
+  // ===== Thao tác hàng loạt trên nhiều sản phẩm (Bulk Actions) =====
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
+  const [bulkActionBusy, setBulkActionBusy] = useState(false)
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [bulkPriceMode, setBulkPriceMode] = useState<'NONE' | 'SET' | 'ADD_AMOUNT' | 'ADD_PERCENT'>('NONE')
+  const [bulkPriceValue, setBulkPriceValue] = useState<string>('')
+  const [bulkStockMode, setBulkStockMode] = useState<'NONE' | 'SET' | 'ADD_DELTA'>('NONE')
+  const [bulkStockValue, setBulkStockValue] = useState<string>('')
+  const [bulkCategoryId, setBulkCategoryId] = useState<string>('KEEP')
+
+  const handleExecuteBulkProductsAction = async (
+    bulkType:
+      | 'PUSH_STOCK_AND_PRICE'
+      | 'SET_ACTIVE'
+      | 'SET_UNLISTED'
+      | 'UPDATE_PRICE_AND_STOCK'
+      | 'ASSIGN_CATEGORY'
+      | 'SET_CMS_STATUS',
+    extraPayload?: Record<string, unknown>
+  ) => {
+    if (selectedProductIds.length === 0) return
+    setBulkActionBusy(true)
+    try {
+      const res = await apiPost<{ ok: boolean; processedCount: number; message: string }>(
+        '/api/channels/product-links',
+        {
+          action: 'BULK_CHANNEL_ACTION',
+          bulkType,
+          productIds: selectedProductIds,
+          ...extraPayload,
+        }
+      )
+      toast({
+        title: `Đã xử lý hàng loạt (${res.processedCount} sản phẩm)`,
+        description: res.message,
+      })
+      setSelectedProductIds([])
+      setBulkModalOpen(false)
+      await fetchProducts(true)
+    } catch (e) {
+      toast({
+        title: 'Thao tác hàng loạt thất bại',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setBulkActionBusy(false)
+    }
   }
 
   // ===== Xuất / Nhập CSV =====
@@ -417,18 +497,23 @@ export function ProductsView({
     }
   }
 
-  // ===== Tìm kiếm debounce (client-side) =====
+  // ===== Tìm kiếm debounce siêu tốc 150ms (Zero-Flicker) =====
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(searchInput.trim())
       setPage(1)
-    }, 400)
+    }, 150)
     return () => clearTimeout(timer)
   }, [searchInput])
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const hasLoadedOnceRef = useRef(false)
+
+  const fetchProducts = useCallback(async (silent = false) => {
+    const showSkeleton = !silent && !hasLoadedOnceRef.current
+    if (showSkeleton) {
+      setLoading(true)
+      setError(null)
+    }
     try {
       const params = new URLSearchParams()
       if (search) params.set('search', search)
@@ -437,10 +522,11 @@ export function ProductsView({
       const qs = params.toString()
       const data = await apiGet<{ products: ProductRow[] }>(`/api/products${qs ? `?${qs}` : ''}`)
       setProducts(data.products)
+      hasLoadedOnceRef.current = true
     } catch (err) {
-      setError(errorMessage(err))
+      if (showSkeleton) setError(errorMessage(err))
     } finally {
-      setLoading(false)
+      if (showSkeleton) setLoading(false)
     }
   }, [search, categoryFilter, statusFilter])
 
@@ -472,10 +558,41 @@ export function ProductsView({
     void fetchMeta()
   }, [fetchMeta])
 
-  // Tự động đồng bộ ngầm khi có sự kiện thay đổi sản phẩm / kênh bán / kết nối
+  // Tự động đồng bộ ngầm khi có sự kiện thay đổi sản phẩm / kênh bán / kết nối (Silent Refresh không chớp Skeleton)
   useRealtime((e) => {
-    if (['product.updated', 'channel.updated', 'realtime.poll'].includes(e.type)) {
-      void fetchProducts()
+    if (e.type === 'marketplace.unlisted_alert') {
+      const data = e.data as
+        | { sku?: string; name?: string; shopeeItemId?: string; isUnlisted?: boolean }
+        | undefined
+      if (data) {
+        if (data.isUnlisted) {
+          toast({
+            title: 'Cảnh báo sàn: Sản phẩm vừa bị ẩn trên Shopee',
+            description: `[${data.sku}] ${data.name || ''} (Shopee #${data.shopeeItemId})`,
+            variant: 'destructive',
+          })
+        } else {
+          toast({
+            title: 'Sàn Shopee: Sản phẩm đã mở bán lại',
+            description: `[${data.sku}] ${data.name || ''} (Shopee #${data.shopeeItemId})`,
+          })
+        }
+      }
+      void fetchProducts(true)
+      void fetchMeta()
+      return
+    }
+
+    if (
+      [
+        'product.updated',
+        'inventory.updated',
+        'channel.updated',
+        'channel.product_linked',
+        'realtime.poll',
+      ].includes(e.type)
+    ) {
+      void fetchProducts(true)
       void fetchMeta()
     }
   })
@@ -484,7 +601,12 @@ export function ProductsView({
   const tabCounts = useMemo(() => {
     const convertedCount = products.filter((p) => {
       const uc = p.unitConfig ?? unitConfigs[p.id]
-      return (uc && (uc.purchaseRate > 1 || uc.sellRate > 1 || uc.linkedBaseProductId)) || p.type === 'WEIGHT_BULK' || p.type === 'PACKAGED_VARIANT' || p.type === 'MATERIAL'
+      return (
+        (uc && (uc.purchaseRate > 1 || uc.sellRate > 1 || uc.linkedBaseProductId)) ||
+        p.type === 'WEIGHT_BULK' ||
+        p.type === 'PACKAGED_VARIANT' ||
+        p.type === 'MATERIAL'
+      )
     }).length
     return {
       ALL: products.length,
@@ -492,6 +614,7 @@ export function ProductsView({
       LOW_STOCK: products.filter((p) => p.stock <= p.lowStockThreshold).length,
       COMBO: products.filter((p) => p.type === 'COMBO').length,
       INACTIVE: products.filter((p) => p.status === 'INACTIVE').length,
+      UNLISTED: products.filter(isProductUnlistedOnMarketplace).length,
       CATEGORIES: categories.length,
       UNIT_CONVERSION: convertedCount,
     }
@@ -846,6 +969,8 @@ export function ProductsView({
         return products.filter((p) => p.type === 'COMBO')
       case 'INACTIVE':
         return products.filter((p) => p.status === 'INACTIVE')
+      case 'UNLISTED':
+        return products.filter(isProductUnlistedOnMarketplace)
       default:
         return products
     }
@@ -864,6 +989,8 @@ export function ProductsView({
   const openCreate = () => {
     setEditing(null)
     setEditingListings([])
+    setImageStorageInfo(null)
+    setSyncImageToShopee(true)
     setForm(EMPTY_FORM)
     setDialogOpen(true)
   }
@@ -871,6 +998,8 @@ export function ProductsView({
   const openEdit = (p: ProductRow) => {
     setEditing(p)
     setEditingListings(p.listings ?? [])
+    setImageStorageInfo(null)
+    setSyncImageToShopee(true)
     // Giá kênh: listing có price → String(price), không có → '' (theo giá chung)
     const prices: Record<string, string> = {}
     for (const l of p.listings ?? []) {
@@ -925,6 +1054,250 @@ export function ProductsView({
       ...f,
       channelPrices: { ...f.channelPrices, [channelId]: value.replace(/[^\d.]/g, '') },
     }))
+  }
+
+  const handlePushStockToChannel = async (channelId: string) => {
+    if (!editing) return
+    setSyncingChannelStockId(channelId)
+    try {
+      const res = await apiPost<{
+        ok: boolean
+        sku: string
+        targetStock: number
+        targetPrice: number
+        shopeeItemId: string
+        shopeeModelId: string
+      }>('/api/channels/product-links', {
+        action: 'PUSH_STOCK_TO_CHANNEL',
+        productId: editing.id,
+        channelId,
+      })
+      toast({
+        title: 'Đã gửi lệnh đẩy tồn kho & giá lên sàn',
+        description: `SKU ${res.sku} ➔ Tồn: ${res.targetStock} · Giá: ${formatVND(res.targetPrice)}`,
+      })
+      if (editing.attributes) {
+        try {
+          const attrs = JSON.parse(editing.attributes) as Record<string, unknown>
+          attrs.lastSyncedShopeeStock = res.targetStock
+          attrs.lastSyncedShopeePrice = res.targetPrice
+          attrs.lastOutboxSyncAt = new Date().toISOString()
+          const newAttrsStr = JSON.stringify(attrs)
+          setEditing((prev) => (prev ? { ...prev, attributes: newAttrsStr } : prev))
+          setProducts((prev) =>
+            prev.map((p) => (p.id === editing.id ? { ...p, attributes: newAttrsStr } : p))
+          )
+        } catch {}
+      }
+    } catch (err) {
+      toast({
+        title: 'Không thể đẩy tồn kho & giá lên sàn',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncingChannelStockId(null)
+    }
+  }
+
+  const handleToggleChannelStatus = async (channelId: string, nextStatus: 'ACTIVE' | 'UNLISTED' | 'INACTIVE') => {
+    if (!editing) return
+    setSyncingChannelStatusId(channelId)
+    try {
+      await apiPost('/api/channels/product-links', {
+        action: 'TOGGLE_CHANNEL_STATUS',
+        productId: editing.id,
+        channelId,
+        nextStatus,
+      })
+      const statusLabel =
+        nextStatus === 'ACTIVE'
+          ? 'Đang bán trên sàn'
+          : nextStatus === 'UNLISTED'
+          ? 'Tạm ẩn trên sàn'
+          : 'Ngừng bán'
+      toast({
+        title: `Đã đổi trạng thái bán: ${statusLabel}`,
+        description: `Sản phẩm ${editing.name} (${editing.sku})`,
+      })
+      setEditingListings((prev) => {
+        const idx = prev.findIndex((l) => l.channelId === channelId)
+        if (idx >= 0) {
+          const updated = [...prev]
+          updated[idx] = { ...updated[idx], status: nextStatus }
+          return updated
+        }
+        return [
+          ...prev,
+          {
+            id: `temp-${Date.now()}`,
+            productId: editing.id,
+            channelId,
+            status: nextStatus,
+            price: null,
+          },
+        ]
+      })
+      if (editing.attributes) {
+        try {
+          const attrs = JSON.parse(editing.attributes) as Record<string, unknown>
+          attrs.isUnlistedOnShopee = nextStatus === 'UNLISTED'
+          const newAttrsStr = JSON.stringify(attrs)
+          setEditing((prev) => (prev ? { ...prev, attributes: newAttrsStr } : prev))
+          setProducts((prev) =>
+            prev.map((p) => (p.id === editing.id ? { ...p, attributes: newAttrsStr } : p))
+          )
+        } catch {}
+      }
+    } catch (err) {
+      toast({
+        title: 'Không thể đổi trạng thái bán',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncingChannelStatusId(null)
+    }
+  }
+
+  const renderCompressedCanvasDataUrl = (
+    img: HTMLImageElement,
+    maxDim: number,
+    quality: number,
+    mime: 'image/jpeg' | 'image/webp' = 'image/webp',
+    minDim = 1
+  ): string => {
+    const srcW = img.width || maxDim
+    const srcH = img.height || maxDim
+    const maxSide = Math.max(srcW, srcH, 1)
+    let scale = Math.min(1, maxDim / maxSide)
+    if (maxSide * scale < minDim) {
+      scale = minDim / maxSide
+    }
+    const w = Math.max(minDim, Math.round(srcW * scale))
+    const h = Math.max(minDim, Math.round(srcH * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return ''
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    if (mime === 'image/jpeg') {
+      return canvas.toDataURL('image/jpeg', quality)
+    }
+    const webp = canvas.toDataURL('image/webp', quality)
+    if (webp.startsWith('data:image/webp')) return webp
+    return canvas.toDataURL('image/jpeg', quality)
+  }
+
+  const handleProductImageFile = async (file: File | undefined) => {
+    if (!file) return
+    if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) {
+      toast({
+        title: 'Định dạng ảnh không hợp lệ',
+        description: 'Chỉ hỗ trợ ảnh PNG, JPG, WebP hoặc GIF.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast({
+        title: 'Tệp ảnh quá lớn',
+        description: 'Vui lòng chọn ảnh dưới 8MB — hệ thống sẽ tự nén siêu nhẹ trước khi đẩy lên CDN.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setUploadingImage(true)
+    try {
+      const rawDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+        reader.onerror = () => reject(new Error('Không đọc được tệp ảnh'))
+        reader.readAsDataURL(file)
+      })
+
+      const imgEl = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error('Không giải mã được khung ảnh'))
+        img.src = rawDataUrl
+      })
+
+      // 1. Bản chuẩn JPEG (300px..800px) tương thích 100% với Shopee Media CDN (lấy link ~74 bytes, 0MB DB)
+      const cdnDataUrl = renderCompressedCanvasDataUrl(imgEl, 800, 0.85, 'image/jpeg', 300)
+      // 2. Bản siêu nhẹ Micro-WebP (128x128px, ~2.5-4.5KB) để hiển thị tức thì & dự phòng cho SP không liên kết sàn khi tắt Daemon
+      let microDataUrl = renderCompressedCanvasDataUrl(imgEl, 128, 0.72, 'image/webp', 64)
+      if (microDataUrl.length > 11_500) {
+        microDataUrl = renderCompressedCanvasDataUrl(imgEl, 96, 0.62, 'image/webp', 64)
+      }
+
+      // Hiển thị tức thì trên khung xem trước
+      if (microDataUrl) {
+        setForm((f) => ({ ...f, image: microDataUrl }))
+      }
+
+      let shopeeItemId = ''
+      let shopeeModelId = ''
+      if (editing?.attributes) {
+        try {
+          const parsed = JSON.parse(editing.attributes) as Record<string, unknown>
+          shopeeItemId = String(parsed.shopeeItemId || '').trim()
+          shopeeModelId = String(parsed.shopeeModelId || '').trim()
+        } catch {
+          // ignore
+        }
+      }
+
+      const res = await apiPost<{
+        ok: boolean
+        url: string
+        storageMode: 'SHOPEE_CDN' | 'MICRO_WEBP_FALLBACK'
+        bytesInDb: number
+        syncedToShopee: boolean
+      }>('/api/products/upload-image', {
+        dataUrl: cdnDataUrl,
+        microDataUrl,
+        filename: file.name,
+        shopeeItemId,
+        shopeeModelId,
+        syncToShopee: Boolean(shopeeItemId) && syncImageToShopee,
+      })
+
+      if (res.url) {
+        setForm((f) => ({ ...f, image: res.url }))
+        if (res.storageMode === 'SHOPEE_CDN') {
+          setImageStorageInfo(`CDN Shopee (${res.bytesInDb}B trong DB · 0MB ổ cứng)`)
+          toast({
+            title: 'Đã tải ảnh lên Kho CDN siêu nhẹ',
+            description: shopeeItemId && syncImageToShopee
+              ? `Chỉ lưu con trỏ URL (${res.bytesInDb} bytes) và đang đồng bộ ảnh lên Sàn Shopee.`
+              : `Sản phẩm dùng con trỏ CDN (${res.bytesInDb} bytes · 0MB lưu trữ DB/Server). Nhớ bấm "Lưu" để áp dụng.`,
+          })
+        } else {
+          const kb = (res.bytesInDb / 1024).toFixed(1)
+          setImageStorageInfo(`Micro-WebP Nội bộ (${kb} KB · Tự đẩy CDN khi mở cầu nối)`)
+          toast({
+            title: 'Đã nén ảnh siêu nhẹ (Micro-WebP)',
+            description: `Dung lượng chỉ ${kb} KB — tự động chuyển sang con trỏ CDN (75B) ngay khi cầu nối Shopee hoạt động.`,
+          })
+        }
+      }
+    } catch (err) {
+      toast({
+        title: 'Không thể tải ảnh sản phẩm',
+        description: errorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setUploadingImage(false)
+      if (productImageInputRef.current) {
+        productImageInputRef.current.value = ''
+      }
+    }
   }
 
   const handleSave = async () => {
@@ -995,10 +1368,23 @@ export function ProductsView({
         listings,
       }
       if (editing) {
-        await apiPut<{ product: ProductRow }>(`/api/products/${editing.id}`, {
+        const res = await apiPut<{ product: ProductRow }>(`/api/products/${editing.id}`, {
           ...base,
+          syncImageToShopee,
           ...(form.type !== 'COMBO' && form.stock.trim() !== '' ? { stock: Number(form.stock) || 0 } : {}),
         })
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === editing.id
+              ? {
+                  ...p,
+                  ...res.product,
+                  category: selectedCat,
+                  listings: listings as ProductListing[],
+                }
+              : p
+          )
+        )
         toast({ title: 'Đã cập nhật sản phẩm & cấu hình quy đổi', description: base.name })
       } else {
         await apiPost<{ product: Product }>('/api/products', {
@@ -1009,7 +1395,7 @@ export function ProductsView({
         toast({ title: 'Đã thêm sản phẩm mới', description: base.name })
       }
       setDialogOpen(false)
-      void Promise.all([fetchProducts(), fetchMeta()])
+      void fetchProducts(true)
     } catch (err) {
       toast({
         title: editing ? 'Không thể cập nhật sản phẩm' : 'Không thể thêm sản phẩm',
@@ -1023,14 +1409,20 @@ export function ProductsView({
 
   const handleToggleStatus = async (p: Product) => {
     const nextStatus = p.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+    setProducts((prev) =>
+      prev.map((item) => (item.id === p.id ? { ...item, status: nextStatus } : item))
+    )
     try {
       await apiPut<{ product: Product }>(`/api/products/${p.id}`, { status: nextStatus })
       toast({
         title: nextStatus === 'ACTIVE' ? 'Đã kích hoạt lại sản phẩm' : 'Đã ngừng bán sản phẩm',
         description: p.name,
       })
-      void fetchProducts()
+      void fetchProducts(true)
     } catch (err) {
+      setProducts((prev) =>
+        prev.map((item) => (item.id === p.id ? { ...item, status: p.status } : item))
+      )
       toast({
         title: 'Cập nhật trạng thái thất bại',
         description: errorMessage(err),
@@ -1218,6 +1610,13 @@ export function ProductsView({
               { key: 'LOW_STOCK', label: 'Sắp hết / Hết hàng', count: tabCounts.LOW_STOCK, alert: true },
               { key: 'COMBO', label: 'Combo / Bộ quà tặng', count: tabCounts.COMBO },
               { key: 'INACTIVE', label: 'Ngừng kinh doanh', count: tabCounts.INACTIVE },
+              {
+                key: 'UNLISTED',
+                label: 'Sàn đang ẩn',
+                count: tabCounts.UNLISTED,
+                alert: tabCounts.UNLISTED > 0,
+                isUnlistedTab: true,
+              },
             ] as const
           ).map((tab) => {
             const active = quickTab === tab.key
@@ -1233,9 +1632,11 @@ export function ProductsView({
                   'relative flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-colors',
                   active
                     ? 'font-semibold text-[#0066CC] dark:text-sky-400'
-                    : 'highlight' in tab && tab.highlight
-                      ? 'font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400'
-                      : 'text-muted-foreground hover:text-foreground'
+                    : 'isUnlistedTab' in tab && tab.isUnlistedTab && tab.count > 0
+                      ? 'font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-400'
+                      : 'highlight' in tab && tab.highlight
+                        ? 'font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400'
+                        : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 <span>{tab.label}</span>
@@ -1261,6 +1662,29 @@ export function ProductsView({
           })}
         </div>
       </div>
+
+      {/* Cảnh báo Sàn TMĐT khi có sản phẩm bị Ẩn */}
+      {tabCounts.UNLISTED > 0 && quickTab !== 'UNLISTED' && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50/90 px-3.5 py-2.5 text-xs text-amber-900 shadow-xs dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <EyeOff className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>
+              <strong>Cảnh báo sàn TMĐT:</strong> Phát hiện <strong>{tabCounts.UNLISTED}</strong> sản phẩm đang bị <strong>Tạm ẩn / Khóa</strong> trên sàn Shopee.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 border-amber-400 px-2.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900"
+            onClick={() => {
+              setQuickTab('UNLISTED')
+              setPage(1)
+            }}
+          >
+            Lọc xem sản phẩm ẩn ({tabCounts.UNLISTED})
+          </Button>
+        </div>
+      )}
 
       {quickTab === 'CATEGORIES' ? (
         <div className="space-y-5">
@@ -2117,10 +2541,139 @@ export function ProductsView({
         />
       ) : (
         <>
+          {/* THANH THAO TÁC HÀNG LOẠT TRÊN NHIỀU SẢN PHẨM KHO CMS */}
+          {selectedProductIds.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-primary/5 px-4 py-2.5 shadow-xs">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <CheckSquare className="h-4 w-4" />
+                <span>Đã chọn {selectedProductIds.length} sản phẩm</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  size="sm"
+                  className="h-7 bg-amber-600 px-2.5 text-xs text-white hover:bg-amber-700"
+                  disabled={bulkActionBusy}
+                  onClick={() => void handleExecuteBulkProductsAction('PUSH_STOCK_AND_PRICE')}
+                  title="Đẩy đồng loạt tồn kho & giá bán hiện tại của các sản phẩm đã chọn lên sàn Shopee"
+                >
+                  {bulkActionBusy ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Đồng bộ Sàn ({selectedProductIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 border-emerald-500/50 bg-emerald-500/10 px-2.5 text-xs text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+                  disabled={bulkActionBusy}
+                  onClick={() => void handleExecuteBulkProductsAction('SET_ACTIVE')}
+                  title="Mở bán lại trên sàn Shopee cho tất cả sản phẩm đã chọn"
+                >
+                  <Eye className="mr-1 h-3.5 w-3.5 text-emerald-600" />
+                  Mở bán Sàn ({selectedProductIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 border-amber-500/50 bg-amber-500/10 px-2.5 text-xs text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
+                  disabled={bulkActionBusy}
+                  onClick={() => void handleExecuteBulkProductsAction('SET_UNLISTED')}
+                  title="Tạm ẩn trên sàn Shopee cho tất cả sản phẩm đã chọn"
+                >
+                  <EyeOff className="mr-1 h-3.5 w-3.5 text-amber-600" />
+                  Tạm ẩn Sàn ({selectedProductIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={bulkActionBusy}
+                  onClick={() => {
+                    setBulkPriceMode('NONE')
+                    setBulkPriceValue('')
+                    setBulkStockMode('NONE')
+                    setBulkStockValue('')
+                    setBulkCategoryId('KEEP')
+                    setBulkModalOpen(true)
+                  }}
+                >
+                  <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
+                  Sửa Giá / Tồn / Danh mục
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={bulkActionBusy}
+                  onClick={() =>
+                    void handleExecuteBulkProductsAction('SET_CMS_STATUS', { cmsStatus: 'ACTIVE' })
+                  }
+                >
+                  <CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-600" />
+                  Đang bán CMS
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={bulkActionBusy}
+                  onClick={() =>
+                    void handleExecuteBulkProductsAction('SET_CMS_STATUS', { cmsStatus: 'INACTIVE' })
+                  }
+                >
+                  <Power className="mr-1 h-3.5 w-3.5 text-amber-600" />
+                  Ngừng bán CMS
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={bulkActionBusy}
+                  onClick={() =>
+                    openPrintDialog(products.filter((p) => selectedProductIds.includes(p.id)))
+                  }
+                >
+                  <Barcode className="mr-1 h-3.5 w-3.5" />
+                  In mã vạch ({selectedProductIds.length})
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={bulkActionBusy}
+                  onClick={() => setSelectedProductIds([])}
+                >
+                  Bỏ chọn
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto rounded-lg border">
             <Table tableId="products-main" className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead locked className="w-9 pr-0">
+                    <Checkbox
+                      checked={
+                        pagedProducts.length > 0 &&
+                        pagedProducts.every((p) => selectedProductIds.includes(p.id))
+                      }
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedProductIds((prev) =>
+                            Array.from(new Set([...prev, ...pagedProducts.map((p) => p.id)]))
+                          )
+                        } else {
+                          const pageIds = new Set(pagedProducts.map((p) => p.id))
+                          setSelectedProductIds((prev) => prev.filter((id) => !pageIds.has(id)))
+                        }
+                      }}
+                      aria-label="Chọn tất cả sản phẩm trên trang"
+                    />
+                  </TableHead>
                   <TableHead locked>Sản phẩm</TableHead>
                   <TableHead defaultHidden>Mã SKU</TableHead>
                   <TableHead>Danh mục</TableHead>
@@ -2150,8 +2703,22 @@ export function ProductsView({
                   const effectiveStock = p.type === 'COMBO' ? (p.comboAvailable ?? p.stock) : p.stock
                   const stockValue = Math.max(0, Math.round((effectiveStock / (pRate > 1 ? pRate : 1)) * unitCost))
                   const typeBadge = PRODUCT_TYPE_BADGES[p.type ?? 'SIMPLE']
+                  const isRowSelected = selectedProductIds.includes(p.id)
                   return (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className={isRowSelected ? 'bg-primary/5' : undefined}>
+                    <TableCell className="w-9 pr-0">
+                      <Checkbox
+                        checked={isRowSelected}
+                        onCheckedChange={(checked) => {
+                          setSelectedProductIds((prev) =>
+                            checked
+                              ? Array.from(new Set([...prev, p.id]))
+                              : prev.filter((id) => id !== p.id)
+                          )
+                        }}
+                        aria-label={`Chọn ${p.sku}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <ProductAvatar name={p.name} image={p.image} />
@@ -2168,6 +2735,63 @@ export function ProductsView({
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <span>{p.sku}</span>
+                            {(() => {
+                              if (!p.attributes) return null
+                              try {
+                                const attrs = JSON.parse(p.attributes) as Record<string, unknown>
+                                const modelId = String(attrs.shopeeModelId || attrs.shopeeItemId || '').trim()
+                                const openingOrigin = String(attrs.openingStockOrigin || '').trim()
+                                const openingQty =
+                                  typeof attrs.openingStockQty === 'number'
+                                    ? attrs.openingStockQty
+                                    : null
+                                const lastReason = String(attrs.lastReconcileReason || '').trim()
+                                return (
+                                  <>
+                                    {modelId && (
+                                      <span
+                                        title={`Đã liên kết Shopee Model ID: ${modelId} (${String(attrs.linkMode || 'AUTO_SKU_MATCH') === 'MANUAL_LINKED' ? 'Ghép thủ công' : 'Khớp tự động theo SKU'})`}
+                                        className="inline-flex items-center gap-1 rounded bg-orange-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
+                                      >
+                                        Shopee #{modelId.slice(-6)} · {String(attrs.linkMode || 'AUTO_SKU_MATCH') === 'MANUAL_LINKED' ? 'Ghép tay' : 'Khớp SKU'}
+                                      </span>
+                                    )}
+                                    {openingOrigin && openingQty !== null && (
+                                      <span
+                                        title={`Nguồn gốc Tồn đầu kỳ: ${String(attrs.openingStockOriginLabel || openingOrigin)}`}
+                                        className={cn(
+                                          'inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold',
+                                          openingOrigin === 'SHOPEE_MARKETPLACE'
+                                            ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                                            : 'bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300'
+                                        )}
+                                      >
+                                        {openingOrigin === 'SHOPEE_MARKETPLACE' ? 'Gốc Sàn:' : 'Gốc Kho:'} {openingQty}
+                                      </span>
+                                    )}
+                                    {lastReason && (
+                                      <span
+                                        title={`Lý do đối soát / chốt tồn gần nhất: ${lastReason}`}
+                                        className="inline-flex max-w-[220px] truncate items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950/60 dark:text-violet-300"
+                                      >
+                                        Lý do: {lastReason}
+                                      </span>
+                                    )}
+                                  </>
+                                )
+                              } catch {
+                                return null
+                              }
+                            })()}
+                            {isProductUnlistedOnMarketplace(p) && (
+                              <span
+                                title="Sản phẩm đang bị tạm ẩn hoặc khóa bán trên sàn Shopee"
+                                className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-300"
+                              >
+                                <EyeOff className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                                Sàn đang ẩn
+                              </span>
+                            )}
                             {pRate > 1 && (
                               <span className="rounded bg-emerald-100 px-1 py-0.2 font-mono text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                                 1 {pUnit} = {formatNumber(pRate)} {bUnit}
@@ -2256,9 +2880,10 @@ export function ProductsView({
                       {formatNumber(p.lowStockThreshold)} {bUnit}
                     </TableCell>
                     <TableCell>
-                      <div className="flex max-w-[220px] flex-wrap gap-x-3 gap-y-1">
+                      <div className="flex max-w-[260px] flex-wrap gap-x-2.5 gap-y-1.5">
                         {p.status === 'INACTIVE' ? (
-                          <span className="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                          <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                            <CircleOff className="h-3 w-3" />
                             Ngừng bán trên mọi kênh
                           </span>
                         ) : (() => {
@@ -2269,6 +2894,17 @@ export function ProductsView({
                           if (activeListings.length === 0) {
                             return <span className="text-xs text-muted-foreground">—</span>
                           }
+                          const rowAttrs: {
+                            shopeeItemId?: string
+                            lastSyncedShopeeStock?: number
+                            isUnlistedOnShopee?: boolean
+                          } = (() => {
+                            try {
+                              return p.attributes ? (JSON.parse(p.attributes) as Record<string, unknown>) : {}
+                            } catch {
+                              return {}
+                            }
+                          })()
                           return activeListings.map((l) => {
                             const ch = l.channel ?? channels.find((c) => c.id === l.channelId)
                             const priceTitle =
@@ -2276,16 +2912,45 @@ export function ProductsView({
                             const descTitle = l.descriptionSyncedAt
                               ? `Mô tả: đã đồng bộ ${formatDateTime(l.descriptionSyncedAt)}`
                               : 'Mô tả: chưa đồng bộ'
+                            const isShopeeChannel = ch?.key === 'SHOPEE'
+                            const isUnlistedRow =
+                              isShopeeChannel &&
+                              (l.status === 'UNLISTED' || isProductUnlistedOnMarketplace(p))
+                            const isShopeeLinkedRow = isShopeeChannel && Boolean(rowAttrs.shopeeItemId)
+                            const isStockDriftRow =
+                              isShopeeLinkedRow &&
+                              typeof rowAttrs.lastSyncedShopeeStock === 'number' &&
+                              rowAttrs.lastSyncedShopeeStock !== p.stock
                             return (
-                              <span
+                              <button
                                 key={l.id ?? l.channelId}
-                                title={`${priceTitle}\n${descTitle}`}
-                                className="inline-flex min-w-0 items-center gap-1"
+                                type="button"
+                                onClick={() => openEdit(p)}
+                                title={`${priceTitle}\n${descTitle}\nBấm để mở cấu hình kênh bán & đồng bộ sàn`}
+                                className="group inline-flex min-w-0 items-center gap-1 rounded-md border border-transparent px-1 py-0.5 text-left transition-colors hover:border-border hover:bg-muted/60"
                               >
                                 <ChannelBadge
                                   channel={ch}
                                   className="min-w-0 text-xs"
                                 />
+                                {isShopeeChannel && (
+                                  isUnlistedRow ? (
+                                    <span className="inline-flex items-center gap-0.5 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                      <EyeOff className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                                      Ẩn trên sàn
+                                    </span>
+                                  ) : isStockDriftRow ? (
+                                    <span className="inline-flex items-center gap-0.5 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                      <AlertTriangle className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                                      Lệch tồn ({rowAttrs.lastSyncedShopeeStock}/{p.stock})
+                                    </span>
+                                  ) : isShopeeLinkedRow ? (
+                                    <span className="inline-flex items-center gap-0.5 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                      <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                                      Đang bán
+                                    </span>
+                                  ) : null
+                                )}
                                 {l.price != null && (
                                   <>
                                     <span aria-hidden className="text-xs text-muted-foreground">
@@ -2296,7 +2961,7 @@ export function ProductsView({
                                     </span>
                                   </>
                                 )}
-                              </span>
+                              </button>
                             )
                           })
                         })()}
@@ -2464,22 +3129,204 @@ export function ProductsView({
                 Mô tả là nguồn chân lý duy nhất — bấm "Đồng bộ mô tả ngay" (mục Kênh bán) để đẩy bản sao này lên các kênh.
               </p>
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="product-image">Ảnh sản phẩm (URL)</Label>
-              <div className="flex items-center gap-3">
-                <ProductAvatar name={form.name || '?'} image={form.image.trim() || null} className="h-12 w-12" />
-                <Input
-                  id="product-image"
-                  value={form.image}
-                  onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
-                  placeholder="https://... (dán link ảnh Shopee/web)"
-                  maxLength={500}
-                  className="flex-1"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Dán link ảnh http(s) — hiển thị trong danh sách Kho hàng. Bỏ trống sẽ hiện chữ cái đầu.
-              </p>
+            <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3 sm:col-span-2">
+              {(() => {
+                let parsedAttrs: Record<string, unknown> = {}
+                if (editing?.attributes) {
+                  try {
+                    parsedAttrs = JSON.parse(editing.attributes) as Record<string, unknown>
+                  } catch {
+                    parsedAttrs = {}
+                  }
+                }
+                const shopeeItemId = String(parsedAttrs.shopeeItemId || '').trim()
+                const shopeeModelId = String(parsedAttrs.shopeeModelId || '').trim()
+                const isLinkedShopee = Boolean(shopeeItemId)
+                const variantImg = typeof parsedAttrs.variantImage === 'string' ? parsedAttrs.variantImage.trim() : ''
+                const coverImg = typeof parsedAttrs.coverImage === 'string' ? parsedAttrs.coverImage.trim() : ''
+                const rawGallery = Array.isArray(parsedAttrs.gallery) ? (parsedAttrs.gallery as string[]) : []
+                const galleryList = Array.from(
+                  new Set([variantImg, coverImg, ...rawGallery].map((u) => String(u || '').trim()).filter(Boolean))
+                )
+                const trimmedImg = form.image.trim()
+                const isShopeeCdn = /susercontent\.com|shopee\.vn/i.test(trimmedImg)
+                const isMicroData = trimmedImg.startsWith('data:image/')
+                const storageBadgeText = !trimmedImg
+                  ? 'Chưa gắn ảnh (0B)'
+                  : imageStorageInfo
+                    ? imageStorageInfo
+                    : isShopeeCdn
+                      ? `Con trỏ CDN Shopee (${trimmedImg.length}B · 0MB DB)`
+                      : isMicroData
+                        ? `Micro-WebP Nội bộ (${(trimmedImg.length / 1024).toFixed(1)} KB)`
+                        : `Con trỏ URL ngoài (${trimmedImg.length}B · 0MB DB)`
+
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Label htmlFor="product-image" className="font-semibold">
+                          Ảnh sản phẩm (CDN Siêu nhẹ &amp; Đồng bộ Sàn)
+                        </Label>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[10px] font-medium',
+                            isShopeeCdn
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : isMicroData
+                                ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                : 'text-muted-foreground'
+                          )}
+                        >
+                          {storageBadgeText}
+                        </Badge>
+                      </div>
+
+                      {isLinkedShopee ? (
+                        <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-orange-700 dark:text-orange-300">
+                          <Checkbox
+                            checked={syncImageToShopee}
+                            onCheckedChange={(c) => setSyncImageToShopee(c === true)}
+                          />
+                          <span>Đồng bộ ảnh lên Sàn Shopee (#{shopeeModelId.slice(-6) || shopeeItemId.slice(-6)})</span>
+                        </label>
+                      ) : (
+                        <span className="rounded bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
+                          SP không liên kết Sàn · Lưu CDN siêu nhẹ (Không tạo SP trên sàn)
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <ProductAvatar
+                        name={form.name || '?'}
+                        image={trimmedImg || null}
+                        className="h-14 w-14 rounded-xl shadow-2xs"
+                      />
+                      <div className="min-w-[220px] flex-1 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Input
+                            id="product-image"
+                            value={isMicroData ? '' : form.image}
+                            onChange={(e) => {
+                              setImageStorageInfo(null)
+                              setForm((f) => ({ ...f, image: e.target.value }))
+                            }}
+                            placeholder={
+                              isMicroData
+                                ? 'Đang dùng ảnh nén Micro-WebP từ máy tính (hoặc dán link https://... vào đây)'
+                                : 'https://down-vn.img.susercontent.com/file/... (hoặc bấm Tải ảnh từ máy)'
+                            }
+                            maxLength={2048}
+                            className="h-9 flex-1 bg-background text-xs"
+                          />
+                          <input
+                            ref={productImageInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            className="hidden"
+                            onChange={(e) => void handleProductImageFile(e.target.files?.[0])}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={uploadingImage}
+                            onClick={() => productImageInputRef.current?.click()}
+                            className="h-9 shrink-0 gap-1.5 border-[#0066CC]/40 bg-background text-xs font-semibold text-[#0066CC] hover:bg-[#0066CC]/10 dark:text-sky-300"
+                          >
+                            {uploadingImage ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Upload className="h-3.5 w-3.5" />
+                            )}
+                            {uploadingImage ? 'Đang nén & đẩy CDN...' : 'Tải ảnh từ máy'}
+                          </Button>
+                          {(variantImg || coverImg) && trimmedImg !== (variantImg || coverImg) && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setImageStorageInfo(null)
+                                setForm((f) => ({ ...f, image: variantImg || coverImg }))
+                              }}
+                              className="h-9 shrink-0 px-2 text-xs text-orange-700 hover:bg-orange-100/60 dark:text-orange-300"
+                              title="Khôi phục về ảnh gốc của phân loại trên Sàn Shopee"
+                            >
+                              <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                              Ảnh gốc Sàn
+                            </Button>
+                          )}
+                          {trimmedImg && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setImageStorageInfo(null)
+                                setForm((f) => ({ ...f, image: '' }))
+                              }}
+                              className="h-9 shrink-0 px-2 text-xs text-muted-foreground hover:text-destructive"
+                              title="Xóa ảnh để hiển thị chữ cái đầu"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isLinkedShopee
+                            ? 'Chọn ảnh từ máy tính hoặc bấm chọn nhanh từ Kho ảnh Shopee bên dưới (0 byte lưu trữ DB, tự đồng bộ lên Sàn).'
+                            : 'Sản phẩm nội bộ (POS / Nguyên vật liệu / Combo): Khi tải ảnh từ máy, hệ thống tự nén & đẩy lên CDN lấy link ~75 bytes (hoặc lưu Micro-WebP ~3KB khi offline) để không tốn dung lượng DB.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {galleryList.length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                          Chọn nhanh từ Kho ảnh Shopee đã đồng bộ ({galleryList.length} ảnh · 0 byte phát sinh):
+                        </p>
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                          {galleryList.map((imgUrl, idx) => {
+                            const isSelected = trimmedImg === imgUrl
+                            const isVarImg = imgUrl === variantImg
+                            return (
+                              <button
+                                key={`${imgUrl}-${idx}`}
+                                type="button"
+                                onClick={() => {
+                                  setImageStorageInfo(`CDN Shopee (${imgUrl.length}B · Chọn từ Gallery)`)
+                                  setForm((f) => ({ ...f, image: imgUrl }))
+                                }}
+                                className={cn(
+                                  'group relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all',
+                                  isSelected
+                                    ? 'border-[#0066CC] ring-2 ring-[#0066CC]/30'
+                                    : 'border-border/70 opacity-80 hover:border-foreground/50 hover:opacity-100'
+                                )}
+                                title={
+                                  isVarImg
+                                    ? 'Ảnh phân loại chuẩn trên Shopee'
+                                    : `Ảnh Gallery Shopee #${idx + 1}`
+                                }
+                              >
+                                <img src={imgUrl} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                                {isVarImg && (
+                                  <span className="absolute inset-x-0 bottom-0 bg-orange-600/90 px-0.5 text-center text-[8px] font-bold text-white">
+                                    Phân loại
+                                  </span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="product-type">Loại sản phẩm</Label>
@@ -2845,7 +3692,7 @@ export function ProductsView({
                   </Button>
                 )}
               </div>
-              <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border p-3">
+              <div className="max-h-80 space-y-2 overflow-y-auto rounded-lg border p-3">
                 {channels.length === 0 ? (
                   <p className="py-2 text-center text-sm text-muted-foreground">
                     Không có kênh bán nào.
@@ -2857,15 +3704,55 @@ export function ProductsView({
                       form.sellPrice.trim() !== '' && Number.isFinite(commonSell) && commonSell > 0
                         ? `Giá chung ${formatCompactVND(commonSell)}`
                         : 'Giá chung'
-                    return channels.map((ch) => {
+                    const sortedChannels = [...channels].sort((a, b) => {
+                      const aShopee = a.key === 'SHOPEE' ? 1 : 0
+                      const bShopee = b.key === 'SHOPEE' ? 1 : 0
+                      if (aShopee !== bShopee) return bShopee - aShopee
+                      const aChecked = form.listingChannelIds.includes(a.id) ? 1 : 0
+                      const bChecked = form.listingChannelIds.includes(b.id) ? 1 : 0
+                      if (aChecked !== bChecked) return bChecked - aChecked
+                      const aConn = a.connected ? 1 : 0
+                      const bConn = b.connected ? 1 : 0
+                      return bConn - aConn
+                    })
+                    return sortedChannels.map((ch) => {
                       const checked = form.listingChannelIds.includes(ch.id)
                       const channelListing = editingListings.find((l) => l.channelId === ch.id)
+
+                      const shopeeAttrs: {
+                        shopeeItemId?: string
+                        shopeeModelId?: string
+                        shopeeModelSku?: string
+                        shopeeModelName?: string
+                        lastSyncedShopeeStock?: number
+                        lastSyncedShopeePrice?: number
+                        isUnlistedOnShopee?: boolean
+                        lastOutboxSyncAt?: string
+                      } = (() => {
+                        try {
+                          return editing?.attributes ? (JSON.parse(editing.attributes) as Record<string, unknown>) : {}
+                        } catch {
+                          return {}
+                        }
+                      })()
+                      const isShopeeLinked = Boolean(shopeeAttrs.shopeeItemId)
+                      const isUnlisted =
+                        shopeeAttrs.isUnlistedOnShopee === true || channelListing?.status === 'UNLISTED'
+                      const channelStock = shopeeAttrs.lastSyncedShopeeStock ?? editing?.stock ?? 0
+                      const channelPrice =
+                        shopeeAttrs.lastSyncedShopeePrice ??
+                        (channelListing?.price ?? (Number(form.sellPrice) || 0))
+                      const isStockSynced = editing ? channelStock === editing.stock : true
+
                       return (
                         <div
                           key={ch.id}
                           className={cn(
-                            'rounded-md px-1.5 py-1.5 hover:bg-muted/60',
-                            !ch.connected && 'opacity-50'
+                            'rounded-lg border p-3 transition-colors',
+                            checked
+                              ? 'border-border bg-card shadow-2xs'
+                              : 'border-border/60 bg-card/50 hover:bg-muted/40',
+                            !ch.connected && 'opacity-60'
                           )}
                         >
                           <div className="flex items-center gap-2.5">
@@ -2900,8 +3787,203 @@ export function ProductsView({
                               title="Bỏ trống để dùng giá bán chung"
                             />
                           </div>
-                          {editing && checked && channelListing && (
-                            <ChannelDescStatus listing={channelListing} master={editing.description ?? null} />
+
+                          {/* Khu vực Trạng thái & Nút thao tác sàn liên kết */}
+                          {editing && checked && (
+                            <div className="mt-2.5 rounded-lg border border-border/80 bg-muted/25 p-2.5 space-y-2 text-xs">
+                              {ch.key === 'SHOPEE' ? (
+                                <>
+                                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      {isShopeeLinked ? (
+                                        <>
+                                          <Badge
+                                            variant="outline"
+                                            className="h-5 gap-1 border-emerald-300 bg-emerald-50 px-1.5 font-medium text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                          >
+                                            <Link2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                            Đã liên kết Shopee #{shopeeAttrs.shopeeItemId}
+                                          </Badge>
+                                          {shopeeAttrs.shopeeModelName && (
+                                            <span className="rounded bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground border border-border/60">
+                                              Phân loại:{' '}
+                                              <strong className="text-foreground">
+                                                {shopeeAttrs.shopeeModelName}
+                                              </strong>
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <Badge
+                                          variant="outline"
+                                          className="h-5 gap-1 border-slate-300 bg-slate-100 px-1.5 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                        >
+                                          <CircleOff className="h-3 w-3 text-slate-500" />
+                                          Chưa liên kết sàn Shopee
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    {/* Nút bật/tắt trạng thái bán trên sàn */}
+                                    {isShopeeLinked && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={syncingChannelStatusId === ch.id}
+                                        onClick={() =>
+                                          void handleToggleChannelStatus(
+                                            ch.id,
+                                            isUnlisted ? 'ACTIVE' : 'UNLISTED'
+                                          )
+                                        }
+                                        className={cn(
+                                          'h-7 px-2.5 text-xs font-medium transition-colors',
+                                          isUnlisted
+                                            ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-300'
+                                            : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300'
+                                        )}
+                                        title={
+                                          isUnlisted
+                                            ? 'Sản phẩm đang tạm ẩn trên Shopee. Bấm để bật bán lại.'
+                                            : 'Sản phẩm đang mở bán trên Shopee. Bấm để tạm ẩn.'
+                                        }
+                                      >
+                                        {syncingChannelStatusId === ch.id ? (
+                                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                        ) : isUnlisted ? (
+                                          <EyeOff className="mr-1.5 h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                                        ) : (
+                                          <Eye className="mr-1.5 h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        )}
+                                        {isUnlisted ? 'Tạm ẩn trên sàn' : 'Đang bán trên sàn'}
+                                      </Button>
+                                    )}
+                                  </div>
+
+                                  {isShopeeLinked ? (
+                                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                                      <div className="flex flex-wrap items-center gap-2.5">
+                                        <div className="flex items-center gap-1 rounded-md border border-border/60 bg-background px-2 py-1">
+                                          <span className="text-muted-foreground">Tồn sàn:</span>
+                                          <span className="font-semibold tabular-nums text-foreground">
+                                            {formatNumber(channelStock)}
+                                          </span>
+                                          <span className="text-muted-foreground">/ CMS:</span>
+                                          <span className="font-semibold tabular-nums text-foreground">
+                                            {formatNumber(editing.stock)}
+                                          </span>
+                                          {isStockSynced ? (
+                                            <span className="ml-0.5 inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                              <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> Khớp tồn
+                                            </span>
+                                          ) : (
+                                            <span className="ml-0.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                              <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400" /> Lệch tồn
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center gap-1 rounded-md border border-border/60 bg-background px-2 py-1">
+                                          <span className="text-muted-foreground">Giá sàn:</span>
+                                          <span className="font-semibold tabular-nums text-foreground">
+                                            {formatVND(channelPrice)}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          disabled={syncingChannelStockId === ch.id}
+                                          onClick={() => void handlePushStockToChannel(ch.id)}
+                                          className="h-7 gap-1 bg-amber-600 px-2.5 text-xs text-white shadow-xs hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-700"
+                                          title="Đẩy ngay tồn kho và giá hiện tại của CMS lên sàn Shopee"
+                                        >
+                                          {syncingChannelStockId === ch.id ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                          ) : (
+                                            <Zap className="h-3.5 w-3.5 fill-current" />
+                                          )}
+                                          Đẩy đồng bộ sang sàn
+                                        </Button>
+
+                                        <a
+                                          href={`https://shopee.vn/product-i.shop.${shopeeAttrs.shopeeItemId}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                                          title="Mở trang sản phẩm trên Shopee"
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                          Sàn
+                                        </a>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="pt-0.5 text-[11px] text-muted-foreground">
+                                      Chưa ghép nối mã Shopee Item. Vào mục <strong>Kênh bán &gt; Ghép liên kết SKU</strong> để đồng bộ tồn &amp; giá tự động.
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        'h-5 gap-1 px-1.5 font-medium',
+                                        channelListing?.status === 'INACTIVE'
+                                          ? 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                          : 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                      )}
+                                    >
+                                      {channelListing?.status === 'INACTIVE' ? (
+                                        <>
+                                          <CircleOff className="h-3 w-3 text-slate-500" />
+                                          Đang ngừng bán
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                          Đang mở bán trên kênh
+                                        </>
+                                      )}
+                                    </Badge>
+                                    <span className="text-[11px] text-muted-foreground">
+                                      {channelListing?.price != null
+                                        ? `Giá riêng: ${formatVND(channelListing.price)}`
+                                        : 'Theo giá bán chung'}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={syncingChannelStatusId === ch.id}
+                                    onClick={() =>
+                                      void handleToggleChannelStatus(
+                                        ch.id,
+                                        channelListing?.status === 'INACTIVE' ? 'ACTIVE' : 'INACTIVE'
+                                      )
+                                    }
+                                    className="h-6 px-2 text-[11px]"
+                                  >
+                                    {channelListing?.status === 'INACTIVE' ? 'Bật bán lại' : 'Tạm tắt kênh'}
+                                  </Button>
+                                </div>
+                              )}
+
+                              {channelListing && (
+                                <div className="border-t border-border/40 pt-1">
+                                  <ChannelDescStatus
+                                    listing={channelListing}
+                                    master={editing.description ?? null}
+                                  />
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       )
@@ -3334,6 +4416,162 @@ export function ProductsView({
             >
               {quickImportSaving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Xác nhận nhập kho quy đổi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG THAO TÁC HÀNG LOẠT: SỬA GIÁ BÁN, TỒN KHO & DANH MỤC TRÊN NHIỀU SẢN PHẨM */}
+      <Dialog open={bulkModalOpen} onOpenChange={setBulkModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <SlidersHorizontal className="h-5 w-5 text-primary" />
+              Cập nhật hàng loạt ({selectedProductIds.length} sản phẩm đã chọn)
+            </DialogTitle>
+            <DialogDescription>
+              Điều chỉnh Giá bán, Tồn kho hoặc Danh mục đồng loạt tại Kho CMS và tự động đồng bộ sang Sàn Shopee.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* 1. Giá bán */}
+            <div className="space-y-2 rounded-lg border p-3.5">
+              <Label className="text-xs font-semibold">1. Điều chỉnh Giá bán lẻ</Label>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                {(
+                  [
+                    { key: 'NONE', label: 'Giữ nguyên' },
+                    { key: 'SET', label: 'Đặt giá mới' },
+                    { key: 'ADD_AMOUNT', label: '+/- Số tiền' },
+                    { key: 'ADD_PERCENT', label: '+/- Phần trăm (%)' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setBulkPriceMode(opt.key)}
+                    className={cn(
+                      'rounded-md border px-2 py-1.5 text-xs font-medium transition-colors',
+                      bulkPriceMode === opt.key
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'hover:bg-muted/60'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {bulkPriceMode !== 'NONE' && (
+                <div className="pt-1">
+                  <Input
+                    type="number"
+                    placeholder={
+                      bulkPriceMode === 'SET'
+                        ? 'Nhập giá bán mới (VD: 159000)'
+                        : bulkPriceMode === 'ADD_AMOUNT'
+                          ? 'Nhập số tiền tăng/giảm (VD: 10000 hoặc -5000)'
+                          : 'Nhập % tăng/giảm (VD: 10 hoặc -5)'
+                    }
+                    value={bulkPriceValue}
+                    onChange={(e) => setBulkPriceValue(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 2. Tồn kho */}
+            <div className="space-y-2 rounded-lg border p-3.5">
+              <Label className="text-xs font-semibold">2. Điều chỉnh Tồn kho khả dụng</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { key: 'NONE', label: 'Giữ nguyên' },
+                    { key: 'SET', label: 'Đặt mức tồn mới' },
+                    { key: 'ADD_DELTA', label: '+/- Cộng trừ tồn' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setBulkStockMode(opt.key)}
+                    className={cn(
+                      'rounded-md border px-2 py-1.5 text-xs font-medium transition-colors',
+                      bulkStockMode === opt.key
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'hover:bg-muted/60'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {bulkStockMode !== 'NONE' && (
+                <div className="pt-1">
+                  <Input
+                    type="number"
+                    placeholder={
+                      bulkStockMode === 'SET'
+                        ? 'Nhập số lượng tồn kho mới (VD: 30)'
+                        : 'Nhập số lượng cộng/trừ (VD: 10 hoặc -5)'
+                    }
+                    value={bulkStockValue}
+                    onChange={(e) => setBulkStockValue(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 3. Danh mục */}
+            <div className="space-y-2 rounded-lg border p-3.5">
+              <Label className="text-xs font-semibold">3. Chuyển Danh mục hàng loạt</Label>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs"
+                value={bulkCategoryId}
+                onChange={(e) => setBulkCategoryId(e.target.value)}
+              >
+                <option value="KEEP">— Giữ nguyên danh mục hiện tại —</option>
+                <option value="NONE">Bỏ phân loại (Chưa có danh mục)</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkModalOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              disabled={
+                bulkActionBusy ||
+                (bulkPriceMode === 'NONE' && bulkStockMode === 'NONE' && bulkCategoryId === 'KEEP')
+              }
+              onClick={async () => {
+                if (bulkCategoryId !== 'KEEP') {
+                  await handleExecuteBulkProductsAction('ASSIGN_CATEGORY', {
+                    categoryId: bulkCategoryId === 'NONE' ? null : bulkCategoryId,
+                  })
+                }
+                if (bulkPriceMode !== 'NONE' || bulkStockMode !== 'NONE') {
+                  await handleExecuteBulkProductsAction('UPDATE_PRICE_AND_STOCK', {
+                    priceMode: bulkPriceMode,
+                    priceValue: Number(bulkPriceValue || 0),
+                    stockMode: bulkStockMode,
+                    stockValue: Number(bulkStockValue || 0),
+                  })
+                }
+              }}
+            >
+              {bulkActionBusy ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="mr-1.5 h-4 w-4" />
+              )}
+              Áp dụng cho {selectedProductIds.length} sản phẩm
             </Button>
           </DialogFooter>
         </DialogContent>

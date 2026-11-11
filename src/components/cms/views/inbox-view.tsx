@@ -377,7 +377,7 @@ export function InboxView() {
                       <span className="shrink-0 text-[11px] text-muted-foreground">{timeAgo(conv.lastMessage.createdAt)}</span>
                     </span>
                     <span className={cn('mt-0.5 line-clamp-1 block text-xs', conv.unread > 0 ? 'font-medium text-foreground' : 'text-muted-foreground')}>
-                      {conv.lastMessage.sender === 'CUSTOMER' ? '' : conv.lastMessage.isAuto ? '🤖 ' : '👤 '}
+                      {conv.lastMessage.sender === 'CUSTOMER' ? '' : conv.lastMessage.isAuto ? '[AI] ' : '[NV] '}
                       {conv.lastMessage.content}
                     </span>
                     <span className="mt-1 flex items-center gap-1.5">
@@ -508,7 +508,7 @@ export function InboxView() {
                           )}
                           {mine && (
                             <p className="pr-1 text-[10px] text-muted-foreground">
-                              {m.sender === 'AGENT' ? `🤖 ${m.agentName ?? 'Agent'}${m.isAuto ? ' · Tự động' : ''}` : '👤 Bạn (người vận hành)'} · {timeAgo(m.createdAt)}
+                              {m.sender === 'AGENT' ? `${m.agentName ?? 'Agent'}${m.isAuto ? ' · Tự động' : ''}` : 'Bạn (người vận hành)'} · {timeAgo(m.createdAt)}
                             </p>
                           )}
                         </div>

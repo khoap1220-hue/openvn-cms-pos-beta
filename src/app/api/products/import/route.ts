@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { validateProductCsv } from '@/lib/csv-helper'
+import { broadcast, invalidateApiCache } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +117,9 @@ export async function POST(req: NextRequest) {
         })
       })
     )
+
+    invalidateApiCache('products')
+    broadcast('product.updated', { imported: true, count: items.length })
 
     return NextResponse.json({
       success: true,

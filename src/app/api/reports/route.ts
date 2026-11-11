@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 import type { ReportsData } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -8,19 +9,30 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const days = Math.min(90, Math.max(7, Number(searchParams.get('days')) || 30))
+    const cacheKey = `reports:${days}`
+    const cached = getApiCache<ReportsData>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const now = new Date()
     const todayStart = new Date(now)
     todayStart.setHours(0, 0, 0, 0)
     const periodStart = new Date(todayStart.getTime() - (days - 1) * 86400000)
     const notCancelled = { not: 'CANCELLED' } as const
 
-    const [orders, channels, allStatusCounts] = await Promise.all([
+    const [orders, channels, allStatusCounts, items, totalOrdersAll] = await Promise.all([
       db.order.findMany({
         where: { createdAt: { gte: periodStart }, status: notCancelled },
         select: { channelId: true, total: true, createdAt: true },
       }),
       db.channel.findMany({ orderBy: { createdAt: 'asc' } }),
       db.order.groupBy({ by: ['status'], _count: { _all: true } }),
+      db.orderItem.findMany({
+        where: { order: { createdAt: { gte: periodStart }, status: notCancelled } },
+        include: { product: { select: { id: true, sku: true, name: true } } },
+      }),
+      db.order.count({ where: { createdAt: { gte: periodStart } } }),
     ])
 
     const totalOrdersInPeriod = orders.length
@@ -67,10 +79,6 @@ export async function GET(req: NextRequest) {
       }))
 
     // Top sản phẩm
-    const items = await db.orderItem.findMany({
-      where: { order: { createdAt: { gte: periodStart }, status: notCancelled } },
-      include: { product: { select: { id: true, sku: true, name: true } } },
-    })
     const productAgg = new Map<string, { id: string; sku: string; name: string; sold: number; revenue: number }>()
     for (const it of items) {
       if (!it.product) continue
@@ -82,7 +90,7 @@ export async function GET(req: NextRequest) {
     const topProducts = [...productAgg.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8)
 
     // Tổng đơn trong kỳ (kể cả hủy) để tính tỉ lệ
-    const totalOrdersAll = await db.order.count({ where: { createdAt: { gte: periodStart } } })
+    void totalOrdersAll
     const completedCount = allStatusCounts.find((s) => s.status === 'COMPLETED')?._count._all ?? 0
     const cancelledCount = allStatusCounts.find((s) => s.status === 'CANCELLED')?._count._all ?? 0
     const totalCountAll = allStatusCounts.reduce((s, x) => s + x._count._all, 0)
@@ -101,6 +109,7 @@ export async function GET(req: NextRequest) {
       topProducts,
     }
 
+    setApiCache(cacheKey, data, 15_000)
     return NextResponse.json(data)
   } catch (error) {
     console.error('Reports GET error:', error)

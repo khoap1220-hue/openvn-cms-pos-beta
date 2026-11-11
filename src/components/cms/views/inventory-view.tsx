@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
+import { DEFAULT_SHOP_PROFILE, useShopProfile } from '@/lib/shop-profile'
 import {
   MOVEMENT_TYPE_LABELS,
   type CrossSellSettlement,
@@ -55,6 +56,7 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   ArrowUpFromLine,
+  Boxes,
   Building2,
   CheckCircle2,
   ClipboardCheck,
@@ -72,12 +74,13 @@ import {
   Search,
   Star,
   Store,
+  Trash2,
   Wallet,
   Warehouse,
 } from 'lucide-react'
 
 import { BarcodeScanner } from '@/components/cms/barcode-scanner'
-import { FastStockTerminal } from '@/components/cms/views/fast-stock-terminal'
+import { FastStockTerminal, type BomGroupInfo } from '@/components/cms/views/fast-stock-terminal'
 import { WarehouseModuleNav } from '@/components/cms/warehouse-module-nav'
 import type { ViewId } from '@/components/cms/app-sidebar'
 import { DataLineageBadge, LineageInspectorDialog, type LineageInspectorTarget } from '@/components/cms/lineage'
@@ -92,14 +95,20 @@ type LowStockProduct = Pick<
 /** Product của lib/types chưa có barcode — mở rộng cục bộ cho đến khi lib cập nhật */
 type ProductWithBarcode = Product & { barcode?: string | null }
 
-type MovementType = 'IMPORT' | 'EXPORT' | 'ADJUST'
+type MovementType = 'IMPORT' | 'PRODUCTION' | 'EXPORT' | 'ADJUST'
 
-const MOVEMENT_TYPE_OPTIONS: MovementType[] = ['IMPORT', 'EXPORT', 'ADJUST']
+const MOVEMENT_TYPE_OPTIONS: MovementType[] = ['IMPORT', 'PRODUCTION', 'EXPORT', 'ADJUST']
 
 const MOVEMENT_BADGE_CLASSES: Record<string, string> = {
   IMPORT: 'border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+  PRODUCTION: 'border-transparent bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
   EXPORT: 'border-transparent bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
   ADJUST: 'border-transparent bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+}
+
+interface CustomMaterialInput {
+  componentId: string
+  quantity: string
 }
 
 interface MovementFormState {
@@ -110,6 +119,8 @@ interface MovementFormState {
   note: string
   conversionRate: string
   inputUnit: string
+  supplierName: string
+  customMaterials: CustomMaterialInput[]
 }
 
 const EMPTY_MOVEMENT_FORM: MovementFormState = {
@@ -120,6 +131,8 @@ const EMPTY_MOVEMENT_FORM: MovementFormState = {
   note: '',
   conversionRate: '1',
   inputUnit: 'cái',
+  supplierName: DEFAULT_SHOP_PROFILE.defaultWorkshopName,
+  customMaterials: [],
 }
 
 type WarehouseWithStocks = WarehouseInfo & {
@@ -176,9 +189,11 @@ export function InventoryView({
   initialModule?: InventoryModuleMode
   onNavigate?: (view: ViewId) => void
 } = {}) {
+  const { profile: shopProfile } = useShopProfile()
   const [lowStock, setLowStock] = useState<LowStockProduct[] | null>(null)
   const [movements, setMovements] = useState<MovementWithOrigin[] | null>(null)
   const [products, setProducts] = useState<ProductWithBarcode[] | null>(null)
+  const [bomGroups, setBomGroups] = useState<BomGroupInfo[]>([])
   const [warehouses, setWarehouses] = useState<WarehouseWithStocks[]>([])
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('ALL')
   const [editingWhId, setEditingWhId] = useState<string | null>(null)
@@ -199,7 +214,7 @@ export function InventoryView({
   // Bộ lọc cho Bảng Tồn kho chi tiết
   const [stockSearch, setStockSearch] = useState('')
   const [stockFilterType, setStockFilterType] = useState<'ALL' | 'RAW' | 'FINISHED' | 'COMBO' | 'LOW'>('ALL')
-  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'ALL' | 'IMPORT' | 'EXPORT' | 'ADJUST'>('ALL')
+  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'ALL' | 'IMPORT' | 'PRODUCTION' | 'EXPORT' | 'ADJUST'>('ALL')
 
   // Bảng Kiểm kê & Cân bằng kho nhanh (Quick Reconciliation Sheet)
   const [balanceSearch, setBalanceSearch] = useState('')
@@ -239,9 +254,11 @@ export function InventoryView({
   const [periodSummary, setPeriodSummary] = useState<InventoryPeriodSummary | null>(null)
   const [lineageTarget, setLineageTarget] = useState<LineageInspectorTarget | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const load = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true)
+      setError(null)
+    }
     try {
       const movParams = new URLSearchParams({ view: 'movements' })
       if (period.preset !== 'ALL') movParams.set('preset', period.preset)
@@ -249,7 +266,7 @@ export function InventoryView({
         if (period.from) movParams.set('from', period.from)
         if (period.to) movParams.set('to', period.to)
       }
-      const [lowStockRes, movementsRes, productsRes, whRes] = await Promise.all([
+      const [lowStockRes, movementsRes, productsRes, whRes, bomRes] = await Promise.all([
         apiGet<{ products: ProductWithBarcode[] }>('/api/inventory?view=lowstock'),
         apiGet<{ movements: MovementWithOrigin[]; period?: InventoryPeriodSummary }>(
           `/api/inventory?${movParams.toString()}`
@@ -258,6 +275,7 @@ export function InventoryView({
         apiGet<{ warehouses: WarehouseWithStocks[]; settlements: CrossSellSettlement[] }>('/api/warehouses').catch(
           () => ({ warehouses: [], settlements: [] })
         ),
+        apiGet<{ groups: BomGroupInfo[] }>('/api/bom').catch(() => ({ groups: [] })),
       ])
       setLowStock(lowStockRes.products)
       setMovements(movementsRes.movements)
@@ -265,12 +283,15 @@ export function InventoryView({
       setProducts(productsRes.products)
       setWarehouses(whRes.warehouses)
       setSettlements(whRes.settlements)
+      setBomGroups(bomRes.groups ?? [])
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Không thể tải dữ liệu kho'
-      setError(message)
-      toast({ title: 'Lỗi tải dữ liệu', description: message, variant: 'destructive' })
+      if (!silent) {
+        const message = e instanceof Error ? e.message : 'Không thể tải dữ liệu kho'
+        setError(message)
+        toast({ title: 'Lỗi tải dữ liệu', description: message, variant: 'destructive' })
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [toast, period])
 
@@ -283,17 +304,120 @@ export function InventoryView({
     [products, form.productId]
   )
 
+  const bomByProductId = useMemo(() => {
+    const map = new Map<string, BomGroupInfo>()
+    for (const g of bomGroups) {
+      if (g.components && g.components.length > 0) {
+        map.set(g.productId, g)
+      }
+    }
+    return map
+  }, [bomGroups])
+
+  const selectedProductBom = useMemo(
+    () => (form.productId ? bomByProductId.get(form.productId) ?? null : null),
+    [bomByProductId, form.productId]
+  )
+
   const qtyNum = Number(form.quantity)
   const hasQty = form.quantity !== '' && !Number.isNaN(qtyNum) && Number.isFinite(qtyNum)
   const effectiveConvRate = form.type === 'ADJUST' ? 1 : Math.max(1, Number(form.conversionRate) || 1)
   const convertedQty = hasQty ? Math.round(qtyNum * effectiveConvRate) : 0
   const baseUnitLabel = selectedProduct?.unitConfig?.baseUnit || selectedProduct?.unit || 'cái'
 
+  // Tổng hợp Nguyên vật liệu tiêu hao khi chọn Loại thao tác = SẢN XUẤT (PRODUCTION)
+  const productionMaterialsPreview = useMemo(() => {
+    if (form.type !== 'PRODUCTION') return []
+    const prodQty = Math.max(0, convertedQty)
+    const rowsMap = new Map<
+      string,
+      {
+        componentId: string
+        sku: string
+        name: string
+        unit: string
+        currentStock: number
+        autoRequiredQty: number
+        finalRequiredQty: number
+        isEnough: boolean
+        isManualRow: boolean
+      }
+    >()
+
+    if (selectedProductBom?.components) {
+      for (const comp of selectedProductBom.components) {
+        const cp = comp.componentProduct
+        const autoNeed = prodQty > 0 ? Math.round(comp.quantity * prodQty) : Math.round(comp.quantity)
+        rowsMap.set(cp.id, {
+          componentId: cp.id,
+          sku: cp.sku,
+          name: cp.name,
+          unit: cp.unit || 'đv',
+          currentStock: cp.stock,
+          autoRequiredQty: autoNeed,
+          finalRequiredQty: autoNeed,
+          isEnough: cp.stock >= autoNeed,
+          isManualRow: false,
+        })
+      }
+    }
+
+    for (const cm of form.customMaterials) {
+      if (!cm.componentId) continue
+      const customNum = Math.max(0, Math.round(Number(cm.quantity) || 0))
+      const existing = rowsMap.get(cm.componentId)
+      if (existing) {
+        const finalQty = cm.quantity !== '' ? customNum : existing.autoRequiredQty
+        rowsMap.set(cm.componentId, {
+          ...existing,
+          finalRequiredQty: finalQty,
+          isEnough: existing.currentStock >= finalQty,
+        })
+      } else {
+        const matProd = products?.find((p) => p.id === cm.componentId)
+        if (matProd) {
+          const matUnit = matProd.unitConfig?.baseUnit || matProd.unit || 'đv'
+          rowsMap.set(cm.componentId, {
+            componentId: matProd.id,
+            sku: matProd.sku,
+            name: matProd.name,
+            unit: matUnit,
+            currentStock: matProd.stock,
+            autoRequiredQty: customNum,
+            finalRequiredQty: customNum,
+            isEnough: matProd.stock >= customNum,
+            isManualRow: true,
+          })
+        }
+      }
+    }
+
+    return Array.from(rowsMap.values())
+  }, [form.type, form.customMaterials, convertedQty, selectedProductBom, products])
+
+  const maxProducibleForSelected = useMemo(() => {
+    if (!selectedProductBom || !selectedProductBom.components.length) return null
+    let minCap = Number.POSITIVE_INFINITY
+    for (const comp of selectedProductBom.components) {
+      if (comp.quantity <= 0) continue
+      const cap = Math.floor(Math.max(0, comp.componentProduct.stock) / comp.quantity)
+      if (cap < minCap) minCap = cap
+    }
+    return Number.isFinite(minCap) ? minCap : null
+  }, [selectedProductBom])
+
+  const hasInsufficientProductionMaterial = useMemo(
+    () => form.type === 'PRODUCTION' && productionMaterialsPreview.some((m) => m.finalRequiredQty > 0 && !m.isEnough),
+    [form.type, productionMaterialsPreview]
+  )
+
   // Preview tồn kho sau thao tác (tự động nhân hệ số quy đổi VD: 10 kg x 1000 = 10.000 gr)
   const preview = useMemo(() => {
     if (!selectedProduct || !hasQty) return null
     const current = selectedProduct.stock
-    if (form.type === 'IMPORT') return { current, next: current + convertedQty, delta: convertedQty }
+    if (form.type === 'IMPORT' || form.type === 'PRODUCTION') {
+      return { current, next: current + convertedQty, delta: convertedQty }
+    }
     if (form.type === 'EXPORT') return { current, next: current - convertedQty, delta: -convertedQty }
     return { current, next: qtyNum, delta: qtyNum - current }
   }, [selectedProduct, form.type, qtyNum, convertedQty, hasQty])
@@ -302,7 +426,8 @@ export function InventoryView({
     !form.productId ||
     !hasQty ||
     (form.type !== 'ADJUST' && qtyNum <= 0) ||
-    (form.type === 'EXPORT' && preview !== null && preview.next < 0)
+    (form.type === 'EXPORT' && preview !== null && preview.next < 0) ||
+    hasInsufficientProductionMaterial
 
   const openDialog = useCallback(
     (prefill?: { productId: string; type: MovementType; warehouseId?: string }) => {
@@ -323,13 +448,19 @@ export function InventoryView({
           quantity: prefill.type === 'ADJUST' && prod ? String(prod.stock) : '',
           conversionRate: defaultRate,
           inputUnit: defaultUnit,
+          supplierName: prefill.type === 'PRODUCTION' ? shopProfile.defaultWorkshopName : '',
+          customMaterials: [],
         })
       } else {
-        setForm({ ...EMPTY_MOVEMENT_FORM, warehouseId: defWh })
+        setForm({
+          ...EMPTY_MOVEMENT_FORM,
+          warehouseId: defWh,
+          supplierName: shopProfile.defaultWorkshopName,
+        })
       }
       setDialogOpen(true)
     },
-    [products, selectedWarehouseId, warehouses]
+    [products, selectedWarehouseId, warehouses, shopProfile.defaultWorkshopName]
   )
 
   // Quét mã vạch → tự mở phiếu nhập/xuất cho sản phẩm tương ứng
@@ -372,26 +503,56 @@ export function InventoryView({
     }
     setSubmitting(true)
     try {
-      await apiPost<{ movement: StockMovement }>('/api/inventory', {
+      const customMatsPayload =
+        form.type === 'PRODUCTION'
+          ? productionMaterialsPreview
+              .filter((m) => m.finalRequiredQty > 0)
+              .map((m) => ({ componentId: m.componentId, quantity: m.finalRequiredQty }))
+          : undefined
+
+      const res = await apiPost<{
+        movement?: StockMovement
+        batchCode?: string
+        consumedMaterials?: Array<{ sku: string; name: string; consumedQty: number; unit: string }>
+      }>('/api/inventory', {
         productId: form.productId,
         warehouseId: form.warehouseId || (selectedWarehouseId !== 'ALL' ? selectedWarehouseId : warehouses[0]?.id) || undefined,
         type: form.type,
         quantity: qtyNum,
         conversionRate: effectiveConvRate,
         inputUnit: form.inputUnit || baseUnitLabel,
+        supplierName:
+          form.type === 'PRODUCTION'
+            ? form.supplierName.trim() || shopProfile.defaultWorkshopName
+            : undefined,
+        customMaterials: customMatsPayload,
         note: form.note.trim() || undefined,
       })
       toast({
-        title: `Đã ${MOVEMENT_TYPE_LABELS[form.type].toLowerCase()} thành công`,
+        title:
+          form.type === 'PRODUCTION'
+            ? `Đã hoàn tất Lệnh sản xuất ${res.batchCode ?? ''} (+${formatNumber(convertedQty)} ${baseUnitLabel})`
+            : `Đã ${(MOVEMENT_TYPE_LABELS[form.type] ?? form.type).toLowerCase()} thành công`,
         description: selectedProduct
-          ? effectiveConvRate > 1
-            ? `${selectedProduct.name}: ${qtyNum} ${form.inputUnit} × ${formatNumber(effectiveConvRate)} = ${formatNumber(convertedQty)} ${baseUnitLabel}`
-            : `${selectedProduct.name} — ${MOVEMENT_TYPE_LABELS[form.type]} ${formatNumber(qtyNum)} ${baseUnitLabel}`
+          ? form.type === 'PRODUCTION'
+            ? `${selectedProduct.name} (${selectedProduct.sku}): +${formatNumber(convertedQty)} ${baseUnitLabel}${
+                res.consumedMaterials && res.consumedMaterials.length > 0
+                  ? ` · Đã trừ ${res.consumedMaterials.length} NVL tiêu hao`
+                  : ''
+              }`
+            : effectiveConvRate > 1
+              ? `${selectedProduct.name}: ${qtyNum} ${form.inputUnit} × ${formatNumber(effectiveConvRate)} = ${formatNumber(convertedQty)} ${baseUnitLabel}`
+              : `${selectedProduct.name} — ${MOVEMENT_TYPE_LABELS[form.type]} ${formatNumber(qtyNum)} ${baseUnitLabel}`
           : undefined,
       })
+      if (preview && form.productId) {
+        setProducts((prev) =>
+          prev ? prev.map((p) => (p.id === form.productId ? { ...p, stock: preview.next } : p)) : prev
+        )
+      }
       setDialogOpen(false)
       setForm(EMPTY_MOVEMENT_FORM)
-      await load()
+      void load(true)
     } catch (e) {
       toast({
         title: 'Thao tác kho thất bại',
@@ -431,7 +592,7 @@ export function InventoryView({
         description: `${res.transfer.fromWarehouseName} ➔ ${res.transfer.toWarehouseName}`,
       })
       setTransferOpen(false)
-      await load()
+      void load(true)
     } catch (e) {
       toast({
         title: 'Điều chuyển kho thất bại',
@@ -473,7 +634,7 @@ export function InventoryView({
         address: '',
         commissionPct: '15',
       })
-      await load()
+      void load(true)
     } catch (e) {
       toast({
         title: 'Không thể lưu kho / shop liên kết',
@@ -492,7 +653,7 @@ export function InventoryView({
         warehouseId: wh.id,
       })
       toast({ title: `Đã đặt "${wh.name}" làm Kho mặc định` })
-      await load()
+      void load(true)
     } catch (e) {
       toast({
         title: 'Không thể đổi kho mặc định',
@@ -768,6 +929,9 @@ export function InventoryView({
   const filteredLedgerMovements = useMemo(() => {
     const all = movements ?? []
     if (ledgerTypeFilter === 'ALL') return all
+    if (ledgerTypeFilter === 'PRODUCTION') {
+      return all.filter((m) => m.originSource === 'WORKSHOP_PRODUCTION')
+    }
     return all.filter((m) => m.type === ledgerTypeFilter)
   }, [movements, ledgerTypeFilter])
 
@@ -853,10 +1017,44 @@ export function InventoryView({
                   {formatNumber(m.stockAfter)}
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
-                  <DataLineageBadge
-                    originSource={m.originSource}
-                    onInspect={m.productId ? () => openMovementLineage(m) : undefined}
-                  />
+                  {m.originSource === 'SHOPEE_OPENING_STOCK' ? (
+                    <Badge
+                      variant="outline"
+                      className="border-orange-300 bg-orange-50 text-[10px] font-semibold text-orange-800 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300"
+                      title={m.note ?? 'Gốc tồn đầu kỳ lấy từ Sàn Shopee'}
+                    >
+                      Gốc tồn đầu từ Sàn Shopee
+                    </Badge>
+                  ) : m.originSource === 'SHOPEE_DIRECT_ADJUST' ? (
+                    <Badge
+                      variant="outline"
+                      className="border-violet-300 bg-violet-50 text-[10px] font-semibold text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300"
+                      title={m.note ?? 'Đối soát xác nhận số tồn điều chỉnh trực tiếp trên Sàn Shopee là chính xác'}
+                    >
+                      Đối soát ĐC từ Sàn Shopee
+                    </Badge>
+                  ) : m.originSource === 'SHOPEE_ORDER_RECONCILED' ? (
+                    <Badge
+                      variant="outline"
+                      className="border-emerald-300 bg-emerald-50 text-[10px] font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                      title={m.note ?? 'Đối chiếu đơn Sàn Shopee về CMS'}
+                    >
+                      Đơn Sàn Shopee đối chiếu
+                    </Badge>
+                  ) : m.originSource === 'WORKSHOP_PRODUCTION' ? (
+                    <Badge
+                      variant="outline"
+                      className="border-sky-300 bg-sky-50 text-[10px] font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                      title={m.note ?? 'Lệnh sản xuất thành phẩm tại xưởng'}
+                    >
+                      Lệnh Sản xuất Xưởng (LSX)
+                    </Badge>
+                  ) : (
+                    <DataLineageBadge
+                      originSource={m.originSource}
+                      onInspect={m.productId ? () => openMovementLineage(m) : undefined}
+                    />
+                  )}
                 </TableCell>
                 <TableCell className="hidden max-w-[260px] lg:table-cell">
                   <span className="block truncate text-sm text-muted-foreground" title={m.note ?? undefined}>
@@ -1802,6 +2000,28 @@ export function InventoryView({
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => {
+                        const firstFinished =
+                          filteredStockProducts.find((p) => p.type !== 'COMBO' && !isRawMaterialProduct(p)) ??
+                          filteredStockProducts.find((p) => p.type !== 'COMBO')
+                        openDialog({ productId: firstFinished?.id ?? '', type: 'PRODUCTION' })
+                      }}
+                      className="border-sky-300 bg-sky-50/70 text-[#0066CC] hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
+                    >
+                      <Boxes className="h-4 w-4 text-[#0066CC] dark:text-sky-400" />
+                      + Lập lệnh Sản xuất
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onNavigate?.('bom')}
+                    >
+                      <Layers className="h-4 w-4 text-sky-600" />
+                      Sản xuất &amp; Định mức
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => onNavigate?.('purchase')}
                     >
                       <PackagePlus className="h-4 w-4 text-emerald-600" />
@@ -1897,6 +2117,33 @@ export function InventoryView({
                           )
                           const shownWhList = activeWhList.slice(0, 2)
                           const extraWhCount = Math.max(0, activeWhList.length - shownWhList.length)
+                          let openingOrigin = 'SHOPEE_MARKETPLACE'
+                          let openingLabel = 'Gốc tồn đầu từ Sàn Shopee (thaimy1605)'
+                          let openingQty = p.stock
+                          let lastReconcileReason = ''
+                          let lastReconcileDecisionLabel = ''
+                          if (p.attributes) {
+                            try {
+                              const parsedA = JSON.parse(p.attributes) as Record<string, unknown>
+                              if (parsedA.openingStockOrigin === 'CMS_WAREHOUSE') {
+                                openingOrigin = 'CMS_WAREHOUSE'
+                              }
+                              if (parsedA.openingStockOriginLabel) {
+                                openingLabel = String(parsedA.openingStockOriginLabel)
+                              }
+                              if (typeof parsedA.openingStockQty === 'number') {
+                                openingQty = parsedA.openingStockQty
+                              }
+                              if (parsedA.lastReconcileReason) {
+                                lastReconcileReason = String(parsedA.lastReconcileReason)
+                              }
+                              if (parsedA.lastReconcileDecisionLabel) {
+                                lastReconcileDecisionLabel = String(parsedA.lastReconcileDecisionLabel)
+                              }
+                            } catch {
+                              // ignore
+                            }
+                          }
 
                           return (
                             <TableRow key={p.id}>
@@ -1908,9 +2155,31 @@ export function InventoryView({
                                   <ProductAvatar name={p.name} image={p.image} className="h-8 w-8 shrink-0" />
                                   <div className="min-w-0">
                                     <p className="max-w-[260px] truncate text-xs font-semibold">{p.name}</p>
-                                    <p className="text-[11px] text-muted-foreground">
-                                      {p.category?.name ?? 'Chưa phân nhóm'}
-                                    </p>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                                      <span>{p.category?.name ?? 'Chưa phân nhóm'}</span>
+                                      <span>·</span>
+                                      <span
+                                        className={cn(
+                                          'inline-flex items-center rounded px-1 py-0 text-[10px] font-medium',
+                                          openingOrigin === 'CMS_WAREHOUSE'
+                                            ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                                            : 'bg-orange-500/15 text-orange-700 dark:text-orange-300'
+                                        )}
+                                        title={openingLabel}
+                                      >
+                                        {openingOrigin === 'CMS_WAREHOUSE'
+                                          ? `Gốc tồn đầu tại Kho (${openingQty})`
+                                          : `Gốc tồn đầu từ Sàn (${openingQty})`}
+                                      </span>
+                                    </div>
+                                    {lastReconcileReason && (
+                                      <p
+                                        className="mt-0.5 max-w-[300px] truncate text-[10px] font-medium text-violet-700 dark:text-violet-300"
+                                        title={`${lastReconcileDecisionLabel || 'Lý do đối soát'}: ${lastReconcileReason}`}
+                                      >
+                                        {lastReconcileDecisionLabel || 'Lý do đối soát'}: “{lastReconcileReason}”
+                                      </p>
+                                    )}
                                     {!isCombo && shownWhList.length > 0 && (
                                       <div className="mt-1 flex flex-wrap items-center gap-1">
                                         {shownWhList.map((wh) => {
@@ -2016,6 +2285,19 @@ export function InventoryView({
                                     </Button>
                                   ) : (
                                     <>
+                                      {!isRaw && (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 border-sky-300 bg-sky-50/70 px-2 text-xs font-semibold text-[#0066CC] hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
+                                          onClick={() => openDialog({ productId: p.id, type: 'PRODUCTION' })}
+                                          title="Lập lệnh sản xuất thành phẩm tại xưởng (Trừ NVL ➔ Cộng Thành phẩm)"
+                                        >
+                                          <Boxes className="mr-1 h-3 w-3" />
+                                          Sản xuất
+                                        </Button>
+                                      )}
                                       <Button
                                         type="button"
                                         variant="outline"
@@ -2037,7 +2319,29 @@ export function InventoryView({
                                             <MoreHorizontal className="h-4 w-4" />
                                           </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuContent align="end" className="w-52">
+                                          <DropdownMenuItem
+                                            onClick={() => openDialog({ productId: p.id, type: 'PRODUCTION' })}
+                                            className="cursor-pointer gap-2 text-xs font-medium text-[#0066CC] dark:text-sky-300"
+                                          >
+                                            <Boxes className="h-3.5 w-3.5 text-[#0066CC] dark:text-sky-400" />
+                                            <span>Sản xuất thành phẩm (LSX)</span>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => openDialog({ productId: p.id, type: 'IMPORT' })}
+                                            className="cursor-pointer gap-2 text-xs"
+                                          >
+                                            <PackagePlus className="h-3.5 w-3.5 text-emerald-600" />
+                                            <span>Nhập kho bổ sung</span>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => openDialog({ productId: p.id, type: 'EXPORT' })}
+                                            className="cursor-pointer gap-2 text-xs"
+                                          >
+                                            <ArrowUpFromLine className="h-3.5 w-3.5 text-orange-600" />
+                                            <span>Xuất kho / Hao hụt</span>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
                                           <DropdownMenuItem
                                             onClick={() => openProductLineage(p)}
                                             className="cursor-pointer gap-2 text-xs"
@@ -2119,6 +2423,15 @@ export function InventoryView({
                           <Button
                             variant="outline"
                             size="sm"
+                            className="border-sky-300 bg-sky-50/70 text-[#0066CC] hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
+                            onClick={() => openDialog({ productId: p.id, type: 'PRODUCTION' })}
+                          >
+                            <Boxes className="h-4 w-4" />
+                            Sản xuất bù tồn
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => openDialog({ productId: p.id, type: 'IMPORT' })}
                           >
                             <PackagePlus className="h-4 w-4" />
@@ -2153,6 +2466,7 @@ export function InventoryView({
                         [
                           { id: 'ALL', label: 'Tất cả' },
                           { id: 'IMPORT', label: 'Nhập kho' },
+                          { id: 'PRODUCTION', label: 'Sản xuất (LSX)' },
                           { id: 'EXPORT', label: 'Xuất kho' },
                           { id: 'ADJUST', label: 'Cân bằng kho' },
                         ] as const
@@ -2498,6 +2812,18 @@ export function InventoryView({
                                     <ArrowLeftRight className="mr-1 h-3 w-3" />
                                     Chuyển kho
                                   </Button>
+                                  {!isRawMaterialProduct(p) && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 border-sky-300 bg-sky-50/70 px-2 text-xs font-semibold text-[#0066CC] hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
+                                      onClick={() => openDialog({ productId: p.id, type: 'PRODUCTION' })}
+                                    >
+                                      <Boxes className="mr-1 h-3 w-3" />
+                                      Sản xuất
+                                    </Button>
+                                  )}
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -2522,19 +2848,20 @@ export function InventoryView({
         </>
       )}
 
-      {/* Dialog thao tác kho (Nhập / Xuất / Điều chỉnh + Quy đổi Định lượng tự động) */}
+      {/* Dialog thao tác kho (Nhập / Sản xuất / Xuất / Điều chỉnh + Quy đổi Định lượng & Trừ NVL BOM tự động) */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Thao tác kho &amp; Quy đổi Định lượng</DialogTitle>
             <DialogDescription>
-              Nhập kho, xuất kho hoặc kiểm kê. Hỗ trợ tự động quy đổi định lượng (VD: nhập 10 kg → +10.000 gr).
+              Nhập kho, sản xuất thành phẩm (trừ NVL ➔ cộng thành phẩm), xuất kho hoặc kiểm kê. Hỗ trợ tự động quy đổi định lượng (VD: nhập 10 kg → +10.000 gr).
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
               <Label htmlFor="movement-product">
-                Sản phẩm <span className="text-destructive">*</span>
+                {form.type === 'PRODUCTION' ? 'Thành phẩm sản xuất' : 'Sản phẩm'}{' '}
+                <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={form.productId || undefined}
@@ -2551,6 +2878,7 @@ export function InventoryView({
                     quantity: '',
                     conversionRate: defaultRate,
                     inputUnit: defaultUnit,
+                    customMaterials: [],
                   })
                 }}
               >
@@ -2558,11 +2886,13 @@ export function InventoryView({
                   <SelectValue placeholder="Chọn sản phẩm" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(products ?? []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.sku}) — Tồn: {formatNumber(p.stock)} {p.unitConfig?.baseUnit || p.unit || 'cái'}
-                    </SelectItem>
-                  ))}
+                  {(products ?? [])
+                    .filter((p) => (form.type === 'PRODUCTION' ? p.type !== 'COMBO' : true))
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.sku}) — Tồn: {formatNumber(p.stock)} {p.unitConfig?.baseUnit || p.unit || 'cái'}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2602,7 +2932,17 @@ export function InventoryView({
                       nextType === 'IMPORT' && uc?.purchaseUnit
                         ? uc.purchaseUnit
                         : uc?.baseUnit || selectedProduct?.unit || 'cái'
-                    setForm({ ...form, type: nextType, conversionRate: defaultRate, inputUnit: defaultUnit })
+                    setForm({
+                      ...form,
+                      type: nextType,
+                      conversionRate: defaultRate,
+                      inputUnit: defaultUnit,
+                      supplierName:
+                        nextType === 'PRODUCTION'
+                          ? form.supplierName || shopProfile.defaultWorkshopName
+                          : form.supplierName,
+                      customMaterials: [],
+                    })
                   }}
                 >
                   <SelectTrigger id="movement-type" className="w-full">
@@ -2618,6 +2958,239 @@ export function InventoryView({
                 </Select>
               </div>
             </div>
+
+            {/* ===== KHỐI THAO TÁC SẢN XUẤT THÀNH PHẨM & TRỪ NGUYÊN VẬT LIỆU (PRODUCTION) ===== */}
+            {form.type === 'PRODUCTION' && (
+              <div className="space-y-3 rounded-xl border border-sky-300/80 bg-sky-50/40 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Boxes className="h-4 w-4 text-[#0066CC] dark:text-sky-400" />
+                    <span className="text-xs font-bold text-sky-950 dark:text-sky-200">
+                      Lệnh Sản Xuất Xưởng (Mã phiếu tự động: LSX-...)
+                    </span>
+                  </div>
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDialogOpen(false)
+                        onNavigate('bom')
+                      }}
+                      className="rounded-md border border-sky-300 bg-background px-2 py-0.5 text-[11px] font-semibold text-[#0066CC] hover:bg-sky-100 dark:border-sky-800 dark:text-sky-300"
+                    >
+                      Mở trang Sản xuất &amp; Định mức BOM
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid gap-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <Label className="text-[11px] font-semibold text-foreground">
+                      Tổ / Xưởng thực hiện sản xuất
+                    </Label>
+                    <div className="flex flex-wrap gap-1">
+                      {shopProfile.workshopPresets.map((ws) => (
+                        <button
+                          key={ws}
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, supplierName: ws }))}
+                          className={cn(
+                            'rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors',
+                            form.supplierName === ws
+                              ? 'border-[#0066CC] bg-[#0066CC] text-white'
+                              : 'border-sky-300 bg-background text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-300'
+                          )}
+                        >
+                          {ws}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Input
+                    value={form.supplierName}
+                    onChange={(e) => setForm((f) => ({ ...f, supplierName: e.target.value }))}
+                    placeholder="VD: Xưởng đúc thủ công Ưu Đàm"
+                    className="h-8 bg-background text-xs"
+                  />
+                </div>
+
+                {/* Định mức Nguyên vật liệu tiêu hao (tự động từ BOM hoặc chọn thêm thực tế) */}
+                <div className="space-y-2 rounded-lg border border-sky-200/80 bg-background p-2.5 dark:border-sky-900/60">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="text-[11px] font-semibold text-foreground">
+                      Nguyên vật liệu tiêu hao ({productionMaterialsPreview.length} mặt hàng)
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {maxProducibleForSelected !== null && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((f) => ({
+                              ...f,
+                              quantity: String(Math.max(1, maxProducibleForSelected)),
+                            }))
+                          }
+                          className={cn(
+                            'rounded-md px-2 py-0.5 text-[10px] font-bold',
+                            maxProducibleForSelected > 0
+                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                          )}
+                        >
+                          {maxProducibleForSelected > 0
+                            ? `Đủ NVL làm tối đa: ${formatNumber(maxProducibleForSelected)} ${baseUnitLabel} (Bấm điền)`
+                            : 'Tồn kho NVL hiện tại chưa đủ theo BOM'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const candidate =
+                            (products ?? []).find(
+                              (p) =>
+                                p.id !== form.productId &&
+                                p.type !== 'COMBO' &&
+                                isRawMaterialProduct(p) &&
+                                !productionMaterialsPreview.some((m) => m.componentId === p.id)
+                            ) ??
+                            (products ?? []).find(
+                              (p) =>
+                                p.id !== form.productId &&
+                                p.type !== 'COMBO' &&
+                                !productionMaterialsPreview.some((m) => m.componentId === p.id)
+                            )
+                          if (!candidate) return
+                          setForm((f) => ({
+                            ...f,
+                            customMaterials: [
+                              ...f.customMaterials,
+                              { componentId: candidate.id, quantity: '1' },
+                            ],
+                          }))
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-sky-400 px-2 py-0.5 text-[10px] font-semibold text-[#0066CC] hover:bg-sky-50 dark:text-sky-300"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Chọn thêm NVL trừ kèm
+                      </button>
+                    </div>
+                  </div>
+
+                  {productionMaterialsPreview.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Thành phẩm này chưa gắn định mức NVL cố định (BOM). Khi xác nhận, hệ thống sẽ lập Lệnh sản xuất{' '}
+                      <span className="font-mono font-semibold text-foreground">LSX-...</span> và cộng trực tiếp số lượng thành phẩm mới đúc/sản xuất vào kho (hoặc bấm{' '}
+                      <strong>+ Chọn thêm NVL trừ kèm</strong> nếu muốn trừ nguyên vật liệu cùng lúc).
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {productionMaterialsPreview.map((mat) => (
+                        <div
+                          key={mat.componentId}
+                          className={cn(
+                            'flex flex-wrap items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs',
+                            mat.isEnough
+                              ? 'border-border/70 bg-muted/20'
+                              : 'border-rose-300 bg-rose-50/60 dark:border-rose-900 dark:bg-rose-950/30'
+                          )}
+                        >
+                          <div className="min-w-0 flex-1">
+                            {mat.isManualRow ? (
+                              <Select
+                                value={mat.componentId}
+                                onValueChange={(newId) =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    customMaterials: f.customMaterials.map((cm) =>
+                                      cm.componentId === mat.componentId ? { ...cm, componentId: newId } : cm
+                                    ),
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(products ?? [])
+                                    .filter((p) => p.id !== form.productId && p.type !== 'COMBO')
+                                    .map((p) => (
+                                      <SelectItem key={p.id} value={p.id}>
+                                        {p.sku} — {p.name} (Tồn: {p.stock})
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <>
+                                <p className="truncate font-semibold text-foreground">
+                                  {mat.name}{' '}
+                                  <span className="font-mono text-[10px] text-muted-foreground">({mat.sku})</span>
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  Tồn kho NVL: <strong>{formatNumber(mat.currentStock)} {mat.unit}</strong> · Định mức tự tính:{' '}
+                                  {formatNumber(mat.autoRequiredQty)} {mat.unit}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-[10px] text-muted-foreground">Trừ:</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={
+                                form.customMaterials.find((cm) => cm.componentId === mat.componentId)?.quantity ??
+                                String(mat.finalRequiredQty)
+                              }
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setForm((f) => {
+                                  const exists = f.customMaterials.some((cm) => cm.componentId === mat.componentId)
+                                  if (exists) {
+                                    return {
+                                      ...f,
+                                      customMaterials: f.customMaterials.map((cm) =>
+                                        cm.componentId === mat.componentId ? { ...cm, quantity: val } : cm
+                                      ),
+                                    }
+                                  }
+                                  return {
+                                    ...f,
+                                    customMaterials: [
+                                      ...f.customMaterials,
+                                      { componentId: mat.componentId, quantity: val },
+                                    ],
+                                  }
+                                })
+                              }}
+                              className="h-7 w-20 font-mono text-xs"
+                            />
+                            <span className="text-[11px] text-muted-foreground">{mat.unit}</span>
+                            {mat.isManualRow && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    customMaterials: f.customMaterials.filter(
+                                      (cm) => cm.componentId !== mat.componentId
+                                    ),
+                                  }))
+                                }
+                                className="rounded p-1 text-muted-foreground hover:bg-rose-100 hover:text-rose-600"
+                                title="Bỏ nguyên vật liệu này"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {form.type !== 'ADJUST' && (
               <div className="space-y-2 rounded-lg border border-emerald-300/70 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
@@ -2676,12 +3249,35 @@ export function InventoryView({
             )}
 
             <div className="grid gap-2">
-              <Label htmlFor="movement-quantity">
-                {form.type === 'ADJUST'
-                  ? `Số tồn mới theo ${baseUnitLabel} (kiểm kê)`
-                  : `Số lượng (${form.inputUnit || baseUnitLabel})`}
-                <span className="text-destructive"> *</span>
-              </Label>
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                <Label htmlFor="movement-quantity">
+                  {form.type === 'ADJUST'
+                    ? `Số tồn mới theo ${baseUnitLabel} (kiểm kê)`
+                    : form.type === 'PRODUCTION'
+                      ? `Số lượng thành phẩm hoàn thành (${form.inputUnit || baseUnitLabel})`
+                      : `Số lượng (${form.inputUnit || baseUnitLabel})`}
+                  <span className="text-destructive"> *</span>
+                </Label>
+                {form.type !== 'ADJUST' && (
+                  <div className="flex items-center gap-1">
+                    {[1, 5, 10, 20, 50].map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, quantity: String(q) }))}
+                        className={cn(
+                          'rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold transition-colors',
+                          form.quantity === String(q)
+                            ? 'border-[#0066CC] bg-[#0066CC] text-white'
+                            : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground'
+                        )}
+                      >
+                        +{q}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <Input
                 id="movement-quantity"
                 ref={qtyInputRef}
@@ -2697,7 +3293,7 @@ export function InventoryView({
                   {effectiveConvRate > 1 && form.type !== 'ADJUST' && (
                     <p className="font-semibold text-emerald-700 dark:text-emerald-400">
                       Quy đổi tự động: {qtyNum} {form.inputUnit} × {formatNumber(effectiveConvRate)} ={' '}
-                      {form.type === 'IMPORT' ? '+' : '-'}
+                      {form.type === 'IMPORT' || form.type === 'PRODUCTION' ? '+' : '-'}
                       {formatNumber(convertedQty)} {baseUnitLabel}
                     </p>
                   )}
@@ -2706,7 +3302,8 @@ export function InventoryView({
                       preview.next < 0 ? 'font-medium text-red-600 dark:text-red-400' : 'text-muted-foreground'
                     )}
                   >
-                    Tồn hiện tại: {formatNumber(preview.current)} {baseUnitLabel} → sau thao tác:{' '}
+                    Tồn hiện tại: {formatNumber(preview.current)} {baseUnitLabel} → sau{' '}
+                    {form.type === 'PRODUCTION' ? 'sản xuất' : 'thao tác'}:{' '}
                     <span
                       className={cn(
                         preview.next < 0
@@ -2716,6 +3313,12 @@ export function InventoryView({
                     >
                       {formatNumber(preview.next)} {baseUnitLabel}
                     </span>
+                    {form.type === 'PRODUCTION' && preview.delta > 0 && (
+                      <span className="font-semibold text-[#0066CC] dark:text-sky-400">
+                        {' '}
+                        (+{formatNumber(preview.delta)} {baseUnitLabel} thành phẩm mới)
+                      </span>
+                    )}
                     {form.type === 'ADJUST' && (
                       <span>
                         {' '}
@@ -2725,6 +3328,11 @@ export function InventoryView({
                     )}
                     {preview.next < 0 && ' — vượt quá tồn hiện tại, không thể xuất'}
                   </p>
+                  {hasInsufficientProductionMaterial && (
+                    <p className="font-semibold text-rose-600 dark:text-rose-400">
+                      Có nguyên vật liệu tiêu hao vượt quá tồn kho hiện tại — vui lòng điều chỉnh lượng trừ hoặc nhập thêm NVL.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -2734,7 +3342,11 @@ export function InventoryView({
                 id="movement-note"
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
-                placeholder="Ví dụ: Nhập 10kg sáp nến tự quy đổi 10.000gr..."
+                placeholder={
+                  form.type === 'PRODUCTION'
+                    ? 'Ví dụ: Đúc hoàn thiện mẻ chân nến hoa sen Bơ Mộc ca sáng...'
+                    : 'Ví dụ: Nhập 10kg sáp nến tự quy đổi 10.000gr...'
+                }
                 rows={2}
               />
             </div>
@@ -2743,9 +3355,13 @@ export function InventoryView({
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
               Hủy
             </Button>
-            <Button onClick={() => void handleSubmit()} disabled={submitDisabled || submitting}>
+            <Button
+              onClick={() => void handleSubmit()}
+              disabled={submitDisabled || submitting}
+              className={cn(form.type === 'PRODUCTION' && 'bg-[#0066CC] text-white hover:bg-[#0055B3]')}
+            >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Xác nhận
+              {form.type === 'PRODUCTION' ? 'Xác nhận Sản xuất (LSX)' : 'Xác nhận'}
             </Button>
           </DialogFooter>
         </DialogContent>

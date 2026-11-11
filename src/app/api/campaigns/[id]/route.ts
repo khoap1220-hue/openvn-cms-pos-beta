@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logLedger } from '@/lib/ledger'
 import {
   getCampaign,
   updateCampaign,
@@ -69,7 +70,52 @@ export async function PUT(
       }
     }
 
+    const existing = await getCampaign(id)
     const updated = await updateCampaign(id, body)
+
+    if (existing) {
+      await logLedger({
+        scope: 'CAMPAIGN',
+        action: 'CAMPAIGN_UPDATED',
+        entityType: 'Campaign',
+        entityId: id,
+        entityCode: updated.code,
+        title: `[CHƯƠNG TRÌNH] Cập nhật chiến dịch ${updated.code}: ${updated.name} (Trạng thái: ${updated.status})`,
+        detail: {
+          code: updated.code,
+          name: updated.name,
+          status: updated.status,
+          startDate: updated.startDate,
+          endDate: updated.endDate,
+          discountPercent: updated.discountPercent,
+          discountAmount: updated.discountAmount,
+        },
+        beforeSnapshot: {
+          name: existing.name,
+          code: existing.code,
+          status: existing.status,
+          startDate: existing.startDate,
+          endDate: existing.endDate,
+          discountPercent: existing.discountPercent,
+          discountAmount: existing.discountAmount,
+        },
+        afterSnapshot: {
+          name: updated.name,
+          code: updated.code,
+          status: updated.status,
+          startDate: updated.startDate,
+          endDate: updated.endDate,
+          discountPercent: updated.discountPercent,
+          discountAmount: updated.discountAmount,
+        },
+        changedFields: ['name', 'status', 'startDate', 'endDate', 'discountPercent', 'discountAmount'].filter(
+          (k) => (existing as unknown as Record<string, unknown>)[k] !== (updated as unknown as Record<string, unknown>)[k]
+        ),
+        actor: 'OPERATOR',
+        originSource: 'MANUAL_ADMIN',
+      })
+    }
+
     return NextResponse.json({ campaign: updated })
   } catch (err: unknown) {
     console.error('[API /api/campaigns/[id] PUT] Error:', err)
@@ -93,7 +139,32 @@ export async function DELETE(
       return NextResponse.json({ error: 'ID chiến dịch không hợp lệ' }, { status: 400 })
     }
 
+    const existing = await getCampaign(id)
     const result = await deleteCampaign(id)
+
+    if (existing) {
+      await logLedger({
+        scope: 'CAMPAIGN',
+        action: 'CAMPAIGN_DELETED',
+        entityType: 'Campaign',
+        entityId: id,
+        entityCode: existing.code,
+        title: `[CHƯƠNG TRÌNH] Xóa chiến dịch ${existing.code}: ${existing.name}`,
+        detail: {
+          code: existing.code,
+          name: existing.name,
+          status: existing.status,
+        },
+        beforeSnapshot: {
+          code: existing.code,
+          name: existing.name,
+          status: existing.status,
+        },
+        actor: 'OPERATOR',
+        originSource: 'MANUAL_ADMIN',
+      })
+    }
+
     return NextResponse.json(result)
   } catch (err: unknown) {
     console.error('[API /api/campaigns/[id] DELETE] Error:', err)

@@ -45,6 +45,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { canAccessView, type CmsViewId, type PermissionMap } from '@/lib/rbac'
+import { useShopProfile } from '@/lib/shop-profile'
 import { cn } from '@/lib/utils'
 
 export type ViewId = CmsViewId
@@ -124,6 +125,7 @@ export interface SidebarStatus {
 export function AppSidebar({
   activeView,
   onNavigate,
+  onOpenBrandSettings,
   badges,
   autopilotOn,
   status,
@@ -132,12 +134,14 @@ export function AppSidebar({
 }: {
   activeView: ViewId
   onNavigate: (view: ViewId) => void
+  onOpenBrandSettings?: () => void
   badges: { pendingOrders: number; lowStock: number; unread: number }
   autopilotOn: boolean
   status: SidebarStatus
   permissions?: PermissionMap
   currentUser?: CurrentStaffProfile | null
 }) {
+  const { profile } = useShopProfile()
   const [now, setNow] = useState('')
   useEffect(() => {
     const update = () => setNow(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }))
@@ -157,6 +161,7 @@ export function AppSidebar({
   const allowedSystem = filterAllowed(NAV_SYSTEM)
   const canOpenPos = !permissions || canAccessView(permissions, 'pos')
   const canOpenAutopilot = !permissions || canAccessView(permissions, 'autopilot')
+  const canOpenSystem = !permissions || canAccessView(permissions, 'system')
 
   const badgeValue = (item: NavItem) => {
     if (!item.badgeKey) return undefined
@@ -180,7 +185,7 @@ export function AppSidebar({
             onClick={() => onNavigate(item.id)}
             tooltip={item.label}
             className={cn(
-              'h-7.5 rounded-lg text-[13px] transition-all',
+              'min-h-11 rounded-lg px-2.5 py-2 text-xs leading-tight transition-all',
               active
                 ? 'bg-[#0066CC] font-semibold text-white shadow-sm hover:bg-[#0055B3] hover:text-white data-[active=true]:bg-[#0066CC] data-[active=true]:text-white'
                 : 'text-sidebar-foreground/90 hover:bg-white/10 hover:text-white'
@@ -203,186 +208,215 @@ export function AppSidebar({
   const staffInitials = computeInitials(staffName)
   const staffAvatarColor = currentUser?.avatarColor || '#0066CC'
 
+  const handleOpenBrandConfig = () => {
+    if (!canOpenSystem) return
+    if (onOpenBrandSettings) {
+      onOpenBrandSettings()
+    } else {
+      onNavigate('system')
+    }
+  }
+
   return (
     <Sidebar collapsible="icon" style={{ ['--sidebar-width' as string]: '15.5rem' }}>
-      <SidebarHeader className="border-b border-white/10 pb-2.5">
-        <div className="flex items-center gap-2.5 px-2 pt-2 group-data-[collapsible=icon]:justify-center">
+      <SidebarHeader className="border-b border-white/10 p-2">
+        <div className="group/brand flex items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0088FF] to-[#0055CC] text-white shadow-md">
-            <ShoppingBag className="h-5 w-5" />
+            <ShoppingBag className="h-4.5 w-4.5" />
           </div>
           <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-sm font-bold tracking-tight text-white">OPENVN · Ưu Đàm</p>
-              <span className="rounded bg-[#0066CC]/35 px-1.5 py-0.5 text-[10px] font-semibold text-sky-200">
-                OMNI
-              </span>
+              <p
+                className="truncate text-sm font-bold tracking-tight text-white"
+                title={profile.brandName}
+              >
+                {profile.brandName}
+              </p>
+              {profile.brandBadge && (
+                <span className="shrink-0 rounded bg-[#0066CC]/35 px-1.5 py-0.5 text-xs font-semibold text-sky-200">
+                  {profile.brandBadge}
+                </span>
+              )}
+              {canOpenSystem && (
+                <button
+                  type="button"
+                  onClick={handleOpenBrandConfig}
+                  title="Tùy biến tên thương hiệu & thiết lập Shop"
+                  aria-label="Tùy biến tên thương hiệu & thiết lập Shop"
+                  className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-300/80 transition-colors hover:bg-white/15 hover:text-white"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              )}
             </div>
-            <p className="truncate text-[11px] text-slate-300">Quản lý bán hàng đa kênh</p>
+            <p className="truncate text-xs leading-tight text-slate-300" title={profile.brandSubtitle}>
+              {profile.brandSubtitle}
+            </p>
           </div>
         </div>
-        <div className="mt-1.5 flex items-center gap-1.5 px-2 group-data-[collapsible=icon]:hidden">
+        <div className="mt-1 flex items-center gap-1.5 px-1 group-data-[collapsible=icon]:hidden">
           {canOpenPos && (
             <button
               type="button"
               onClick={() => onNavigate('pos')}
               className={cn(
-                'flex flex-1 items-center justify-between rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                'flex min-h-11 flex-1 items-center justify-between rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors',
                 activeView === 'pos'
                   ? 'border-[#38BDF8]/50 bg-[#0066CC] text-white'
                   : 'border-white/15 bg-white/10 text-white hover:bg-white/15'
               )}
             >
               <span className="flex items-center gap-1.5">
-                <Store className="h-3.5 w-3.5 text-[#38BDF8]" />
+                <Store className="h-4 w-4 text-[#38BDF8]" />
                 Bán tại kho (POS)
               </span>
             </button>
           )}
           <a
-            href="/store"
+            href={profile.storefrontUrl || '/store'}
             target="_blank"
             rel="noreferrer"
             title="Xem Cửa hàng trực tuyến"
             aria-label="Xem Cửa hàng trực tuyến"
             className={cn(
-              'flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 text-xs text-sidebar-foreground/90 transition-colors hover:bg-white/10 hover:text-white',
-              canOpenPos ? 'w-7' : 'flex-1 px-2.5'
+              'flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 text-xs text-sidebar-foreground/90 transition-colors hover:bg-white/10 hover:text-white',
+              canOpenPos ? 'w-11' : 'flex-1 px-2.5'
             )}
           >
-            <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+            <ExternalLink className="h-4 w-4 opacity-80" />
             {!canOpenPos && <span>Xem Cửa hàng trực tuyến</span>}
           </a>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0 py-1">
+      <SidebarContent className="gap-0.5 py-1">
         {allowedOverview.length > 0 && (
           <SidebarGroup className="px-2 py-0.5">
-            <SidebarGroupLabel className="h-5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+            <SidebarGroupLabel className="h-5 text-xs font-semibold uppercase tracking-wider text-slate-300">
               Tổng quan &amp; AI
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>{renderItems(allowedOverview)}</SidebarMenu>
+              <SidebarMenu className="gap-0.5">{renderItems(allowedOverview)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
 
         {allowedSales.length > 0 && (
           <SidebarGroup className="px-2 py-0.5">
-            <SidebarGroupLabel className="h-5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+            <SidebarGroupLabel className="h-5 text-xs font-semibold uppercase tracking-wider text-slate-300">
               Đơn hàng &amp; Bán hàng
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>{renderItems(allowedSales)}</SidebarMenu>
+              <SidebarMenu className="gap-0.5">{renderItems(allowedSales)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
 
         {allowedCatalog.length > 0 && (
           <SidebarGroup className="px-2 py-0.5">
-            <SidebarGroupLabel className="h-5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+            <SidebarGroupLabel className="h-5 text-xs font-semibold uppercase tracking-wider text-slate-300">
               Kho &amp; Sản xuất
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>{renderItems(allowedCatalog)}</SidebarMenu>
+              <SidebarMenu className="gap-0.5">{renderItems(allowedCatalog)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
 
         {allowedCrm.length > 0 && (
           <SidebarGroup className="px-2 py-0.5">
-            <SidebarGroupLabel className="h-5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+            <SidebarGroupLabel className="h-5 text-xs font-semibold uppercase tracking-wider text-slate-300">
               Khách hàng &amp; Kênh
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>{renderItems(allowedCrm)}</SidebarMenu>
+              <SidebarMenu className="gap-0.5">{renderItems(allowedCrm)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
 
         {allowedFinance.length > 0 && (
           <SidebarGroup className="px-2 py-0.5">
-            <SidebarGroupLabel className="h-5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+            <SidebarGroupLabel className="h-5 text-xs font-semibold uppercase tracking-wider text-slate-300">
               Sổ quỹ &amp; Báo cáo
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>{renderItems(allowedFinance)}</SidebarMenu>
+              <SidebarMenu className="gap-0.5">{renderItems(allowedFinance)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
 
         {allowedSystem.length > 0 && (
           <SidebarGroup className="px-2 py-0.5">
-            <SidebarGroupLabel className="h-5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+            <SidebarGroupLabel className="h-5 text-xs font-semibold uppercase tracking-wider text-slate-300">
               Hệ thống &amp; Phân quyền
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>{renderItems(allowedSystem)}</SidebarMenu>
+              <SidebarMenu className="gap-0.5">{renderItems(allowedSystem)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-      </SidebarContent>
 
-      <SidebarFooter className="border-t border-white/10 p-1.5">
-        <div className="flex flex-col gap-1.5 group-data-[collapsible=icon]:hidden">
-          {status.offline && (
-            <div
-              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-300"
-              role="status"
-              aria-live="polite"
-            >
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-70" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-              </span>
-              NGOẠI TUYẾN — {status.pendingSync > 0 ? `${status.pendingSync} chờ đồng bộ` : 'Offline'}
-            </div>
-          )}
-          {!status.offline && status.pendingSync > 0 && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-2.5 py-1.5 text-xs font-medium text-sky-300">
-              <ClipboardList className="h-3.5 w-3.5 shrink-0" />
-              {status.pendingSync} thao tác chờ đồng bộ
-            </div>
-          )}
-          {status.periodClosed && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/15 px-2.5 py-1.5 text-xs font-semibold text-rose-300">
-              <ReceiptText className="h-3.5 w-3.5 shrink-0" />
-              ĐÃ CHỐT SỔ — Q{status.periodClosed.quarter}/{status.periodClosed.year}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-white/5 px-2.5 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <Avatar className="h-7 w-7 shrink-0">
-                <AvatarFallback
-                  className="text-[11px] font-bold text-white"
-                  style={{ backgroundColor: staffAvatarColor }}
-                >
-                  {staffInitials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="truncate text-xs font-semibold leading-tight text-white">{staffName}</p>
-                <p className="truncate text-[10px] text-slate-300">
-                  {staffRoleLabel} · <span className="font-mono tabular-nums">{now}</span>
-                </p>
-              </div>
-            </div>
-            {canOpenAutopilot && (
-              <Badge
-                onClick={() => onNavigate('autopilot')}
-                className={cn(
-                  'cursor-pointer px-1.5 py-0.5 text-[10px] font-semibold',
-                  autopilotOn ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30' : 'bg-white/10 text-sidebar-foreground/70'
-                )}
-                title="Trạng thái Agent Autopilot"
+        <SidebarFooter className="mt-auto border-t border-white/10 p-2">
+          <div className="flex flex-col gap-1.5 group-data-[collapsible=icon]:hidden">
+            {status.offline && (
+              <div
+                className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-300"
+                role="status"
+                aria-live="polite"
               >
-                AI {autopilotOn ? 'BẬT' : 'TẮT'}
-              </Badge>
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-70" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                </span>
+                NGOẠI TUYẾN — {status.pendingSync > 0 ? `${status.pendingSync} chờ đồng bộ` : 'Offline'}
+              </div>
             )}
+            {!status.offline && status.pendingSync > 0 && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-2.5 py-1.5 text-xs font-medium text-sky-300">
+                <ClipboardList className="h-3.5 w-3.5 shrink-0" />
+                {status.pendingSync} thao tác chờ đồng bộ
+              </div>
+            )}
+            {status.periodClosed && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/15 px-2.5 py-1.5 text-xs font-semibold text-rose-300">
+                <ReceiptText className="h-3.5 w-3.5 shrink-0" />
+                ĐÃ CHỐT SỔ — Q{status.periodClosed.quarter}/{status.periodClosed.year}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-white/5 px-2.5 py-1.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <Avatar className="h-7 w-7 shrink-0">
+                  <AvatarFallback
+                    className="text-xs font-bold text-white"
+                    style={{ backgroundColor: staffAvatarColor }}
+                  >
+                    {staffInitials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold leading-tight text-white">{staffName}</p>
+                  <p className="truncate text-xs text-slate-300">
+                    {staffRoleLabel} · <span className="font-mono tabular-nums">{now}</span>
+                  </p>
+                </div>
+              </div>
+              {canOpenAutopilot && (
+                <Badge
+                  onClick={() => onNavigate('autopilot')}
+                  className={cn(
+                    'cursor-pointer px-1.5 py-0.5 text-xs font-semibold',
+                    autopilotOn ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30' : 'bg-white/10 text-sidebar-foreground/70'
+                  )}
+                  title="Trạng thái Agent Autopilot"
+                >
+                  AI {autopilotOn ? 'BẬT' : 'TẮT'}
+                </Badge>
+              )}
+            </div>
           </div>
-        </div>
-      </SidebarFooter>
+        </SidebarFooter>
+      </SidebarContent>
       <SidebarRail />
     </Sidebar>
   )

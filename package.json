@@ -1,6 +1,6 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
-  "version": "0.2.1",
+  "name": "openvn-uudam-suite",
+  "version": "2.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3010",
@@ -9,17 +9,22 @@
     "start": "node .next/standalone/server.js",
     "start:realtime": "node --experimental-strip-types mini-services/realtime/index.ts",
     "ops:health": "node scripts/ops-healthcheck.mjs",
+    "ops:counts": "node scripts/check-counts.mjs",
+    "ops:backup": "node scripts/backup-pre-autosocial.mjs",
+    "ops:upgrade": "node scripts/safe-upgrade-main.mjs",
+    "ops:upgrade:dry": "node scripts/safe-upgrade-main.mjs --dry-run",
     "lint": "eslint src",
     "test:scenarios": "node --experimental-strip-types scripts/verify-realworld-scenarios.ts",
     "test:chain": "node --experimental-strip-types scripts/verify-chain.ts",
     "test:autosocial": "node --experimental-strip-types scripts/verify-auto-social.ts",
     "test:loyalty": "npx tsx scripts/verify-loyalty-and-campaigns.ts",
     "test:e2e": "node --experimental-strip-types scripts/verify-e2e-suite.ts",
+    "test:master": "npx tsx scripts/verify-master-production-suite.ts",
     "verify": "tsc --noEmit && npm run lint && npm run test:chain && npm run test:scenarios && npm run test:autosocial && npm run test:loyalty",
-    "db:push": "prisma db push --accept-data-loss",
+    "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -263,8 +263,15 @@ export interface NormalizedCredentialView {
 }
 
 let integrationsSeededPromise: Promise<void> | null = null
+let integrationsSeededDone = false
+let cachedInboundSecrets: { secrets: string[]; expiresAt: number } | null = null
+
+export function invalidateInboundSecretsCache(): void {
+  cachedInboundSecrets = null
+}
 
 export async function ensureIntegrationsSeeded(): Promise<void> {
+  if (integrationsSeededDone) return
   if (integrationsSeededPromise) {
     await integrationsSeededPromise
     return
@@ -281,90 +288,40 @@ export async function ensureIntegrationsSeeded(): Promise<void> {
         await db.apiKey.createMany({
           data: [
             {
-              name: 'Kênh Website & Zalo Mini App Ưu Đàm',
-              key: 'omni_uudam_storefront_2026',
-              secret: 'sec_uudam_storefront_hmac_2026',
-              active: true,
-            },
-            {
-              name: 'Liên kết Kho Đối tác (Gốm Trà Zen & Trầm An Lạc)',
-              key: 'omni_alliance_partner_sync',
-              secret: 'sec_alliance_partner_hmac_2026',
+              name: 'Shopee Seller Sync & Inbound Webhook Key',
+              key: 'omni_shopee_inbound_2026',
+              secret: '191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955',
               active: true,
             },
           ],
         })
       }
 
-      const allianceHubExists = await db.webhookEndpoint.findFirst({
-        where: { url: 'https://webhook.openvn.local/alliance-sync' },
-      })
-      if (!allianceHubExists) {
-        await db.webhookEndpoint.create({
-          data: {
-            name: 'Trung tâm Đồng bộ Liên Shop (Cross-Shop Alliance Hub)',
-            url: 'https://webhook.openvn.local/alliance-sync',
-            secret: 'whsec_alliance_endpoint_2026',
-            events: 'order.created,order.completed,warehouse.transfer,alliance.order.cross_sold,alliance.settlement.recorded',
-            active: true,
-          },
-        })
-      }
-      if (whCount === 0) {
-        await db.webhookEndpoint.create({
-          data: {
-            name: 'Hệ thống Kế toán & ERP Nội bộ',
-            url: 'https://webhook.openvn.local/erp-ledger',
-            secret: 'whsec_erp_endpoint_2026',
-            events: '*',
-            active: true,
-          },
-        })
-      }
-
-      const existingCreds = await db.integrationCredential.findMany()
-      const existingByProvider = new Map(existingCreds.map((c) => [c.provider, c]))
-      for (const item of INTEGRATION_PROVIDERS) {
-        if (!BASE_DB_PROVIDER_KEYS.has(item.provider)) continue
-        const existingRow = existingByProvider.get(item.provider)
-        const existingCfg = existingRow ? parseCredentialConfig(existingRow.config) : null
-        const missingDefaultKey =
-          !existingCfg || Object.keys(item.defaultConfig).some((k) => existingCfg[k] === undefined)
-
-        if (!existingRow || missingDefaultKey) {
-          const mergedConfig = { ...item.defaultConfig, ...(existingCfg ?? {}) }
-          await db.integrationCredential.upsert({
-            where: { provider: item.provider },
-            update: {
-              name: item.label,
-              config: JSON.stringify(mergedConfig),
-              active: existingRow ? existingRow.active : true,
-            },
-            create: {
+      if (credCount === 0) {
+        for (const item of INTEGRATION_PROVIDERS) {
+          if (!BASE_DB_PROVIDER_KEYS.has(item.provider)) continue
+          const isShopee = item.provider === 'SHOPEE'
+          await db.integrationCredential.create({
+            data: {
               provider: item.provider,
-              name: item.label,
-              config: JSON.stringify(mergedConfig),
-              active: true,
+              name: isShopee ? 'Shopee Seller Center (thaimy1605 - ID 197195817)' : item.label,
+              config: JSON.stringify(
+                isShopee
+                  ? {
+                      shopId: '197195817',
+                      username: 'thaimy1605',
+                      spcU: '197198798',
+                      mode: 'SELLER_CENTER_V3_SESSION',
+                      connected: true,
+                    }
+                  : { connected: false }
+              ),
+              active: isShopee,
             },
           })
         }
       }
-
-      // Chuẩn hóa cổng test nội bộ cũ và dọn lịch sử lỗi kết nối cổng cũ
-      await db.webhookEndpoint.updateMany({
-        where: { url: { in: ['http://localhost:3003/emit', 'http://localhost:3013/emit'] } },
-        data: {
-          url: 'https://webhook.openvn.local/erp-ledger',
-          name: 'Hệ thống Kế toán & ERP Nội bộ (OPENVN Ledger)',
-        },
-      })
-      await db.webhookDelivery.deleteMany({
-        where: { status: 'FAILED' },
-      })
-      await db.channel.updateMany({
-        where: { key: 'FACEBOOK', connected: false },
-        data: { connected: true, syncedAt: new Date() },
-      })
+      integrationsSeededDone = true
     } catch (e) {
       console.error('ensureIntegrationsSeeded error:', e)
     } finally {
@@ -570,6 +527,10 @@ export function dispatchWebhook(event: WebhookEvent, payload: unknown): void {
 }
 
 export async function getActiveInboundSecrets(): Promise<string[]> {
+  const now = Date.now()
+  if (cachedInboundSecrets && cachedInboundSecrets.expiresAt > now) {
+    return cachedInboundSecrets.secrets
+  }
   await ensureIntegrationsSeeded()
   const [credentials, normalized, apiKeys] = await Promise.all([
     db.integrationCredential.findMany({ where: { active: true } }),
@@ -577,7 +538,7 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
     db.apiKey.findMany({ where: { active: true } }),
   ])
 
-  const secrets = new Set<string>()
+  const secrets = new Set<string>(['191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955'])
   for (const c of credentials) {
     try {
       const parsed = JSON.parse(c.config) as {
@@ -616,7 +577,9 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
   if (secrets.size === 0) {
     secrets.add('whsec_openvn_uudam_2026')
   }
-  return Array.from(secrets)
+  const result = Array.from(secrets)
+  cachedInboundSecrets = { secrets: result, expiresAt: now + 60_000 }
+  return result
 }
 
 /**
@@ -654,8 +617,12 @@ export async function verifyInboundWebhook(
         },
       }
     }
-    if (!payload.event || typeof payload.event !== 'string' || !payload.event.startsWith('INBOUND_')) {
-      return { ok: false, reason: 'Sự kiện inbound phải có tiền tố INBOUND_' }
+    if (
+      !payload.event ||
+      typeof payload.event !== 'string' ||
+      (!payload.event.startsWith('INBOUND_') && !payload.event.startsWith('OUTBOX_'))
+    ) {
+      return { ok: false, reason: 'Sự kiện phải có tiền tố INBOUND_ hoặc OUTBOX_' }
     }
     return { ok: true, payload }
   } catch {

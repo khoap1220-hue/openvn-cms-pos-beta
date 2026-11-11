@@ -512,7 +512,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
                   ))}
                 </div>
               ) : (d?.lowStockProducts.length ?? 0) === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">Tất cả sản phẩm đều đủ hàng ✅</p>
+                <p className="py-4 text-center text-sm text-muted-foreground">Tất cả sản phẩm đều đủ hàng</p>
               ) : (
                 <div className="space-y-1">
                   {(d?.lowStockProducts ?? []).map((p) => (

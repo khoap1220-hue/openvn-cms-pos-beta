@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { recordLineageChange } from '@/lib/ledger'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 import { computeTier } from '@/lib/types'
 import { getActiveLoyaltyPolicy, computeTierWithPolicy } from '@/lib/loyalty-policy'
 import { getLineageMeta } from '@/lib/lineage-server'
@@ -10,6 +11,12 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
+    const cacheKey = `customers:${searchParams.toString()}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const search = searchParams.get('search')?.trim()
     const scope = searchParams.get('scope') // ALL | MEMBER | CUSTOMER
 
@@ -20,7 +27,7 @@ export async function GET(req: NextRequest) {
       where.OR = [{ name: { contains: search } }, { phone: { contains: search } }, { email: { contains: search } }, { memberCode: { contains: search } }]
     }
 
-    const [customers, activePolicy] = await Promise.all([
+    const [customers, activePolicy, allCount, memberCount, pointsAgg] = await Promise.all([
       db.customer.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -29,6 +36,9 @@ export async function GET(req: NextRequest) {
         },
       }),
       getActiveLoyaltyPolicy().catch(() => null),
+      db.customer.count(),
+      db.customer.count({ where: { isMember: true } }),
+      db.customer.aggregate({ where: { isMember: true }, _sum: { points: true } }),
     ])
 
     const data = customers.map((c) => {
@@ -68,14 +78,7 @@ export async function GET(req: NextRequest) {
       return b.stats.totalSpent - a.stats.totalSpent
     })
 
-    // Thống kê toàn bộ (không theo filter) cho các thẻ tổng quan
-    const [allCount, memberCount, pointsAgg] = await Promise.all([
-      db.customer.count(),
-      db.customer.count({ where: { isMember: true } }),
-      db.customer.aggregate({ where: { isMember: true }, _sum: { points: true } }),
-    ])
-
-    return NextResponse.json({
+    const responsePayload = {
       customers: data,
       stats: {
         totalCustomers: allCount,
@@ -83,7 +86,9 @@ export async function GET(req: NextRequest) {
         customerCount: allCount - memberCount,
         pointsIssued: pointsAgg._sum.points ?? 0,
       },
-    })
+    }
+    setApiCache(cacheKey, responsePayload, 15_000)
+    return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Customers GET error:', error)
     return NextResponse.json({ error: 'Không thể tải khách hàng' }, { status: 500 })

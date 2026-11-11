@@ -63,13 +63,21 @@ import {
   Save,
   Scale,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
+  Store,
   Trash2,
   Users,
   WifiOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SystemCatalogSettings, type CatalogSettingsSubTab } from '@/components/cms/views/system-catalog-settings'
+import {
+  DEFAULT_SHOP_PROFILE,
+  SHOP_PROFILE_PRESETS,
+  extractShopProfileFromSettings,
+  writeShopProfileCache,
+} from '@/lib/shop-profile'
 
 export type SystemSectionTab = 'CATALOG_MASTER' | 'COMPANY_INVOICE' | 'SECURITY_AI_DATA' | 'ALL'
 
@@ -94,6 +102,16 @@ interface SettingsData {
   company_phone?: string
   invoice_number_start?: string
   invoice_payment_method?: string
+  // Thiết lập Thương hiệu & Tùy biến theo từng Shop
+  brand_name?: string
+  brand_short_name?: string
+  brand_badge?: string
+  brand_subtitle?: string
+  brand_footer_tagline?: string
+  shop_default_workshop?: string
+  shop_workshop_presets?: string
+  shop_default_warehouse_label?: string
+  shop_storefront_url?: string
 }
 
 interface Period {
@@ -138,20 +156,26 @@ export function SystemView({
   onNavigate,
   initialSection = 'CATALOG_MASTER',
   initialCatalogSubTab = 'CATEGORIES',
+  onSectionChange,
 }: {
   onNavigate?: (view: ViewId) => void
   initialSection?: SystemSectionTab
   initialCatalogSubTab?: CatalogSettingsSubTab
+  onSectionChange?: (section: SystemSectionTab) => void
 } = {}) {
   const router = useRouter()
-  const [activeSection, setActiveSection] = useState<SystemSectionTab>(initialSection)
+  const [activeSection, setActiveSectionState] = useState<SystemSectionTab>(initialSection)
+  const setActiveSection = (next: SystemSectionTab) => {
+    setActiveSectionState(next)
+    onSectionChange?.(next)
+  }
   const [catalogSubTab, setCatalogSubTab] = useState<CatalogSettingsSubTab>(initialCatalogSubTab)
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setActiveSection(initialSection)
+    setActiveSectionState(initialSection)
   }, [initialSection])
 
   useEffect(() => {
@@ -164,6 +188,22 @@ export function SystemView({
   const [companyAddress, setCompanyAddress] = useState('')
   const [companyPhone, setCompanyPhone] = useState('')
   const [savingCompany, setSavingCompany] = useState(false)
+
+  // Thiết lập Thương hiệu & Tùy biến theo từng Shop (Sidebar, Topbar, Xưởng SX, Kho mặc định)
+  const [brandName, setBrandName] = useState(DEFAULT_SHOP_PROFILE.brandName)
+  const [brandShortName, setBrandShortName] = useState(DEFAULT_SHOP_PROFILE.brandShortName)
+  const [brandBadge, setBrandBadge] = useState(DEFAULT_SHOP_PROFILE.brandBadge)
+  const [brandSubtitle, setBrandSubtitle] = useState(DEFAULT_SHOP_PROFILE.brandSubtitle)
+  const [brandFooterTagline, setBrandFooterTagline] = useState(DEFAULT_SHOP_PROFILE.brandFooterTagline)
+  const [defaultWorkshopName, setDefaultWorkshopName] = useState(DEFAULT_SHOP_PROFILE.defaultWorkshopName)
+  const [workshopPresetsInput, setWorkshopPresetsInput] = useState(
+    DEFAULT_SHOP_PROFILE.workshopPresets.join(', ')
+  )
+  const [defaultWarehouseLabel, setDefaultWarehouseLabel] = useState(
+    DEFAULT_SHOP_PROFILE.defaultWarehouseLabel
+  )
+  const [storefrontUrl, setStorefrontUrl] = useState(DEFAULT_SHOP_PROFILE.storefrontUrl)
+  const [savingBrand, setSavingBrand] = useState(false)
 
   // Chốt sổ
   const [periodsYear, setPeriodsYear] = useState<number>(CURRENT_YEAR)
@@ -250,6 +290,18 @@ export function SystemView({
       setInvoiceFooterNote(res.invoice_footer_note ?? '')
       setInvoiceDefaultNote(res.invoice_default_note ?? '')
       setInvoiceLogo(res.invoice_logo ?? '')
+      // Thiết lập Thương hiệu & Tùy biến theo từng Shop
+      const parsedProfile = extractShopProfileFromSettings(res as unknown as Record<string, unknown>)
+      setBrandName(parsedProfile.brandName)
+      setBrandShortName(parsedProfile.brandShortName)
+      setBrandBadge(parsedProfile.brandBadge)
+      setBrandSubtitle(parsedProfile.brandSubtitle)
+      setBrandFooterTagline(parsedProfile.brandFooterTagline)
+      setDefaultWorkshopName(parsedProfile.defaultWorkshopName)
+      setWorkshopPresetsInput(parsedProfile.workshopPresets.join(', '))
+      setDefaultWarehouseLabel(parsedProfile.defaultWarehouseLabel)
+      setStorefrontUrl(parsedProfile.storefrontUrl)
+      writeShopProfileCache(parsedProfile)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Không thể tải cấu hình hệ thống'
       setError(message)
@@ -373,7 +425,7 @@ export function SystemView({
       setResetDialogOpen(false)
       setResetConfirmCode('')
       toast({
-        title: '🚀 Hệ thống đã sẵn sàng Vận hành Thực tế!',
+        title: 'Hệ thống đã sẵn sàng Vận hành Thực tế!',
         description: `${res.message} (Đã dọn ${res.cleared.orders} đơn mẫu & ${res.cleared.shipments} vận đơn mẫu).`,
       })
       void loadPeriods()
@@ -411,6 +463,50 @@ export function SystemView({
       })
     } finally {
       setSavingCompany(false)
+    }
+  }
+
+  const saveShopBranding = async () => {
+    const cleanBrandName = brandName.trim() || DEFAULT_SHOP_PROFILE.brandName
+    const cleanShortName = brandShortName.trim() || DEFAULT_SHOP_PROFILE.brandShortName
+    const cleanBadge = brandBadge.trim()
+    const cleanSubtitle = brandSubtitle.trim() || DEFAULT_SHOP_PROFILE.brandSubtitle
+    const cleanFooter = brandFooterTagline.trim() || DEFAULT_SHOP_PROFILE.brandFooterTagline
+    const cleanWorkshop = defaultWorkshopName.trim() || DEFAULT_SHOP_PROFILE.defaultWorkshopName
+    const cleanPresets =
+      workshopPresetsInput.trim() || DEFAULT_SHOP_PROFILE.workshopPresets.join(', ')
+    const cleanWhLabel = defaultWarehouseLabel.trim() || DEFAULT_SHOP_PROFILE.defaultWarehouseLabel
+    const cleanStoreUrl = storefrontUrl.trim() || '/store'
+
+    setSavingBrand(true)
+    try {
+      const res = await apiPatch<SettingsData>('/api/settings', {
+        brand_name: cleanBrandName,
+        brand_short_name: cleanShortName,
+        brand_badge: cleanBadge,
+        brand_subtitle: cleanSubtitle,
+        brand_footer_tagline: cleanFooter,
+        shop_default_workshop: cleanWorkshop,
+        shop_workshop_presets: cleanPresets,
+        shop_default_warehouse_label: cleanWhLabel,
+        shop_storefront_url: cleanStoreUrl,
+      })
+      setSettings(res)
+      const nextProfile = extractShopProfileFromSettings(res as unknown as Record<string, unknown>)
+      writeShopProfileCache(nextProfile)
+      toast({
+        title: `Đã lưu thiết lập Shop "${nextProfile.brandName}"`,
+        description:
+          'Tên thương hiệu trên Sidebar, Topbar, chân trang và tên Xưởng sản xuất mặc định đã được cập nhật tức thì.',
+      })
+    } catch (e) {
+      toast({
+        title: 'Lưu tùy biến Shop thất bại',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingBrand(false)
     }
   }
 
@@ -593,7 +689,7 @@ export function SystemView({
     <div className="space-y-4">
       <PageHeader
         title="Trung tâm Cấu hình Hệ thống"
-        description="Quản lý tập trung Danh mục hàng hóa, Loại sản phẩm, Quy đổi định lượng (Kg ⇄ Gr), Thông tin đơn vị, Hóa đơn VAT, AI & Bảo mật"
+        description="Quản lý tập trung Thương hiệu & Tùy biến theo từng Shop (Sidebar, Topbar, Xưởng SX), Danh mục hàng hóa, Quy đổi định lượng (Kg ⇄ Gr), Hóa đơn VAT, AI & Bảo mật"
       />
 
       {/* Thanh phân nhóm Cấu hình Hệ thống mở rộng (Modular Settings Hub) */}
@@ -609,9 +705,9 @@ export function SystemView({
               },
               {
                 id: 'COMPANY_INVOICE' as const,
-                label: 'Đơn vị, Hóa đơn VAT & Kỳ kế toán',
-                sub: 'Thông tin pháp lý · Mẫu HĐ VietQR · Chốt sổ',
-                icon: ReceiptText,
+                label: 'Thương hiệu Shop, Đơn vị & Hóa đơn',
+                sub: 'Tên Shop Sidebar · Xưởng SX · Mẫu HĐ VietQR · Chốt sổ',
+                icon: Store,
               },
               {
                 id: 'SECURITY_AI_DATA' as const,
@@ -654,6 +750,42 @@ export function SystemView({
         </div>
       </div>
 
+      {/* Thanh tóm tắt nhanh Thương hiệu Shop khi đang ở tab Danh mục */}
+      {activeSection === 'CATALOG_MASTER' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200/80 bg-sky-50/40 px-3.5 py-2.5 dark:border-sky-900/60 dark:bg-sky-950/20">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0066CC] text-white">
+              <ShoppingBag className="h-3.5 w-3.5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-bold text-foreground">{brandName}</span>
+                {brandBadge && (
+                  <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px] font-semibold text-[#0066CC]">
+                    {brandBadge}
+                  </Badge>
+                )}
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground">{brandSubtitle}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Topbar: <strong className="text-foreground">{brandShortName}</strong> · Xưởng SX mặc định:{' '}
+                <strong className="text-foreground">{defaultWorkshopName}</strong>
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 border-sky-300 bg-background text-xs font-semibold text-[#0066CC] hover:bg-sky-50 dark:border-sky-800 dark:text-sky-300"
+            onClick={() => setActiveSection('COMPANY_INVOICE')}
+          >
+            <Store className="h-3.5 w-3.5" />
+            Tùy biến Thương hiệu &amp; Thiết lập Shop
+          </Button>
+        </div>
+      )}
+
       {/* Nhóm 1: Cấu hình Danh mục, Loại sản phẩm, Quy đổi Định lượng & Đặc tính */}
       {(activeSection === 'CATALOG_MASTER' || activeSection === 'ALL') && (
         <SystemCatalogSettings activeSubTab={catalogSubTab} onSubTabChange={setCatalogSubTab} />
@@ -666,6 +798,211 @@ export function SystemView({
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {(activeSection === 'COMPANY_INVOICE' || activeSection === 'ALL') && (
               <>
+          {/* Tùy biến Thương hiệu & Thiết lập theo từng Shop (Sidebar · Topbar · Xưởng SX) */}
+          <Card className="border-sky-200/90 shadow-sm lg:col-span-2 dark:border-sky-900/60">
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Store className="h-5 w-5 text-[#0066CC] dark:text-sky-400" />
+                    Tùy biến Thương hiệu &amp; Thiết lập theo từng Shop
+                  </CardTitle>
+                  <CardDescription>
+                    Tùy chỉnh tên thương hiệu hiển thị góc trái Sidebar, nhãn huy hiệu, dòng mô tả phụ, tên viết tắt trên Topbar và tên Tổ / Xưởng sản xuất mặc định của từng Shop
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Mẫu nhanh:</span>
+                  {SHOP_PROFILE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setBrandName(preset.config.brandName)
+                        setBrandShortName(preset.config.brandShortName)
+                        setBrandBadge(preset.config.brandBadge)
+                        setBrandSubtitle(preset.config.brandSubtitle)
+                        setBrandFooterTagline(preset.config.brandFooterTagline)
+                        setDefaultWorkshopName(preset.config.defaultWorkshopName)
+                        setWorkshopPresetsInput(preset.config.workshopPresets.join(', '))
+                        setDefaultWarehouseLabel(preset.config.defaultWarehouseLabel)
+                        setStorefrontUrl(preset.config.storefrontUrl)
+                      }}
+                      title={preset.description}
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                        brandName.trim() === preset.config.brandName
+                          ? 'border-[#0066CC] bg-[#0066CC] text-white'
+                          : 'border-border bg-muted/40 text-foreground hover:border-[#0066CC]/50 hover:bg-sky-50/60 dark:hover:bg-sky-950/30'
+                      )}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <TableSkeleton rows={3} />
+              ) : (
+                <>
+                  {/* Xem trước trực tiếp Header Sidebar & Topbar */}
+                  <div className="grid gap-3 rounded-xl border bg-muted/30 p-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-muted-foreground">
+                        Xem trước góc trên bên trái Sidebar
+                      </span>
+                      <div className="flex items-center gap-2.5 rounded-xl bg-[#0F1E36] px-3 py-2.5 text-white shadow-xs">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0088FF] to-[#0055CC] text-white shadow-md">
+                          <ShoppingBag className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-bold tracking-tight text-white">
+                              {brandName.trim() || DEFAULT_SHOP_PROFILE.brandName}
+                            </p>
+                            {brandBadge.trim() && (
+                              <span className="shrink-0 rounded bg-[#0066CC]/35 px-1.5 py-0.5 text-[10px] font-semibold text-sky-200">
+                                {brandBadge.trim()}
+                              </span>
+                            )}
+                          </div>
+                          <p className="truncate text-[11px] text-slate-300">
+                            {brandSubtitle.trim() || DEFAULT_SHOP_PROFILE.brandSubtitle}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-muted-foreground">
+                        Xem trước Thanh định vị Topbar &amp; Xưởng mặc định
+                      </span>
+                      <div className="flex h-[58px] flex-col justify-center gap-1 rounded-xl border bg-card px-3.5 py-2 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="font-bold text-[#0066CC] dark:text-sky-400">
+                            {brandShortName.trim() || DEFAULT_SHOP_PROFILE.brandShortName}
+                          </span>
+                          <span className="text-muted-foreground">/</span>
+                          <span className="font-semibold text-foreground">Quản lý Tồn kho &amp; Sổ Thẻ kho</span>
+                        </div>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          Xưởng SX mặc định:{' '}
+                          <strong className="text-foreground">
+                            {defaultWorkshopName.trim() || DEFAULT_SHOP_PROFILE.defaultWorkshopName}
+                          </strong>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Các trường tùy biến */}
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-1.5 sm:col-span-2">
+                      <Label htmlFor="shop-brand-name">Tên Thương hiệu / Shop trên Sidebar *</Label>
+                      <Input
+                        id="shop-brand-name"
+                        value={brandName}
+                        onChange={(e) => setBrandName(e.target.value)}
+                        placeholder="VD: Bơ Mộc · Showroom hoặc OPENVN · Ưu Đàm"
+                        maxLength={80}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="shop-brand-badge">Nhãn huy hiệu (Badge)</Label>
+                      <Input
+                        id="shop-brand-badge"
+                        value={brandBadge}
+                        onChange={(e) => setBrandBadge(e.target.value)}
+                        placeholder="VD: OMNI, PRO (để trống nếu ẩn)"
+                        maxLength={20}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="shop-brand-short">Tên viết tắt trên Topbar</Label>
+                      <Input
+                        id="shop-brand-short"
+                        value={brandShortName}
+                        onChange={(e) => setBrandShortName(e.target.value)}
+                        placeholder="VD: BƠ MỘC hoặc OPENVN"
+                        maxLength={30}
+                      />
+                    </div>
+
+                    <div className="grid gap-1.5 sm:col-span-2">
+                      <Label htmlFor="shop-brand-subtitle">Dòng mô tả phụ dưới tên Shop (Sidebar)</Label>
+                      <Input
+                        id="shop-brand-subtitle"
+                        value={brandSubtitle}
+                        onChange={(e) => setBrandSubtitle(e.target.value)}
+                        placeholder="VD: Quản lý bán hàng đa kênh"
+                        maxLength={120}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="shop-default-workshop">Tên Tổ / Xưởng sản xuất mặc định</Label>
+                      <Input
+                        id="shop-default-workshop"
+                        value={defaultWorkshopName}
+                        onChange={(e) => setDefaultWorkshopName(e.target.value)}
+                        placeholder="VD: Xưởng đúc thủ công Bơ Mộc"
+                        maxLength={120}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="shop-default-wh-label">Nhãn Kho mặc định</Label>
+                      <Input
+                        id="shop-default-wh-label"
+                        value={defaultWarehouseLabel}
+                        onChange={(e) => setDefaultWarehouseLabel(e.target.value)}
+                        placeholder="VD: Kho Trung Tâm"
+                        maxLength={120}
+                      />
+                    </div>
+
+                    <div className="grid gap-1.5 sm:col-span-2">
+                      <Label htmlFor="shop-workshop-presets">
+                        Danh sách gợi ý Tổ / Xưởng trong Lệnh sản xuất (cách nhau dấu phẩy)
+                      </Label>
+                      <Input
+                        id="shop-workshop-presets"
+                        value={workshopPresetsInput}
+                        onChange={(e) => setWorkshopPresetsInput(e.target.value)}
+                        placeholder="Xưởng đúc thủ công, Tổ đổ nến bơ tự nhiên, Tổ hoàn thiện & đóng gói"
+                        maxLength={600}
+                      />
+                    </div>
+                    <div className="grid gap-1.5 sm:col-span-2">
+                      <Label htmlFor="shop-footer-tagline">Dòng giới thiệu chân trang (Footer)</Label>
+                      <Input
+                        id="shop-footer-tagline"
+                        value={brandFooterTagline}
+                        onChange={(e) => setBrandFooterTagline(e.target.value)}
+                        placeholder="Quản lý bán hàng đa kênh · Đồng bộ Sàn & Xưởng thủ công"
+                        maxLength={240}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                    <p className="text-xs text-muted-foreground">
+                      Mọi thay đổi sẽ áp dụng ngay trên Sidebar, Topbar, chân trang và hộp thoại Sản xuất tồn kho mà không cần tải lại trang.
+                    </p>
+                    <Button
+                      onClick={() => void saveShopBranding()}
+                      disabled={savingBrand}
+                      className="bg-[#0066CC] text-white hover:bg-[#0055B3]"
+                    >
+                      {savingBrand ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Lưu tùy biến Shop
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Thông tin đơn vị */}
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
@@ -932,6 +1269,7 @@ export function SystemView({
                     <input
                       ref={invoiceLogoInputRef}
                       type="file"
+                      aria-label="Tải lên tệp logo hóa đơn"
                       accept="image/png,image/jpeg,image/webp,image/gif"
                       className="hidden"
                       onChange={(e) => {

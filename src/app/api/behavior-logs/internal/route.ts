@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     await ensureIamSeeded()
     const payload = JSON.parse(rawBody) as BehaviorLogInput
-    await recordBehaviorLog(payload)
+    void recordBehaviorLog(payload)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

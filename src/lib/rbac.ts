@@ -482,12 +482,17 @@ export function resolveApiRoutePermission(
     }
   }
 
-  // Cấu hình hệ thống, Sao lưu, Go-Live Reset, Kết nối API, Autopilot
-  if (pathname.startsWith('/api/system/reset') || pathname.startsWith('/api/system/backup')) {
+  // Cấu hình hệ thống, Sao lưu, Bảo trì nâng cấp, Go-Live Reset, Kết nối API, Autopilot
+  if (
+    pathname.startsWith('/api/system/reset') ||
+    pathname.startsWith('/api/system/backup') ||
+    pathname.startsWith('/api/system/maintenance')
+  ) {
+    if (isRead && pathname.startsWith('/api/system/maintenance')) return null
     return {
       anyOf: [{ domain: 'system_iam', level: 'FULL' }],
       module: 'system',
-      description: 'Sao lưu Database & Khởi tạo Go-Live hệ thống',
+      description: 'Sao lưu Database, Bảo trì nâng cấp & Khởi tạo Go-Live hệ thống',
     }
   }
   if (

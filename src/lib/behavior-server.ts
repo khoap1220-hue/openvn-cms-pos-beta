@@ -51,6 +51,42 @@ export function sanitizeAuditMetadata(value: unknown, depth = 0): unknown {
 let seedPromise: Promise<void> | null = null
 let seededConfirmed = false
 
+const gIamCache = globalThis as unknown as {
+  __cmsPolicyCache?: {
+    data: {
+      authRequired: boolean
+      maxFailedAttempts: number
+      lockoutMinutes: number
+      sessionTtlDays: number
+      showQuickLoginHints: boolean
+      trackNavigation: boolean
+    } | null
+    expiresAt: number
+  }
+  __cmsStaffCtxCache?: Map<string, { data: RequestStaffContext; expiresAt: number }>
+}
+
+const staffCtxCache =
+  gIamCache.__cmsStaffCtxCache ?? (gIamCache.__cmsStaffCtxCache = new Map())
+
+export function invalidateStaffContextCache(): void {
+  gIamCache.__cmsPolicyCache = undefined
+  staffCtxCache.clear()
+}
+
+export async function getCachedSecurityPolicy() {
+  const now = Date.now()
+  if (gIamCache.__cmsPolicyCache && gIamCache.__cmsPolicyCache.expiresAt > now) {
+    return gIamCache.__cmsPolicyCache.data
+  }
+  const policy = await db.securityPolicy.findUnique({ where: { id: 'default' } })
+  gIamCache.__cmsPolicyCache = {
+    data: policy,
+    expiresAt: now + 45_000,
+  }
+  return policy
+}
+
 export async function ensureIamSeeded(): Promise<void> {
   if (seededConfirmed) return
   if (seedPromise) return seedPromise
@@ -331,20 +367,38 @@ export interface RequestStaffContext {
 export async function resolveRequestStaffContext(
   req: NextRequest
 ): Promise<RequestStaffContext> {
+  const apiKey = extractApiKeyFromHeaders(req.headers)
+  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
+  const cacheKey = apiKey ? `key:${apiKey}` : token ? `tok:${token}` : '__anon__'
+  const nowTs = Date.now()
+  const cachedCtx = staffCtxCache.get(cacheKey)
+  if (cachedCtx && cachedCtx.expiresAt > nowTs) {
+    return cachedCtx.data
+  }
+
+  const computed = await resolveRequestStaffContextUncached(req, apiKey, token)
+  staffCtxCache.set(cacheKey, { data: computed, expiresAt: nowTs + 30_000 })
+  return computed
+}
+
+async function resolveRequestStaffContextUncached(
+  req: NextRequest,
+  apiKey: string | null,
+  token: string | undefined
+): Promise<RequestStaffContext> {
   await ensureIamSeeded()
 
-  const policy = await db.securityPolicy.findUnique({ where: { id: 'default' } })
+  const policy = await getCachedSecurityPolicy()
   const authRequired =
     Boolean(policy?.authRequired) || process.env.CMS_REQUIRE_AUTH === 'true'
   const trackNavigation = policy?.trackNavigation ?? true
   const showQuickLoginHints = policy?.showQuickLoginHints ?? true
 
   // 1. Xác thực qua X-API-Key
-  const apiKey = extractApiKeyFromHeaders(req.headers)
   if (apiKey) {
     const keyRow = await db.apiKey.findUnique({ where: { key: apiKey } })
     if (keyRow && keyRow.active) {
-      await db.apiKey
+      void db.apiKey
         .update({ where: { id: keyRow.id }, data: { lastUsedAt: new Date() } })
         .catch(() => null)
       return {
@@ -372,7 +426,6 @@ export async function resolveRequestStaffContext(
   }
 
   // 2. Xác thực qua Cookie phiên đăng nhập
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
   const verified = await verifySessionToken(token)
 
   if (verified.valid && verified.claims) {

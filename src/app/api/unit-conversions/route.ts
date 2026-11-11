@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import { getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import {
   DEFAULT_PRODUCT_TYPES,
   PRESET_CONVERSION_TEMPLATES,
@@ -18,15 +19,21 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    const cached = getApiCache<Record<string, unknown>>('unit-conversions:all')
+    if (cached) {
+      return NextResponse.json(cached)
+    }
     const [productTypes, unitConfigs] = await Promise.all([
       getProductTypesCatalog(),
       getAllUnitConfigs(),
     ])
-    return NextResponse.json({
+    const payload = {
       productTypes,
       unitConfigs,
       presets: PRESET_CONVERSION_TEMPLATES,
-    })
+    }
+    setApiCache('unit-conversions:all', payload, 30_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('GET /api/unit-conversions error:', error)
     return NextResponse.json({ error: 'Không thể tải cấu hình loại sản phẩm & quy đổi định lượng' }, { status: 500 })
@@ -35,6 +42,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    invalidateApiCache()
     const body = (await req.json()) as Record<string, unknown>
     const action = String(body.action ?? 'save_unit_config')
 

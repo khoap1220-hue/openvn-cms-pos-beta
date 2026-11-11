@@ -3,12 +3,19 @@ import { db } from '@/lib/db'
 import { PeriodClosedError, createPurchaseInvoice } from '@/lib/invoice-service'
 import { quarterRange } from '@/lib/accounting'
 import { getLineageMeta } from '@/lib/lineage-server'
+import { getApiCache, setApiCache } from '@/lib/realtime'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
+    const cacheKey = `purchase-invoices:${searchParams.toString()}`
+    const cached = getApiCache<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const year = Number(searchParams.get('year')) || 0
     const quarter = Number(searchParams.get('quarter')) || 0
     const q = searchParams.get('q')?.trim()
@@ -36,13 +43,15 @@ export async function GET(req: NextRequest) {
 
     // DATA PROVENANCE — số lần sửa + nguồn gốc theo Sổ Data
     const lineageMeta = await getLineageMeta('PurchaseInvoice', invoices.map((inv) => inv.id))
-    return NextResponse.json({
+    const payload = {
       invoices: invoices.map((inv) => ({
         ...inv,
         originSource: lineageMeta.get(inv.id)?.originSource ?? null,
         changeCount: lineageMeta.get(inv.id)?.changeCount ?? 0,
       })),
-    })
+    }
+    setApiCache(cacheKey, payload, 15_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Purchase invoices GET error:', error)
     return NextResponse.json({ error: 'Không thể tải hóa đơn mua' }, { status: 500 })

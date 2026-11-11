@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { recordLineageChange } from '@/lib/ledger'
+import { logLedger, recordLineageChange } from '@/lib/ledger'
+import { getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import {
   calculateVoucherDiscount,
   ensureWarehousesAndVouchersSeeded,
@@ -10,9 +11,17 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    await ensureWarehousesAndVouchersSeeded()
     const url = new URL(req.url)
     const codeParam = url.searchParams.get('code')?.trim().toUpperCase()
+
+    if (!codeParam) {
+      const cached = getApiCache<Record<string, unknown>>('vouchers:all')
+      if (cached) {
+        return NextResponse.json(cached)
+      }
+    }
+
+    await ensureWarehousesAndVouchersSeeded()
 
     if (codeParam) {
       const subtotal = Math.max(0, Number(url.searchParams.get('subtotal') ?? 0) || 0)
@@ -38,7 +47,9 @@ export async function GET(req: NextRequest) {
     const vouchers = await db.voucher.findMany({
       orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
     })
-    return NextResponse.json({ vouchers })
+    const payload = { vouchers }
+    setApiCache('vouchers:all', payload, 30_000)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Vouchers GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh sách mã khuyến mãi' }, { status: 500 })
@@ -47,6 +58,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    invalidateApiCache()
     await ensureWarehousesAndVouchersSeeded()
     const body = await req.json()
 
@@ -58,6 +70,26 @@ export async function POST(req: NextRequest) {
       const updated = await db.voucher.update({
         where: { id: existing.id },
         data: { active: !existing.active },
+      })
+      await logLedger({
+        scope: 'CAMPAIGN',
+        action: updated.active ? 'VOUCHER_ACTIVATED' : 'VOUCHER_DEACTIVATED',
+        entityType: 'Voucher',
+        entityId: updated.id,
+        entityCode: updated.code,
+        title: `[CHƯƠNG TRÌNH] ${updated.active ? 'Kích hoạt' : 'Tạm dừng'} mã voucher ${updated.code}: ${updated.title}`,
+        detail: {
+          code: updated.code,
+          title: updated.title,
+          active: updated.active,
+          discountType: updated.discountType,
+          discountValue: updated.discountValue,
+        },
+        beforeSnapshot: { active: existing.active },
+        afterSnapshot: { active: updated.active },
+        changedFields: ['active'],
+        actor: 'OPERATOR',
+        originSource: 'MANUAL_ADMIN',
       })
       return NextResponse.json({ voucher: updated })
     }
@@ -115,20 +147,24 @@ export async function POST(req: NextRequest) {
     })
 
     await recordLineageChange({
-      scope: 'SETTINGS',
-      action: 'CREATE_VOUCHER',
+      scope: 'CAMPAIGN',
+      action: 'VOUCHER_SAVED',
       entityType: 'Voucher',
       entityId: voucher.id,
       entityCode: voucher.code,
-      title: `Tạo / cập nhật mã khuyến mãi ${voucher.code}: ${voucher.title}`,
+      title: `[CHƯƠNG TRÌNH] Lưu mã voucher ${voucher.code}: ${voucher.title} (${voucher.discountType} ${voucher.discountValue})`,
       actor: 'OPERATOR',
       actorName: 'Quản trị viên',
       originSource: 'MANUAL_ADMIN',
       after: {
         code: voucher.code,
+        title: voucher.title,
         discountType: voucher.discountType,
         discountValue: voucher.discountValue,
         minOrderAmount: voucher.minOrderAmount,
+        maxDiscount: voucher.maxDiscount,
+        usageLimit: voucher.usageLimit,
+        scope: voucher.scope,
       },
     })
 

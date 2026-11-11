@@ -13,6 +13,8 @@ import websockets
 import json
 import os
 import sys
+import time
+import concurrent.futures
 
 SESSION_FILE = os.path.join(os.path.dirname(__file__), ".shopee_session.json")
 
@@ -74,7 +76,7 @@ def update_session_file(cookies):
         "cookies": cookies,
         "spc_cds": spc_cds,
         "csrf_token": csrf_token,
-        "updated_at": asyncio.run(asyncio.sleep(0)) or str(asyncio.get_event_loop().time()),
+        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "source": "CHROME_CDP_AUTO_EXTRACT"
     }
     
@@ -82,11 +84,23 @@ def update_session_file(cookies):
         json.dump(session_data, f, indent=2)
     print(f"[CDP] Da cap nhat phien vao: {SESSION_FILE}")
 
+def run_coro_safely(coro):
+    """Thuc thi coroutine an toan ca trong CLI doc lap lan moi truong da co event loop dang chay."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return asyncio.run(coro)
+
 def main():
     print("==================================================")
     print("DANG QUET PHIEN SHOPEE TU GOOGLE CHROME (CDP)")
     print("==================================================")
-    cookies = asyncio.run(extract_cookies_from_cdp(9222))
+    cookies = run_coro_safely(extract_cookies_from_cdp(9222))
     if cookies:
         update_session_file(cookies)
         return True

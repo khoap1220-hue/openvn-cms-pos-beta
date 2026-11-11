@@ -1078,9 +1078,9 @@ function TableRow({ className, children, ...props }: React.ComponentProps<"tr">)
               className="h-7 rounded border border-input bg-background px-1.5 text-xs font-medium"
             >
               <option value="Bình thường">Bình thường</option>
-              <option value="Ưu tiên">⭐ Ưu tiên</option>
-              <option value="Khẩn cấp">🔥 Khẩn cấp</option>
-              <option value="Hoàn tất">✓ Hoàn tất</option>
+              <option value="Ưu tiên">Ưu tiên</option>
+              <option value="Khẩn cấp">Khẩn cấp</option>
+              <option value="Hoàn tất">Hoàn tất</option>
             </select>
           ) : (
             <input
