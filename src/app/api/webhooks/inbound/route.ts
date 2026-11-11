@@ -1279,10 +1279,17 @@ export async function POST(req: NextRequest) {
             resolvedStock = incomingStock
             nextReconciliationStatus = 'RECONCILED_OK'
             unreconciledShopeeDelta = 0
-          } else if (existing.stock === 0 && incomingStock > 0 && shopeeStockChanged) {
-            // Kho trống = 0 nhưng Sàn có tồn > 0: Giữ nguyên Kho = 0 và yêu cầu chọn Lấy tồn đầu từ Sàn hay Giữ tồn Kho CMS
+          } else if (
+            existing.stock === 0 &&
+            incomingStock > 0 &&
+            (shopeeStockChanged ||
+              prevOpeningOrigin === 'CMS_WAREHOUSE' ||
+              prevAttrs.reconciliationStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK')
+          ) {
+            // Kho trống = 0 (chưa nhập kho vật lý vào CMS) nhưng Sàn có tồn > 0: Giữ nguyên Kho CMS = 0 và KHÔNG tự đẩy 0 lên Sàn
             resolvedStock = 0
-            awaitingOpeningChoice = true
+            enqueueOutboxCorrection = false
+            awaitingOpeningChoice = shopeeStockChanged
             nextReconciliationStatus = 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
             unreconciledShopeeDelta = incomingStock
           } else if (!shopeeStockChanged && existing.stock !== incomingStock) {
@@ -1374,7 +1381,10 @@ export async function POST(req: NextRequest) {
           liveShopeeStock: incomingStock,
           unreconciledShopeeDelta,
           reconciliationStatus: nextReconciliationStatus,
-          lastSyncedShopeeStock: enqueueOutboxCorrection ? incomingStock : resolvedStock,
+          lastSyncedShopeeStock:
+            enqueueOutboxCorrection || nextReconciliationStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
+              ? incomingStock
+              : resolvedStock,
           lastSyncedShopeePrice: effectivePrice,
           lastSyncedShopeeUnlisted: rawShopeeUnlisted,
           lastIdempotencyKey: d.idempotencyKey || `SYNC_${Date.now()}`,

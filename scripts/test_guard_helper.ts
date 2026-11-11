@@ -30,17 +30,9 @@ export interface AuthoritativeProduct {
 
 export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
-    sku: 'BM-COMBO-SEN-01-TRANG',
-    id: 'cmw4s4iwo0008vego24nyubb1',
-    stock: 15,
-    sellPrice: 109000,
-    costPrice: 45780,
-    name: 'Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công Chịu Nhiệt (Tặng Kèm 1 Nến Bơ Tự Nhiên Không Khói) - Bơ Mộc — Phân loại: Combo Sen + 10 Nến',
-  },
-  {
     sku: 'BM-DEC-LAMA-LUN',
     id: 'cmw6jt82b002hvedgdzf7wxnd',
-    stock: 16,
+    stock: 0,
     sellPrice: 65000,
     costPrice: 29250,
     name: 'Hũ Thạch Cao Xi Măng Vân Sọc Có Nắp Chóp, Đựng Đồ Trang Sức, Phụ Kiện, Đổ Nến Decor - Bơ Mộc',
@@ -48,7 +40,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-DEC-SEN-KEM',
     id: 'cmw6m4nuf0033velo2urrcxfw',
-    stock: 16,
+    stock: 0,
     sellPrice: 50000,
     costPrice: 22500,
     name: 'Hũ Thạch Cao Xi Măng Búp Sen Có Nắp Đài Sen Thủ Công, Chịu Nhiệt Kháng Dầu Đổ Nến Bơ, Đựng Nụ Trầm Decor - Bơ Mộc — Phân loại: Kem Bơ',
@@ -56,7 +48,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-DEC-SEN-TRANG',
     id: 'cmw6m4qpl003dvelog1xj3oae',
-    stock: 16,
+    stock: 0,
     sellPrice: 50000,
     costPrice: 22500,
     name: 'Hũ Thạch Cao Xi Măng Búp Sen Có Nắp Đài Sen Thủ Công, Chịu Nhiệt Kháng Dầu Đổ Nến Bơ, Đựng Nụ Trầm Decor - Bơ Mộc — Phân loại: Trắng mộc',
@@ -64,23 +56,15 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-DEC-SEN-XANHSAGE',
     id: 'cmw6m4kxi002tvelohordb5zu',
-    stock: 16,
+    stock: 0,
     sellPrice: 50000,
     costPrice: 22500,
     name: 'Hũ Thạch Cao Xi Măng Búp Sen Có Nắp Đài Sen Thủ Công, Chịu Nhiệt Kháng Dầu Đổ Nến Bơ, Đựng Nụ Trầm Decor - Bơ Mộc — Phân loại: Xanh Sage',
   },
   {
-    sku: 'BM-DEC-VAT-BACAU',
-    id: 'cmw6jt0g00028vedgoim6plbd',
-    stock: 16,
-    sellPrice: 85000,
-    costPrice: 38250,
-    name: 'Hũ Thạch Cao Xi Măng Trụ Trơn Có Nắp Đậy, Cốc Chịu Nhiệt Kháng Dầu Đổ Nến, Đựng Phụ Kiện, Decor - Bơ Mộ',
-  },
-  {
     sku: 'BM-DEC-VAT-BACAU-CAM',
     id: 'cmw6m4zdf0047velo5jmacnn5',
-    stock: 16,
+    stock: 0,
     sellPrice: 85000,
     costPrice: 38250,
     name: 'Hũ Thạch Cao Xi Măng Trụ Trơn Có Nắp Đậy, Cốc Chịu Nhiệt Kháng Dầu Đổ Nến, Đựng Phụ Kiện, Decor - Bơ Mộ — Phân loại: Cam',
@@ -88,7 +72,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-DEC-VAT-BACAU-TRANG',
     id: 'cmw6m4tk3003nvelorlzhibs2',
-    stock: 16,
+    stock: 0,
     sellPrice: 85000,
     costPrice: 38250,
     name: 'Hũ Thạch Cao Xi Măng Trụ Trơn Có Nắp Đậy, Cốc Chịu Nhiệt Kháng Dầu Đổ Nến, Đựng Phụ Kiện, Decor - Bơ Mộ — Phân loại: Trắng',
@@ -96,7 +80,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-DEC-VAT-BACAU-VANG',
     id: 'cmw6m4wh4003xveloqlyfl619',
-    stock: 16,
+    stock: 0,
     sellPrice: 85000,
     costPrice: 38250,
     name: 'Hũ Thạch Cao Xi Măng Trụ Trơn Có Nắp Đậy, Cốc Chịu Nhiệt Kháng Dầu Đổ Nến, Đựng Phụ Kiện, Decor - Bơ Mộ — Phân loại: Vàng',
@@ -104,7 +88,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-SEN-01-TRANG',
     id: 'cmw4r4cks000tveqgqrz0rxlf',
-    stock: 16,
+    stock: 0,
     sellPrice: 59000,
     costPrice: 25000,
     name: 'Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công Chịu Nhiệt (Tặng Kèm 1 Nến Bơ Tự Nhiên Không Khói) - Bơ Mộc — Phân loại: Trắng',
@@ -112,7 +96,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-SEN-01-VANG',
     id: 'cmw83kwhu002xveygxxa8sr85',
-    stock: 16,
+    stock: 0,
     sellPrice: 59000,
     costPrice: 26550,
     name: 'Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công Chịu Nhiệt (Tặng Kèm 1 Nến Bơ Tự Nhiên Không Khói) - Bơ Mộc — Phân loại: Vàng',
@@ -120,7 +104,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-SEN-01-NAU',
     id: 'cmw83ktaf002lveygdbwrh3g0',
-    stock: 16,
+    stock: 0,
     sellPrice: 59000,
     costPrice: 26550,
     name: 'Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công Chịu Nhiệt (Tặng Kèm 1 Nến Bơ Tự Nhiên Không Khói) - Bơ Mộc — Phân loại: Nâu',
@@ -128,7 +112,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-TEA-10',
     id: 'cmw4s4s5u000jvegolc1atjvl',
-    stock: 50,
+    stock: 0,
     sellPrice: 59000,
     costPrice: 25000,
     name: 'Nến Bơ Tealight Tự Nhiên Không Khói Sáp Bơ Thực Vật Thuần Chay Cúng Phật Thiền Định Spa (Hộp 10 - 50 - 100 Viên) — Phân loại: Hộp 10 viên',
@@ -136,7 +120,7 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-TEA-100',
     id: 'cmw4rj5ts000nvez49mu7b1zt',
-    stock: 20,
+    stock: 0,
     sellPrice: 289000,
     costPrice: 121380,
     name: 'Nến Bơ Tealight Tự Nhiên Không Khói Sáp Bơ Thực Vật Thuần Chay Cúng Phật Thiền Định Spa (Hộp 10 - 50 - 100 Viên) — Phân loại: Hộp 100 viên',
@@ -144,26 +128,50 @@ export const AUTHORITATIVE_13_PRODUCTS: readonly AuthoritativeProduct[] = [
   {
     sku: 'BM-TEA-50',
     id: 'cmw4rj3g6000cvez4n2geiqqc',
-    stock: 30,
+    stock: 0,
     sellPrice: 169000,
     costPrice: 70980,
     name: 'Nến Bơ Tealight Tự Nhiên Không Khói Sáp Bơ Thực Vật Thuần Chay Cúng Phật Thiền Định Spa (Hộp 10 - 50 - 100 Viên) — Phân loại: Hộp 50 viên',
   },
   {
-    sku: 'BM-SEN-01',
-    id: 'cmw7n67f5003tve74qqmm9bmv',
-    stock: 0,
-    sellPrice: 59000,
-    costPrice: 25000,
-    name: 'Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công Chịu Nhiệt (Tặng Kèm 1 Nến Bơ Tự Nhiên Không Khói) - Bơ Mộc',
-  },
-  {
     sku: 'BM-DEC-LAMA-CAO',
     id: 'cmw7n6dfk0040ve74bpjhgynp',
-    stock: 16,
+    stock: 0,
     sellPrice: 79000,
     costPrice: 33180,
     name: 'Hũ Thạch Cao Xi Măng Vân Sọc Có Nắp Chóp, Đựng Đồ Trang Sức, Phụ Kiện, Đổ Nến Decor - Bơ Mộc — Phân loại: Trắng Vân Sọc Cao',
+  },
+  {
+    sku: 'BM-DEC-COC-TRON',
+    id: 'cmwbz3xj00003veqcpub40ldz',
+    stock: 0,
+    sellPrice: 79000,
+    costPrice: 35550,
+    name: 'Cốc Thạch Cao Xi Măng Trụ Trơn Đa Năng, Chịu Nhiệt Đổ Nến, Cắm Bút, Cọ Trang Điểm, Decor Bàn Làm Việc - Bơ Mộc',
+  },
+  {
+    sku: 'BM-DEC-OVAL-DEN',
+    id: 'cmwbz3zw4000bveqcip1y2334',
+    stock: 0,
+    sellPrice: 59000,
+    costPrice: 26550,
+    name: 'Khay Thạch Cao Xi Măng Bầu Dục Oval Chống Thấm, Đế Lót Nến Thơm, Đựng Đồ Trang Sức, Phụ Kiện, Decor Bàn Phấn - Bơ Mộc — Phân loại: Đen',
+  },
+  {
+    sku: 'BM-DEC-OVAL-BE',
+    id: 'cmwbz428a000jveqcwlq0b45c',
+    stock: 0,
+    sellPrice: 59000,
+    costPrice: 26550,
+    name: 'Khay Thạch Cao Xi Măng Bầu Dục Oval Chống Thấm, Đế Lót Nến Thơm, Đựng Đồ Trang Sức, Phụ Kiện, Decor Bàn Phấn - Bơ Mộc — Phân loại: Be',
+  },
+  {
+    sku: 'BM-DEC-OVAL-TRANG',
+    id: 'cmwbz44k4000rveqc9zs51chz',
+    stock: 0,
+    sellPrice: 59000,
+    costPrice: 26550,
+    name: 'Khay Thạch Cao Xi Măng Bầu Dục Oval Chống Thấm, Đế Lót Nến Thơm, Đựng Đồ Trang Sức, Phụ Kiện, Decor Bàn Phấn - Bơ Mộc — Phân loại: Trắng',
   },
 ] as const
 
