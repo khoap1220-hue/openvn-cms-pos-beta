@@ -22,7 +22,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`829x985`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB48 (0x6A1E076B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#48)** *(Lúc `2026-11-07T01:58:36Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB48 (0xE963E5F2…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#48)** *(Lúc `2026-11-07T01:58:36Z`)*
 
 ### Phản hồi `#47` — ⚠️ Mô tả chưa sát thực tế (Hiểu nhầm tính năng)
 - **Thời gian & Màn hình**: `2026-11-06T08:49:31Z` | `2560x1279` | http://127.0.0.1:51897/?view=liveops | Ảnh: [`screenshots/feedback_47.jpg`](screenshots/feedback_47.jpg)
@@ -35,7 +35,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người dùng báo thiếu bộ lọc danh mục, nhưng mã nguồn (prisma/schema.prisma, src/app/page.tsx) và giao diện thực tế đã có cấu trúc danh mục/filter. Các lỗi về CSS (tràn viền, kích thước badge, touch target) là xác thực và cần điều chỉnh.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `Thấp - Chỉ ảnh hưởng đến hiển thị UI, không tác động đến logic nghiệp vụ backend.`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Chỉ cho phép điều chỉnh CSS (padding, margin, min-height) trong các file component badge và layout. Tuyệt đối không thay đổi logic filter hoặc cấu trúc dữ liệu vì tính năng đã tồn tại trong schema.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB47 (0x1F783920…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#47)** *(Lúc `2026-11-06T08:49:47Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB47 (0x3514EAA0…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#47)** *(Lúc `2026-11-06T08:49:47Z`)*
 
 ### Phản hồi `#46` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:47:42Z` | `2560x1279` | http://127.0.0.1:51897/?view=shipments | Ảnh: *(Không kèm ảnh)*
@@ -44,7 +44,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB46 (0x0F62BFE0…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#46)** *(Lúc `2026-11-06T08:47:42Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB46 (0xE5589018…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#46)** *(Lúc `2026-11-06T08:47:42Z`)*
 
 ### Phản hồi `#45` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:47:37Z` | `2560x1279` | http://127.0.0.1:51897/?view=inbox | Ảnh: *(Không kèm ảnh)*
@@ -53,7 +53,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB45 (0x75CD53F7…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#45)** *(Lúc `2026-11-06T08:47:41Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB45 (0x5A7C362C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#45)** *(Lúc `2026-11-06T08:47:41Z`)*
 
 ### Phản hồi `#44` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:47:28Z` | `2560x1279` | http://127.0.0.1:51897/?view=orders | Ảnh: *(Không kèm ảnh)*
@@ -62,7 +62,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB44 (0x9126091F…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#44)** *(Lúc `2026-11-06T08:47:34Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB44 (0x74FF9496…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#44)** *(Lúc `2026-11-06T08:47:34Z`)*
 
 ### Phản hồi `#43` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:46:43Z` | `2560x1279` | http://127.0.0.1:51897/?view=liveops | Ảnh: *(Không kèm ảnh)*
@@ -71,7 +71,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB43 (0x07E1DC3A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#43)** *(Lúc `2026-11-06T08:46:53Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB43 (0x0C894680…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#43)** *(Lúc `2026-11-06T08:46:53Z`)*
 
 ### Phản hồi `#42` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:45:21Z` | `2560x1279` | http://127.0.0.1:51897/?view=stock-export | Ảnh: *(Không kèm ảnh)*
@@ -80,7 +80,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB42 (0xBBC3B79A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#42)** *(Lúc `2026-11-06T08:45:41Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB42 (0x921AB550…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#42)** *(Lúc `2026-11-06T08:45:41Z`)*
 
 ### Phản hồi `#41` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:45:08Z` | `2560x1279` | http://127.0.0.1:51897/?view=products | Ảnh: *(Không kèm ảnh)*
@@ -89,7 +89,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người test báo cáo lỗi chữ bị cắt (.truncate) trên màn hình 2560x1279 tại trang sản phẩm. Tuy nhiên, mã nguồn và DOM ban đầu không cung cấp thông tin chi tiết về vị trí chính xác hoặc nguyên nhân gây ra lỗi cắt chữ này, cũng như không có dấu hiệu cho thấy đây là lỗi UI/CSS cố hữu hay do dữ liệu hiển thị.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `LOW`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Yêu cầu người test cung cấp ảnh chụp màn hình chi tiết hơn, khoanh vùng chính xác vị trí chữ bị cắt và mô tả rõ hơn về ngữ cảnh (ví dụ: tên sản phẩm, mô tả, v.v.). Tuyệt đối không sửa đổi logic liên quan đến `category` hoặc cấu trúc hiển thị sản phẩm cho đến khi xác định rõ nguyên nhân.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB41 (0xB50338DE…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#41)** *(Lúc `2026-11-06T08:45:10Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB41 (0x4592DB4E…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#41)** *(Lúc `2026-11-06T08:45:10Z`)*
 
 ### Phản hồi `#40` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:45:03Z` | `2560x1279` | http://127.0.0.1:51897/?view=sales | Ảnh: *(Không kèm ảnh)*
@@ -98,7 +98,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người test báo cáo lỗi cắt chữ (.truncate) trên 2 vị trí, tuy nhiên, mã nguồn cho thấy các thành phần như `agent-badge.tsx` và `channel-badge.tsx` có thể là nguyên nhân gây ra các vấn đề hiển thị tương tự, và không có bằng chứng rõ ràng về việc cắt chữ trên giao diện chính của trang sales.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `LOW`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cần kiểm tra lại các component `agent-badge.tsx` và `channel-badge.tsx` để xác định nguyên nhân hiển thị, có thể cần điều chỉnh CSS nhẹ trong các component này. Tuyệt đối không sửa đổi logic liên quan đến `category` hoặc `Sidebar` vì chúng đã tồn tại trong mã nguồn.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB40 (0x70CC353C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#40)** *(Lúc `2026-11-06T08:45:05Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB40 (0x559D03D2…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#40)** *(Lúc `2026-11-06T08:45:05Z`)*
 
 ### Phản hồi `#39` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:44:54Z` | `2560x1279` | http://127.0.0.1:51897/?view=pos | Ảnh: *(Không kèm ảnh)*
@@ -107,7 +107,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người test báo cáo lỗi cắt chữ (.truncate) trên màn hình 2560x1279. Tuy nhiên, mã nguồn không cho thấy bất kỳ logic cắt chữ nào được áp dụng cho các thành phần UI có thể nhìn thấy trên trang `pos`. Lỗi có thể do hiển thị trên độ phân giải cụ thể hoặc là vấn đề CSS không rõ ràng.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `Thấp. Rủi ro chính là người test hiểu nhầm tính năng đã có sẵn và đề xuất sửa đổi sai, ảnh hưởng đến cấu trúc dữ liệu hoặc logic nghiệp vụ.`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cần kiểm tra lại giao diện trên độ phân giải 2560x1279 để xác định chính xác vị trí và nguyên nhân của việc cắt chữ. Nếu là lỗi CSS đơn thuần, có thể chỉnh sửa CSS tại các thành phần liên quan. Tuyệt đối không sửa đổi logic liên quan đến `category` hoặc `Dialog`/`Sheet` vì chúng đã tồn tại và không liên quan đến lỗi báo cáo.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB39 (0x7B30883F…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#39)** *(Lúc `2026-11-06T08:44:56Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB39 (0x4DD33D0E…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#39)** *(Lúc `2026-11-06T08:44:56Z`)*
 
 ### Phản hồi `#38` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:44:49Z` | `2560x1279` | http://127.0.0.1:51897/ | Ảnh: *(Không kèm ảnh)*
@@ -116,7 +116,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người dùng báo cáo lỗi cắt chữ (.truncate) trên giao diện. Tuy nhiên, mã nguồn cho thấy các thành phần UI như `agent-badge.tsx`, `app-sidebar.tsx`, `channel-badge.tsx` có thể xử lý hiển thị văn bản và không có dấu hiệu rõ ràng về lỗi cắt chữ do CSS tràn trên màn hình có độ phân giải 2560x1279. Có khả năng người dùng đang nhìn nhầm hoặc tính năng hiển thị văn bản đã được thiết kế để cắt bớt.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `LOW`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Không sửa code liên quan đến logic hiển thị văn bản hoặc cấu trúc UI. Nếu lỗi cắt chữ thực sự tồn tại, hãy kiểm tra lại các component UI liên quan đến hiển thị tên hoặc mô tả ngắn, có thể cần điều chỉnh thuộc tính CSS `overflow` hoặc `text-overflow` một cách cẩn thận, nhưng ưu tiên giữ nguyên cấu trúc hiện tại.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB38 (0xFB65CA3A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#38)** *(Lúc `2026-11-06T08:44:51Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB38 (0xA0FBB5EB…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#38)** *(Lúc `2026-11-06T08:44:51Z`)*
 
 ### Phản hồi `#37` — ✅ Hợp lệ — Lỗi UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:44:04Z` | `1313x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom | Ảnh: *(Không kèm ảnh)*
@@ -125,7 +125,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người dùng test đã phát hiện chính xác 2 vị trí chữ bị cắt (.truncate) trên giao diện, phù hợp với kích thước khung nhìn được cung cấp. Mã nguồn không có dấu hiệu cho thấy việc sửa lỗi này sẽ ảnh hưởng đến cấu trúc dữ liệu hay logic nghiệp vụ.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `Low`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Chỉ chỉnh sửa CSS để khắc phục lỗi hiển thị chữ bị cắt (.truncate) tại các vị trí được người dùng chỉ ra. Tuyệt đối không thay đổi logic xử lý dữ liệu, API, hoặc cấu trúc component liên quan đến việc hiển thị danh sách sản phẩm.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB37 (0x4CC19CF0…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#37)** *(Lúc `2026-11-06T08:44:06Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB37 (0x56733453…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#37)** *(Lúc `2026-11-06T08:44:06Z`)*
 
 ### Phản hồi `#36` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:44:02Z` | `1313x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance | Ảnh: *(Không kèm ảnh)*
@@ -134,7 +134,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người dùng báo cáo '6 vị trí chữ bị cắt (.truncate)' nhưng ảnh chụp màn hình và DOM không hiển thị rõ ràng lỗi này. Mã nguồn cho thấy tính năng 'category' / 'Danh mục sản phẩm' đã tồn tại, có thể người dùng đang nhầm lẫn với một lỗi hiển thị khác hoặc hiểu nhầm tính năng.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `Thấp - Rủi ro chính nằm ở việc người dùng có thể yêu cầu sửa đổi logic hoặc cấu trúc dựa trên hiểu nhầm về tính năng đã có sẵn.`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Yêu cầu người dùng cung cấp ảnh chụp màn hình chi tiết hơn, khoanh vùng chính xác các vị trí bị cắt chữ hoặc mô tả rõ hơn về hành vi mong muốn. Tuyệt đối không sửa đổi logic liên quan đến 'category' hoặc cấu trúc hiển thị chính của trang.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB36 (0x68A19890…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#36)** *(Lúc `2026-11-06T08:44:04Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB36 (0x14348CE1…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#36)** *(Lúc `2026-11-06T08:44:04Z`)*
 
 ### Phản hồi `#35` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:43:59Z` | `1313x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/ | Ảnh: *(Không kèm ảnh)*
@@ -143,7 +143,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người test báo cáo lỗi cắt chữ (.truncate) nhưng không cung cấp DOM element cụ thể hoặc ảnh chụp màn hình chi tiết vị trí lỗi. Mã nguồn cho thấy các thành phần UI như `agent-badge`, `app-sidebar`, `channel-badge` có thể bị ảnh hưởng bởi độ rộng hiển thị, nhưng không có dấu hiệu lỗi cắt chữ nghiêm trọng trên toàn bộ 1313x1285.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `THẤP - Rủi ro chủ yếu là sửa sai UI do thiếu thông tin chi tiết, không ảnh hưởng đến cấu trúc dữ liệu hoặc logic nghiệp vụ.`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Yêu cầu người test cung cấp ảnh chụp màn hình chi tiết hoặc DOM element bị lỗi cắt chữ để xác định chính xác vị trí và nguyên nhân. Nếu lỗi chỉ là hiển thị UI/CSS nhẹ, có thể cân nhắc điều chỉnh CSS cho các component liên quan đến hiển thị văn bản (ví dụ: `agent-badge.tsx`, `channel-badge.tsx`). Tuyệt đối không sửa đổi logic liên quan đến `category` hoặc cấu trúc Sidebar.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB35 (0x8184ACD1…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#35)** *(Lúc `2026-11-06T08:44:01Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB35 (0x5691D191…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#35)** *(Lúc `2026-11-06T08:44:01Z`)*
 
 ### Phản hồi `#34` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:43:56Z` | `1313x1285` | http://127.0.0.1:51897/?view=sales | Ảnh: *(Không kèm ảnh)*
@@ -152,7 +152,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người test báo cáo lỗi cắt chữ (truncate) ở 2 vị trí, tuy nhiên, mã nguồn không cho thấy các thành phần UI trực tiếp gây ra lỗi cắt chữ này. Lỗi có thể đến từ các component không được liệt kê hoặc do cách hiển thị của trình duyệt trên kích thước màn hình cụ thể.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `Thấp`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Không sửa code liên quan đến logic hiển thị hoặc cấu trúc dữ liệu. Nếu có thể, hãy kiểm tra lại các component UI có thể gây ra hiện tượng cắt chữ trên các kích thước màn hình khác nhau, ưu tiên điều chỉnh CSS nhẹ nếu cần thiết và không ảnh hưởng đến layout chính.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB34 (0xD9F48120…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#34)** *(Lúc `2026-11-06T08:43:58Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB34 (0x74753A0B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#34)** *(Lúc `2026-11-06T08:43:58Z`)*
 
 ### Phản hồi `#33` — ⚠️ Mô tả chưa sát thực tế (Giữ nguyên cấu trúc)
 - **Thời gian & Màn hình**: `2026-11-06T08:43:43Z` | `1313x1285` | http://127.0.0.1:51897/?view=pos | Ảnh: *(Không kèm ảnh)*
@@ -161,7 +161,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Người dùng báo cáo lỗi cắt chữ (.truncate) ở 2 vị trí, tuy nhiên, DOM và mã nguồn không hiển thị rõ ràng các thành phần UI có thể gây ra lỗi cắt chữ này, đặc biệt là trên trang 'pos'. Các file được cung cấp tập trung vào logic CMS và các component UI chung như agent-badge, app-sidebar, không có component nào trực tiếp liên quan đến việc hiển thị danh sách sản phẩm hoặc thông tin chi tiết có thể bị cắt chữ.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `THẤP - Rủi ro chủ yếu là hiểu nhầm tính năng hoặc báo cáo sai vị trí lỗi, không ảnh hưởng trực tiếp đến cấu trúc Database/API/State.`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Yêu cầu người test cung cấp thêm ảnh chụp màn hình chi tiết hơn, chỉ rõ 2 vị trí bị cắt chữ và các phần tử DOM xung quanh. Tuyệt đối không sửa đổi Database/API/State. Chỉ xem xét chỉnh sửa CSS nhẹ nếu xác định được nguyên nhân cụ thể và an toàn.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB33 (0x88923E4E…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#33)** *(Lúc `2026-11-06T08:43:56Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB33 (0x5B24E2BA…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#33)** *(Lúc `2026-11-06T08:43:56Z`)*
 
 ### Phản hồi `#32` — ✅ Hợp lệ — Lỗi UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:43:37Z` | `1313x1285` | http://127.0.0.1:51897/ | Ảnh: *(Không kèm ảnh)*
@@ -170,7 +170,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Mô tả của người dùng về việc chữ bị cắt (.truncate) tại độ phân giải 1313x1285 là lỗi CSS phổ biến trên các thành phần Badge hoặc Header trong các file như src/components/cms/channel-badge.tsx hoặc src/components/cms/page-header.tsx.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `Thấp - Chỉ ảnh hưởng đến hiển thị giao diện (UI), không tác động đến logic nghiệp vụ hoặc Database.`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Chỉ được phép điều chỉnh thuộc tính CSS (ví dụ: thay đổi max-width, thêm tooltip khi hover, hoặc điều chỉnh flex-shrink) tại các file component UI. Tuyệt đối không thay đổi logic dữ liệu hoặc cấu trúc Schema trong prisma/schema.prisma.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB32 (0x4846A1E9…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#32)** *(Lúc `2026-11-06T08:43:38Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB32 (0x32A4CD20…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#32)** *(Lúc `2026-11-06T08:43:38Z`)*
 
 ### Phản hồi `#31` — ✅ Hợp lệ — Lỗi UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:43:09Z` | `1313x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory | Ảnh: *(Không kèm ảnh)*
@@ -179,7 +179,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Mô tả của người dùng khớp với các thành phần UI trong src/app/page.tsx và các component hiển thị dữ liệu, nơi các thuộc tính CSS .truncate đang bị áp dụng quá mức trên các container có chiều rộng cố định.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `Thấp - Chỉ ảnh hưởng đến hiển thị (Presentation Layer), không tác động đến logic nghiệp vụ hoặc cấu trúc Database.`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Chỉ được phép điều chỉnh CSS (thêm 'text-wrap: wrap', 'line-clamp', hoặc điều chỉnh 'max-width') trong các component hiển thị văn bản. Tuyệt đối không thay đổi logic truy vấn dữ liệu trong prisma/schema.prisma hoặc cấu trúc state của ứng dụng.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB31 (0xA7553CD8…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#31)** *(Lúc `2026-11-06T08:43:17Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB31 (0x32EEC665…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#31)** *(Lúc `2026-11-06T08:43:17Z`)*
 
 ### Phản hồi `#30` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:56Z` | `2560x1279` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export | Ảnh: *(Không kèm ảnh)*
@@ -188,7 +188,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB30 (0xE08560B8…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#30)** *(Lúc `2026-11-06T08:29:56Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB30 (0x97B52930…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#30)** *(Lúc `2026-11-06T08:29:56Z`)*
 
 ### Phản hồi `#29` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:55Z` | `2560x1279` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inbox | Ảnh: *(Không kèm ảnh)*
@@ -197,7 +197,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB29 (0x7EDE3931…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#29)** *(Lúc `2026-11-06T08:29:56Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB29 (0x073C8534…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#29)** *(Lúc `2026-11-06T08:29:56Z`)*
 
 ### Phản hồi `#28` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:55Z` | `2560x1279` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops | Ảnh: *(Không kèm ảnh)*
@@ -206,7 +206,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB28 (0x2B694A40…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#28)** *(Lúc `2026-11-06T08:29:55Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB28 (0x75969071…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#28)** *(Lúc `2026-11-06T08:29:55Z`)*
 
 ### Phản hồi `#27` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:54Z` | `2560x1279` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders | Ảnh: *(Không kèm ảnh)*
@@ -215,7 +215,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB27 (0xEE2EBAC0…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#27)** *(Lúc `2026-11-06T08:29:54Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB27 (0x9DD6582D…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#27)** *(Lúc `2026-11-06T08:29:54Z`)*
 
 ### Phản hồi `#26` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:53Z` | `2560x1279` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products | Ảnh: *(Không kèm ảnh)*
@@ -224,7 +224,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1279`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB26 (0x0765AA49…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#26)** *(Lúc `2026-11-06T08:29:53Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB26 (0x3A8B22A4…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#26)** *(Lúc `2026-11-06T08:29:53Z`)*
 
 ### Phản hồi `#25` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:52Z` | `1654x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=auto-social | Ảnh: *(Không kèm ảnh)*
@@ -233,7 +233,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1654x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB25 (0x1B1FA547…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#25)** *(Lúc `2026-11-06T08:29:52Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB25 (0xCF6CE9AA…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#25)** *(Lúc `2026-11-06T08:29:52Z`)*
 
 ### Phản hồi `#24` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:52Z` | `1654x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=partners | Ảnh: *(Không kèm ảnh)*
@@ -242,7 +242,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1654x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB24 (0x20315F00…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#24)** *(Lúc `2026-11-06T08:29:52Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB24 (0x26E46E9B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#24)** *(Lúc `2026-11-06T08:29:52Z`)*
 
 ### Phản hồi `#23` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:51Z` | `1654x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=iam | Ảnh: *(Không kèm ảnh)*
@@ -251,7 +251,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1654x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB23 (0xB91961C3…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#23)** *(Lúc `2026-11-06T08:29:51Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB23 (0xA6C74D3B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#23)** *(Lúc `2026-11-06T08:29:51Z`)*
 
 ### Phản hồi `#22` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:50Z` | `1486x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=system | Ảnh: *(Không kèm ảnh)*
@@ -260,7 +260,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1486x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB22 (0x91E344D2…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#22)** *(Lúc `2026-11-06T08:29:50Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB22 (0x784F71D6…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#22)** *(Lúc `2026-11-06T08:29:50Z`)*
 
 ### Phản hồi `#21` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:49Z` | `1486x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=reports | Ảnh: *(Không kèm ảnh)*
@@ -269,7 +269,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1486x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB21 (0x5D77A337…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#21)** *(Lúc `2026-11-06T08:29:49Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB21 (0x2A8CE03C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#21)** *(Lúc `2026-11-06T08:29:49Z`)*
 
 ### Phản hồi `#20` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:49Z` | `1486x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=campaigns | Ảnh: *(Không kèm ảnh)*
@@ -278,7 +278,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1486x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB20 (0xF7EFF33C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#20)** *(Lúc `2026-11-06T08:29:49Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB20 (0x1BA2B5FB…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#20)** *(Lúc `2026-11-06T08:29:49Z`)*
 
 ### Phản hồi `#19` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:48Z` | `1486x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory | Ảnh: *(Không kèm ảnh)*
@@ -287,7 +287,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1486x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB19 (0x7AD499C6…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#19)** *(Lúc `2026-11-06T08:29:48Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB19 (0x4AE0502A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#19)** *(Lúc `2026-11-06T08:29:48Z`)*
 
 ### Phản hồi `#18` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:47Z` | `1486x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders | Ảnh: *(Không kèm ảnh)*
@@ -296,7 +296,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1486x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB18 (0x5785E6D5…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#18)** *(Lúc `2026-11-06T08:29:47Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB18 (0x7756ECD2…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#18)** *(Lúc `2026-11-06T08:29:47Z`)*
 
 ### Phản hồi `#17` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:47Z` | `1167x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase | Ảnh: *(Không kèm ảnh)*
@@ -305,7 +305,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1167x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB17 (0x213F0DEC…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#17)** *(Lúc `2026-11-06T08:29:47Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB17 (0x3657CB0B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#17)** *(Lúc `2026-11-06T08:29:47Z`)*
 
 ### Phản hồi `#16` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:46Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance | Ảnh: *(Không kèm ảnh)*
@@ -314,7 +314,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB16 (0x37365CE6…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#16)** *(Lúc `2026-11-06T08:29:46Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB16 (0x89836C19…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#16)** *(Lúc `2026-11-06T08:29:46Z`)*
 
 ### Phản hồi `#15` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:45Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=shipments | Ảnh: *(Không kèm ảnh)*
@@ -323,7 +323,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB15 (0x88806221…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#15)** *(Lúc `2026-11-06T08:29:45Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB15 (0x0A48A9F5…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#15)** *(Lúc `2026-11-06T08:29:45Z`)*
 
 ### Phản hồi `#14` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:44Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=accounting | Ảnh: *(Không kèm ảnh)*
@@ -332,7 +332,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB14 (0xCE48330F…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#14)** *(Lúc `2026-11-06T08:29:45Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB14 (0x184880F8…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#14)** *(Lúc `2026-11-06T08:29:45Z`)*
 
 ### Phản hồi `#13` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:44Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=channels | Ảnh: *(Không kèm ảnh)*
@@ -341,7 +341,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB13 (0x6E854480…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#13)** *(Lúc `2026-11-06T08:29:44Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB13 (0x2569BA82…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#13)** *(Lúc `2026-11-06T08:29:44Z`)*
 
 ### Phản hồi `#12` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:43Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=auto-social | Ảnh: *(Không kèm ảnh)*
@@ -350,7 +350,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB12 (0xD87F7681…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#12)** *(Lúc `2026-11-06T08:29:43Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB12 (0xE1BEFBC1…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#12)** *(Lúc `2026-11-06T08:29:43Z`)*
 
 ### Phản hồi `#11` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:43Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=campaigns | Ảnh: *(Không kèm ảnh)*
@@ -359,7 +359,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB11 (0x7233153C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#11)** *(Lúc `2026-11-06T08:29:43Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB11 (0xCCBC2A2C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#11)** *(Lúc `2026-11-06T08:29:43Z`)*
 
 ### Phản hồi `#10` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:42Z` | `390x844` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=customers | Ảnh: [`screenshots/feedback_10.jpg`](screenshots/feedback_10.jpg)
@@ -368,7 +368,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`390x844`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Agent Auto-Scanner (gemini-3.8-flash (gemini-3-flash-preview)) quét component `src/components/cms/views/customers-view.tsx`.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB10 (0xCBCB187B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#10)** *(Lúc `2026-11-06T08:29:42Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB10 (0x52A5334A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#10)** *(Lúc `2026-11-06T08:29:42Z`)*
 
 ### Phản hồi `#9` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:42Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom | Ảnh: *(Không kèm ảnh)*
@@ -377,7 +377,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB9 (0x181B3B0B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#9)** *(Lúc `2026-11-06T08:29:42Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB9 (0xDEF08B59…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#9)** *(Lúc `2026-11-06T08:29:42Z`)*
 
 ### Phản hồi `#8` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:41Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export | Ảnh: *(Không kèm ảnh)*
@@ -386,7 +386,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB8 (0x0FF98551…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#8)** *(Lúc `2026-11-06T08:29:41Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB8 (0x2C1AD6EF…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#8)** *(Lúc `2026-11-06T08:29:41Z`)*
 
 ### Phản hồi `#7` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:41Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inbox | Ảnh: *(Không kèm ảnh)*
@@ -395,7 +395,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB7 (0xED125FB7…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#7)** *(Lúc `2026-11-06T08:29:41Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB7 (0xCB92A48F…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#7)** *(Lúc `2026-11-06T08:29:41Z`)*
 
 ### Phản hồi `#6` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:40Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=sales | Ảnh: *(Không kèm ảnh)*
@@ -404,7 +404,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB6 (0xFF7610FF…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#6)** *(Lúc `2026-11-06T08:29:40Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB6 (0xB0B6220C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#6)** *(Lúc `2026-11-06T08:29:40Z`)*
 
 ### Phản hồi `#5` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:40Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops | Ảnh: *(Không kèm ảnh)*
@@ -413,7 +413,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB5 (0x3470CCD5…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#5)** *(Lúc `2026-11-06T08:29:40Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB5 (0x387E7E95…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#5)** *(Lúc `2026-11-06T08:29:40Z`)*
 
 ### Phản hồi `#4` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:39Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory | Ảnh: *(Không kèm ảnh)*
@@ -422,7 +422,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB4 (0xDF824F5A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#4)** *(Lúc `2026-11-06T08:29:39Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB4 (0xB23462E1…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#4)** *(Lúc `2026-11-06T08:29:39Z`)*
 
 ### Phản hồi `#3` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:38Z` | `2560x1313` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/ | Ảnh: *(Không kèm ảnh)*
@@ -431,7 +431,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`2560x1313`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB3 (0x872FF22A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#3)** *(Lúc `2026-11-06T08:29:38Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB3 (0x82B7541A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#3)** *(Lúc `2026-11-06T08:29:38Z`)*
 
 ### Phản hồi `#2` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:38Z` | `1655x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase | Ảnh: *(Không kèm ảnh)*
@@ -440,7 +440,7 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1655x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB2 (0x3900832E…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#2)** *(Lúc `2026-11-06T08:29:38Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB2 (0x4EBC88C6…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#2)** *(Lúc `2026-11-06T08:29:38Z`)*
 
 ### Phản hồi `#1` — ✅ Hợp lệ — Lỗi hiển thị UI/CSS (An toàn sửa nhẹ)
 - **Thời gian & Màn hình**: `2026-11-06T08:29:37Z` | `1357x1285` | https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders | Ảnh: *(Không kèm ảnh)*
@@ -449,5 +449,5 @@
 - **🔎 Đối chiếu Thực tế (Ảnh chụp + DOM + Source Code)**: Đối chiếu ảnh chụp màn hình (`1357x1285`) và DOM xác nhận có hiện tượng tràn ngang / chữ bị cắt ellipsis (`...`) / mật độ cột dày. Chẩn đoán kỹ thuật: Cần tối ưu CSS Responsive/Spacing.
 - **🛡️ Đánh giá Rủi ro Cấu trúc**: `An toàn (Chỉ chỉnh sửa lớp giao diện CSS/Tailwind)`
 - **💡 Đề xuất Xử lý An toàn (Pre-Review Plan)**: **Cho phép tinh chỉnh nhẹ lớp CSS Tailwind (`overflow-x-auto`, `min-w`, `padding`, `text-wrap` hoặc ẩn bớt cột phụ mặc định) mà KHÔNG thay đổi cấu trúc dữ liệu, Props hay Router của dự án.**
-- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB1 (0x716CE280…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#1)** *(Lúc `2026-11-06T08:29:37Z`)*
+- **🛠️ Trạng thái Tự Chỉnh Sửa (`Agent Self-Healing`)**: **📜 Hợp Đồng Số CONTRACT-MATRIX-FS-WORKSPACE5-FB1 (0x42A78044…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS (#1)** *(Lúc `2026-11-06T08:29:37Z`)*
 

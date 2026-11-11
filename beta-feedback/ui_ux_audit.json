@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-07T01:58:37Z",
+  "updated_at": "2026-11-11T02:53:16Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,13 +13,13 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-49BD80212115D99CA203",
-    "signed_at": "2026-11-07T01:58:37Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-CA8F17EEDFD2C4F3A0B8",
+    "signed_at": "2026-11-11T02:53:16Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
       "db_schema_sha256_before": "2fabbe44ea906b24",
-      "globals_css_sha256_before": "382c38a22a3475ff"
+      "globals_css_sha256_before": "d14f40d9f9354754"
     },
     "post_fix_acceptance": {
       "status": "POST_FIX_UIUX_VERIFIED",
@@ -105,7 +105,7 @@
     {
       "view_key": "dashboard",
       "tsx_file": "src/components/cms/views/dashboard-view.tsx",
-      "sha256_before": "b733ab7f6c0c520d",
+      "sha256_before": "418c7432089a327a",
       "metrics": {
         "cards": 7,
         "tables": 0,
@@ -183,17 +183,17 @@
     {
       "view_key": "products",
       "tsx_file": "src/components/cms/views/products-view.tsx",
-      "sha256_before": "c8e27b7756107f13",
+      "sha256_before": "d2d304df3e55b0c8",
       "metrics": {
         "cards": 0,
         "tables": 4,
-        "badges": 13,
-        "truncate_nodes": 5,
+        "badges": 17,
+        "truncate_nodes": 6,
         "nowrap_nodes": 7,
-        "accessible_labels": 27
+        "accessible_labels": 41
       },
       "findings": [
-        "Phát hiện `5` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
+        "Phát hiện `6` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
         "Có `4` bảng dữ liệu và `7` cụm `whitespace-nowrap` cần khóa `min-width: 0; max-width: 100%` để không tràn mép phải ở 945px/1024px/1536px."
       ],
       "quick_wins": [
@@ -216,24 +216,24 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/products/route.ts",
-      "backend_sha256_before": "a1ea4515c61f2d15",
-      "backend_sha256_after": "a1ea4515c61f2d15",
+      "backend_sha256_before": "8e42037fbe19d4ba",
+      "backend_sha256_after": "8e42037fbe19d4ba",
       "api_invariant_verified": true
     },
     {
       "view_key": "inventory",
       "tsx_file": "src/components/cms/views/inventory-view.tsx",
-      "sha256_before": "7f83d620806b00e4",
+      "sha256_before": "6847c4b46379b739",
       "metrics": {
         "cards": 11,
         "tables": 4,
-        "badges": 12,
-        "truncate_nodes": 8,
+        "badges": 16,
+        "truncate_nodes": 10,
         "nowrap_nodes": 13,
-        "accessible_labels": 15
+        "accessible_labels": 23
       },
       "findings": [
-        "Phát hiện `8` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
+        "Phát hiện `10` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
         "Có `4` bảng dữ liệu và `13` cụm `whitespace-nowrap` cần khóa `min-width: 0; max-width: 100%` để không tràn mép phải ở 945px/1024px/1536px."
       ],
       "quick_wins": [
@@ -256,8 +256,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/inventory/route.ts",
-      "backend_sha256_before": "9301aef31570f6f5",
-      "backend_sha256_after": "9301aef31570f6f5",
+      "backend_sha256_before": "a2c45500076c31c3",
+      "backend_sha256_after": "a2c45500076c31c3",
       "api_invariant_verified": true
     },
     {
@@ -296,8 +296,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/bom/route.ts",
-      "backend_sha256_before": "9844dc7e369850bc",
-      "backend_sha256_after": "9844dc7e369850bc",
+      "backend_sha256_before": "505db8bbb51e93b4",
+      "backend_sha256_after": "505db8bbb51e93b4",
       "api_invariant_verified": true
     },
     {
@@ -585,17 +585,17 @@
     {
       "view_key": "ledger",
       "tsx_file": "src/components/cms/views/ledger-view.tsx",
-      "sha256_before": "4e67470f2ee35356",
+      "sha256_before": "5a6dde6537559f5f",
       "metrics": {
         "cards": 2,
         "tables": 3,
-        "badges": 10,
-        "truncate_nodes": 2,
+        "badges": 14,
+        "truncate_nodes": 5,
         "nowrap_nodes": 6,
-        "accessible_labels": 8
+        "accessible_labels": 10
       },
       "findings": [
-        "Phát hiện `2` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
+        "Phát hiện `5` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
         "Có `3` bảng dữ liệu và `6` cụm `whitespace-nowrap` cần khóa `min-width: 0; max-width: 100%` để không tràn mép phải ở 945px/1024px/1536px.",
         "Các cột số liệu/tiền tệ trong bảng nên đồng bộ `font-variant-numeric: tabular-nums` để thẳng hàng dọc."
       ],
@@ -667,20 +667,22 @@
     {
       "view_key": "system",
       "tsx_file": "src/components/cms/views/system-view.tsx",
-      "sha256_before": "11d438be1baf8ac1",
+      "sha256_before": "8ec14df23f57dce3",
       "metrics": {
-        "cards": 8,
+        "cards": 9,
         "tables": 1,
-        "badges": 5,
-        "truncate_nodes": 0,
+        "badges": 6,
+        "truncate_nodes": 3,
         "nowrap_nodes": 2,
-        "accessible_labels": 4
+        "accessible_labels": 6
       },
       "findings": [
+        "Phát hiện `3` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
         "Có `1` bảng dữ liệu và `2` cụm `whitespace-nowrap` cần khóa `min-width: 0; max-width: 100%` để không tràn mép phải ở 945px/1024px/1536px.",
         "Các cột số liệu/tiền tệ trong bảng nên đồng bộ `font-variant-numeric: tabular-nums` để thẳng hàng dọc."
       ],
       "quick_wins": [
+        "Kích hoạt rule bung chữ `.truncate:hover` & `focus-within` theo token `--foreground`.",
         "Bọc `[data-slot='table-container']` co giãn đa khung nhìn + thu gọn padding ngang ở <=1600px.",
         "Áp dụng `font-variant-numeric: tabular-nums` cho các ô số phải (`td.text-right`)."
       ],
@@ -700,8 +702,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/settings/route.ts",
-      "backend_sha256_before": "0c0e10311a865424",
-      "backend_sha256_after": "0c0e10311a865424",
+      "backend_sha256_before": "8970f85ebce7fdc5",
+      "backend_sha256_after": "8970f85ebce7fdc5",
       "api_invariant_verified": true
     }
   ]
