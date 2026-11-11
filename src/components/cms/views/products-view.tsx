@@ -2843,35 +2843,96 @@ export function ProductsView({
                       </div>
                     </TableCell>
                     <TableCell>
-                      {p.type === 'COMBO' ? (
-                        <div className="space-y-0.5" title="Số bộ đóng được từ tồn thành phần">
-                          <span className="text-sm tabular-nums">
-                            {formatNumber(p.comboAvailable ?? p.stock)}
-                          </span>
-                          <p className="text-xs text-muted-foreground">bộ (tự động)</p>
-                        </div>
-                      ) : p.stock <= p.lowStockThreshold ? (
-                        <div className="space-y-0.5">
-                          <Badge
-                            variant="outline"
-                            className="border-red-200 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+                      {(() => {
+                        let stockAttrs: {
+                          openingStockOrigin?: string
+                          shopeeItemId?: string
+                          liveShopeeStock?: number
+                          lastSyncedShopeeStock?: number
+                        } = {}
+                        try {
+                          stockAttrs = p.attributes
+                            ? (JSON.parse(p.attributes) as typeof stockAttrs)
+                            : {}
+                        } catch {
+                          stockAttrs = {}
+                        }
+                        const isFromMarketplace =
+                          stockAttrs.openingStockOrigin === 'SHOPEE_MARKETPLACE'
+                        const isOrphanUnlinked =
+                          !stockAttrs.shopeeItemId &&
+                          (p.listings ?? []).filter((l) => l.channel?.key === 'SHOPEE').length === 0
+                        const shopeeLiveQty =
+                          typeof stockAttrs.liveShopeeStock === 'number'
+                            ? stockAttrs.liveShopeeStock
+                            : typeof stockAttrs.lastSyncedShopeeStock === 'number'
+                              ? stockAttrs.lastSyncedShopeeStock
+                              : undefined
+                        const originSubLabel = isFromMarketplace ? (
+                          <p
+                            className="text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                            title="Số lượng này lấy từ seller_stock khai báo trên Shopee Seller Center, chưa có phiếu nhập kho vật lý vào CMS"
                           >
-                            {p.stock === 0 ? 'Hết hàng' : `Còn ${formatNumber(p.stock)} ${bUnit}`}
-                          </Badge>
-                          <p className="text-xs text-muted-foreground">Ngưỡng {formatNumber(p.lowStockThreshold)} {bUnit}</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-0.5">
-                          <span className="text-sm font-medium tabular-nums">
-                            {formatNumber(p.stock)} <span className="text-xs text-muted-foreground">{bUnit}</span>
-                          </span>
-                          {pRate > 1 && (
-                            <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                              ≈ {(p.stock / pRate).toFixed(p.stock % pRate === 0 ? 0 : 2)} {pUnit}
-                            </p>
-                          )}
-                        </div>
-                      )}
+                            Tồn lấy từ Sàn (0 phiếu nhập CMS)
+                            {shopeeLiveQty !== undefined && shopeeLiveQty !== p.stock
+                              ? ` · Sàn thực: ${shopeeLiveQty} ${bUnit}`
+                              : ''}
+                          </p>
+                        ) : isOrphanUnlinked ? (
+                          <p
+                            className="text-[10px] font-medium text-muted-foreground"
+                            title="Bản ghi nội bộ CMS chưa gắn với phân loại nào trên Sàn Shopee"
+                          >
+                            Bản ghi cũ (Chưa gắn Sàn)
+                          </p>
+                        ) : shopeeLiveQty !== undefined && p.stock === 0 && shopeeLiveQty > 0 ? (
+                          <p className="text-[10px] font-medium text-muted-foreground">
+                            Kho CMS: 0 · Khai trên Sàn: {shopeeLiveQty}
+                          </p>
+                        ) : null
+
+                        if (p.type === 'COMBO') {
+                          return (
+                            <div className="space-y-0.5" title="Số bộ đóng được từ tồn thành phần">
+                              <span className="text-sm tabular-nums">
+                                {formatNumber(p.comboAvailable ?? p.stock)}
+                              </span>
+                              <p className="text-xs text-muted-foreground">bộ (tự động)</p>
+                              {originSubLabel}
+                            </div>
+                          )
+                        }
+                        if (p.stock <= p.lowStockThreshold) {
+                          return (
+                            <div className="space-y-0.5">
+                              <Badge
+                                variant="outline"
+                                className="border-red-200 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+                              >
+                                {p.stock === 0 ? 'Hết hàng (0 bộ)' : `Còn ${formatNumber(p.stock)} ${bUnit}`}
+                              </Badge>
+                              <p className="text-xs text-muted-foreground">
+                                Ngưỡng {formatNumber(p.lowStockThreshold)} {bUnit}
+                              </p>
+                              {originSubLabel}
+                            </div>
+                          )
+                        }
+                        return (
+                          <div className="space-y-0.5">
+                            <span className="text-sm font-medium tabular-nums">
+                              {formatNumber(p.stock)}{' '}
+                              <span className="text-xs text-muted-foreground">{bUnit}</span>
+                            </span>
+                            {pRate > 1 && (
+                              <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                ≈ {(p.stock / pRate).toFixed(p.stock % pRate === 0 ? 0 : 2)} {pUnit}
+                              </p>
+                            )}
+                            {originSubLabel}
+                          </div>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-right text-sm font-medium">
                       {formatVND(stockValue)}
@@ -2887,16 +2948,10 @@ export function ProductsView({
                             Ngừng bán trên mọi kênh
                           </span>
                         ) : (() => {
-                          const activeListings = (p.listings ?? []).filter((l) => {
-                            const ch = l.channel ?? channels.find((c) => c.id === l.channelId)
-                            return ch && ch.connected !== false
-                          })
-                          if (activeListings.length === 0) {
-                            return <span className="text-xs text-muted-foreground">—</span>
-                          }
                           const rowAttrs: {
                             shopeeItemId?: string
                             lastSyncedShopeeStock?: number
+                            liveShopeeStock?: number
                             isUnlistedOnShopee?: boolean
                           } = (() => {
                             try {
@@ -2905,6 +2960,39 @@ export function ProductsView({
                               return {}
                             }
                           })()
+                          let activeListings = (p.listings ?? []).filter((l) => {
+                            const ch = l.channel ?? channels.find((c) => c.id === l.channelId)
+                            return ch && ch.connected !== false
+                          })
+                          if (activeListings.length === 0 && rowAttrs.shopeeItemId) {
+                            const shopeeCh = channels.find((c) => c.key === 'SHOPEE') ?? {
+                              id: 'shopee-fallback',
+                              key: 'SHOPEE',
+                              name: 'Shopee',
+                              color: '#EE4D2D',
+                              connected: true,
+                            }
+                            activeListings = [
+                              {
+                                id: `fallback-shopee-${p.id}`,
+                                productId: p.id,
+                                channelId: shopeeCh.id,
+                                status: isProductUnlistedOnMarketplace(p) ? 'UNLISTED' : 'ACTIVE',
+                                price: p.sellPrice,
+                                channel: shopeeCh,
+                              },
+                            ]
+                          }
+                          if (activeListings.length === 0) {
+                            return (
+                              <span
+                                className="inline-flex items-center gap-1 rounded border border-dashed border-muted-foreground/40 bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                                title="Bản ghi này chưa liên kết với sản phẩm/phân loại nào trên Sàn"
+                              >
+                                Chưa gắn kênh Sàn
+                              </span>
+                            )
+                          }
                           return activeListings.map((l) => {
                             const ch = l.channel ?? channels.find((c) => c.id === l.channelId)
                             const priceTitle =
@@ -2917,10 +3005,14 @@ export function ProductsView({
                               isShopeeChannel &&
                               (l.status === 'UNLISTED' || isProductUnlistedOnMarketplace(p))
                             const isShopeeLinkedRow = isShopeeChannel && Boolean(rowAttrs.shopeeItemId)
+                            const shopeeStockCompare =
+                              typeof rowAttrs.liveShopeeStock === 'number'
+                                ? rowAttrs.liveShopeeStock
+                                : rowAttrs.lastSyncedShopeeStock
                             const isStockDriftRow =
                               isShopeeLinkedRow &&
-                              typeof rowAttrs.lastSyncedShopeeStock === 'number' &&
-                              rowAttrs.lastSyncedShopeeStock !== p.stock
+                              typeof shopeeStockCompare === 'number' &&
+                              shopeeStockCompare !== p.stock
                             return (
                               <button
                                 key={l.id ?? l.channelId}
@@ -2942,7 +3034,7 @@ export function ProductsView({
                                   ) : isStockDriftRow ? (
                                     <span className="inline-flex items-center gap-0.5 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
                                       <AlertTriangle className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
-                                      Lệch tồn ({rowAttrs.lastSyncedShopeeStock}/{p.stock})
+                                      Lệch tồn ({shopeeStockCompare}/{p.stock})
                                     </span>
                                   ) : isShopeeLinkedRow ? (
                                     <span className="inline-flex items-center gap-0.5 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
@@ -2968,7 +3060,52 @@ export function ProductsView({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <ProductStatusBadge status={p.status} />
+                      {(() => {
+                        if (p.status === 'INACTIVE') {
+                          return <ProductStatusBadge status={p.status} />
+                        }
+                        let stAttrs: { shopeeItemId?: string } = {}
+                        try {
+                          stAttrs = p.attributes ? (JSON.parse(p.attributes) as typeof stAttrs) : {}
+                        } catch {
+                          stAttrs = {}
+                        }
+                        const hasShopeeLink = Boolean(stAttrs.shopeeItemId)
+                        if (hasShopeeLink && isProductUnlistedOnMarketplace(p)) {
+                          return (
+                            <div className="flex flex-col items-start gap-0.5">
+                              <Badge
+                                variant="outline"
+                                className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                title="Sản phẩm đang ở trạng thái Đang tạm ẩn (Unlisted / status=8) trên Shopee Seller Center, chưa hiển thị công khai trên sàn"
+                              >
+                                <EyeOff className="mr-1 h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                Sàn: Đang tạm ẩn
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground">
+                                CMS: {p.stock <= 0 ? 'Kho = 0 bộ' : 'Lưu sẵn sàng'}
+                              </span>
+                            </div>
+                          )
+                        }
+                        if (!hasShopeeLink) {
+                          return (
+                            <div className="flex flex-col items-start gap-0.5">
+                              <Badge
+                                variant="outline"
+                                className="border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                                title="Bản ghi nội bộ CMS chưa liên kết với sản phẩm/phân loại nào trên Sàn Shopee"
+                              >
+                                Chưa đăng Sàn
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground">
+                                {p.stock <= 0 ? 'Kho CMS: Hết hàng (0)' : 'Chỉ lưu nội bộ CMS'}
+                              </span>
+                            </div>
+                          )
+                        }
+                        return <ProductStatusBadge status={p.status} />
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

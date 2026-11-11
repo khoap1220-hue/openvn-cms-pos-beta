@@ -359,7 +359,7 @@ export function ChannelsView() {
 
   const openCreateModal = (item: UnlinkedMarketplaceItem) => {
     setCreateModalItem(item)
-    setCreateStockInitMode('TAKE_FROM_MARKETPLACE')
+    setCreateStockInitMode('KEEP_WAREHOUSE_STOCK')
     const suggestedSku =
       item.shopeeSku ||
       (item.parentSku && item.modelName.toLowerCase().includes('combo')
@@ -704,18 +704,26 @@ export function ChannelsView() {
     }
   }
 
-  const handleExecuteBulkCreateAndLink = async () => {
+  const handleExecuteBulkCreateAndLink = async (
+    stockInitMode: 'KEEP_WAREHOUSE_STOCK' | 'TAKE_FROM_MARKETPLACE' = 'KEEP_WAREHOUSE_STOCK'
+  ) => {
     const selectedItems = filteredUnlinked.filter((it) =>
       selectedUnlinkedKeys.includes(`${it.shopeeItemId}_${it.shopeeModelId}`)
     )
     if (selectedItems.length === 0) return
     setBulkBusy(true)
     try {
+      const itemsWithMode = selectedItems.map((it) => ({
+        ...it,
+        stockInitMode,
+        syncDirection: stockInitMode === 'TAKE_FROM_MARKETPLACE' ? 'SHOPEE_TO_CMS' : 'CMS_TO_SHOPEE',
+      }))
       const res = await apiPost<{ ok: boolean; createdCount?: number; message?: string }>(
         '/api/channels/product-links',
         {
           action: 'BULK_CREATE_AND_LINK',
-          items: selectedItems,
+          stockInitMode,
+          items: itemsWithMode,
         }
       )
       const createdCount =
@@ -723,9 +731,15 @@ export function ChannelsView() {
       const fallbackSkus = selectedItems
         .map((it) => (it.shopeeSku || `SP-${it.shopeeModelId || it.shopeeItemId}`).toUpperCase())
         .join(', ')
+      const stockModeNote =
+        stockInitMode === 'KEEP_WAREHOUSE_STOCK'
+          ? 'Giữ tồn Kho CMS = 0 bộ (Chưa nhập kho vật lý)'
+          : 'Lấy số tồn khai trên Sàn làm Tồn đầu kỳ'
       toast({
         title: `Đã khởi tạo & liên kết ${createdCount} sản phẩm`,
-        description: res.message || `Đã khởi tạo và liên kết ${createdCount} mã SKU: ${fallbackSkus}`,
+        description:
+          res.message ||
+          `Đã khởi tạo và liên kết ${createdCount} mã SKU (${stockModeNote}): ${fallbackSkus}`,
       })
       setSelectedUnlinkedKeys([])
       await loadLinks(true)
@@ -1097,14 +1111,25 @@ export function ChannelsView() {
                             size="sm"
                             className="h-7 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                             disabled={bulkBusy}
-                            onClick={() => void handleExecuteBulkCreateAndLink()}
+                            onClick={() => void handleExecuteBulkCreateAndLink('KEEP_WAREHOUSE_STOCK')}
+                            title="Tạo mã hàng trong CMS với Tồn kho = 0 bộ (vì chưa có phiếu nhập kho vật lý) và liên kết với phân loại Shopee"
                           >
                             {bulkBusy ? (
                               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                             ) : (
                               <PackagePlus className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            Tạo hàng hóa mới &amp; Liên kết hàng loạt ({selectedUnlinkedKeys.length})
+                            Tạo &amp; Liên kết · Giữ Kho CMS = 0 ({selectedUnlinkedKeys.length})
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 border-amber-500/50 bg-amber-500/10 text-xs text-amber-900 hover:bg-amber-500/20 dark:text-amber-300"
+                            disabled={bulkBusy}
+                            onClick={() => void handleExecuteBulkCreateAndLink('TAKE_FROM_MARKETPLACE')}
+                            title="Tạo mã hàng và lấy số lượng khai báo trên Sàn Shopee làm Tồn đầu kỳ trong CMS"
+                          >
+                            Lấy tồn Sàn làm Tồn đầu ({selectedUnlinkedKeys.length})
                           </Button>
                           <Button
                             variant="ghost"
@@ -1161,6 +1186,23 @@ export function ChannelsView() {
                             <div className="min-w-0 space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <Badge className="bg-[#EE4D2D] text-white hover:bg-[#EE4D2D]">Shopee</Badge>
+                                {item.isUnlisted ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                    title="Sản phẩm đang ở trạng thái Đang tạm ẩn (Unlisted / status=8) trên Shopee Seller Center"
+                                  >
+                                    <EyeOff className="mr-1 h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                    Sàn đang tạm ẩn
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  >
+                                    Sàn đang mở bán
+                                  </Badge>
+                                )}
                                 {item.modelName && (
                                   <Badge variant="outline" className="font-medium">
                                     Phân loại: {item.modelName}
@@ -1184,7 +1226,13 @@ export function ChannelsView() {
                                 <span>·</span>
                                 <span className="font-medium text-foreground">Giá sàn: {formatVND(item.sellPrice)}</span>
                                 <span>·</span>
-                                <span className="font-medium text-foreground">Tồn sàn: {item.stock}</span>
+                                <span className="font-medium text-amber-700 dark:text-amber-400">
+                                  Tồn khai trên Sàn: {item.stock} bộ
+                                </span>
+                                <span>·</span>
+                                <span className="font-medium text-muted-foreground">
+                                  Kho CMS: 0 bộ (Chưa nhập)
+                                </span>
                               </div>
 
                               {/* Chỉ hiển thị gợi ý khi có mã CMS chưa liên kết đạt độ trùng khớp cao (>= 80%), mở hộp thoại xác nhận thay vì ghép mù 1-click */}
