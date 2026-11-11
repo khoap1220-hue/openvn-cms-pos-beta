@@ -344,7 +344,8 @@ export function ChannelsView() {
   // ===== Thao tác Liên kết Sản phẩm Sàn <-> Hàng hóa CMS =====
   const openLinkModal = (item: UnlinkedMarketplaceItem, preselectId?: string) => {
     setLinkModalItem(item)
-    const targetId = preselectId || item.suggestedCmsProducts[0]?.id || ''
+    const highConfidenceMatch = item.suggestedCmsProducts.find((s) => s.score >= 80)
+    const targetId = preselectId || highConfidenceMatch?.id || ''
     setSelectedCmsProductId(targetId)
     setCmsModalSearch('')
     const matchedProd = linkData?.cmsProducts.find((cp) => cp.id === targetId)
@@ -381,7 +382,7 @@ export function ChannelsView() {
     setLinkingBusyId(`${item.shopeeItemId}_${item.shopeeModelId}`)
     try {
       const stockInitMode = direction === 'SHOPEE_TO_CMS' ? 'TAKE_FROM_MARKETPLACE' : 'KEEP_WAREHOUSE_STOCK'
-      const res = await apiPost<{ ok: boolean; product: { sku: string; name: string; stock: number } }>(
+      const res = await apiPost<{ ok: boolean; product?: { sku?: string; name?: string; stock?: number } }>(
         '/api/channels/product-links',
         {
           action: 'LINK_TO_EXISTING',
@@ -404,12 +405,20 @@ export function ChannelsView() {
           stockInitMode,
         }
       )
+      const fallbackProd = linkData?.cmsProducts.find((cp) => cp.id === targetCmsId)
+      const linkedSku = res.product?.sku || fallbackProd?.sku || targetCmsId
+      const linkedStock =
+        typeof res.product?.stock === 'number'
+          ? res.product.stock
+          : direction === 'SHOPEE_TO_CMS'
+            ? item.stock
+            : (fallbackProd?.stock ?? 0)
       toast({
-        title: `Đã liên kết thành công với [${res.product.sku}]`,
+        title: `Đã liên kết thành công với [${linkedSku}]`,
         description:
           direction === 'SHOPEE_TO_CMS'
-            ? `Đã lấy số tồn từ Sàn (${res.product.stock} bộ) làm Tồn đầu kỳ và ghi chú rõ gốc tồn đầu từ Sàn Shopee.`
-            : `Đã liên kết theo tồn tại Kho CMS (${res.product.stock} bộ) và đẩy đồng bộ lên Sàn Shopee.`,
+            ? `Đã lấy số tồn từ Sàn (${linkedStock} bộ) làm Tồn đầu kỳ và ghi chú rõ gốc tồn đầu từ Sàn Shopee.`
+            : `Đã liên kết theo tồn tại Kho CMS (${linkedStock} bộ) và đẩy đồng bộ lên Sàn Shopee.`,
       })
       setLinkModalItem(null)
       await loadLinks()
@@ -427,13 +436,14 @@ export function ChannelsView() {
   const handleExecuteCreateAndLink = async () => {
     if (!createModalItem || !customSkuDraft.trim()) return
     const item = createModalItem
+    const draftSku = customSkuDraft.trim().toUpperCase()
     setLinkingBusyId(`${item.shopeeItemId}_${item.shopeeModelId}`)
     try {
-      const res = await apiPost<{ ok: boolean; product: { sku: string; name: string; stock: number } }>(
+      const res = await apiPost<{ ok: boolean; product?: { sku?: string; name?: string; stock?: number } }>(
         '/api/channels/product-links',
         {
           action: 'CREATE_AND_LINK',
-          customSku: customSkuDraft.trim().toUpperCase(),
+          customSku: draftSku,
           shopeeItemId: item.shopeeItemId,
           shopeeModelId: item.shopeeModelId,
           shopeeSku: item.shopeeSku,
@@ -452,12 +462,19 @@ export function ChannelsView() {
           syncDirection: createStockInitMode === 'TAKE_FROM_MARKETPLACE' ? 'SHOPEE_TO_CMS' : 'CMS_TO_SHOPEE',
         }
       )
+      const createdSku = res.product?.sku || draftSku
+      const createdStock =
+        typeof res.product?.stock === 'number'
+          ? res.product.stock
+          : createStockInitMode === 'TAKE_FROM_MARKETPLACE'
+            ? item.stock
+            : 0
       toast({
-        title: `Đã tạo mới & liên kết [${res.product.sku}]`,
+        title: `Đã tạo mới & liên kết [${createdSku}]`,
         description:
           createStockInitMode === 'TAKE_FROM_MARKETPLACE'
-            ? `Khởi tạo [${res.product.sku}] với Tồn đầu kỳ = ${res.product.stock} bộ (Gốc tồn đầu từ Sàn Shopee).`
-            : `Khởi tạo [${res.product.sku}] tại Kho trống = 0 bộ và liên kết với Sàn Shopee.`,
+            ? `Khởi tạo [${createdSku}] với Tồn đầu kỳ = ${createdStock} bộ (Gốc tồn đầu từ Sàn Shopee).`
+            : `Khởi tạo [${createdSku}] tại Kho trống = 0 bộ và liên kết với Sàn Shopee.`,
       })
       setCreateModalItem(null)
       await loadLinks()
@@ -527,7 +544,7 @@ export function ChannelsView() {
               : resolveMode === 'KEEP_WAREHOUSE_AND_PUSH'
                 ? `Đã giữ tồn Kho CMS cho [${linked.cmsSku}]`
                 : `Kết quả đối chiếu đơn Sàn ↔ Kho CMS [${linked.cmsSku}]`,
-        description: res.message,
+        description: res.message || `Đã cập nhật đối soát tồn kho cho [${linked.cmsSku}].`,
       })
       setReconcileModalItem(null)
       await loadLinks(true)
@@ -579,18 +596,21 @@ export function ChannelsView() {
     try {
       const res = await apiPost<{
         ok: boolean
-        sku: string
-        targetStock: number
-        targetPrice: number
+        sku?: string
+        targetStock?: number
+        targetPrice?: number
       }>('/api/channels/product-links', {
         action: 'PUSH_STOCK_TO_CHANNEL',
         productId: linked.cmsProductId,
         channelId: shopeeChannelId,
         channelKey: 'SHOPEE',
       })
+      const pushedSku = res.sku || linked.cmsSku
+      const pushedStock = typeof res.targetStock === 'number' ? res.targetStock : linked.cmsStock
+      const pushedPrice = typeof res.targetPrice === 'number' ? res.targetPrice : linked.cmsSellPrice
       toast({
-        title: `Đã đẩy đồng bộ [${res.sku}] lên sàn Shopee`,
-        description: `Tồn kho: ${res.targetStock} · Giá bán: ${formatVND(res.targetPrice)}`,
+        title: `Đã đẩy đồng bộ [${pushedSku}] lên sàn Shopee`,
+        description: `Tồn kho: ${pushedStock} · Giá bán: ${formatVND(pushedPrice)}`,
       })
       void loadLinks(true)
     } catch (e) {
@@ -655,7 +675,7 @@ export function ChannelsView() {
     if (selectedLinkedIds.length === 0) return
     setBulkBusy(true)
     try {
-      const res = await apiPost<{ ok: boolean; processedCount: number; message: string }>(
+      const res = await apiPost<{ ok: boolean; processedCount?: number; message?: string }>(
         '/api/channels/product-links',
         {
           action: 'BULK_CHANNEL_ACTION',
@@ -664,9 +684,11 @@ export function ChannelsView() {
           ...extraPayload,
         }
       )
+      const processedCount =
+        typeof res.processedCount === 'number' ? res.processedCount : selectedLinkedIds.length
       toast({
-        title: `Thao tác hàng loạt hoàn tất (${res.processedCount} sản phẩm)`,
-        description: res.message,
+        title: `Thao tác hàng loạt hoàn tất (${processedCount} sản phẩm)`,
+        description: res.message || `Đã cập nhật thành công ${processedCount} sản phẩm trên kênh bán.`,
       })
       setSelectedLinkedIds([])
       setBulkEditOpen(false)
@@ -689,16 +711,21 @@ export function ChannelsView() {
     if (selectedItems.length === 0) return
     setBulkBusy(true)
     try {
-      const res = await apiPost<{ ok: boolean; createdCount: number; message: string }>(
+      const res = await apiPost<{ ok: boolean; createdCount?: number; message?: string }>(
         '/api/channels/product-links',
         {
           action: 'BULK_CREATE_AND_LINK',
           items: selectedItems,
         }
       )
+      const createdCount =
+        typeof res.createdCount === 'number' ? res.createdCount : selectedItems.length
+      const fallbackSkus = selectedItems
+        .map((it) => (it.shopeeSku || `SP-${it.shopeeModelId || it.shopeeItemId}`).toUpperCase())
+        .join(', ')
       toast({
-        title: `Đã khởi tạo & liên kết ${res.createdCount} sản phẩm`,
-        description: res.message,
+        title: `Đã khởi tạo & liên kết ${createdCount} sản phẩm`,
+        description: res.message || `Đã khởi tạo và liên kết ${createdCount} mã SKU: ${fallbackSkus}`,
       })
       setSelectedUnlinkedKeys([])
       await loadLinks(true)
@@ -801,13 +828,17 @@ export function ChannelsView() {
         })
 
   const normalizedModalSearch = cmsModalSearch.trim().toLowerCase()
-  const filteredModalCmsProducts = !normalizedModalSearch
-    ? (linkData?.cmsProducts ?? [])
-    : (linkData?.cmsProducts ?? []).filter(
-        (p) =>
-          p.sku.toLowerCase().includes(normalizedModalSearch) ||
-          p.name.toLowerCase().includes(normalizedModalSearch)
-      )
+  const filteredModalCmsProducts = useMemo(() => {
+    const base = !normalizedModalSearch
+      ? (linkData?.cmsProducts ?? [])
+      : (linkData?.cmsProducts ?? []).filter(
+          (p) =>
+            p.sku.toLowerCase().includes(normalizedModalSearch) ||
+            p.name.toLowerCase().includes(normalizedModalSearch)
+        )
+    // Ưu tiên hiển thị các hàng hóa CMS chưa gắn Shopee lên đầu để tránh ghép đè nhầm
+    return [...base].sort((a, b) => Number(Boolean(a.linkedShopeeModelId)) - Number(Boolean(b.linkedShopeeModelId)))
+  }, [linkData?.cmsProducts, normalizedModalSearch])
 
   return (
     <div>
@@ -1156,55 +1187,67 @@ export function ChannelsView() {
                                 <span className="font-medium text-foreground">Tồn sàn: {item.stock}</span>
                               </div>
 
-                              {/* Gợi ý ghép nối thông minh */}
-                              {item.suggestedCmsProducts.length > 0 && (
-                                <div className="mt-2 flex flex-wrap items-center gap-2 pt-1">
-                                  <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                    Gợi ý khớp:
-                                  </span>
-                                  {item.suggestedCmsProducts.map((sug) => (
+                              {/* Chỉ hiển thị gợi ý khi có mã CMS chưa liên kết đạt độ trùng khớp cao (>= 80%), mở hộp thoại xác nhận thay vì ghép mù 1-click */}
+                              {(() => {
+                                const topMatch = item.suggestedCmsProducts.find((s) => {
+                                  if (s.score < 80) return false
+                                  const cp = linkData?.cmsProducts.find((p) => p.id === s.id)
+                                  return !cp?.linkedShopeeModelId
+                                })
+                                if (!topMatch) {
+                                  return (
+                                    <p className="pt-1 text-xs text-muted-foreground">
+                                      Chưa có mã SKU này trong Kho CMS — bấm{' '}
+                                      <strong className="font-medium text-foreground">Tạo hàng hóa mới &amp; Liên kết</strong>{' '}
+                                      để khởi tạo tự động (hoặc ghép thủ công nếu dùng mã khác).
+                                    </p>
+                                  )
+                                }
+                                return (
+                                  <div className="mt-2 flex flex-wrap items-center gap-2 pt-1">
+                                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                      <Sparkles className="h-3.5 w-3.5" />
+                                      Phát hiện mã CMS tương ứng:
+                                    </span>
                                     <Button
-                                      key={sug.id}
                                       variant="outline"
                                       size="sm"
                                       className="h-7 border-emerald-500/40 bg-emerald-500/5 px-2.5 text-xs hover:bg-emerald-500/15"
                                       disabled={isBusy}
-                                      onClick={() =>
-                                        void handleExecuteLinkToExisting(item, sug.id, 'CMS_TO_SHOPEE')
-                                      }
-                                      title={sug.reason}
+                                      onClick={() => openLinkModal(item, topMatch.id)}
+                                      title={topMatch.reason}
                                     >
                                       <Link2 className="mr-1 h-3 w-3 text-emerald-600" />
-                                      Ghép ngay [{sug.sku}] ({sug.score}%)
+                                      Xem &amp; ghép với [{topMatch.sku}] ({topMatch.score}%)
                                     </Button>
-                                  ))}
-                                </div>
-                              )}
+                                  </div>
+                                )
+                              })()}
                             </div>
                           </div>
 
                           <div className="flex shrink-0 flex-wrap items-center gap-2">
                             <Button
                               size="sm"
+                              className="bg-emerald-600 text-white hover:bg-emerald-700"
                               disabled={isBusy}
-                              onClick={() => openLinkModal(item)}
+                              onClick={() => openCreateModal(item)}
                             >
                               {isBusy ? (
                                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                               ) : (
-                                <Link2 className="mr-1.5 h-4 w-4" />
+                                <PackagePlus className="mr-1.5 h-4 w-4" />
                               )}
-                              Chọn hàng hóa CMS để liên kết
+                              Tạo hàng hóa mới &amp; Liên kết
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               disabled={isBusy}
-                              onClick={() => openCreateModal(item)}
+                              onClick={() => openLinkModal(item)}
                             >
-                              <PackagePlus className="mr-1.5 h-4 w-4" />
-                              Tạo hàng hóa mới & Liên kết
+                              <Link2 className="mr-1.5 h-4 w-4" />
+                              Ghép với hàng CMS có sẵn
                             </Button>
                           </div>
                         </div>

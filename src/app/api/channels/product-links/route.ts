@@ -85,46 +85,96 @@ export interface LinkedMarketplaceItem {
   pendingOutboxSync?: boolean
 }
 
+const GENERIC_SKU_PREFIXES = new Set(['BM', 'DEC', 'SP', 'AN', 'ANT'])
+const VARIANT_SKU_TOKENS = new Set([
+  'TRANG',
+  'DEN',
+  'BE',
+  'NAU',
+  'KEM',
+  'VANG',
+  'CAM',
+  'XANH',
+  'XANHSAGE',
+  'XAM',
+  'HONG',
+  'CAO',
+  'LUN',
+  'NHO',
+  'LON',
+])
+
+function extractCoreSkuTokens(rawSku: string): { core: string[]; variant: string[] } {
+  const parts = rawSku
+    .toUpperCase()
+    .trim()
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean)
+  const withoutPrefix = parts.filter((t, idx) => !(idx < 2 && GENERIC_SKU_PREFIXES.has(t)))
+  const core: string[] = []
+  const variant: string[] = []
+  for (const tok of withoutPrefix) {
+    if (VARIANT_SKU_TOKENS.has(tok)) variant.push(tok)
+    else core.push(tok)
+  }
+  return { core, variant }
+}
+
 function computeSimilarityScore(
   unlinked: { shopeeSku: string; parentSku: string; name: string; modelName: string; sellPrice: number },
   cmsProd: { sku: string; name: string; sellPrice: number }
 ): { score: number; reason: string } {
-  let score = 0
   const reasons: string[] = []
-
   const uSku = (unlinked.shopeeSku || '').toUpperCase().trim()
   const pSku = (unlinked.parentSku || '').toUpperCase().trim()
   const cSku = cmsProd.sku.toUpperCase().trim()
 
   if (uSku && cSku === uSku) {
-    score += 95
-    reasons.push('Trùng khớp hoàn toàn mã SKU')
-  } else if (uSku && (cSku.includes(uSku) || uSku.includes(cSku))) {
-    score += 65
-    reasons.push('Mã SKU gần giống')
-  } else if (pSku && cSku.startsWith(pSku)) {
-    score += 45
-    reasons.push(`Cùng họ mã gốc ${pSku}`)
+    return { score: 98, reason: 'Trùng khớp hoàn toàn mã SKU' }
   }
 
-  const mName = (unlinked.modelName || '').toLowerCase()
+  let coreScore = 0
+  const uTokens = extractCoreSkuTokens(uSku || pSku)
+  const cTokens = extractCoreSkuTokens(cSku)
+
+  if (uTokens.core.length > 0 && cTokens.core.length > 0) {
+    const uCoreKey = uTokens.core.join('-')
+    const cCoreKey = cTokens.core.join('-')
+    if (uCoreKey === cCoreKey) {
+      coreScore = 78
+      reasons.push(`Cùng dòng mã gốc «${uCoreKey}»`)
+    }
+  }
+
+  // Chỉ cộng điểm phân loại & giá bán khi đã khớp đúng dòng sản phẩm cốt lõi (tránh ghép nhầm SP khác chỉ vì trùng giá / trùng màu)
+  if (coreScore < 75) {
+    return { score: coreScore, reason: reasons.join(' · ') || 'Khác dòng sản phẩm' }
+  }
+
+  let bonus = 0
+  const mName = (unlinked.modelName || '').toLowerCase().trim()
   const cName = cmsProd.name.toLowerCase()
-  if (mName && cName.includes(mName)) {
-    score += 35
-    reasons.push(`Tên chứa phân loại «${unlinked.modelName}»`)
-  } else if (mName.includes('combo') && (cSku.includes('COMBO') || cName.includes('combo'))) {
-    score += 40
-    reasons.push('Cùng phân loại Combo')
+  const sameVariantSku =
+    uTokens.variant.length > 0 &&
+    cTokens.variant.length > 0 &&
+    uTokens.variant.join('-') === cTokens.variant.join('-')
+
+  if (sameVariantSku || (mName && cName.includes(mName))) {
+    bonus += 12
+    reasons.push(unlinked.modelName ? `Khớp phân loại «${unlinked.modelName}»` : 'Khớp mã phân loại')
+  } else if (uTokens.variant.length > 0 && cTokens.variant.length > 0) {
+    // Cùng dòng SP nhưng lệch màu/phân loại -> hạ điểm để không gợi ý ghép nhầm phân loại
+    return { score: 55, reason: 'Cùng dòng sản phẩm nhưng khác phân loại màu/kích cỡ' }
   }
 
   if (unlinked.sellPrice > 0 && Math.abs(unlinked.sellPrice - cmsProd.sellPrice) <= 1000) {
-    score += 25
+    bonus += 5
     reasons.push('Cùng mức giá bán')
   }
 
   return {
-    score: Math.min(100, score),
-    reason: reasons.join(' · ') || 'Cùng danh mục sản phẩm',
+    score: Math.min(98, coreScore + bonus),
+    reason: reasons.join(' · '),
   }
 }
 
@@ -384,8 +434,19 @@ export async function GET() {
       const sellPrice = Number(d.sellPrice) || 0
       const stock = Number(d.stock) || 0
 
-      // Tính điểm gợi ý ghép nối thông minh với các sản phẩm CMS hiện có
-      const suggestions = allProducts
+      // Chỉ gợi ý ghép nối tự động với các sản phẩm CMS CHƯA liên kết Shopee và có độ khớp cao (>= 80%)
+      const unlinkedCmsCandidates = allProducts.filter((cp) => {
+        if (cp.status === 'INACTIVE') return false
+        if (!cp.attributes) return true
+        try {
+          const a = JSON.parse(cp.attributes) as Record<string, unknown>
+          return !String(a.shopeeItemId || '').trim()
+        } catch {
+          return true
+        }
+      })
+
+      const suggestions = unlinkedCmsCandidates
         .map((cp) => {
           const { score, reason } = computeSimilarityScore(
             { shopeeSku, parentSku, name, modelName, sellPrice },
@@ -401,9 +462,9 @@ export async function GET() {
             reason,
           }
         })
-        .filter((s) => s.score >= 25)
+        .filter((s) => s.score >= 80)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
+        .slice(0, 1)
 
       unlinkedItems.push({
         id: entry.id,
@@ -427,26 +488,32 @@ export async function GET() {
       })
     }
 
-    const cmsProducts = allProducts.map((p) => {
-      let linkedModelId = ''
-      if (p.attributes) {
-        try {
-          const a = JSON.parse(p.attributes) as Record<string, unknown>
-          linkedModelId = String(a.shopeeModelId || '')
-        } catch {
-          // ignore
+    const cmsProducts = allProducts
+      .filter((p) => p.status !== 'INACTIVE')
+      .map((p) => {
+        let linkedShopeeLabel = ''
+        if (p.attributes) {
+          try {
+            const a = JSON.parse(p.attributes) as Record<string, unknown>
+            const sItemId = String(a.shopeeItemId || '').trim()
+            const sModelId = String(a.shopeeModelId || '').trim()
+            if (sItemId) {
+              linkedShopeeLabel = sModelId || `Item #${sItemId}`
+            }
+          } catch {
+            // ignore
+          }
         }
-      }
-      return {
-        id: p.id,
-        sku: p.sku,
-        name: p.name,
-        sellPrice: p.sellPrice,
-        stock: p.stock,
-        image: p.image,
-        linkedShopeeModelId: linkedModelId || null,
-      }
-    })
+        return {
+          id: p.id,
+          sku: p.sku,
+          name: p.name,
+          sellPrice: p.sellPrice,
+          stock: p.stock,
+          image: p.image,
+          linkedShopeeModelId: linkedShopeeLabel || null,
+        }
+      })
 
     const payload = {
       ok: true,
