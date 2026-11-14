@@ -174,6 +174,8 @@ export function BarcodeScanner({
               type="button"
               variant="ghost"
               size="icon"
+              data-compact-btn="true"
+              aria-label="Mở Camera quét mã vạch"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={startCamera}
               title="Mở Camera quét mã vạch / QR"
@@ -184,6 +186,8 @@ export function BarcodeScanner({
               type="button"
               variant="ghost"
               size="icon"
+              data-compact-btn="true"
+              aria-label="Chụp hoặc tải ảnh mã vạch"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => fileInputRef.current?.click()}
               title="Chụp hoặc tải ảnh mã vạch (hỗ trợ cả HTTP Wi-Fi LAN)"
@@ -197,6 +201,7 @@ export function BarcodeScanner({
           type="file"
           accept="image/*"
           capture="environment"
+          aria-label="Chụp ảnh mã vạch sản phẩm"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null

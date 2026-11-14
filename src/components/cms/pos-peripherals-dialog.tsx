@@ -150,9 +150,16 @@ export function PosPeripheralsDialog({
 
   const hostCandidates = useMemo(() => {
     const list: string[] = []
+    if (typeof window !== 'undefined') {
+      const currentHost = window.location.hostname
+      // Trên Cloud / GitHub Pages ưu tiên domain HTTPS hiện tại lên đầu để quét QR không lỗi 404
+      if (currentHost && currentHost.endsWith('.github.io')) {
+        list.push(currentHost)
+      }
+    }
     if (station?.lanIps?.length) {
       for (const ip of station.lanIps) {
-        if (!list.includes(ip)) list.push(ip)
+        if (ip && !list.includes(ip)) list.push(ip)
       }
     }
     if (typeof window !== 'undefined') {
@@ -163,21 +170,30 @@ export function PosPeripheralsDialog({
     return list
   }, [station])
 
-  const effectiveHost = selectedHost && hostCandidates.includes(selectedHost) ? selectedHost : hostCandidates[0]
+  const effectiveHost =
+    selectedHost && hostCandidates.includes(selectedHost) ? selectedHost : hostCandidates[0]
 
   const mobileScannerUrl = useMemo(() => {
     if (typeof window === 'undefined' || !station) return ''
-    const isGitHubPages = window.location.hostname.endsWith('.github.io')
-    if (isGitHubPages) {
-      return `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}/pos/scanner?s=${encodeURIComponent(station.stationId)}&t=${encodeURIComponent(station.pairToken)}`
+    const qs = `s=${encodeURIComponent(station.stationId)}&t=${encodeURIComponent(station.pairToken)}`
+    if (effectiveHost.endsWith('.github.io')) {
+      const cleanBasePath = window.location.pathname
+        .replace(/\/pos(\/.*)?$/, '')
+        .replace(/\/$/, '')
+      return `${window.location.origin}${cleanBasePath}/pos/scanner?${qs}`
     }
-    const portPart = window.location.port ? `:${window.location.port}` : ''
-    return `${window.location.protocol}//${effectiveHost}${portPart}/pos/scanner?s=${encodeURIComponent(station.stationId)}&t=${encodeURIComponent(station.pairToken)}`
+    const portPart = window.location.port
+      ? `:${window.location.port}`
+      : window.location.hostname.endsWith('.github.io')
+        ? ':3010'
+        : ''
+    const proto = effectiveHost.endsWith('.github.io') ? 'https:' : 'http:'
+    return `${proto}//${effectiveHost}${portPart}/pos/scanner?${qs}`
   }, [effectiveHost, station])
 
   const qrSvgMarkup = useMemo(() => {
     if (!mobileScannerUrl) return ''
-    return qrCodeSvg(mobileScannerUrl, { size: 204, margin: 3 })
+    return qrCodeSvg(mobileScannerUrl, { size: 188, margin: 3 })
   }, [mobileScannerUrl])
 
   const handleCopyUrl = async () => {
@@ -185,12 +201,12 @@ export function PosPeripheralsDialog({
     try {
       await navigator.clipboard.writeText(mobileScannerUrl)
       toast({
-        title: 'Đã sao chép liên kết Máy Quét Điện Thoại',
+        title: 'Đã sao chép liên kết Tay Quét Điện Thoại',
         description: mobileScannerUrl,
       })
     } catch {
       toast({
-        title: 'Không thể tự sao chép',
+        title: 'Liên kết Tay Quét Điện Thoại',
         description: mobileScannerUrl,
       })
     }
@@ -222,99 +238,150 @@ export function PosPeripheralsDialog({
     }
   }
 
+  const connectedCount = station?.connectedPhones?.length || 0
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto p-0">
-        <div className="border-b bg-slate-950 px-6 py-4 text-white">
-          <DialogHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-white">
-                <Printer className="h-5 w-5 text-emerald-400" />
-                Trung Tâm Thiết Bị Ngoại Vi, Điện Thoại Quét Mã & Tự Động In POS / Shopee
+      <DialogContent className="max-h-[92vh] max-w-4xl gap-0 overflow-y-auto p-0 sm:p-0">
+        {/* Header sáng đồng bộ hệ thống OPENVN — chừa khoảng phải pr-28 cho nút Mở rộng & Đóng (X) */}
+        <div className="border-b bg-muted/30 px-5 pt-5 pb-4 sm:px-6">
+          <DialogHeader className="space-y-1.5 pr-28 text-left">
+            <div className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground sm:text-lg">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0066CC]/10 text-[#0066CC]">
+                  <Printer className="h-4 w-4" />
+                </span>
+                <span>Thiết Bị Ngoại Vi, Điện Thoại Quét Mã &amp; Tự Động In</span>
               </DialogTitle>
-              <div className="flex items-center gap-2">
-                <Badge className="border-emerald-500/40 bg-emerald-500/15 text-emerald-300">
-                  Trạm: {station?.stationId || 'POS-UUDAM-01'}
-                </Badge>
-                <Badge className="border-sky-500/40 bg-sky-500/15 text-sky-300">
-                  {station?.connectedPhones?.length || 0} ĐT đang kết nối
-                </Badge>
-              </div>
             </div>
-            <DialogDescription className="text-xs text-slate-300">
-              Liên kết điện thoại làm tay quét mã vạch & bấm tính tiền từ xa, kết nối súng mã vạch USB/Bluetooth, tự động in Bill K80 và tự động in vận đơn Shopee ngay tại quầy POS.
+            <DialogDescription className="text-xs leading-relaxed text-muted-foreground">
+              Liên kết điện thoại làm tay quét mã vạch &amp; bấm tính tiền từ xa, kết nối súng mã vạch USB/Bluetooth, tự động in Bill K80 và tự động in vận đơn Shopee ngay tại quầy POS.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          {/* Hàng huy hiệu trạng thái trực quan */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className="border-[#0066CC]/30 bg-[#0066CC]/8 font-mono text-xs font-semibold text-[#0066CC] dark:text-sky-300"
+            >
+              Trạm: {station?.stationId || 'POS-UUDAM-01'}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={
+                connectedCount > 0
+                  ? 'border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                  : 'border-border bg-background text-xs text-muted-foreground'
+              }
+            >
+              <Smartphone className="mr-1 h-3 w-3" />
+              {connectedCount} điện thoại đang kết nối
+            </Badge>
+            <Badge
+              variant="outline"
+              className={
+                printerConfig.autoPrintPosBill
+                  ? 'border-emerald-300 bg-emerald-50 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                  : 'border-border bg-background text-xs text-muted-foreground'
+              }
+            >
+              In Bill POS: {printerConfig.autoPrintPosBill ? `BẬT (${printerConfig.paperSize})` : 'TẮT'}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={
+                printerConfig.autoPrintShopeeOrder
+                  ? 'border-orange-300 bg-orange-50 text-xs font-semibold text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300'
+                  : 'border-border bg-background text-xs text-muted-foreground'
+              }
+            >
+              Auto-Print Shopee: {printerConfig.autoPrintShopeeOrder ? 'BẬT' : 'TẮT'}
+            </Badge>
+          </div>
+
+          {/* Thanh chuyển 3 phân mục chuẩn Segmented Control */}
+          <div
+            role="tablist"
+            aria-label="Phân mục cấu hình thiết bị POS"
+            className="mt-3.5 grid grid-cols-1 gap-1.5 rounded-xl border bg-muted/60 p-1 sm:grid-cols-3"
+          >
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === 'phone'}
               onClick={() => setActiveTab('phone')}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                 activeTab === 'phone'
-                  ? 'bg-emerald-500 text-slate-950 shadow'
-                  : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                  ? 'bg-card text-[#0066CC] shadow-xs ring-1 ring-border dark:text-sky-300'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Smartphone className="h-4 w-4" />
-              1. Điện Thoại Quét Mã & Tính Tiền ({station?.connectedPhones?.length || 0})
+              <Smartphone className="h-3.5 w-3.5 shrink-0" />
+              <span>Điện thoại Quét mã ({connectedCount})</span>
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === 'printer'}
               onClick={() => setActiveTab('printer')}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                 activeTab === 'printer'
-                  ? 'bg-emerald-500 text-slate-950 shadow'
-                  : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                  ? 'bg-card text-[#0066CC] shadow-xs ring-1 ring-border dark:text-sky-300'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Printer className="h-4 w-4" />
-              2. Súng Mã Vạch & Tự Động In Bill {printerConfig.autoPrintPosBill ? '(BẬT)' : '(TẮT)'}
+              <Printer className="h-3.5 w-3.5 shrink-0" />
+              <span>Súng Mã vạch &amp; In Bill ({printerConfig.autoPrintPosBill ? 'BẬT' : 'TẮT'})</span>
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === 'shopee'}
               onClick={() => setActiveTab('shopee')}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                 activeTab === 'shopee'
-                  ? 'bg-orange-500 text-white shadow'
-                  : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                  ? 'bg-card text-orange-600 shadow-xs ring-1 ring-orange-200 dark:text-orange-300 dark:ring-orange-900'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <ShoppingBag className="h-4 w-4" />
-              3. Tự Động In Đơn Shopee {printerConfig.autoPrintShopeeOrder ? '(BẬT)' : '(TẮT)'}
+              <ShoppingBag className="h-3.5 w-3.5 shrink-0" />
+              <span>Tự động in Đơn Shopee ({printerConfig.autoPrintShopeeOrder ? 'BẬT' : 'TẮT'})</span>
             </button>
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-5 sm:p-6">
           {/* ================================================================= */}
           {/* TAB 1: ĐIỆN THOẠI QUÉT MÃ <-> MÁY POS ĐANG LIÊN KẾT              */}
           {/* ================================================================= */}
           {activeTab === 'phone' && (
-            <div className="grid gap-5 md:grid-cols-[240px_1fr]">
-              <div className="flex flex-col items-center rounded-xl border bg-slate-50 p-4 text-center dark:bg-slate-900/50">
-                <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                  <QrCode className="h-4 w-4" />
-                  Quét QR bằng Camera Điện Thoại
+            <div className="grid gap-5 md:grid-cols-[232px_1fr]">
+              <div className="flex flex-col items-center rounded-xl border bg-muted/25 p-4 text-center">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#0066CC] dark:text-sky-300">
+                  <QrCode className="h-4 w-4 shrink-0" />
+                  <span>Quét QR bằng Điện thoại</span>
                 </div>
                 {qrSvgMarkup ? (
                   <div
-                    className="overflow-hidden rounded-xl border bg-white p-2 shadow-sm"
+                    className="overflow-hidden rounded-xl border bg-white p-2 shadow-2xs"
                     dangerouslySetInnerHTML={{ __html: qrSvgMarkup }}
                   />
                 ) : (
-                  <div className="flex h-[204px] w-[204px] items-center justify-center rounded-xl border bg-white text-xs text-muted-foreground">
-                    Đang khởi tạo mã QR...
+                  <div className="flex h-[188px] w-[188px] items-center justify-center rounded-xl border bg-white text-xs text-muted-foreground">
+                    Đang tạo mã QR...
                   </div>
                 )}
                 <div className="mt-3 w-full space-y-1.5 text-left text-xs">
-                  <div className="flex items-center justify-between rounded-md bg-white px-2.5 py-1.5 border dark:bg-slate-950">
+                  <div className="flex items-center justify-between rounded-lg border bg-card px-2.5 py-1.5">
                     <span className="text-muted-foreground">Mã trạm:</span>
-                    <span className="font-mono font-bold">{station?.stationId || 'POS-UUDAM-01'}</span>
+                    <span className="font-mono font-bold text-foreground">
+                      {station?.stationId || 'POS-UUDAM-01'}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between rounded-md bg-white px-2.5 py-1.5 border dark:bg-slate-950">
+                  <div className="flex items-center justify-between rounded-lg border bg-card px-2.5 py-1.5">
                     <span className="text-muted-foreground">Mã PIN ghép:</span>
-                    <span className="font-mono text-sm font-extrabold tracking-widest text-emerald-600">
+                    <span className="font-mono text-sm font-extrabold tracking-widest text-emerald-600 dark:text-emerald-400">
                       {station?.pairToken || '------'}
                     </span>
                   </div>
@@ -323,7 +390,7 @@ export function PosPeripheralsDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-2.5 w-full text-xs"
+                  className="mt-2.5 h-8 w-full text-xs"
                   disabled={busyAction === 'rotate'}
                   onClick={async () => {
                     setBusyAction('rotate')
@@ -332,23 +399,23 @@ export function PosPeripheralsDialog({
                   }}
                 >
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                  Đổi mã PIN ghép mới
+                  Đổi mã PIN mới
                 </Button>
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-xl border bg-emerald-50/60 p-3.5 dark:bg-emerald-950/20">
+              <div className="min-w-0 space-y-4">
+                <div className="rounded-xl border border-sky-200/80 bg-sky-50/50 p-4 dark:border-sky-900/50 dark:bg-sky-950/20">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 dark:text-emerald-300">
-                      <Wifi className="h-4 w-4 text-emerald-600" />
-                      Liên kết Wi-Fi LAN Thời Gian Thực (&lt; 10ms)
+                    <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                      <Wifi className="h-4 w-4 text-[#0066CC]" />
+                      <span>Liên kết Tay Quét Điện Thoại Thời Gian Thực (&lt; 10ms)</span>
                     </div>
                     {hostCandidates.length > 1 && (
                       <div className="flex items-center gap-1.5 text-xs">
-                        <span className="text-muted-foreground">IP Mạng LAN:</span>
+                        <span className="text-muted-foreground">Địa chỉ kết nối:</span>
                         <select
-                          aria-label="Chọn IP LAN"
-                          className="rounded border bg-white px-2 py-1 font-mono text-xs dark:bg-slate-900"
+                          aria-label="Chọn địa chỉ kết nối"
+                          className="h-7 rounded-md border bg-card px-2 font-mono text-xs text-foreground"
                           value={effectiveHost}
                           onChange={(e) => setSelectedHost(e.target.value)}
                         >
@@ -361,43 +428,54 @@ export function PosPeripheralsDialog({
                       </div>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                    Điện thoại kết nối chung Wi-Fi với máy POS, mở link dưới đây để dùng Camera sau quét mã vạch sản phẩm bắn thẳng vào giỏ hàng POS và bấm <strong>Tính tiền + Tự động in Bill</strong> ngay trên điện thoại.
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Mở liên kết dưới đây trên điện thoại để dùng <strong>Camera sau</strong> hoặc{' '}
+                    <strong>Chụp ảnh mã vạch</strong> bắn thẳng sản phẩm vào giỏ hàng POS và bấm{' '}
+                    <strong>Tính tiền &amp; In Bill</strong> ngay từ điện thoại.
                   </p>
+
+                  {/* Hiển thị trọn vẹn URL không bị cắt cụt đuôi PIN */}
+                  <div className="mt-2.5 rounded-lg border bg-card px-3 py-2 font-mono text-xs break-all text-foreground select-all">
+                    {mobileScannerUrl || 'Đang khởi tạo đường dẫn ghép nối...'}
+                  </div>
+
                   <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                    <Input
-                      readOnly
-                      value={mobileScannerUrl}
-                      className="h-8 flex-1 bg-white font-mono text-xs dark:bg-slate-950"
-                    />
-                    <Button type="button" size="sm" variant="outline" onClick={() => void handleCopyUrl()}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 bg-card text-xs"
+                      onClick={() => void handleCopyUrl()}
+                    >
                       <Copy className="mr-1.5 h-3.5 w-3.5" />
-                      Sao chép
+                      Sao chép liên kết
                     </Button>
                     <Button
                       type="button"
                       size="sm"
-                      className="bg-emerald-600 text-white hover:bg-emerald-500"
+                      className="h-8 bg-[#0066CC] text-xs font-semibold text-white hover:bg-[#0055B3]"
                       onClick={() => {
-                        if (mobileScannerUrl) window.open(mobileScannerUrl, '_blank', 'noopener,noreferrer')
+                        if (mobileScannerUrl) {
+                          window.open(mobileScannerUrl, '_blank', 'noopener,noreferrer')
+                        }
                       }}
                     >
                       <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                      Mở Máy Quét ĐT
+                      Mở Tay Quét ĐT
                     </Button>
                   </div>
                 </div>
 
-                <div className="rounded-xl border p-3.5">
+                <div className="rounded-xl border bg-card p-3.5">
                   <div className="mb-2 flex items-center justify-between">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Thiết Bị Điện Thoại Đang Liên Kết ({station?.connectedPhones?.length || 0})
+                      Điện Thoại Đang Liên Kết ({connectedCount})
                     </h4>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs"
+                      className="h-7 px-2 text-xs"
                       onClick={() => void onRefreshStation()}
                     >
                       <RefreshCw className="mr-1 h-3 w-3" />
@@ -405,28 +483,34 @@ export function PosPeripheralsDialog({
                     </Button>
                   </div>
 
-                  {!station?.connectedPhones?.length ? (
-                    <p className="rounded-lg border border-dashed py-4 text-center text-xs text-muted-foreground">
-                      Chưa có điện thoại nào đang mở phiên quét. Quét mã QR bên trái hoặc bấm &ldquo;Mở Máy Quét ĐT&rdquo; để kết nối ngay.
+                  {!connectedCount ? (
+                    <p className="rounded-lg border border-dashed bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
+                      Chưa có điện thoại nào đang mở phiên quét. Quét mã QR bên trái hoặc bấm{' '}
+                      <strong>&ldquo;Mở Tay Quét ĐT&rdquo;</strong> để kiểm tra ngay.
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {station.connectedPhones.map((ph) => (
+                      {station!.connectedPhones.map((ph) => (
                         <div
                           key={ph.phoneId}
-                          className="flex items-center justify-between rounded-lg border bg-slate-50/70 px-3 py-2 text-xs dark:bg-slate-900"
+                          className="flex items-center justify-between gap-2 rounded-lg border bg-muted/25 px-3 py-2 text-xs"
                         >
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                            <div>
-                              <div className="font-semibold">{ph.deviceName}</div>
-                              <div className="text-[11px] text-muted-foreground">
-                                Mã gần nhất: {ph.lastScannedCode || 'Chưa quét'} · Hoạt động lúc{' '}
-                                {new Date(ph.lastSeenAt).toLocaleTimeString('vi-VN')}
+                          <div className="flex min-w-0 items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-foreground">{ph.deviceName}</div>
+                              <div className="truncate text-[11px] text-muted-foreground">
+                                Mã gần nhất:{' '}
+                                <span className="font-mono font-medium text-foreground">
+                                  {ph.lastScannedCode || 'Chưa quét'}
+                                </span>{' '}
+                                · {new Date(ph.lastSeenAt).toLocaleTimeString('vi-VN')}
                               </div>
                             </div>
                           </div>
-                          <Badge variant="secondary">{ph.scanCount} lần quét</Badge>
+                          <Badge variant="secondary" className="shrink-0 font-mono">
+                            {ph.scanCount} lần quét
+                          </Badge>
                         </div>
                       ))}
                     </div>
@@ -434,7 +518,7 @@ export function PosPeripheralsDialog({
                 </div>
 
                 {Boolean(station?.recentScanEvents?.length) && (
-                  <div className="rounded-xl border p-3.5">
+                  <div className="rounded-xl border bg-card p-3.5">
                     <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Nhật Ký Mã Vạch Nhận Từ Điện Thoại Gần Nhất
                     </h4>
@@ -442,16 +526,16 @@ export function PosPeripheralsDialog({
                       {station!.recentScanEvents.slice(0, 6).map((ev) => (
                         <div
                           key={ev.id}
-                          className="flex items-center justify-between rounded border px-2.5 py-1.5 text-xs"
+                          className="flex items-center justify-between gap-2 rounded-lg border bg-muted/15 px-2.5 py-1.5 text-xs"
                         >
-                          <div>
-                            <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="font-mono font-bold text-[#0066CC] dark:text-sky-300">
                               {ev.code}
                             </span>{' '}
                             <span className="text-muted-foreground">→</span>{' '}
                             <span>{ev.matchedName || 'Chưa khớp SKU trong kho'}</span>
                           </div>
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                             x{ev.quantity} · {new Date(ev.createdAt).toLocaleTimeString('vi-VN')}
                           </span>
                         </div>
@@ -468,61 +552,75 @@ export function PosPeripheralsDialog({
           {/* ================================================================= */}
           {activeTab === 'printer' && (
             <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="flex items-start justify-between rounded-xl border bg-emerald-50/50 p-3.5 dark:bg-emerald-950/20">
-                  <div className="space-y-1 pr-3">
-                    <Label className="text-sm font-bold">
+              <div className="grid gap-3.5 md:grid-cols-2">
+                <div className="flex items-start justify-between gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-bold text-foreground">
                       Tự động in Bill K80 ngay khi Tính Tiền
                     </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Khi bấm Thanh toán (F9) trên máy POS hoặc bấm <strong>Tính tiền</strong> từ Điện thoại đang liên kết, máy POS lập tức đẩy lệnh in hóa đơn K80 tự động (kèm mở ngăn kéo tiền mặt RJ11).
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Khi bấm Thanh toán (F9) tại quầy hoặc bấm <strong>Tính tiền</strong> từ Điện thoại liên kết, máy POS tự đẩy lệnh in hóa đơn (kèm xung mở két tiền RJ11).
                     </p>
                   </div>
                   <Switch
+                    aria-label="Tự động in Bill K80 ngay khi tính tiền"
                     checked={printerConfig.autoPrintPosBill}
                     onCheckedChange={(checked) => onUpdatePrinterConfig({ autoPrintPosBill: checked })}
                   />
                 </div>
 
-                <div className="flex items-start justify-between rounded-xl border p-3.5">
-                  <div className="space-y-1 pr-3">
-                    <div className="flex items-center gap-1.5">
-                      <ScanLine className="h-4 w-4 text-emerald-600" />
-                      <span className="text-sm font-bold">Súng Mã Vạch USB / Bluetooth HID</span>
-                      <Badge className="bg-emerald-600 text-[10px] text-white">Đang trực chiến</Badge>
+                <div className="flex flex-col justify-between rounded-xl border bg-card p-4">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <ScanLine className="h-4 w-4 text-[#0066CC]" />
+                      <span className="text-sm font-bold text-foreground">
+                        Súng Mã Vạch USB / Bluetooth HID
+                      </span>
+                      <Badge className="bg-emerald-600 px-1.5 py-0 text-[10px] text-white">
+                        Đang trực chiến
+                      </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Tự động bắt xung phím tốc độ cao (&lt; 50ms/ký tự + Enter) trên toàn màn hình POS ngay cả khi con trỏ chuột không đặt trong ô tìm kiếm.
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Tự động bắt xung phím tốc độ cao (&lt; 85ms/ký tự + Enter) trên toàn màn hình POS mà không cần đặt chuột vào ô tìm kiếm.
                     </p>
-                    <div className="flex items-center gap-2 pt-1">
-                      <Volume2 className="h-3.5 w-3.5 text-slate-500" />
-                      <span className="text-xs">Âm báo Bíp khi quét mã / thanh toán:</span>
-                      <Switch
-                        checked={printerConfig.soundEnabled}
-                        onCheckedChange={(checked) => onUpdatePrinterConfig({ soundEnabled: checked })}
-                      />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t pt-2.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                      <Volume2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Âm báo Bíp khi quét mã &amp; thanh toán</span>
                     </div>
+                    <Switch
+                      aria-label="Âm báo Bíp khi quét mã và thanh toán"
+                      checked={printerConfig.soundEnabled}
+                      onCheckedChange={(checked) => onUpdatePrinterConfig({ soundEnabled: checked })}
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border p-4 space-y-4">
+              <div className="space-y-4 rounded-xl border bg-card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h4 className="text-sm font-bold">Cổng Kết Nối Máy In Nhiệt Hóa Đơn POS</h4>
+                    <h4 className="text-sm font-bold text-foreground">
+                      Cổng Kết Nối Máy In Nhiệt Hóa Đơn POS
+                    </h4>
                     <p className="text-xs text-muted-foreground">
-                      Hỗ trợ Xprinter, Zywell, HPRT, Epson, Sunmi qua Mạng LAN :9100, Cáp USB (WebUSB), Cổng COM/Bluetooth (WebSerial) hoặc Trình duyệt khổ K80.
+                      Tương thích Xprinter, Zywell, HPRT, Epson, Sunmi qua Mạng LAN :9100, Cáp USB (WebUSB), COM/Bluetooth (WebSerial) hoặc Trình duyệt khổ K80.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium">Khổ giấy:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Khổ giấy:</span>
                     {(['K80', 'K58'] as ThermalPaperSize[]).map((sz) => (
                       <Button
                         key={sz}
                         type="button"
                         size="sm"
                         variant={printerConfig.paperSize === sz ? 'default' : 'outline'}
-                        className="h-7 px-2.5 text-xs"
+                        className={
+                          printerConfig.paperSize === sz
+                            ? 'h-7 bg-[#0066CC] px-2.5 text-xs text-white hover:bg-[#0055B3]'
+                            : 'h-7 px-2.5 text-xs'
+                        }
                         onClick={() => onUpdatePrinterConfig({ paperSize: sz })}
                       >
                         {sz === 'K80' ? 'K80 (80mm)' : 'K58 (58mm)'}
@@ -531,13 +629,21 @@ export function PosPeripheralsDialog({
                   </div>
                 </div>
 
-                <div className="grid gap-2.5 sm:grid-cols-5">
+                <div className="grid gap-2 sm:grid-cols-5">
                   {(
                     [
-                      { id: 'auto', label: 'Tự động thông minh', sub: 'USB/COM -> Hộp thoại K80' },
-                      { id: 'lan_tcp', label: 'Mạng LAN :9100', sub: 'In qua IP Wi-Fi/Ethernet' },
-                      { id: 'webusb', label: 'Cáp USB (WebUSB)', sub: `${hardwareSummary.usbPrinters.length} thiết bị đã cấp` },
-                      { id: 'webserial', label: 'COM / Bluetooth', sub: `${hardwareSummary.serialPortsCount} cổng Serial` },
+                      { id: 'auto', label: 'Tự động thông minh', sub: 'USB/COM → K80' },
+                      { id: 'lan_tcp', label: 'Mạng LAN :9100', sub: 'In qua IP Wi-Fi/LAN' },
+                      {
+                        id: 'webusb',
+                        label: 'Cáp USB (WebUSB)',
+                        sub: `${hardwareSummary.usbPrinters.length} thiết bị đã cấp`,
+                      },
+                      {
+                        id: 'webserial',
+                        label: 'COM / Bluetooth',
+                        sub: `${hardwareSummary.serialPortsCount} cổng Serial`,
+                      },
                       { id: 'browser_print', label: 'Trình duyệt K80', sub: 'Chuẩn @page 80mm' },
                     ] as Array<{ id: ThermalTransportMode; label: string; sub: string }>
                   ).map((opt) => (
@@ -545,29 +651,29 @@ export function PosPeripheralsDialog({
                       key={opt.id}
                       type="button"
                       onClick={() => onUpdatePrinterConfig({ transport: opt.id })}
-                      className={`rounded-lg border p-2.5 text-left transition ${
+                      className={`rounded-xl border p-2.5 text-left transition ${
                         printerConfig.transport === opt.id
-                          ? 'border-emerald-600 bg-emerald-50/70 ring-1 ring-emerald-600 dark:bg-emerald-950/30'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                          ? 'border-[#0066CC] bg-[#0066CC]/8 ring-1 ring-[#0066CC]'
+                          : 'bg-background hover:bg-muted/50'
                       }`}
                     >
-                      <div className="text-xs font-bold">{opt.label}</div>
+                      <div className="text-xs font-bold text-foreground">{opt.label}</div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground">{opt.sub}</div>
                     </button>
                   ))}
                 </div>
 
                 {printerConfig.transport === 'lan_tcp' && (
-                  <div className="grid gap-3 rounded-lg border bg-slate-50 p-3 sm:grid-cols-[1fr_140px] dark:bg-slate-900">
+                  <div className="grid gap-3 rounded-xl border bg-muted/30 p-3 sm:grid-cols-[1fr_140px]">
                     <div>
                       <Label className="text-xs">Địa chỉ IP nội bộ của Máy in nhiệt LAN (RFC-1918)</Label>
                       <div className="mt-1 flex items-center gap-2">
-                        <Network className="h-4 w-4 text-slate-500" />
+                        <Network className="h-4 w-4 text-muted-foreground" />
                         <Input
                           value={printerConfig.lanHost}
                           onChange={(e) => onUpdatePrinterConfig({ lanHost: e.target.value })}
                           placeholder="192.168.1.200"
-                          className="h-8 font-mono text-xs"
+                          className="h-8 bg-card font-mono text-xs"
                         />
                       </div>
                     </div>
@@ -579,7 +685,7 @@ export function PosPeripheralsDialog({
                         onChange={(e) =>
                           onUpdatePrinterConfig({ lanPort: Number(e.target.value) || 9100 })
                         }
-                        className="mt-1 h-8 font-mono text-xs"
+                        className="mt-1 h-8 bg-card font-mono text-xs"
                       />
                     </div>
                   </div>
@@ -591,6 +697,7 @@ export function PosPeripheralsDialog({
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="h-8 text-xs"
                       disabled={!hardwareSummary.webUsbSupported || busyAction === 'usb'}
                       onClick={() => void handlePairUsb()}
                     >
@@ -601,6 +708,7 @@ export function PosPeripheralsDialog({
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="h-8 text-xs"
                       disabled={!hardwareSummary.webSerialSupported || busyAction === 'serial'}
                       onClick={() => void handlePairSerial()}
                     >
@@ -612,7 +720,7 @@ export function PosPeripheralsDialog({
                   <Button
                     type="button"
                     size="sm"
-                    className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-emerald-600"
+                    className="h-8 bg-[#0066CC] text-xs font-semibold text-white hover:bg-[#0055B3]"
                     disabled={busyAction === 'test-pos'}
                     onClick={async () => {
                       setBusyAction('test-pos')
@@ -620,7 +728,7 @@ export function PosPeripheralsDialog({
                       setBusyAction(null)
                     }}
                   >
-                    <Printer className="mr-1.5 h-4 w-4" />
+                    <Printer className="mr-1.5 h-3.5 w-3.5" />
                     In Thử Hóa Đơn POS ({printerConfig.paperSize})
                   </Button>
                 </div>
@@ -633,21 +741,29 @@ export function PosPeripheralsDialog({
           {/* ================================================================= */}
           {activeTab === 'shopee' && (
             <div className="space-y-4">
-              <div className="flex items-start justify-between rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-900/50 dark:bg-orange-950/20">
-                <div className="space-y-1 pr-4">
+              <div className="flex items-start justify-between gap-4 rounded-xl border border-orange-200 bg-orange-50/50 p-4 dark:border-orange-900/50 dark:bg-orange-950/20">
+                <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <ShoppingBag className="h-4 w-4 text-orange-600" />
-                    <Label className="text-sm font-bold text-orange-950 dark:text-orange-200">
+                    <ShoppingBag className="h-4 w-4 shrink-0 text-orange-600" />
+                    <Label className="text-sm font-bold text-foreground">
                       Tự Động In Đơn Hàng Shopee Mới Trên Máy POS Đang Liên Kết
                     </Label>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300">
-                    Khi có đơn hàng Shopee mới đổ về hoặc chuyển sang trạng thái Xác nhận đóng gói (<code>INBOUND_SHOPEE_ORDER_SYNC</code>), máy POS đang mở sẽ tự động nhận sự kiện thời gian thực và phát lệnh in Tem vận đơn / Phiếu nhặt hàng một lần duy nhất (chống in trùng 100%).
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Khi có đơn hàng Shopee mới đổ về hoặc chuyển sang trạng thái Xác nhận đóng gói (
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                      INBOUND_SHOPEE_ORDER_SYNC
+                    </code>
+                    ), máy POS đang mở sẽ tự động nhận sự kiện thời gian thực và phát lệnh in Tem vận đơn / Phiếu nhặt hàng một lần duy nhất (chống in trùng 100%).
                   </p>
                 </div>
                 <Switch
+                  aria-label="Tự động in đơn hàng Shopee mới trên máy POS"
                   checked={printerConfig.autoPrintShopeeOrder}
-                  onCheckedChange={(checked) => onUpdatePrinterConfig({ autoPrintShopeeOrder: checked })}
+                  onCheckedChange={(checked) =>
+                    onUpdatePrinterConfig({ autoPrintShopeeOrder: checked })
+                  }
+                  className="data-[state=checked]:bg-orange-600"
                 />
               </div>
 
@@ -672,19 +788,21 @@ export function PosPeripheralsDialog({
                     onClick={() => onUpdatePrinterConfig({ shopeeFormat: fmt.id })}
                     className={`rounded-xl border p-3.5 text-left transition ${
                       printerConfig.shopeeFormat === fmt.id
-                        ? 'border-orange-500 bg-orange-50/50 ring-1 ring-orange-500 dark:bg-orange-950/20'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                        ? 'border-orange-500 bg-orange-50/40 ring-1 ring-orange-500 dark:bg-orange-950/20'
+                        : 'bg-card hover:bg-muted/40'
                     }`}
                   >
-                    <div className="text-xs font-bold">{fmt.title}</div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">{fmt.desc}</p>
+                    <div className="text-xs font-bold text-foreground">{fmt.title}</div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      {fmt.desc}
+                    </p>
                   </button>
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-3.5">
                 <div className="text-xs">
-                  <span className="font-semibold">Kiểm tra mẫu in Shopee ngay:</span>{' '}
+                  <span className="font-semibold text-foreground">Kiểm tra mẫu in Shopee ngay:</span>{' '}
                   <span className="text-muted-foreground">
                     Xuất thử mẫu vận đơn Shop <code>thaimy1605</code> theo định dạng đang chọn (không tạo dữ liệu rác trong DB).
                   </span>
@@ -692,7 +810,7 @@ export function PosPeripheralsDialog({
                 <Button
                   type="button"
                   size="sm"
-                  className="bg-orange-600 text-white hover:bg-orange-500"
+                  className="h-8 bg-orange-600 text-xs font-semibold text-white hover:bg-orange-500"
                   disabled={busyAction === 'test-shopee'}
                   onClick={async () => {
                     setBusyAction('test-shopee')
@@ -700,21 +818,21 @@ export function PosPeripheralsDialog({
                     setBusyAction(null)
                   }}
                 >
-                  <Printer className="mr-1.5 h-4 w-4" />
+                  <Printer className="mr-1.5 h-3.5 w-3.5" />
                   In Thử Đơn Shopee Mẫu
                 </Button>
               </div>
 
-              <div className="rounded-xl border p-3.5">
+              <div className="rounded-xl border bg-card p-3.5">
                 <div className="mb-2 flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Hàng Đợi Tự Động In Đơn Shopee ({station?.shopeePrintQueue?.length || 0}) & Đơn Sàn Gần Đây ({recentShopeeOrders.length})
+                    Hàng Đợi Tự Động In Đơn Shopee ({station?.shopeePrintQueue?.length || 0}) &amp; Đơn Sàn Gần Đây ({recentShopeeOrders.length})
                   </h4>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-7 px-2 text-xs"
                     onClick={() => void onRefreshStation()}
                   >
                     <RefreshCw className="mr-1 h-3 w-3" />
@@ -723,7 +841,7 @@ export function PosPeripheralsDialog({
                 </div>
 
                 {!station?.shopeePrintQueue?.length && !recentShopeeOrders.length ? (
-                  <p className="rounded-lg border border-dashed py-5 text-center text-xs text-muted-foreground">
+                  <p className="rounded-lg border border-dashed bg-muted/20 py-5 text-center text-xs text-muted-foreground">
                     Hiện chưa có đơn Shopee mới chờ in. Ngay khi Shop <code>thaimy1605</code> phát sinh đơn hàng mới, máy POS này sẽ tự động in nếu công tắc phía trên đang BẬT.
                   </p>
                 ) : (
@@ -731,28 +849,30 @@ export function PosPeripheralsDialog({
                     {(station?.shopeePrintQueue || []).map((job) => (
                       <div
                         key={job.id}
-                        className="flex items-center justify-between rounded-lg border bg-orange-50/30 px-3 py-2 text-xs dark:bg-slate-900"
+                        className="flex items-center justify-between gap-2 rounded-lg border bg-orange-50/30 px-3 py-2 text-xs dark:bg-slate-900"
                       >
-                        <div>
-                          <div className="flex items-center gap-2 font-semibold">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 font-semibold">
                             <span className="font-mono">{job.orderCode}</span>
                             <Badge
                               variant={job.status === 'PRINTED' ? 'secondary' : 'default'}
                               className={job.status === 'PENDING' ? 'bg-orange-600 text-white' : ''}
                             >
-                              {job.status === 'PRINTED' ? `Đã in (${job.printedMethod || 'AUTO'})` : 'Đang chờ tự động in'}
+                              {job.status === 'PRINTED'
+                                ? `Đã in (${job.printedMethod || 'AUTO'})`
+                                : 'Đang chờ tự động in'}
                             </Badge>
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            Shopee #{job.shopeeOrderSn} · {job.customerName} · {job.carrier} ({job.trackingCode}) ·{' '}
-                            {job.total.toLocaleString('vi-VN')}đ
+                          <div className="truncate text-[11px] text-muted-foreground">
+                            Shopee #{job.shopeeOrderSn} · {job.customerName} · {job.carrier} (
+                            {job.trackingCode}) · {job.total.toLocaleString('vi-VN')}đ
                           </div>
                         </div>
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="h-7 text-xs"
+                          className="h-7 shrink-0 text-xs"
                           onClick={() => void onPrintShopeeOrderById(job.orderId)}
                         >
                           <Printer className="mr-1 h-3.5 w-3.5" />
@@ -762,24 +882,26 @@ export function PosPeripheralsDialog({
                     ))}
 
                     {recentShopeeOrders
-                      .filter((o) => !(station?.shopeePrintQueue || []).some((j) => j.orderId === o.id))
+                      .filter(
+                        (o) => !(station?.shopeePrintQueue || []).some((j) => j.orderId === o.id)
+                      )
                       .map((ord) => (
                         <div
                           key={ord.id}
-                          className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
+                          className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs"
                         >
-                          <div>
+                          <div className="min-w-0">
                             <div className="font-mono font-semibold">{ord.code}</div>
-                            <div className="text-[11px] text-muted-foreground">
-                              {ord.customerName} · {ord.carrier} ({ord.trackingCode}) · {ord.itemCount} SP ·{' '}
-                              {ord.total.toLocaleString('vi-VN')}đ
+                            <div className="truncate text-[11px] text-muted-foreground">
+                              {ord.customerName} · {ord.carrier} ({ord.trackingCode}) ·{' '}
+                              {ord.itemCount} SP · {ord.total.toLocaleString('vi-VN')}đ
                             </div>
                           </div>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs"
+                            className="h-7 shrink-0 text-xs"
                             onClick={() => void onPrintShopeeOrderById(ord.id)}
                           >
                             <Printer className="mr-1 h-3.5 w-3.5" />

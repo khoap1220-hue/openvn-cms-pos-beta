@@ -64,6 +64,14 @@ import {
   type PosStationClientView,
   type RecentShopeeOrderSummary,
 } from '@/components/cms/pos-peripherals-dialog'
+import {
+  ensureFallbackMirroredStation,
+  postBridgeMessage,
+  readMirroredStation,
+  subscribeBridgeMessages,
+  writeMirroredStation,
+  type MirroredStationState,
+} from '@/lib/peripheral-client-bridge'
 import { DEFAULT_LOYALTY_CONFIG, type LoyaltyPolicyConfig } from '@/lib/loyalty-policy-shared'
 import {
   MEMBER_TIERS,
@@ -287,6 +295,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const lastConsumedMutSeqRef = useRef<number>(0)
   const inFlightRemoteCheckoutIdsRef = useRef<Set<string>>(new Set())
   const inFlightShopeePrintJobIdsRef = useRef<Set<string>>(new Set())
+  const consumedBridgeIdsRef = useRef<Set<string>>(new Set())
   const stationIdRef = useRef<string>('POS-UUDAM-01')
 
   const updatePrinterConfig = useCallback((patch: Partial<PeripheralPrinterConfig>) => {
@@ -737,11 +746,22 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
 
   const changeDue = Math.max(0, cashReceivedNum - grandTotal)
 
-  // ===== Tìm kiếm khách hàng tại quầy =====
+  // ===== Tìm kiếm khách hàng tại quầy (khử trùng lặp dòng Khách vãng lai) =====
+  const deduplicatedCustomers = useMemo(() => {
+    const seen = new Set<string>()
+    return customers.filter((c) => {
+      const norm = (c.name || '').trim().toLowerCase()
+      const key = `${norm}|${(c.phone || '').trim()}|${(c.memberCode || '').trim()}`
+      if (!norm || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [customers])
+
   const filteredCustomers = useMemo(() => {
     const q = customerSearch.trim().toLowerCase()
-    if (!q) return customers.slice(0, 8)
-    return customers
+    if (!q) return deduplicatedCustomers.slice(0, 8)
+    return deduplicatedCustomers
       .filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
@@ -749,7 +769,15 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           (c.memberCode ?? '').toLowerCase().includes(q)
       )
       .slice(0, 8)
-  }, [customers, customerSearch])
+  }, [deduplicatedCustomers, customerSearch])
+
+  const quickCustomerChips = useMemo(
+    () =>
+      deduplicatedCustomers
+        .filter((c) => !/khách mua trực tiếp|khách lẻ|walk-in|pos guest/i.test(c.name || ''))
+        .slice(0, 3),
+    [deduplicatedCustomers]
+  )
 
   const handleQuickCreateCustomer = async () => {
     if (!newCustomerForm.name.trim()) {
@@ -1030,6 +1058,13 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     }) => {
       const reportRemoteFailure = async (errMsg: string) => {
         if (!remoteOpts?.remoteCheckoutId) return
+        postBridgeMessage({
+          type: 'CHECKOUT_RESULT',
+          stationId: stationIdRef.current,
+          checkoutId: remoteOpts.remoteCheckoutId,
+          status: 'FAILED',
+          error: errMsg,
+        })
         await fetch('/api/peripherals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1252,6 +1287,15 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         }
 
         if (remoteOpts?.remoteCheckoutId) {
+          postBridgeMessage({
+            type: 'CHECKOUT_RESULT',
+            stationId: stationIdRef.current,
+            checkoutId: remoteOpts.remoteCheckoutId,
+            status: 'COMPLETED',
+            orderCode: normalizedOrder.code,
+            total: normalizedOrder.total,
+            printedMethod,
+          })
           await fetch('/api/peripherals', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1531,7 +1575,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     updateActiveTab,
   ])
 
-  // Đăng ký Trạm POS ngay khi mở màn hình
+  // Đăng ký Trạm POS ngay khi mở màn hình (hỗ trợ kép Máy chủ Node + Môi trường tĩnh GitHub Pages)
   useEffect(() => {
     void fetch('/api/peripherals', {
       method: 'POST',
@@ -1547,11 +1591,30 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         shopeeFormat: printerConfig.shopeeFormat,
       }),
     })
-      .then(() => pullStationHub())
-      .catch(() => null)
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean
+          station?: typeof stationView
+        } | null
+        if (data?.ok && data.station) {
+          setStationView(data.station)
+          await pullStationHub()
+        } else {
+          const fallback =
+            readMirroredStation(stationIdRef.current) ??
+            ensureFallbackMirroredStation(stationIdRef.current, '160588')
+          setStationView({ ...fallback, shopeePrintQueue: [] })
+        }
+      })
+      .catch(() => {
+        const fallback =
+          readMirroredStation(stationIdRef.current) ??
+          ensureFallbackMirroredStation(stationIdRef.current, '160588')
+        setStationView({ ...fallback, shopeePrintQueue: [] })
+      })
   }, [])
 
-  // Đẩy trạng thái giỏ hàng POS lên Hub để Điện thoại nhìn thấy tức thì
+  // Đẩy trạng thái giỏ hàng POS lên Hub + Gương Trình Duyệt để Điện thoại nhìn thấy tức thì
   useEffect(() => {
     const snapshot = {
       tabLabel: activeTab.label,
@@ -1572,6 +1635,27 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       customerName: activeTab.customer?.name ?? null,
       updatedAt: new Date().toISOString(),
     }
+
+    const baseMirror =
+      readMirroredStation(stationIdRef.current) ??
+      ensureFallbackMirroredStation(stationIdRef.current, stationView?.pairToken || '160588')
+    const nextMirror: MirroredStationState = {
+      ...baseMirror,
+      stationId: stationIdRef.current,
+      stationName: stationView?.stationName || baseMirror.stationName,
+      pairToken: stationView?.pairToken || baseMirror.pairToken,
+      warehouseName: selectedWarehouse?.name || stationView?.warehouseName || baseMirror.warehouseName,
+      autoPrintPosBill: printerConfig.autoPrintPosBill,
+      autoPrintShopeeOrder: printerConfig.autoPrintShopeeOrder,
+      printerTransport: printerConfig.transport,
+      paperSize: printerConfig.paperSize,
+      shopeeFormat: printerConfig.shopeeFormat,
+      lanIps: stationView?.lanIps || baseMirror.lanIps,
+      connectedPhones: stationView?.connectedPhones || baseMirror.connectedPhones,
+      recentScanEvents: stationView?.recentScanEvents || baseMirror.recentScanEvents,
+      cartSnapshot: snapshot,
+    }
+    writeMirroredStation(nextMirror)
 
     const t = setTimeout(() => {
       void fetch('/api/peripherals', {
@@ -1609,10 +1693,80 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     printerConfig.paperSize,
     printerConfig.shopeeFormat,
     printerConfig.transport,
+    selectedWarehouse?.name,
     shippingFee,
+    stationView?.connectedPhones,
+    stationView?.lanIps,
+    stationView?.pairToken,
+    stationView?.recentScanEvents,
+    stationView?.stationName,
+    stationView?.warehouseName,
     subtotal,
     totalDiscount,
     totalQuantity,
+  ])
+
+  // Nhận sự kiện trực tiếp từ Tay Quét ĐT qua BroadcastChannel (chế độ tĩnh Cloud / cùng trình duyệt)
+  useEffect(() => {
+    return subscribeBridgeMessages((msg) => {
+      if (msg.stationId.toUpperCase() !== stationIdRef.current.toUpperCase()) return
+      if (msg.type === 'PHONE_CONNECTED') {
+        const nowIso = new Date().toISOString()
+        setStationView((prev) => {
+          const base =
+            prev ?? {
+              ...(readMirroredStation(stationIdRef.current) ??
+                ensureFallbackMirroredStation(stationIdRef.current, '160588')),
+              shopeePrintQueue: [],
+            }
+          const others = (base.connectedPhones || []).filter((p) => p.phoneId !== msg.phoneId)
+          const prevSelf = (base.connectedPhones || []).find((p) => p.phoneId === msg.phoneId)
+          return {
+            ...base,
+            connectedPhones: [
+              {
+                phoneId: msg.phoneId,
+                deviceName: msg.deviceName,
+                connectedAt: prevSelf?.connectedAt || nowIso,
+                lastSeenAt: nowIso,
+                scanCount: prevSelf?.scanCount || 0,
+                lastScannedCode: prevSelf?.lastScannedCode || null,
+              },
+              ...others,
+            ],
+          }
+        })
+      } else if (msg.type === 'PHONE_SCAN') {
+        if (consumedBridgeIdsRef.current.has(msg.scanEventId)) return
+        consumedBridgeIdsRef.current.add(msg.scanEventId)
+        if (printerConfig.soundEnabled) playPosBeep('scan')
+        for (let q = 0; q < Math.max(1, msg.quantity); q++) {
+          handleBarcodeSubmit(msg.code)
+        }
+      } else if (msg.type === 'PHONE_CART_OP') {
+        if (consumedBridgeIdsRef.current.has(msg.opId)) return
+        consumedBridgeIdsRef.current.add(msg.opId)
+        if (msg.operation === 'CLEAR_CART') {
+          updateActiveTab((tab) => ({ ...tab, items: [] }))
+        } else if (msg.operation === 'SET_QTY' && msg.productId) {
+          updateItemQty(msg.productId, msg.quantity ?? 0)
+        }
+      } else if (msg.type === 'PHONE_CHECKOUT') {
+        if (inFlightRemoteCheckoutIdsRef.current.has(msg.checkoutId) || submitting) return
+        inFlightRemoteCheckoutIdsRef.current.add(msg.checkoutId)
+        void handleCheckout({
+          remoteCheckoutId: msg.checkoutId,
+          overridePaymentMethod: msg.paymentMethod,
+          forceAutoPrint: msg.autoPrintBill,
+        })
+      }
+    })
+  }, [
+    handleBarcodeSubmit,
+    handleCheckout,
+    printerConfig.soundEnabled,
+    submitting,
+    updateActiveTab,
   ])
 
   // Nhận sự kiện Realtime < 10ms từ Điện thoại & Webhook Đơn Shopee
@@ -1652,15 +1806,27 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         stationId: stationIdRef.current,
         rotateToken: true,
       }),
-    })
-    const json = (await res.json().catch(() => null)) as { ok?: boolean; station?: typeof stationView } | null
+    }).catch(() => null)
+    const json = (await res?.json().catch(() => null)) as {
+      ok?: boolean
+      station?: typeof stationView
+    } | null
     if (json?.ok && json.station) {
       setStationView(json.station)
       toast({
         title: 'Đã cấp Mã PIN ghép nối mới',
         description: `Mã PIN mới: ${json.station.pairToken}`,
       })
+      return
     }
+    const nextPin = String(Math.floor(100000 + Math.random() * 900000))
+    setStationView((prev) => (prev ? { ...prev, pairToken: nextPin } : prev))
+    const mirror = readMirroredStation(stationIdRef.current)
+    if (mirror) writeMirroredStation({ ...mirror, pairToken: nextPin })
+    toast({
+      title: 'Đã cấp Mã PIN ghép nối mới',
+      description: `Mã PIN mới: ${nextPin}`,
+    })
   }, [toast])
 
   const handleShareReceipt = useCallback(
@@ -1720,22 +1886,31 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   }, [submitting, activeTab.items.length, handleCheckout])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {/* ===== THANH ĐIỀU KHIỂN ĐẦU TRANG OPENVN POS (ĐA HÓA ĐƠN CHỜ + KHO XUẤT) ===== */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-[#182537] px-3 py-2 text-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-[#182537] px-3 py-1.5 text-white shadow-sm">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
-          <div className="mr-2 flex shrink-0 items-center gap-2 border-r border-white/15 pr-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0066CC] text-white shadow-xs">
-              <Store className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xs font-bold leading-tight">OPENVN POS · Bán Tại Kho</p>
+          <div className="mr-1.5 flex shrink-0 items-center gap-2 border-r border-white/15 pr-3">
+            {!standalone && (
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0066CC] text-white shadow-xs">
+                <Store className="h-4 w-4" />
+              </div>
+            )}
+            <div className={cn(standalone && 'flex items-center gap-1.5')}>
+              {!standalone ? (
+                <p className="text-xs font-bold leading-tight">OPENVN POS · Bán Tại Kho</p>
+              ) : (
+                <Warehouse className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+              )}
               {warehouses.length > 0 ? (
                 <select
                   value={selectedWarehouseId}
                   onChange={(e) => setSelectedWarehouseId(e.target.value)}
                   aria-label="Chọn kho xuất bán"
-                  className="mt-0.5 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-200 outline-none hover:bg-white/20"
+                  className={cn(
+                    'rounded bg-white/10 px-2 py-1 text-[11px] font-medium text-sky-200 outline-none hover:bg-white/20',
+                    !standalone && 'mt-0.5 px-1.5 py-0.5 text-[10px]'
+                  )}
                 >
                   {warehouses.map((wh) => (
                     <option key={wh.id} value={wh.id} className="bg-slate-900 text-white">
@@ -1744,7 +1919,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   ))}
                 </select>
               ) : (
-                <p className="text-[10px] text-slate-300">Kho Trung Tâm Ưu Đàm</p>
+                <p className="text-[11px] font-medium text-slate-200">Kho Trung Tâm Ưu Đàm</p>
               )}
             </div>
           </div>
@@ -1964,10 +2139,11 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   <div className="flex h-10 shrink-0 items-center rounded-lg border bg-muted/40 p-0.5 sm:h-9">
                     <button
                       type="button"
+                      data-compact-btn="true"
                       onClick={() => setLayoutMode('grid')}
                       aria-label="Hiển thị dạng lưới thẻ"
                       className={cn(
-                        'flex h-full items-center justify-center rounded-md px-2.5 transition-colors md:px-1.5',
+                        'flex h-full items-center justify-center rounded-md px-2.5 transition-colors md:px-2',
                         layoutMode === 'grid'
                           ? 'bg-card text-[#0066CC] shadow-2xs'
                           : 'text-muted-foreground hover:text-foreground'
@@ -1977,10 +2153,11 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                     </button>
                     <button
                       type="button"
+                      data-compact-btn="true"
                       onClick={() => setLayoutMode('table')}
                       aria-label="Hiển thị dạng bảng tồn kho"
                       className={cn(
-                        'flex h-full items-center justify-center rounded-md px-2.5 transition-colors md:px-1.5',
+                        'flex h-full items-center justify-center rounded-md px-2.5 transition-colors md:px-2',
                         layoutMode === 'table'
                           ? 'bg-card text-[#0066CC] shadow-2xs'
                           : 'text-muted-foreground hover:text-foreground'
@@ -2274,7 +2451,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           )}
         >
           <Card className="border-border/80 shadow-sm">
-            <CardContent className="space-y-3.5 p-3.5 sm:p-4">
+            <CardContent className="space-y-2.5 p-3 sm:p-3.5">
               {/* Nút quay lại chọn thêm hàng hóa trên điện thoại (< lg) */}
               <div className="flex items-center justify-between border-b pb-2.5 lg:hidden">
                 <button
@@ -2434,16 +2611,17 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       )}
                     </div>
 
-                    {/* Gợi ý chọn nhanh Hội viên 1 chạm trên điện thoại */}
-                    {customers.length > 0 && (
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                    {/* Gợi ý chọn nhanh Hội viên / Khách quen (đã khử trùng lặp dòng Khách vãng lai) */}
+                    {quickCustomerChips.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                         <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
                           Chọn nhanh:
                         </span>
-                        {customers.slice(0, 4).map((c) => (
+                        {quickCustomerChips.map((c) => (
                           <button
                             key={c.id}
                             type="button"
+                            data-compact-btn="true"
                             onClick={() => {
                               updateActiveTab((tab) => ({
                                 ...tab,
@@ -2452,7 +2630,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                               }))
                               setCustomerDropdownOpen(false)
                             }}
-                            className="shrink-0 whitespace-nowrap rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-[#0066CC] hover:text-[#0066CC] active:scale-95"
+                            className="shrink-0 whitespace-nowrap rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-foreground hover:border-[#0066CC] hover:text-[#0066CC] active:scale-95"
                           >
                             {c.name}
                             {c.isMember ? ` (${c.memberCode})` : ''}
@@ -2467,7 +2645,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
               <Separator />
 
               {/* 2. DANH SÁCH SẢN PHẨM TRONG HÓA ĐƠN POS */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Giỏ hàng xuất kho ({activeTab.items.length} mã · {totalQuantity} SP)
@@ -2475,6 +2653,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   {activeTab.items.length > 0 && (
                     <button
                       type="button"
+                      data-compact-btn="true"
                       onClick={() => updateActiveTab((tab) => ({ ...tab, items: [] }))}
                       className="text-[11px] font-medium text-rose-600 hover:underline"
                     >
@@ -2484,20 +2663,20 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 </div>
 
                 {activeTab.items.length === 0 ? (
-                  <div className="flex h-36 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-4 text-center sm:h-44">
-                    <ShoppingBag className="mb-1.5 h-8 w-8 text-muted-foreground/40" />
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-4 py-4 text-center sm:py-5">
+                    <ShoppingBag className="mb-1 h-6 w-6 text-muted-foreground/45" />
                     <p className="text-xs font-semibold text-muted-foreground">
                       Chưa có hàng hóa nào trong phiếu bán tại kho
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Quét mã vạch (F2 / Camera) hoặc chạm vào sản phẩm để thêm vào đơn.
+                      Quét mã vạch (F2 / Camera / ĐT) hoặc chạm vào sản phẩm để thêm vào đơn.
                     </p>
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
                       onClick={() => setMobileSection('catalog')}
-                      className="mt-2.5 h-8 gap-1.5 border-[#0066CC]/40 text-xs font-semibold text-[#0066CC] lg:hidden"
+                      className="mt-2 h-8 gap-1.5 border-[#0066CC]/40 text-xs font-semibold text-[#0066CC] lg:hidden"
                     >
                       <Package className="h-3.5 w-3.5" />
                       Mở danh mục chọn hàng
@@ -2722,17 +2901,18 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
               </div>
 
               {/* 4. CHIẾT KHẤU, VOUCHER, ĐỔI ĐIỂM & TỔNG TIỀN */}
-              <div className="space-y-2.5 rounded-xl border bg-muted/25 p-3">
+              <div className="space-y-2 rounded-xl border bg-muted/25 p-2.5 sm:p-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Tạm tính ({totalQuantity} sản phẩm)</span>
                   <span className="font-semibold tabular-nums">{formatVND(subtotal)}</span>
                 </div>
 
-                {/* Nút thu gọn / mở rộng Ưu đãi & Voucher trên điện thoại để giảm cuộn trang */}
+                {/* Nút thu gọn / mở rộng Ưu đãi & Voucher giúp nút Thanh Toán luôn nổi trên màn hình 1440×900 */}
                 <button
                   type="button"
+                  data-compact-btn="true"
                   onClick={() => setShowPromoMobile((v) => !v)}
-                  className="flex w-full items-center justify-between rounded-lg border border-[#0066CC]/30 bg-background px-2.5 py-2 text-xs font-semibold text-[#0066CC] lg:hidden dark:text-sky-300"
+                  className="flex w-full items-center justify-between rounded-lg border border-[#0066CC]/30 bg-background px-2.5 py-1.5 text-xs font-semibold text-[#0066CC] hover:bg-sky-50/50 dark:text-sky-300 dark:hover:bg-sky-950/30"
                 >
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5" />
@@ -2741,7 +2921,10 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       {totalDiscount > 0 ? ` (-${formatVND(totalDiscount)})` : ''}
                     </span>
                   </span>
-                  {showPromoMobile || totalDiscount > 0 ? (
+                  {showPromoMobile ||
+                  totalDiscount > 0 ||
+                  Boolean(activeTab.voucherCode) ||
+                  Boolean(activeTab.customer?.isMember) ? (
                     <ChevronUp className="h-4 w-4" />
                   ) : (
                     <ChevronDown className="h-4 w-4" />
@@ -2750,8 +2933,13 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
 
                 <div
                   className={cn(
-                    'space-y-2.5 lg:block',
-                    showPromoMobile || totalDiscount > 0 ? 'block' : 'hidden'
+                    'space-y-2.5',
+                    showPromoMobile ||
+                      totalDiscount > 0 ||
+                      Boolean(activeTab.voucherCode) ||
+                      Boolean(activeTab.customer?.isMember)
+                      ? 'block'
+                      : 'hidden'
                   )}
                 >
                   {/* Nhận diện tự động Chiến dịch CRM đang chạy (1 chạm áp giá chiến dịch tại POS) */}
@@ -3354,6 +3542,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 type="file"
                 accept="image/*"
                 capture="environment"
+                aria-label="Chụp ảnh mã vạch sản phẩm"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null

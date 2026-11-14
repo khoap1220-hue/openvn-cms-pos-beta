@@ -141,20 +141,32 @@
   [role="combobox"] {
     touch-action: manipulation;
   }
-  button,
-  a[href],
-  [role="tab"],
-  [role="combobox"] {
-    min-height: 44px;
-    min-width: 44px;
+  @media (pointer: coarse) {
+    button:not([role="switch"]):not([data-slot="switch"]):not([role="checkbox"]):not([data-slot="checkbox"]):not([role="radio"]):not([data-slot="radio-group-item"]):not([data-slot="dialog-close"]):not([data-compact-btn="true"]),
+    a[href]:not([data-compact-btn="true"]),
+    [role="tab"],
+    [role="combobox"] {
+      min-height: 40px;
+      min-width: 40px;
+    }
+  }
+  [data-slot="switch"],
+  [role="switch"] {
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+  [data-slot="checkbox"],
+  [role="checkbox"] {
+    min-height: 0 !important;
+    min-width: 0 !important;
   }
   [role="tablist"] {
     height: auto !important;
-    min-height: 48px;
+    min-height: 40px;
   }
   [role="tab"] {
-    min-height: 44px !important;
-    min-width: 44px !important;
+    min-height: 36px !important;
+    min-width: 40px !important;
   }
   [class*="text-[9px]"],
   [class*="text-[9.5px]"],

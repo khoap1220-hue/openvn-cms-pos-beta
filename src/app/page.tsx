@@ -1051,7 +1051,7 @@ export default function Home() {
 
         <main className="min-w-0 flex-1 overflow-x-hidden px-2.5 py-3 sm:px-4 sm:py-5 md:px-6">
           <div className="mx-auto w-full max-w-[1440px]">
-            {showGlobalChannelAlert && primaryChannelAlert && channelHealth && (
+            {showGlobalChannelAlert && activeView !== 'channels' && primaryChannelAlert && channelHealth && (
               <div
                 role="alert"
                 data-testid="global-channel-disconnection-banner"

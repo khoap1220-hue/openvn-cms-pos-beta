@@ -121,7 +121,7 @@ export default function StandalonePosPage() {
           <ThemeToggle />
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[1600px] flex-1 p-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4 md:p-5">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 p-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3">
         {allowedPos ? (
           <PosView standalone />
         ) : (
