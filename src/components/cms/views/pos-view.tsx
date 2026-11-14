@@ -187,6 +187,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
 
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
+  const autoAdjustedEmptyFilterRef = useRef(false)
 
   // ===== Quản lý nhiều hóa đơn chờ cùng lúc (Multi-Tab OPENVN POS) =====
   const [tabs, setTabs] = useState<PosOrderTab[]>(() => [createEmptyTab(1)])
@@ -278,6 +279,12 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       ])
       const validChannels = (chRes.channels ?? []).filter((c) => c && typeof c.key === 'string')
       setProducts(prodRes.products)
+      if (!silent && !autoAdjustedEmptyFilterRef.current && prodRes.products.length > 0) {
+        autoAdjustedEmptyFilterRef.current = true
+        if (!prodRes.products.some((p) => getAvailableStock(p) > 0)) {
+          setStockFilter((prev) => (prev === 'IN_STOCK' ? 'ALL' : prev))
+        }
+      }
       setCategories(catRes.categories)
       setChannels(validChannels)
       setCustomers(custRes.customers)
@@ -313,7 +320,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [toast])
+  }, [getAvailableStock, toast])
 
   useEffect(() => {
     void loadData()
@@ -1250,7 +1257,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       ref={barcodeInputRef}
                       value={barcodeInput}
                       onChange={(e) => setBarcodeInput(e.target.value)}
-                      placeholder="Mã vạch / SKU + Enter..."
+                      placeholder="Quét mã / SKU..."
                       aria-label="Quét mã vạch hoặc nhập SKU"
                       className="h-10 border-[#0066CC]/40 bg-sky-50/40 pl-9 pr-16 text-base font-medium focus-visible:ring-[#0066CC] sm:h-9 sm:text-xs dark:bg-sky-950/20"
                     />
@@ -1401,6 +1408,17 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   <p className="text-xs text-muted-foreground">
                     Thử đổi bộ lọc danh mục hoặc tìm kiếm bằng từ khóa khác.
                   </p>
+                  {stockFilter !== 'ALL' && products.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStockFilter('ALL')}
+                      className="mt-1 h-8 text-xs"
+                    >
+                      Hiển thị tất cả hàng ({products.length})
+                    </Button>
+                  )}
                 </div>
               ) : layoutMode === 'grid' ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:max-h-[620px] lg:overflow-y-auto lg:pr-1">

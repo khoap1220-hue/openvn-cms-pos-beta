@@ -1421,7 +1421,7 @@ export async function POST(req: NextRequest) {
                 stock: resolvedStock,
                 image: resolvedImage,
                 attributes: attrJson,
-                status: resolvedStock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+                status: existing.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
               },
             })
           : await db.product.create({
@@ -1436,7 +1436,7 @@ export async function POST(req: NextRequest) {
                 stock: resolvedStock,
                 lowStockThreshold: 5,
                 image: d.image || null,
-                status: resolvedStock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+                status: 'ACTIVE',
                 attributes: attrJson,
                 unit: 'bộ',
                 type: 'SIMPLE',
@@ -1447,7 +1447,7 @@ export async function POST(req: NextRequest) {
 
         hasAnyRealMutation = true
 
-        if (defaultWh && (!existing || existing.stock !== resolvedStock)) {
+        if (defaultWh) {
           await syncProductWarehouseStock(product.id, defaultWh.id)
         }
 

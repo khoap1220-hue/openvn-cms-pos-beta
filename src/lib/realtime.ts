@@ -282,6 +282,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('products:')
       invalidateApiCache('inventory:')
       invalidateApiCache('warehouses:')
+      invalidateApiCache('vouchers:')
       invalidateApiCache('shipments:')
       invalidateApiCache('dashboard:')
       invalidateApiCache('liveops:')

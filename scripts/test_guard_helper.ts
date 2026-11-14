@@ -5,7 +5,7 @@
  * Tuân thủ nghiêm ngặt điều kiện R2 (ORIGINAL_REQUEST.md):
  * - SNAPSHOT trước kiểm thử
  * - RESTORE_AND_CLEAN ngay sau kiểm thử
- * - Đảm bảo Delta = 0 trên 13 sản phẩm thật của shop thaimy1605
+ * - Đảm bảo Delta = 0 trên 18 sản phẩm thật của shop thaimy1605
  * - Chống crash / ngắt đột ngột bằng Hook an toàn đa tầng
  */
 
@@ -420,11 +420,11 @@ export async function verifyCleanState(
 }
 
 // ============================================================================
-// 4. KIỂM TOÁN BẤT BIẾN 13 SẢN PHẨM THẬT (DELTA = 0)
+// 4. KIỂM TOÁN BẤT BIẾN SẢN PHẨM THẬT (DELTA = 0)
 // ============================================================================
 
 /**
- * 4. Kiểm toán bất biến 13 sản phẩm của shop thaimy1605 (Stock Delta = 0, Price Delta = 0)
+ * 4. Kiểm toán bất biến sản phẩm chuẩn của shop thaimy1605 (Stock Delta = 0, Price Delta = 0)
  */
 export async function assert13RealProductsInvariant(
   dbOrBaseUrl?: any,
@@ -494,14 +494,14 @@ export async function assert13RealProductsInvariant(
     })
   }
 
-  const summary = `Kiểm toán 13 sản phẩm shop thaimy1605: ${
+  const summary = `Kiểm toán ${AUTHORITATIVE_13_PRODUCTS.length} sản phẩm shop thaimy1605: ${
     passed ? 'ĐẠT 100% (DELTA = 0)' : 'VI PHẠM BẤT BIẾN'
   }`
 
   if (!options.silent) {
     if (passed) {
       console.log(
-        `🛡️ [INVARIANT AUDIT] ${summary} — Tồn kho ${totalActualStock}/${AUTHORITATIVE_TOTAL_STOCK}, Giá bán chính xác 13/13 SKU ✓`
+        `🛡️ [INVARIANT AUDIT] ${summary} — Tồn kho ${totalActualStock}/${AUTHORITATIVE_TOTAL_STOCK}, Giá bán chính xác ${AUTHORITATIVE_13_PRODUCTS.length}/${AUTHORITATIVE_13_PRODUCTS.length} SKU ✓`
       )
     } else {
       console.error(`❌ [INVARIANT AUDIT] ${summary}`)
@@ -514,7 +514,7 @@ export async function assert13RealProductsInvariant(
   }
 
   if (!passed) {
-    throw new Error(`[INVARIANT ERROR] Dữ liệu 13 sản phẩm thật bị biến dạng sau kiểm thử! Delta != 0.`)
+    throw new Error(`[INVARIANT ERROR] Dữ liệu ${AUTHORITATIVE_13_PRODUCTS.length} sản phẩm thật bị biến dạng sau kiểm thử! Delta != 0.`)
   }
 
   return {

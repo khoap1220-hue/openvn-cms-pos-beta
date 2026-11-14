@@ -25,7 +25,7 @@
  * - FEAT-OPS-03: Operational Handover Documentation (HANDOVER_MAINTENANCE.md)
  *
  * [TIER 4: MASTER E2E TEST-GUARD & SHOP THAIMY1605 INVARIANT PRESERVATION]
- * - FEAT-TEST-01: Full Test-Guard cycle (SNAPSHOT -> Mutative Workflow -> RESTORE_AND_CLEAN -> Delta = 0, stock 307/307)
+ * - FEAT-TEST-01: Full Test-Guard cycle (SNAPSHOT -> Mutative Workflow -> RESTORE_AND_CLEAN -> Delta = 0)
  * ============================================================================
  */
 
@@ -903,7 +903,7 @@ async function runMasterProductionSuite() {
       preAudit.totalActualStock === AUTHORITATIVE_TOTAL_STOCK,
       'TIER_4',
       'FEAT-TEST-01',
-      `Initial total stock is exactly ${AUTHORITATIVE_TOTAL_STOCK}/${AUTHORITATIVE_TOTAL_STOCK} across 17 SKUs`,
+      `Initial total stock is exactly ${AUTHORITATIVE_TOTAL_STOCK}/${AUTHORITATIVE_TOTAL_STOCK} across ${AUTHORITATIVE_13_PRODUCTS.length} SKUs`,
       undefined,
       Date.now() - t0
     )
@@ -970,7 +970,7 @@ async function runMasterProductionSuite() {
       mutatedCount === AUTHORITATIVE_13_PRODUCTS.length + 1,
       'TIER_4',
       'FEAT-TEST-01',
-      `Database temporarily mutated: product count increased from 17 to ${mutatedCount}`,
+      `Database temporarily mutated: product count increased from ${AUTHORITATIVE_13_PRODUCTS.length} to ${mutatedCount}`,
       undefined,
       Date.now() - t0
     )
@@ -1019,7 +1019,7 @@ async function runMasterProductionSuite() {
       postAudit.deltas.every((d) => d.status === 'MATCH' && d.stockDelta === 0 && d.priceDelta === 0),
       'TIER_4',
       'FEAT-TEST-01',
-      'All 17/17 SKUs have status MATCH with stockDelta === 0 and priceDelta === 0',
+      `All ${AUTHORITATIVE_13_PRODUCTS.length}/${AUTHORITATIVE_13_PRODUCTS.length} SKUs have status MATCH with stockDelta === 0 and priceDelta === 0`,
       undefined,
       Date.now() - t0
     )
@@ -1079,7 +1079,7 @@ async function runMasterProductionSuite() {
   console.log(`  Total Assertions Checked : ${testResults.length}`)
   console.log(`  Passed Assertions        : ${totalPassCount}`)
   console.log(`  Failed Assertions        : ${totalFailCount}`)
-  console.log(`  Shop thaimy1605 Delta    : 0 (100% PRESERVED, stock 307/307, 17/17 SKUs MATCH)`)
+  console.log(`  Shop thaimy1605 Delta    : 0 (100% PRESERVED, stock ${AUTHORITATIVE_TOTAL_STOCK}/${AUTHORITATIVE_TOTAL_STOCK}, ${AUTHORITATIVE_13_PRODUCTS.length}/${AUTHORITATIVE_13_PRODUCTS.length} SKUs MATCH)`)
   console.log(`  Database Core Parity     : 24 / 24 Tables MATCH (100%)`)
   console.log(`  Total Execution Time     : ${totalDuration}s`)
   console.log(`  Overall Suite Status     : ${totalFailCount === 0 ? '🏆 ALL PASS (100%)' : '❌ FAILED'}`)

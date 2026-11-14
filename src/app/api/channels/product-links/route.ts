@@ -749,12 +749,12 @@ export async function POST(req: NextRequest) {
           stock: nextStock,
           image: product.image || body.image || null,
           attributes: JSON.stringify(nextAttrs),
-          status: nextStock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+          status: product.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
         },
       })
 
       const defaultWh = await db.warehouse.findFirst({ where: { isDefault: true } })
-      if (defaultWh && takeFromMarketplace) {
+      if (defaultWh) {
         await syncProductWarehouseStock(updated.id, defaultWh.id)
       }
 
@@ -994,7 +994,7 @@ export async function POST(req: NextRequest) {
               sellPrice,
               stock,
               image: body.image || existingSku.image || null,
-              status: stock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+              status: existingSku.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
               attributes: JSON.stringify(attrs),
             },
           })
@@ -1010,7 +1010,7 @@ export async function POST(req: NextRequest) {
               stock,
               lowStockThreshold: 5,
               image: body.image || null,
-              status: stock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+              status: 'ACTIVE',
               attributes: JSON.stringify(attrs),
               unit: 'bộ',
               type: 'SIMPLE',
@@ -1768,7 +1768,7 @@ export async function POST(req: NextRequest) {
             data: {
               sellPrice: nextPrice,
               stock: nextStock,
-              status: nextStock === 0 ? 'OUT_OF_STOCK' : p.status === 'OUT_OF_STOCK' ? 'ACTIVE' : p.status,
+              status: p.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
               attributes: JSON.stringify(attrs),
             },
           })
@@ -2068,7 +2068,7 @@ export async function POST(req: NextRequest) {
                   sellPrice,
                   stock,
                   image: item.image || existingBySku.image,
-                  status: stock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+                  status: existingBySku.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
                   attributes: JSON.stringify(attrObj),
                 },
               })
@@ -2083,7 +2083,7 @@ export async function POST(req: NextRequest) {
                   stock,
                   lowStockThreshold: 5,
                   image: item.image || null,
-                  status: stock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+                  status: 'ACTIVE',
                   attributes: JSON.stringify(attrObj),
                   unit: 'bộ',
                   type: 'SIMPLE',
@@ -2225,7 +2225,7 @@ export async function POST(req: NextRequest) {
           where: { id: product.id },
           data: {
             stock: nextStock,
-            status: nextStock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+            status: product.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
             attributes: JSON.stringify(nextAttrs),
           },
         })
@@ -2395,7 +2395,7 @@ export async function POST(req: NextRequest) {
           where: { id: product.id },
           data: {
             stock: nextStock,
-            status: nextStock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE',
+            status: product.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
             attributes: JSON.stringify(nextAttrs),
           },
         })

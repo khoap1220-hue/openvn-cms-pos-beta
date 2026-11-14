@@ -7,7 +7,7 @@
 
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { broadcast } from '@/lib/realtime'
+import { broadcast, invalidateApiCache } from '@/lib/realtime'
 import { recordLineageChange } from '@/lib/ledger'
 import { dispatchWebhook } from '@/lib/webhook-service'
 import { getSetting, getSettings } from '@/lib/settings'
@@ -270,6 +270,7 @@ export async function createPurchaseInvoice(input: CreatePurchaseInvoiceInput) {
       items: items.map((it) => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice })),
     },
   })
+  invalidateApiCache('products')
   broadcast('settings.updated', { reason: 'invoice' })
   dispatchWebhook('invoice.purchase.created', full)
 

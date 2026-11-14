@@ -3,6 +3,7 @@ import path from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { broadcast, getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
+import { isSyntheticPhone as isSyntheticPhoneCore, isSyntheticSku as isSyntheticSkuCore } from '@/lib/synthetic-filter'
 import { syncProductWarehouseStock } from '@/lib/warehouse-service'
 
 export const dynamic = 'force-dynamic'
@@ -343,55 +344,11 @@ export const THAIMY1605_CANONICAL_BASELINE = [
 // ============================================================================
 
 export function isSyntheticSku(sku: unknown): boolean {
-  if (!sku || typeof sku !== 'string') return false
-  const s = sku.trim().toUpperCase()
-  if (PROTECTED_REAL_SKUS.has(s)) return false
-  return (
-    s.startsWith('SP-TEST-') ||
-    s.startsWith('QA-') ||
-    s.startsWith('TEST-') ||
-    s.startsWith('R1-') ||
-    s.startsWith('R2-') ||
-    s.startsWith('R3-') ||
-    s.startsWith('R4-') ||
-    s.startsWith('R5-') ||
-    s.startsWith('T-COMPA-') ||
-    s.startsWith('T-COMPB-') ||
-    s.startsWith('T-COMBO-') ||
-    s.startsWith('UD-SYN-') ||
-    s.startsWith('UD-EXTREME') ||
-    s.startsWith('UD-CHALLENGE') ||
-    s.startsWith('CSV-TEST-') ||
-    s.startsWith('VALID-ROW') ||
-    s.includes('[QA') ||
-    s.includes('[TEST') ||
-    s.includes('ERR-NEGSELL') ||
-    s.includes('ERR-NEGCOST') ||
-    s.includes('ERR-NONAME') ||
-    s.includes('ERR-BADTYPE')
-  )
+  return isSyntheticSkuCore(sku, PROTECTED_REAL_SKUS)
 }
 
 export function isSyntheticPhone(phone: unknown): boolean {
-  if (!phone || typeof phone !== 'string') return false
-  const p = phone.trim()
-  const dummyPhones = [
-    '0900111222',
-    '0900111333',
-    '0911222333',
-    '0900888777',
-    '0900666555',
-    '0999888777',
-    '0909888777',
-    '0912345678',
-    '0900000000',
-  ]
-  return (
-    dummyPhones.includes(p) ||
-    p.startsWith('0900') ||
-    p.startsWith('097999') ||
-    p.startsWith('098888')
-  )
+  return isSyntheticPhoneCore(phone)
 }
 
 export function isSyntheticCampaignCode(code: unknown): boolean {
@@ -508,8 +465,8 @@ function countSyntheticSpoolItems(): { dlqTestCount: number; queueTestCount: num
 
   for (const filePath of SHOPEE_SPOOL_FILES) {
     try {
-      if (!fs.existsSync(filePath)) continue
-      const content = fs.readFileSync(filePath, 'utf-8')
+      if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) continue
+      const content = fs.readFileSync(/*turbopackIgnore: true*/ filePath, 'utf-8')
       const arr = JSON.parse(content)
       if (!Array.isArray(arr)) continue
       const isDlq = filePath.includes('dlq')
@@ -525,8 +482,8 @@ function cleanSyntheticSpoolItems(): number {
   let cleaned = 0
   for (const filePath of SHOPEE_SPOOL_FILES) {
     try {
-      if (!fs.existsSync(filePath)) continue
-      const content = fs.readFileSync(filePath, 'utf-8')
+      if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) continue
+      const content = fs.readFileSync(/*turbopackIgnore: true*/ filePath, 'utf-8')
       const arr = JSON.parse(content)
       if (!Array.isArray(arr)) continue
       const filtered = arr.filter((x) => {
@@ -1363,11 +1320,19 @@ export async function POST(req: NextRequest) {
     const sessionSetting = await db.appSetting.findUnique({ where: { key: SNAPSHOT_KEY } })
     let snapshotLedgerIds: string[] = []
     let snapshotStockMovementIds: string[] = []
+    let hasSnapshotLedger = false
+    let hasSnapshotMovements = false
     if (sessionSetting?.value) {
       try {
         const snap = JSON.parse(sessionSetting.value)
-        snapshotLedgerIds = snap.ledgerEntryIds || []
-        snapshotStockMovementIds = snap.stockMovementIds || []
+        if (Array.isArray(snap.ledgerEntryIds)) {
+          snapshotLedgerIds = snap.ledgerEntryIds
+          hasSnapshotLedger = true
+        }
+        if (Array.isArray(snap.stockMovementIds)) {
+          snapshotStockMovementIds = snap.stockMovementIds
+          hasSnapshotMovements = true
+        }
       } catch {}
     }
 
@@ -1449,28 +1414,26 @@ export async function POST(req: NextRequest) {
     )
     restoredProductsCount = THAIMY1605_CANONICAL_BASELINE.length
 
-    // 2.3 Đồng bộ trực tiếp 13 sản phẩm sang SQLite (db/custom.db)
+    // 2.3 Đồng bộ trực tiếp 18 sản phẩm sang SQLite (db/custom.db)
     syncBaselineToSqlite(THAIMY1605_CANONICAL_BASELINE)
 
-    // 2.4 Dọn dẹp các bản ghi sổ cái & thẻ kho phát sinh sau snapshot (nếu có)
-    if (snapshotLedgerIds.length > 0) {
-      const delLed = await db.ledgerEntry.deleteMany({
-        where: {
-          id: { notIn: snapshotLedgerIds },
-        },
-      })
+    // 2.4 Dọn dẹp các bản ghi sổ cái & thẻ kho phát sinh sau snapshot (kể cả khi snapshot có 0 bản ghi)
+    if (hasSnapshotLedger) {
+      const delLed = await db.ledgerEntry.deleteMany(
+        snapshotLedgerIds.length > 0 ? { where: { id: { notIn: snapshotLedgerIds } } } : undefined
+      )
       removedAfterSnapshotCount += delLed.count
     }
-    if (snapshotStockMovementIds.length > 0) {
-      const delMov = await db.stockMovement.deleteMany({
-        where: {
-          id: { notIn: [...snapshotStockMovementIds, 'cmw4uy7xi003mvehsmcd3fww3'] },
-        },
-      })
+    if (hasSnapshotMovements) {
+      const delMov = await db.stockMovement.deleteMany(
+        snapshotStockMovementIds.length > 0
+          ? { where: { id: { notIn: snapshotStockMovementIds } } }
+          : undefined
+      )
       removedAfterSnapshotCount += delMov.count
     }
 
-    // Xóa session snapshot và khóa chặt PERMANENT_BASELINE với giá trị chuẩn 258 đơn vị
+    // Xóa session snapshot và khóa chặt PERMANENT_BASELINE với giá trị chuẩn 18 SKU (tồn kho = 0)
     const permanentCanonicalPayload = {
       createdAt: '2026-11-08T00:00:00.000Z',
       shopId: '197195817',

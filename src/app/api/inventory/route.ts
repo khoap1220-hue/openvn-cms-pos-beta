@@ -672,11 +672,11 @@ export async function POST(req: NextRequest) {
 
     const inPlacePatched = patchProductInApiCache(productId, { stock: newStock })
 
-    // Thực thi bất đồng bộ (non-blocking) các tác vụ hậu kỳ: đồng bộ kho con, combo, ghi sổ cái & webhook
+    // Thực thi đồng bộ hậu kỳ trước khi trả HTTP 201 để đảm bảo read-your-own-writes (Combo/Warehouse/LinkedVariant)
     const action = type === 'IMPORT' ? 'STOCK_IMPORT' : type === 'EXPORT' ? 'STOCK_EXPORT' : 'STOCK_ADJUST'
     const qtyText = movementQty >= 0 ? `+${movementQty}` : `${movementQty}`
     const actionLabel = type === 'IMPORT' ? 'Nhập kho' : type === 'EXPORT' ? 'Xuất kho' : 'Điều chỉnh kho'
-    void Promise.all([
+    await Promise.all([
       syncProductWarehouseStock(productId, targetWarehouseId),
       syncCombosUsingComponents(db, [productId]),
       syncLinkedVariantStocks(db, [productId]),
@@ -695,7 +695,7 @@ export async function POST(req: NextRequest) {
         sourceRefCode: finalNote,
         detail: { stockAfter: newStock, quantity: movementQty, note: finalNote },
       }),
-    ]).catch((bgErr) => console.error('Background inventory post-update error:', bgErr))
+    ]).catch((bgErr) => console.error('Inventory post-update sync error:', bgErr))
 
     invalidateApiCache('inventory:')
     broadcast('inventory.updated', { productId, sku: product.sku, stockAfter: newStock, inPlacePatched })

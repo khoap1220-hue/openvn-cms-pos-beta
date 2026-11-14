@@ -34,6 +34,15 @@ import {
 } from '@/lib/agents'
 import { logActivity, logEvent, sendZalo } from '@/lib/agent-log'
 import { logLedgerAsync } from '@/lib/ledger'
+import { isSyntheticCustomerName, isSyntheticOrder, isSyntheticPhone } from '@/lib/synthetic-filter'
+
+const SYNTHETIC_ORDER_CHECK_SELECT = {
+  id: true,
+  code: true,
+  note: true,
+  customer: { select: { name: true, phone: true } },
+  items: { select: { product: { select: { sku: true, name: true } } } },
+} as const
 
 const g = globalThis as unknown as {
   __cmsEngineTimer?: ReturnType<typeof setInterval>
@@ -125,7 +134,7 @@ async function agentConfirm(orderId: string) {
       where: { id: orderId },
       include: { channel: true, customer: true, items: { include: { product: true } } },
     })
-    if (!order || order.status !== 'PENDING' || !order.customer) return
+    if (!order || order.status !== 'PENDING' || !order.customer || isSyntheticOrder(order)) return
 
     await refreshCustomerMemory(order.customer.id, 'ORDER', `Đơn mới ${order.code}`).catch(() => null)
     const mem = await getMemorySnapshot(order.customer.id)
@@ -177,7 +186,7 @@ async function startPacking(orderId: string) {
       where: { id: orderId },
       include: { items: { include: { product: true } }, customer: true },
     })
-    if (!order || order.status !== 'CONFIRMED') return
+    if (!order || order.status !== 'CONFIRMED' || isSyntheticOrder(order)) return
 
     const updateRes = await db.order.updateMany({ where: { id: order.id, status: 'CONFIRMED' }, data: { status: 'PACKING' } })
     if (updateRes.count === 0) return
@@ -206,7 +215,7 @@ async function dispatchCarrier(orderId: string) {
       where: { id: orderId },
       include: { channel: true, customer: true, items: { include: { product: true } } },
     })
-    if (!order || !['PACKING', 'SHIPPING'].includes(order.status)) return
+    if (!order || !['PACKING', 'SHIPPING'].includes(order.status) || isSyntheticOrder(order)) return
     const existing = await db.shipment.findUnique({ where: { orderId: order.id } })
     if (existing) return
 
@@ -276,10 +285,11 @@ async function advanceShipment(shipmentId: string, next: 'PICKED_UP' | 'IN_TRANS
     const settings = await getSettingsMap()
     const shipment = await db.shipment.findUnique({
       where: { id: shipmentId },
-      include: { order: { include: { channel: true, customer: true } } },
+      include: { order: { include: { channel: true, customer: true, items: { include: { product: true } } } } },
     })
     if (!shipment || shipment.status === 'DELIVERED' || shipment.status === 'RETURNED') return
     const order = shipment.order
+    if (isSyntheticOrder(order)) return
 
     await db.shipment.update({ where: { id: shipment.id }, data: { status: next } })
 
@@ -390,7 +400,7 @@ async function agentCare(orderId: string) {
       where: { id: orderId },
       include: { channel: true, customer: true, events: { orderBy: { createdAt: 'desc' }, take: 20 }, items: { include: { product: true } } },
     })
-    if (!order || order.status !== 'COMPLETED' || !order.customer) return
+    if (!order || order.status !== 'COMPLETED' || !order.customer || isSyntheticOrder(order)) return
     if (order.events.some((e) => e.type === 'CARE_SENT')) return
 
     await refreshCustomerMemory(order.customer.id, 'ORDER', `Giao thành công ${order.code}`).catch(() => null)
@@ -453,7 +463,7 @@ async function requestReview(orderId: string) {
         items: { include: { product: true } },
       },
     })
-    if (!order || order.status !== 'COMPLETED' || !order.customer) return
+    if (!order || order.status !== 'COMPLETED' || !order.customer || isSyntheticOrder(order)) return
     if (order.reviewRating != null) return
     if (!order.events.some((e) => e.type === 'CARE_SENT')) return
     if (order.events.some((e) => e.type === 'REVIEW_REQUESTED')) return
@@ -506,7 +516,7 @@ async function submitReview(orderId: string) {
       where: { id: orderId },
       include: { items: { include: { product: true } }, events: { orderBy: { createdAt: 'desc' }, take: 20 }, customer: true },
     })
-    if (!order || order.reviewRating != null) return
+    if (!order || order.reviewRating != null || isSyntheticOrder(order)) return
     if (!order.events.some((e) => e.type === 'REVIEW_REQUESTED')) return
 
     const ratingPool = [5, 5, 5, 5, 4, 4, 5, 4, 3, 5]
@@ -558,7 +568,7 @@ async function autoReply(customerId: string, channelKey: string) {
     if (last.sender !== 'CUSTOMER') return
 
     const customer = await db.customer.findUnique({ where: { id: customerId } })
-    if (!customer) return
+    if (!customer || isSyntheticPhone(customer.phone) || isSyntheticCustomerName(customer.name)) return
 
     await refreshCustomerMemory(customerId, 'MESSAGE', last.content.slice(0, 120)).catch(() => null)
     const mem = await getMemorySnapshot(customerId)
@@ -663,53 +673,70 @@ async function runTick() {
   const dayAgo = since(24 * 3600 * 1000)
   const targetCarrierStatuses = settings.simulation_mode ? ['PACKING', 'SHIPPING'] : ['SHIPPING']
 
-  const [pendingOrders, confirmedOrders, carrierOrders, simShipments, afterSale, recentMessages] =
+  const [rawPendingOrders, rawConfirmedOrders, rawCarrierOrders, rawSimShipments, rawAfterSale, recentMessages] =
     await Promise.all([
       settings.master && settings.auto_confirm
         ? db.order.findMany({
             where: { status: 'PENDING', createdAt: { lt: since(4000) } },
-            select: { id: true },
+            select: SYNTHETIC_ORDER_CHECK_SELECT,
             orderBy: { createdAt: 'asc' },
-            take: 3,
+            take: 10,
           })
         : Promise.resolve([]),
       settings.master
         ? db.order.findMany({
             where: { status: 'CONFIRMED', updatedAt: { lt: since(4000) } },
-            select: { id: true },
-            take: 3,
+            select: SYNTHETIC_ORDER_CHECK_SELECT,
+            take: 10,
           })
         : Promise.resolve([]),
       settings.master && settings.auto_carrier
         ? db.order.findMany({
             where: { status: { in: targetCarrierStatuses }, updatedAt: { lt: since(4000) }, shipments: { none: {} } },
-            select: { id: true },
-            take: 3,
+            select: SYNTHETIC_ORDER_CHECK_SELECT,
+            take: 10,
           })
         : Promise.resolve([]),
       settings.simulation_mode
         ? db.shipment.findMany({
             where: { status: { in: ['DISPATCHED', 'PICKED_UP', 'IN_TRANSIT'] }, updatedAt: { lt: since(5000) } },
-            select: { id: true, status: true },
-            take: 5,
+            select: { id: true, status: true, order: { select: SYNTHETIC_ORDER_CHECK_SELECT } },
+            take: 12,
           })
         : Promise.resolve([]),
       settings.master || settings.simulation_mode
         ? db.order.findMany({
             where: { status: 'COMPLETED', createdAt: { gte: dayAgo } },
-            include: { events: { orderBy: { createdAt: 'desc' }, take: 20 } },
+            include: {
+              customer: { select: { name: true, phone: true } },
+              items: { select: { product: { select: { sku: true, name: true } } } },
+              events: { orderBy: { createdAt: 'desc' }, take: 20 },
+            },
             orderBy: { updatedAt: 'asc' },
-            take: 6,
+            take: 12,
           })
         : Promise.resolve([]),
       settings.master && settings.auto_reply
         ? db.directMessage.findMany({
             orderBy: { createdAt: 'desc' },
-            select: { id: true, customerId: true, channelKey: true, sender: true, createdAt: true },
+            select: {
+              id: true,
+              customerId: true,
+              channelKey: true,
+              sender: true,
+              createdAt: true,
+              customer: { select: { name: true, phone: true } },
+            },
             take: 30,
           })
         : Promise.resolve([]),
     ])
+
+  const pendingOrders = rawPendingOrders.filter((o) => !isSyntheticOrder(o)).slice(0, 3)
+  const confirmedOrders = rawConfirmedOrders.filter((o) => !isSyntheticOrder(o)).slice(0, 3)
+  const carrierOrders = rawCarrierOrders.filter((o) => !isSyntheticOrder(o)).slice(0, 3)
+  const simShipments = rawSimShipments.filter((s) => !isSyntheticOrder(s.order)).slice(0, 5)
+  const afterSale = rawAfterSale.filter((o) => !isSyntheticOrder(o)).slice(0, 6)
 
   // 1. Xác nhận đơn
   for (const o of pendingOrders) agentConfirm(o.id)
@@ -751,6 +778,7 @@ async function runTick() {
   if (recentMessages.length > 0) {
     const groups = new Map<string, string>()
     for (const m of recentMessages) {
+      if (isSyntheticPhone(m.customer?.phone) || isSyntheticCustomerName(m.customer?.name)) continue
       const key = `${m.customerId}|${m.channelKey}`
       if (!groups.has(key)) groups.set(key, m.sender)
     }

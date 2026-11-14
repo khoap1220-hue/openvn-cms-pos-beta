@@ -58,6 +58,96 @@ async function main() {
   let tempCustomerId: string | null = null
   const createdOrderIds: string[] = []
   let tempCampaignId: string | null = null
+  let tempThachCaoCampaignId: string | null = null
+  const createdTempProductIds: string[] = []
+  const createdTempVoucherIds: string[] = []
+
+  const posChannel = await db.channel.findFirst({ where: { key: 'POS' } })
+  if (!posChannel) throw new Error('Không tìm thấy kênh POS')
+
+  const defaultWh = await db.warehouse.findFirst({ where: { isDefault: true } })
+  if (!defaultWh) throw new Error('Không tìm thấy kho mặc định')
+
+  const defaultCategory = await db.category.findFirst()
+  if (!defaultCategory) throw new Error('Không tìm thấy danh mục mặc định')
+
+  // Đảm bảo có bộ fixture tạm thời (10 SP UD-TC-001..010, 4 Voucher & chiến dịch CP-THACHCAO-2026) nếu DB sạch
+  for (let idx = 1; idx <= 10; idx++) {
+    const sku = `UD-TC-${String(idx).padStart(3, '0')}`
+    const existingP = await db.product.findUnique({ where: { sku } })
+    if (!existingP) {
+      const createdP = await db.product.create({
+        data: {
+          sku,
+          name: `Thạch Cao Kiểm Định #${idx}`,
+          description: 'Sản phẩm kiểm thử tạm thời Loyalty & Campaign',
+          categoryId: defaultCategory.id,
+          costPrice: 120_000,
+          sellPrice: 390_000,
+          stock: 20,
+          lowStockThreshold: 5,
+          status: 'ACTIVE',
+          unit: 'bộ',
+          type: 'SIMPLE',
+          fragile: true,
+          ownerWarehouseId: defaultWh.id,
+        },
+      })
+      await db.warehouseStock.upsert({
+        where: { warehouseId_productId: { warehouseId: defaultWh.id, productId: createdP.id } },
+        update: { quantity: 20 },
+        create: { warehouseId: defaultWh.id, productId: createdP.id, quantity: 20 },
+      })
+      createdTempProductIds.push(createdP.id)
+    }
+  }
+
+  for (const vSpec of [
+    {
+      code: 'UUDAM10',
+      title: 'Ưu Đàm Giảm 10% (Tối đa 50K)',
+      discountType: 'PERCENT',
+      discountValue: 10,
+      maxDiscount: 50_000,
+      minOrderAmount: 150_000,
+      scope: 'ALL',
+    },
+    {
+      code: 'PHATDAN50K',
+      title: 'Phật Đản Giảm 50K',
+      discountType: 'FIXED',
+      discountValue: 50_000,
+      maxDiscount: null,
+      minOrderAmount: 400_000,
+      scope: 'ALL',
+    },
+    {
+      code: 'LIENKET15',
+      title: 'Liên Kết Giảm 15% (Tối đa 80K)',
+      discountType: 'PERCENT',
+      discountValue: 15,
+      maxDiscount: 80_000,
+      minOrderAmount: 0,
+      scope: 'ALLIANCE',
+    },
+    {
+      code: 'FREESHIP0D',
+      title: 'Freeship 30K',
+      discountType: 'FREESHIP',
+      discountValue: 30_000,
+      maxDiscount: null,
+      minOrderAmount: 0,
+      scope: 'ALL',
+    },
+  ]) {
+    const existingV = await db.voucher.findUnique({ where: { code: vSpec.code } })
+    if (!existingV) {
+      const createdV = await db.voucher.create({
+        data: { ...vSpec, active: true },
+      })
+      createdTempVoucherIds.push(createdV.id)
+    }
+  }
 
   // Snapshot trạng thái ban đầu của sản phẩm UD-TC-001 và voucher UUDAM10
   const prod = await db.product.findUnique({
@@ -72,11 +162,31 @@ async function main() {
   if (!uudamVoucher) throw new Error('Không tìm thấy voucher UUDAM10')
   const initialVoucherUsedCount = uudamVoucher.usedCount
 
-  const posChannel = await db.channel.findFirst({ where: { key: 'POS' } })
-  if (!posChannel) throw new Error('Không tìm thấy kênh POS')
-
-  const defaultWh = await db.warehouse.findFirst({ where: { isDefault: true } })
-  if (!defaultWh) throw new Error('Không tìm thấy kho mặc định')
+  const existingThachCao = await db.campaign.findUnique({ where: { code: 'CP-THACHCAO-2026' } })
+  if (!existingThachCao) {
+    const tcProducts = await db.product.findMany({
+      where: { sku: { startsWith: 'UD-TC-' } },
+      orderBy: { sku: 'asc' },
+      select: { id: true },
+      take: 10,
+    })
+    const createdThachCao = await db.campaign.create({
+      data: {
+        code: 'CP-THACHCAO-2026',
+        name: 'Ưu Đãi Bộ Sưu Tập Thạch Cao An Nhiên',
+        title: 'Chiến dịch Kiểm định Thạch Cao & Nến Bấc Gỗ',
+        startDate: new Date(Date.now() - 86400_000),
+        endDate: new Date(Date.now() + 30 * 86400_000),
+        status: 'RUNNING',
+        discountPercent: 15,
+        voucherId: uudamVoucher.id,
+        voucherCode: 'UUDAM10',
+        appliedProductIds: JSON.stringify(tcProducts.map((p) => p.id)),
+        appliedVoucherIds: JSON.stringify([uudamVoucher.id]),
+      },
+    })
+    tempThachCaoCampaignId = createdThachCao.id
+  }
 
   try {
     // ------------------------------------------------------------------------
@@ -500,21 +610,43 @@ async function main() {
       await db.customer.deleteMany({ where: { id: tempCustomerId } })
     }
 
-    // Khôi phục chính xác tồn kho UD-TC-001 và usedCount của UUDAM10
-    await db.product.update({
-      where: { id: prod.id },
-      data: { stock: initialStock },
-    })
-    for (const ws of initialWhStocks) {
-      await db.warehouseStock.update({
-        where: { id: ws.id },
-        data: { quantity: ws.quantity },
+    // Khôi phục chính xác tồn kho UD-TC-001 và usedCount của UUDAM10 (hoặc xóa fixture tạm)
+    if (tempThachCaoCampaignId) {
+      await db.ledgerEntry
+        .deleteMany({
+          where: {
+            OR: [{ entityId: tempThachCaoCampaignId }, { entityId: 'CP-THACHCAO-2026' }],
+          },
+        })
+        .catch(() => null)
+      await db.campaign.deleteMany({ where: { id: tempThachCaoCampaignId } }).catch(() => null)
+    }
+    if (!createdTempProductIds.includes(prod.id)) {
+      await db.product.update({
+        where: { id: prod.id },
+        data: { stock: initialStock },
+      })
+      for (const ws of initialWhStocks) {
+        await db.warehouseStock.update({
+          where: { id: ws.id },
+          data: { quantity: ws.quantity },
+        })
+      }
+    }
+    if (createdTempProductIds.length > 0) {
+      await db.stockMovement.deleteMany({ where: { productId: { in: createdTempProductIds } } }).catch(() => null)
+      await db.warehouseStock.deleteMany({ where: { productId: { in: createdTempProductIds } } }).catch(() => null)
+      await db.product.deleteMany({ where: { id: { in: createdTempProductIds } } }).catch(() => null)
+    }
+    if (!createdTempVoucherIds.includes(uudamVoucher.id)) {
+      await db.voucher.update({
+        where: { id: uudamVoucher.id },
+        data: { usedCount: initialVoucherUsedCount },
       })
     }
-    await db.voucher.update({
-      where: { id: uudamVoucher.id },
-      data: { usedCount: initialVoucherUsedCount },
-    })
+    if (createdTempVoucherIds.length > 0) {
+      await db.voucher.deleteMany({ where: { id: { in: createdTempVoucherIds } } }).catch(() => null)
+    }
   }
 
   console.log('\n================================================================================')

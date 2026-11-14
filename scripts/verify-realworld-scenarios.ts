@@ -132,6 +132,8 @@ async function main() {
   let compBId: string | null = null
   let comboId: string | null = null
   let memberCustomerId: string | null = null
+  let tempPartnerWhId: string | null = null
+  const tempCreatedVoucherIds: string[] = []
 
   try {
     // -------------------------------------------------------------------------
@@ -585,6 +587,31 @@ async function main() {
     // -------------------------------------------------------------------------
     // SCENARIO 17: Áp dụng Mã giảm giá / Voucher (UUDAM10) & Tự động Freeship >= 500.000đ
     // -------------------------------------------------------------------------
+    for (const vSpec of [
+      {
+        code: 'UUDAM10',
+        title: 'Ưu Đàm -10% (Tối đa 50K)',
+        discountType: 'PERCENT',
+        discountValue: 10,
+        maxDiscount: 50000,
+        minOrderAmount: 150000,
+      },
+      {
+        code: 'PHATDAN50K',
+        title: 'Phật Đản Giảm 50K',
+        discountType: 'FIXED',
+        discountValue: 50000,
+        maxDiscount: null,
+        minOrderAmount: 400000,
+      },
+    ]) {
+      const exists = await db.voucher.findUnique({ where: { code: vSpec.code } })
+      if (!exists) {
+        const resCreateV = await req('POST', '/api/vouchers', vSpec)
+        if (resCreateV.data?.voucher?.id) tempCreatedVoucherIds.push(resCreateV.data.voucher.id)
+      }
+    }
+
     const resVouchersBefore = await req('GET', '/api/vouchers')
     const voucherUudam = resVouchersBefore.data?.vouchers?.find((v: { code: string }) => v.code === 'UUDAM10')
     const usedBefore = voucherUudam?.usedCount ?? 0
@@ -625,11 +652,27 @@ async function main() {
     // -------------------------------------------------------------------------
     // SCENARIO 18: Đa Kho, Điều chuyển hàng (Kho A -> Kho B) & Đối soát Hoa hồng Bán chéo Liên Shop
     // -------------------------------------------------------------------------
-    const resWhBefore = await req('GET', '/api/warehouses')
-    const whList = resWhBefore.data?.warehouses ?? []
+    let resWhBefore = await req('GET', '/api/warehouses')
+    let whList = resWhBefore.data?.warehouses ?? []
     const centralWh = whList.find((w: { isDefault: boolean }) => w.isDefault) ?? whList[0]
-    const partnerWh =
+    let partnerWh =
       whList.find((w: { type: string }) => w.type === 'PARTNER_SHOP') ?? whList[1]
+    if (!partnerWh) {
+      const resCreatePartnerWh = await req('POST', '/api/warehouses', {
+        name: 'Shop Liên Kết Test Alliance',
+        code: 'SHOP-TEST-ALLIANCE',
+        type: 'PARTNER_SHOP',
+        commissionPct: 15,
+        managerName: 'Partner QA',
+      })
+      tempPartnerWhId = resCreatePartnerWh.data?.warehouse?.id ?? null
+      resWhBefore = await req('GET', '/api/warehouses')
+      whList = resWhBefore.data?.warehouses ?? []
+      partnerWh =
+        whList.find((w: { id: string }) => w.id === tempPartnerWhId) ??
+        whList.find((w: { type: string }) => w.type === 'PARTNER_SHOP') ??
+        whList[1]
+    }
 
     // Thực hiện điều chuyển 2 SP compA từ Kho Trung Tâm sang Shop Liên kết
     const resTransfer = await req('POST', '/api/warehouses', {
@@ -719,6 +762,27 @@ async function main() {
     // -------------------------------------------------------------------------
     await db.integrationCredential.delete({ where: { id: tempCred.id } }).catch(() => null)
     await cleanupLeftoverTestData()
+    if (tempCreatedVoucherIds.length > 0) {
+      await db.ledgerEntry.deleteMany({ where: { entityId: { in: tempCreatedVoucherIds } } }).catch(() => null)
+      await db.voucher.deleteMany({ where: { id: { in: tempCreatedVoucherIds } } }).catch(() => null)
+    }
+    if (tempPartnerWhId) {
+      await db.warehouseStock.deleteMany({ where: { warehouseId: tempPartnerWhId } }).catch(() => null)
+      await db.stockMovement.deleteMany({ where: { warehouseId: tempPartnerWhId } }).catch(() => null)
+      await db.ledgerEntry
+        .deleteMany({
+          where: {
+            OR: [
+              { entityId: tempPartnerWhId },
+              { sourceRefCode: 'SHOP-TEST-ALLIANCE' },
+              { sourceRefCode: { endsWith: '->SHOP-TEST-ALLIANCE' } },
+            ],
+          },
+        })
+        .catch(() => null)
+      await db.warehouse.delete({ where: { id: tempPartnerWhId } }).catch(() => null)
+    }
+    await req('POST', '/api/ledger/test-guard', { mode: 'RESTORE_AND_CLEAN' }).catch(() => null)
     assert(
       true,
       'Tình huống 21 (Dọn dẹp sạch dữ liệu kiểm thử tạm thời)',

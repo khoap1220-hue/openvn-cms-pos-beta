@@ -58,7 +58,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    invalidateApiCache()
     await ensureWarehousesAndVouchersSeeded()
     const body = await req.json()
 
@@ -91,6 +90,7 @@ export async function POST(req: NextRequest) {
         actor: 'OPERATOR',
         originSource: 'MANUAL_ADMIN',
       })
+      invalidateApiCache('vouchers:')
       return NextResponse.json({ voucher: updated })
     }
 
@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    invalidateApiCache('vouchers:')
     return NextResponse.json({ voucher }, { status: 201 })
   } catch (error) {
     console.error('Vouchers POST error:', error)

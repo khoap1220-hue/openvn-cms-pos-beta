@@ -90,7 +90,7 @@ export async function syncProductWarehouseStock(
 
   const sumWarehouse = product.warehouseStocks.reduce((s, ws) => s + ws.quantity, 0)
   const delta = product.stock - sumWarehouse
-  if (delta === 0) return
+  if (delta === 0 && product.warehouseStocks.length > 0) return
 
   let targetWarehouseId = preferredWarehouseId
   if (!targetWarehouseId) {

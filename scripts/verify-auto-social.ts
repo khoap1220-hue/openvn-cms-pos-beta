@@ -395,6 +395,11 @@ export class DatabaseParityManager {
   }
 
   async flushWalCheckpoint(): Promise<void> {
+    const dbUrl = (process.env.DATABASE_URL ?? '').trim().toLowerCase()
+    if (!dbUrl.startsWith('file:')) {
+      console.log('🔄 [DB CHECKPOINT] Bỏ qua PRAGMA wal_checkpoint (đang chạy PostgreSQL)...')
+      return
+    }
     console.log('🔄 [DB CHECKPOINT] Thực thi PRAGMA wal_checkpoint(FULL)...')
     const raw = (await this.prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(FULL);')) as Array<Record<string, unknown>>
     const busy = Number(raw[0]?.busy ?? 0)
