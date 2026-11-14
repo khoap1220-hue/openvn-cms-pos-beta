@@ -89,6 +89,37 @@ export interface BarcodeSvgOptions {
   color?: string
 }
 
+export interface Code128BarRuns {
+  totalModules: number
+  bars: Array<{ x: number; w: number }>
+}
+
+/** Tính danh sách vạch đen (tọa độ module x, độ rộng module w) chuẩn CODE128 để vẽ vector lên GDI+/Canvas/SVG */
+export function getCode128BarRuns(text: string): Code128BarRuns {
+  const safeText = String(text || '').trim() || 'OPENVN'
+  const codes = encodeCode128(safeText)
+  let sum = codes[0]
+  for (let i = 1; i < codes.length; i++) sum += codes[i] * i
+  const check = sum % 103
+  const sequence = [...codes, check, STOP]
+  const patterns = sequence.map((v) => CODE128_PATTERNS[v] ?? CODE128_PATTERNS[0])
+
+  const bars: Array<{ x: number; w: number }> = []
+  let x = 0
+  for (const p of patterns) {
+    let isBar = true
+    for (const d of p) {
+      const w = Number(d)
+      if (isBar && w > 0) {
+        bars.push({ x, w })
+      }
+      x += w
+      isBar = !isBar
+    }
+  }
+  return { totalModules: x, bars }
+}
+
 /** Sinh chuỗi SVG cho mã vạch CODE128 từ text */
 export function barcodeSvg(text: string, options: BarcodeSvgOptions = {}): string {
   const height = Math.min(400, Math.max(10, Math.round(options.height ?? 60)))

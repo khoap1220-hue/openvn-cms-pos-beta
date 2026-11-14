@@ -5,6 +5,10 @@ import { broadcast } from '@/lib/realtime'
 import { isSyntheticOrder } from '@/lib/synthetic-filter'
 import { resolveRequestStaffContext } from '@/lib/behavior-server'
 import {
+  listWindowsPrinters,
+  printSilentViaWindowsSpooler,
+} from '@/lib/windows-printer'
+import {
   ackShopeePrintJob,
   type ConnectedPhoneScanner,
   enqueueShopeeOrderForLinkedPos,
@@ -143,10 +147,14 @@ export async function GET(req: NextRequest) {
       createdAt: o.createdAt.toISOString(),
     }))
 
+  const forceRefreshPrinters = sp.get('refreshPrinters') === '1'
+  const windowsPrinters = await listWindowsPrinters(forceRefreshPrinters)
+
   return NextResponse.json({
     ok: true,
     station: serializeStationForPos(st),
     recentShopeeOrders,
+    windowsPrinters,
   })
 }
 
@@ -560,6 +568,53 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       )
     }
+  }
+
+  if (action === 'WINDOWS_SPOOLER_PRINT') {
+    const rawJobType = String(body.jobType || 'POS_RECEIPT').trim().toUpperCase()
+    const validJobTypes = ['POS_RECEIPT', 'SHOPEE_SLIP', 'SHOPEE_BATCH_SLIPS'] as const
+    if (!validJobTypes.includes(rawJobType as (typeof validJobTypes)[number])) {
+      return NextResponse.json(
+        { ok: false, error: `Loại lệnh in Windows không hợp lệ: ${rawJobType}` },
+        { status: 400 }
+      )
+    }
+
+    const rawEscPos = Boolean(body.rawEscPos)
+    const payloadBase64 = typeof body.payloadBase64 === 'string' ? body.payloadBase64.trim() : undefined
+    if (payloadBase64 && payloadBase64.length > 350_000) {
+      return NextResponse.json(
+        { ok: false, error: 'Payload in thô vượt quá giới hạn an toàn.' },
+        { status: 400 }
+      )
+    }
+
+    const result = await printSilentViaWindowsSpooler({
+      printerName: typeof body.printerName === 'string' ? body.printerName.trim() : undefined,
+      jobType: rawJobType as (typeof validJobTypes)[number],
+      paperSize: body.paperSize === 'K58' ? 'K58' : 'K80',
+      shopeeFormat: body.shopeeFormat === 'THERMAL_K80' ? 'THERMAL_K80' : 'A6_LABEL',
+      rawEscPos,
+      payloadBase64,
+      receipt:
+        body.receipt && typeof body.receipt === 'object'
+          ? (body.receipt as Record<string, unknown>)
+          : undefined,
+      slip:
+        body.slip && typeof body.slip === 'object'
+          ? (body.slip as Parameters<typeof printSilentViaWindowsSpooler>[0]['slip'])
+          : undefined,
+      slips: Array.isArray(body.slips)
+        ? (body.slips as Parameters<typeof printSilentViaWindowsSpooler>[0]['slips'])
+        : undefined,
+      dryRun: Boolean(body.dryRun),
+      testPdfSpool: Boolean(body.testPdfSpool),
+    })
+
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 422 })
+    }
+    return NextResponse.json(result)
   }
 
   return NextResponse.json({ ok: false, error: `Action không hỗ trợ: ${action}` }, { status: 400 })

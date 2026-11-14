@@ -40,6 +40,7 @@ import {
   type ShopeePrintFormat,
   type ThermalPaperSize,
   type ThermalTransportMode,
+  type WindowsPrinterClientItem,
 } from '@/lib/escpos'
 
 export interface PosStationClientView {
@@ -102,8 +103,11 @@ export interface RecentShopeeOrderSummary {
 export interface PosPeripheralsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialTab?: 'phone' | 'printer' | 'shopee'
   station: PosStationClientView | null
   recentShopeeOrders: RecentShopeeOrderSummary[]
+  windowsPrinters?: WindowsPrinterClientItem[]
+  onRefreshWindowsPrinters?: () => Promise<void>
   printerConfig: PeripheralPrinterConfig
   onUpdatePrinterConfig: (patch: Partial<PeripheralPrinterConfig>) => void
   onRotatePairToken: () => Promise<void>
@@ -116,8 +120,11 @@ export interface PosPeripheralsDialogProps {
 export function PosPeripheralsDialog({
   open,
   onOpenChange,
+  initialTab,
   station,
   recentShopeeOrders,
+  windowsPrinters = [],
+  onRefreshWindowsPrinters,
   printerConfig,
   onUpdatePrinterConfig,
   onRotatePairToken,
@@ -126,7 +133,7 @@ export function PosPeripheralsDialog({
   onTestPrintShopeeSlip,
   onPrintShopeeOrderById,
 }: PosPeripheralsDialogProps) {
-  const [activeTab, setActiveTab] = useState<'phone' | 'printer' | 'shopee'>('phone')
+  const [activeTab, setActiveTab] = useState<'phone' | 'printer' | 'shopee'>(initialTab || 'phone')
   const [selectedHost, setSelectedHost] = useState<string>('')
   const [hardwareSummary, setHardwareSummary] = useState<PairedHardwareSummary>({
     usbPrinters: [],
@@ -138,6 +145,19 @@ export function PosPeripheralsDialog({
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const { toast } = useToast()
 
+  const defaultPhysicalPrinter = useMemo(() => {
+    return (
+      windowsPrinters.find((p) => p.isPhysical && p.isDefault) ??
+      windowsPrinters.find((p) => p.isPhysical) ??
+      null
+    )
+  }, [windowsPrinters])
+
+  const activeSilentWindowsPrinterName = useMemo(() => {
+    if (printerConfig.windowsPrinterName) return printerConfig.windowsPrinterName
+    return defaultPhysicalPrinter?.name || ''
+  }, [defaultPhysicalPrinter, printerConfig.windowsPrinterName])
+
   const refreshHardwareList = async () => {
     const info = await listPairedHardwareDevices()
     setHardwareSummary(info)
@@ -145,8 +165,9 @@ export function PosPeripheralsDialog({
 
   useEffect(() => {
     if (!open) return
+    if (initialTab) setActiveTab(initialTab)
     void refreshHardwareList()
-  }, [open])
+  }, [open, initialTab])
 
   const hostCandidates = useMemo(() => {
     const list: string[] = []
@@ -298,6 +319,15 @@ export function PosPeripheralsDialog({
             >
               Auto-Print Shopee: {printerConfig.autoPrintShopeeOrder ? 'BẬT' : 'TẮT'}
             </Badge>
+            {activeSilentWindowsPrinterName && printerConfig.transport !== 'browser_print' && (
+              <Badge
+                variant="outline"
+                className="border-emerald-400/60 bg-emerald-50 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+              >
+                <Printer className="mr-1 h-3 w-3" />
+                In ngầm 0 hộp thoại: {activeSilentWindowsPrinterName}
+              </Badge>
+            )}
           </div>
 
           {/* Thanh chuyển 3 phân mục chuẩn Segmented Control */}
@@ -629,22 +659,37 @@ export function PosPeripheralsDialog({
                   </div>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-5">
+                <div className="grid gap-2 sm:grid-cols-3">
                   {(
                     [
-                      { id: 'auto', label: 'Tự động thông minh', sub: 'USB/COM → K80' },
-                      { id: 'lan_tcp', label: 'Mạng LAN :9100', sub: 'In qua IP Wi-Fi/LAN' },
+                      {
+                        id: 'auto',
+                        label: 'Tự động thông minh (Khuyên dùng)',
+                        sub: activeSilentWindowsPrinterName
+                          ? `In ngầm Windows: ${activeSilentWindowsPrinterName}`
+                          : 'USB/COM → Windows Spooler → Khung in',
+                      },
+                      {
+                        id: 'windows_spooler',
+                        label: 'Máy in Windows (In ngầm 100%)',
+                        sub: `${windowsPrinters.length} máy in cài trên Windows · 0 hộp thoại`,
+                      },
+                      { id: 'lan_tcp', label: 'Mạng LAN :9100', sub: 'In thẳng IP Wi-Fi/Ethernet' },
                       {
                         id: 'webusb',
                         label: 'Cáp USB (WebUSB)',
-                        sub: `${hardwareSummary.usbPrinters.length} thiết bị đã cấp`,
+                        sub: `${hardwareSummary.usbPrinters.length} thiết bị đã cấp quyền`,
                       },
                       {
                         id: 'webserial',
                         label: 'COM / Bluetooth',
                         sub: `${hardwareSummary.serialPortsCount} cổng Serial`,
                       },
-                      { id: 'browser_print', label: 'Trình duyệt K80', sub: 'Chuẩn @page 80mm' },
+                      {
+                        id: 'browser_print',
+                        label: 'Hộp thoại Trình duyệt',
+                        sub: 'Xem trước thủ công @page K80/A6',
+                      },
                     ] as Array<{ id: ThermalTransportMode; label: string; sub: string }>
                   ).map((opt) => (
                     <button
@@ -658,10 +703,95 @@ export function PosPeripheralsDialog({
                       }`}
                     >
                       <div className="text-xs font-bold text-foreground">{opt.label}</div>
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">{opt.sub}</div>
+                      <div className="mt-0.5 truncate text-[11px] text-muted-foreground" title={opt.sub}>
+                        {opt.sub}
+                      </div>
                     </button>
                   ))}
                 </div>
+
+                {(printerConfig.transport === 'auto' ||
+                  printerConfig.transport === 'windows_spooler') && (
+                  <div className="space-y-2.5 rounded-xl border border-emerald-300/80 bg-emerald-50/40 p-3.5 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <Label className="text-xs font-bold text-foreground">
+                          Máy in Windows nhận lệnh In Tự Động Ngầm (Không hiện hộp thoại trình duyệt)
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Hỗ trợ mọi máy in USB / Wi-Fi / Networking đã cài trên Windows (Epson, Xprinter, Zywell, HPRT, Canon...).
+                        </p>
+                      </div>
+                      {onRefreshWindowsPrinters && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 bg-card px-2.5 text-xs"
+                          disabled={busyAction === 'refresh-win-printers'}
+                          onClick={async () => {
+                            setBusyAction('refresh-win-printers')
+                            await onRefreshWindowsPrinters()
+                            setBusyAction(null)
+                          }}
+                        >
+                          <RefreshCw className="mr-1 h-3 w-3" />
+                          Quét lại máy in
+                        </Button>
+                      )}
+                    </div>
+
+                    {windowsPrinters.length > 0 ? (
+                      <div className="grid gap-2.5 sm:grid-cols-[1fr_auto]">
+                        <select
+                          aria-label="Chọn máy in Windows in tự động ngầm"
+                          className="h-9 w-full rounded-lg border bg-card px-3 text-xs font-semibold text-foreground"
+                          value={printerConfig.windowsPrinterName}
+                          onChange={(e) =>
+                            onUpdatePrinterConfig({ windowsPrinterName: e.target.value })
+                          }
+                        >
+                          <option value="">
+                            Tự động dùng máy in vật lý mặc định (
+                            {defaultPhysicalPrinter?.name || windowsPrinters[0]?.name})
+                          </option>
+                          {windowsPrinters.map((p) => (
+                            <option key={p.name} value={p.name}>
+                              {p.name}
+                              {p.isDefault ? ' — [Mặc định Windows]' : ''}
+                              {p.isPhysical ? ' · Máy in thật' : ' · In ra tệp ảo / PDF'}
+                            </option>
+                          ))}
+                        </select>
+                        <Badge
+                          variant="outline"
+                          className="h-9 justify-center border-emerald-300 bg-card px-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                        >
+                          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
+                          Sẵn sàng in ngầm
+                        </Badge>
+                      </div>
+                    ) : (
+                      <p className="rounded-lg border border-dashed bg-card px-3 py-2 text-xs text-muted-foreground">
+                        Chưa phát hiện dịch vụ Windows Spooler (đang mở trên môi trường Cloud tĩnh hoặc chưa cài driver máy in Windows). Hệ thống sẽ tự động chuyển sang khung in cô lập chuẩn khổ giấy.
+                      </p>
+                    )}
+
+                    <label className="flex cursor-pointer items-center gap-2 pt-0.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 rounded border-border accent-[#0066CC]"
+                        checked={printerConfig.rawEscPosOnWindows}
+                        onChange={(e) =>
+                          onUpdatePrinterConfig({ rawEscPosOnWindows: e.target.checked })
+                        }
+                      />
+                      <span>
+                        Chế độ RAW ESC/POS + mở ngăn kéo tiền RJ11 (chỉ bật khi dùng máy in hóa đơn nhiệt cuộn K80/K58 chuyên dụng; tắt khi dùng Epson L805 / Canon / HP / A6)
+                      </span>
+                    </label>
+                  </div>
+                )}
 
                 {printerConfig.transport === 'lan_tcp' && (
                   <div className="grid gap-3 rounded-xl border bg-muted/30 p-3 sm:grid-cols-[1fr_140px]">
@@ -800,27 +930,64 @@ export function PosPeripheralsDialog({
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-3.5">
-                <div className="text-xs">
-                  <span className="font-semibold text-foreground">Kiểm tra mẫu in Shopee ngay:</span>{' '}
-                  <span className="text-muted-foreground">
-                    Xuất thử mẫu vận đơn Shop <code>thaimy1605</code> theo định dạng đang chọn (không tạo dữ liệu rác trong DB).
-                  </span>
+              <div className="space-y-3 rounded-xl border bg-card p-3.5">
+                {windowsPrinters.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+                    <div className="text-xs">
+                      <span className="font-bold text-foreground">
+                        Máy in nhận lệnh tự động in đơn Shopee:
+                      </span>{' '}
+                      <span className="text-muted-foreground">(In ngầm Windows — không hiện hộp thoại)</span>
+                    </div>
+                    <select
+                      aria-label="Chọn máy in Windows cho đơn Shopee"
+                      className="h-8 max-w-full rounded-lg border bg-background px-2.5 text-xs font-semibold text-foreground sm:min-w-[260px]"
+                      value={printerConfig.windowsPrinterName}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        onUpdatePrinterConfig({
+                          windowsPrinterName: val,
+                          ...(printerConfig.transport === 'browser_print'
+                            ? { transport: 'auto' }
+                            : {}),
+                        })
+                      }}
+                    >
+                      <option value="">
+                        Tự động ({defaultPhysicalPrinter?.name || windowsPrinters[0]?.name})
+                      </option>
+                      {windowsPrinters.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.name}
+                          {p.isDefault ? ' [Mặc định]' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs">
+                    <span className="font-semibold text-foreground">Kiểm tra mẫu in Shopee ngay:</span>{' '}
+                    <span className="text-muted-foreground">
+                      Xuất thử ngầm mẫu vận đơn Shop <code>thaimy1605</code> theo định dạng đang chọn (không tạo dữ liệu rác trong DB).
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 bg-orange-600 text-xs font-semibold text-white hover:bg-orange-500"
+                    disabled={busyAction === 'test-shopee'}
+                    onClick={async () => {
+                      setBusyAction('test-shopee')
+                      await onTestPrintShopeeSlip()
+                      setBusyAction(null)
+                    }}
+                  >
+                    <Printer className="mr-1.5 h-3.5 w-3.5" />
+                    In Thử Đơn Shopee Mẫu
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 bg-orange-600 text-xs font-semibold text-white hover:bg-orange-500"
-                  disabled={busyAction === 'test-shopee'}
-                  onClick={async () => {
-                    setBusyAction('test-shopee')
-                    await onTestPrintShopeeSlip()
-                    setBusyAction(null)
-                  }}
-                >
-                  <Printer className="mr-1.5 h-3.5 w-3.5" />
-                  In Thử Đơn Shopee Mẫu
-                </Button>
               </div>
 
               <div className="rounded-xl border bg-card p-3.5">

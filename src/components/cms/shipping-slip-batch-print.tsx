@@ -5,7 +5,9 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Printer } from 'lucide-react'
 
 import { apiPost } from '@/lib/api'
+import { printShopeeBatchSlips } from '@/lib/escpos'
 import { formatDateTime, formatVND } from '@/lib/format'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -245,8 +247,10 @@ export function ShippingSlipBatchPrint({
 }: ShippingSlipBatchPrintProps) {
   const [slips, setSlips] = useState<ShippingSlipData[]>([])
   const [loading, setLoading] = useState(false)
+  const [printingSilent, setPrintingSilent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (!open || orderIds.length === 0) {
@@ -281,7 +285,28 @@ export function ShippingSlipBatchPrint({
 
   const currentSlip = slips[currentIndex] ?? null
 
-  const handlePrint = () => {
+  const handleSilentAutoPrint = async () => {
+    if (slips.length === 0) return
+    setPrintingSilent(true)
+    try {
+      const res = await printShopeeBatchSlips(slips)
+      if (res.method === 'windows_spooler') {
+        toast({
+          title: `Đã in tự động ngầm ${slips.length} phiếu A6`,
+          description: `Đã đẩy thẳng ra máy in Windows: ${res.printerName || 'Mặc định'} (0 hộp thoại).`,
+        })
+      } else {
+        toast({
+          title: `Đã mở khung in ${slips.length} phiếu A6`,
+          description: 'Đang sử dụng khung in trình duyệt dự phòng.',
+        })
+      }
+    } finally {
+      setPrintingSilent(false)
+    }
+  }
+
+  const handleBrowserDialogPrint = () => {
     window.print()
   }
 
@@ -360,18 +385,31 @@ export function ShippingSlipBatchPrint({
             </div>
           )}
 
-          <DialogFooter className="no-print mt-2 flex sm:justify-between">
+          <DialogFooter className="no-print mt-2 flex flex-wrap gap-2 sm:justify-between">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Đóng
             </Button>
-            <Button
-              className="bg-[#0066CC] font-semibold text-white hover:bg-[#0055B3]"
-              disabled={loading || slips.length === 0}
-              onClick={handlePrint}
-            >
-              <Printer className="mr-1.5 h-4 w-4" />
-              In toàn bộ ({slips.length} phiếu A6)
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={loading || slips.length === 0}
+                onClick={handleBrowserDialogPrint}
+              >
+                Xem hộp thoại trình duyệt
+              </Button>
+              <Button
+                className="bg-[#0066CC] font-semibold text-white hover:bg-[#0055B3]"
+                disabled={loading || printingSilent || slips.length === 0}
+                onClick={() => void handleSilentAutoPrint()}
+              >
+                {printingSilent ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="mr-1.5 h-4 w-4" />
+                )}
+                In tự động ngầm ({slips.length} phiếu A6)
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

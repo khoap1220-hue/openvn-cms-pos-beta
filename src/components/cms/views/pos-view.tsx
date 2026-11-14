@@ -51,6 +51,7 @@ import {
   printShopeeOrderSlip,
   savePrinterConfig,
   type ShopeeThermalSlipInput,
+  type WindowsPrinterClientItem,
 } from '@/lib/escpos'
 import {
   decodeBarcodeFromImageFile,
@@ -255,6 +256,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
 
   // ===== Trung tâm Thiết bị ngoại vi, Điện thoại quét mã & Tự động in POS / Shopee =====
   const [peripheralsOpen, setPeripheralsOpen] = useState(false)
+  const [peripheralsTab, setPeripheralsTab] = useState<'phone' | 'printer' | 'shopee'>('phone')
+  const [windowsPrinters, setWindowsPrinters] = useState<WindowsPrinterClientItem[]>([])
   const [printerConfig, setPrinterConfig] = useState<PeripheralPrinterConfig>(() => loadPrinterConfig())
   const [stationView, setStationView] = useState<
     (PosStationClientView & {
@@ -827,15 +830,31 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     }
   }
 
-  // ===== Xuất in thực tế Hóa đơn nhiệt K80 (LAN :9100 / WebUSB / WebSerial / @media print 80mm) =====
+  const activeSilentPrinterName = useMemo(() => {
+    if (printerConfig.transport === 'browser_print') return ''
+    if (printerConfig.windowsPrinterName) return printerConfig.windowsPrinterName
+    const def =
+      windowsPrinters.find((p) => p.isPhysical && p.isDefault) ??
+      windowsPrinters.find((p) => p.isPhysical)
+    return def?.name || ''
+  }, [printerConfig.transport, printerConfig.windowsPrinterName, windowsPrinters])
+
+  const formatPrintMethodLabel = useCallback((method: string, printerName?: string): string => {
+    if (method === 'windows_spooler') {
+      return `In ngầm Windows (${printerName || 'Spooler'}) — 0 hộp thoại`
+    }
+    if (method === 'lan_tcp') return 'Mạng LAN :9100'
+    if (method === 'webusb') return 'Cáp USB (WebUSB)'
+    if (method === 'webserial') return 'COM / Bluetooth'
+    return 'Khung in trình duyệt'
+  }, [])
+
+  // ===== Xuất in thực tế Hóa đơn nhiệt K80 (Windows Spooler In Ngầm 0 Hộp Thoại / LAN / USB / Clean Iframe) =====
   const dispatchPosReceiptPrint = useCallback(
     async (
       rec: CompletedPosReceipt,
       opts?: { manualTrigger?: boolean; openModal?: boolean }
     ): Promise<string> => {
-      if (opts?.openModal !== false) {
-        setReceiptModal(rec)
-      }
       setActivePrintMode('K80_BILL')
 
       const receiptPayload = {
@@ -851,8 +870,10 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       const printRes = await printReceipt(receiptPayload, {
         config: printerConfig,
         onWindowPrint: () => {
+          setReceiptModal(rec)
           const isAutomatedBrowser =
-            typeof navigator !== 'undefined' && Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
+            typeof navigator !== 'undefined' &&
+            Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
           if (opts?.manualTrigger || !isAutomatedBrowser) {
             setTimeout(() => {
               window.print()
@@ -861,6 +882,10 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         },
       })
 
+      if (opts?.openModal !== false && !peripheralsOpen) {
+        setReceiptModal(rec)
+      }
+
       if (!printRes.success && printRes.error) {
         toast({
           title: 'Cảnh báo cổng máy in nhiệt — đã chuyển dự phòng K80',
@@ -868,9 +893,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           variant: 'destructive',
         })
       }
-      return printRes.method
+      return formatPrintMethodLabel(printRes.method, printRes.printerName)
     },
-    [printerConfig, toast]
+    [formatPrintMethodLabel, peripheralsOpen, printerConfig, toast]
   )
 
   // ===== Xuất in tự động / thủ công Vận đơn Sàn Shopee (Tem A6 105×148mm hoặc Nhiệt K80) =====
@@ -896,7 +921,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
             setShopeeA6Slip(slip)
             setActivePrintMode('SHOPEE_A6')
             const isAutomatedBrowser =
-              typeof navigator !== 'undefined' && Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
+              typeof navigator !== 'undefined' &&
+              Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
             if (manualTrigger || !isAutomatedBrowser) {
               setTimeout(() => {
                 window.print()
@@ -905,6 +931,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           },
         })
 
+        const methodLabel = formatPrintMethodLabel(res.method, res.printerName)
         await fetch('/api/peripherals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -912,15 +939,15 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
             action: 'ACK_PRINT_JOB',
             stationId: stationIdRef.current,
             jobId: jobId || orderId,
-            printedMethod: res.method,
+            printedMethod: res.printerName ? `${res.method}:${res.printerName}` : res.method,
             status: 'PRINTED',
           }),
         }).catch(() => null)
 
         if (printerConfig.soundEnabled) playPosBeep('shopee')
         toast({
-          title: `Đã phát lệnh in đơn Shopee ${slip.orderCode}`,
-          description: `Mã vận đơn: ${slip.trackingCode} (${slip.carrier}) · Cổng in: ${res.method}`,
+          title: `Đã tự động in đơn Shopee ${slip.orderCode}`,
+          description: `Mã vận đơn: ${slip.trackingCode} (${slip.carrier}) · ${methodLabel}`,
         })
       } catch (err) {
         toast({
@@ -930,7 +957,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         })
       }
     },
-    [printerConfig, toast]
+    [formatPrintMethodLabel, printerConfig, toast]
   )
 
   const handleTestPrintPosBill = useCallback(async () => {
@@ -989,12 +1016,16 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       changeDue: 12000,
       cashierTime: formatDateTime(new Date().toISOString()),
     }
-    const method = await dispatchPosReceiptPrint(sampleRec, { manualTrigger: true, openModal: true })
+    if (printerConfig.soundEnabled) playPosBeep('checkout')
+    const methodLabel = await dispatchPosReceiptPrint(sampleRec, {
+      manualTrigger: true,
+      openModal: false,
+    })
     toast({
       title: `Đã gửi bản in thử Hóa đơn POS (${printerConfig.paperSize})`,
-      description: `Phương thức thực thi: ${method}`,
+      description: methodLabel,
     })
-  }, [dispatchPosReceiptPrint, printerConfig.paperSize, toast])
+  }, [dispatchPosReceiptPrint, printerConfig.paperSize, printerConfig.soundEnabled, toast])
 
   const handleTestPrintShopeeSlip = useCallback(async () => {
     const sampleSlip: ShopeeThermalSlipInput = {
@@ -1034,7 +1065,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         setShopeeA6Slip(sampleSlip)
         setActivePrintMode('SHOPEE_A6')
         const isAutomatedBrowser =
-          typeof navigator !== 'undefined' && Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
+          typeof navigator !== 'undefined' &&
+          Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
         if (!isAutomatedBrowser) {
           setTimeout(() => {
             window.print()
@@ -1045,9 +1077,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     if (printerConfig.soundEnabled) playPosBeep('shopee')
     toast({
       title: `Đã phát lệnh in thử Đơn Shopee (${printerConfig.shopeeFormat})`,
-      description: `Phương thức thực thi: ${res.method}`,
+      description: formatPrintMethodLabel(res.method, res.printerName),
     })
-  }, [printerConfig, toast])
+  }, [formatPrintMethodLabel, printerConfig, toast])
 
   // ===== Xử lý Thanh toán & Xuất kho (F9 hoặc từ Điện thoại đang liên kết) =====
   const handleCheckout = useCallback(
@@ -1492,6 +1524,28 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     return () => window.removeEventListener('keydown', onGlobalScannerKey)
   }, [handleBarcodeSubmit, printerConfig.soundEnabled])
 
+  const handleRefreshWindowsPrinters = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/peripherals?role=pos&stationId=${encodeURIComponent(stationIdRef.current)}&refreshPrinters=1`,
+        { cache: 'no-store' }
+      )
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        windowsPrinters?: WindowsPrinterClientItem[]
+      } | null
+      if (json?.ok && Array.isArray(json.windowsPrinters)) {
+        setWindowsPrinters(json.windowsPrinters)
+        toast({
+          title: 'Đã cập nhật danh sách máy in Windows',
+          description: `Phát hiện ${json.windowsPrinters.length} máy in trong Windows Spooler.`,
+        })
+      }
+    } catch {
+      // ignore on static cloud
+    }
+  }, [toast])
+
   // ===== Đồng bộ Trạm POS Liên Kết với Điện thoại Quét mã & Hàng đợi Tự động in Shopee =====
   const pullStationHub = useCallback(async () => {
     try {
@@ -1504,11 +1558,13 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         ok?: boolean
         station?: typeof stationView
         recentShopeeOrders?: RecentShopeeOrderSummary[]
+        windowsPrinters?: WindowsPrinterClientItem[]
       } | null
       if (!json?.ok || !json.station) return
 
       setStationView(json.station)
       if (json.recentShopeeOrders) setRecentShopeeOrders(json.recentShopeeOrders)
+      if (Array.isArray(json.windowsPrinters)) setWindowsPrinters(json.windowsPrinters)
 
       // 1. Tiêu thụ sự kiện quét mã từ Điện thoại
       const pendingScans = (json.station.pendingScanEvents || []).filter(
@@ -3386,28 +3442,68 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
               </div>
 
               {/* 6. TÙY CHỌN CHỨNG TỪ, TỰ ĐỘNG IN BILL K80 & TỰ ĐỘNG IN ĐƠN SHOPEE */}
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
-                <label className="flex cursor-pointer items-center gap-2">
-                  <Checkbox
-                    checked={autoIssueInvoice}
-                    onCheckedChange={(v) => setAutoIssueInvoice(Boolean(v))}
-                  />
-                  <span>Tự lập Hóa đơn bán</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
-                  <Checkbox
-                    checked={printerConfig.autoPrintPosBill}
-                    onCheckedChange={(v) => updatePrinterConfig({ autoPrintPosBill: Boolean(v) })}
-                  />
-                  <span>Tự động in Bill K80</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 font-medium text-orange-700 dark:text-orange-400">
-                  <Checkbox
-                    checked={printerConfig.autoPrintShopeeOrder}
-                    onCheckedChange={(v) => updatePrinterConfig({ autoPrintShopeeOrder: Boolean(v) })}
-                  />
-                  <span>Tự in đơn Shopee</span>
-                </label>
+              <div className="space-y-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      checked={autoIssueInvoice}
+                      onCheckedChange={(v) => setAutoIssueInvoice(Boolean(v))}
+                    />
+                    <span>Tự lập Hóa đơn bán</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
+                    <Checkbox
+                      checked={printerConfig.autoPrintPosBill}
+                      onCheckedChange={(v) => updatePrinterConfig({ autoPrintPosBill: Boolean(v) })}
+                    />
+                    <span>Tự động in Bill K80</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 font-medium text-orange-700 dark:text-orange-400">
+                    <Checkbox
+                      checked={printerConfig.autoPrintShopeeOrder}
+                      onCheckedChange={(v) => updatePrinterConfig({ autoPrintShopeeOrder: Boolean(v) })}
+                    />
+                    <span>Tự in đơn Shopee</span>
+                  </label>
+                </div>
+
+                {/* Trạng thái máy in tự động ngầm trực quan ngay tại quầy */}
+                <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/60 pt-1.5 text-[11px]">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <Printer className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    <span className="truncate text-muted-foreground">
+                      Máy in tự động:{' '}
+                      <strong className="text-foreground">
+                        {activeSilentPrinterName
+                          ? `${activeSilentPrinterName} (In ngầm 0 hộp thoại)`
+                          : printerConfig.transport === 'lan_tcp'
+                            ? `LAN ${printerConfig.lanHost}:${printerConfig.lanPort}`
+                            : 'Khung in trình duyệt'}
+                      </strong>
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      data-compact-btn="true"
+                      onClick={() => void handleTestPrintPosBill()}
+                      className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    >
+                      In thử
+                    </button>
+                    <button
+                      type="button"
+                      data-compact-btn="true"
+                      onClick={() => {
+                        setPeripheralsTab('printer')
+                        setPeripheralsOpen(true)
+                      }}
+                      className="rounded border border-border bg-card px-2 py-0.5 font-medium text-[#0066CC] hover:bg-muted dark:text-sky-300"
+                    >
+                      Đổi máy in
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* 7. NÚT THANH TOÁN & XUẤT KHO (F9) — Dính cố định dưới đáy màn hình điện thoại */}
@@ -3958,8 +4054,11 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       <PosPeripheralsDialog
         open={peripheralsOpen}
         onOpenChange={setPeripheralsOpen}
+        initialTab={peripheralsTab}
         station={stationView}
         recentShopeeOrders={recentShopeeOrders}
+        windowsPrinters={windowsPrinters}
+        onRefreshWindowsPrinters={handleRefreshWindowsPrinters}
         printerConfig={printerConfig}
         onUpdatePrinterConfig={updatePrinterConfig}
         onRotatePairToken={handleRotatePairToken}

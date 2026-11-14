@@ -8,6 +8,8 @@ import {
   encodeShopeeSlip,
   ESC_POS_COMMANDS,
   removeVietnameseDiacritics,
+  renderReceiptPrintHtml,
+  renderShopeeSlipPrintHtml,
   uint8ToBase64,
 } from '../src/lib/escpos'
 import { isAllowedLanPrinterHost } from '../src/lib/peripheral-hub'
@@ -192,8 +194,52 @@ async function main() {
     'Bộ lọc IP máy in LAN chỉ cho phép RFC-1918 / Loopback, chặn tuyệt đối SSRF ra Internet & Cloud Metadata'
   )
 
+  const receiptHtml = renderReceiptPrintHtml(
+    {
+      code: 'DH261115-8888',
+      customerName: 'Nguyễn Minh Anh',
+      items: [{ sku: 'BM-DEC-COC-TRON', name: 'Cốc Thạch Cao Đa Năng', quantity: 2, price: 79000 }],
+      total: 158000,
+      paymentMethod: 'CASH',
+      cashReceived: 200000,
+      changeDue: 42000,
+    },
+    'K80'
+  )
+  assert(
+    receiptHtml.includes('<svg') &&
+      receiptHtml.includes('CỬA HÀNG &amp; KHO ƯU ĐÀM') &&
+      receiptHtml.includes('Nguyễn Minh Anh'),
+    'Render HTML cô lập POS Bill K80 (Iframe Clean Fallback) chứa đầy đủ mã vạch SVG CODE128 & dấu tiếng Việt'
+  )
+
+  const shopeeSlipHtml = renderShopeeSlipPrintHtml(
+    [
+      {
+        orderCode: 'DH261115-9999',
+        shopeeOrderSn: '261115SPX999',
+        hasFragile: true,
+        carrier: 'SPX Express',
+        trackingCode: 'SPXVN0688991122',
+        recipient: { name: 'Trần Thu Hà', phone: '09******12', address: 'Quận 3, TP.HCM' },
+        items: [{ sku: 'BM-DEC-COC-TRON', name: 'Cốc Thạch Cao Đa Năng', quantity: 1, price: 79000, fragile: true }],
+        total: 79000,
+        codAmount: 79000,
+      },
+    ],
+    'A6_LABEL',
+    'K80'
+  )
+  assert(
+    shopeeSlipHtml.includes('@page { size: 105mm 148mm;') &&
+      shopeeSlipHtml.includes('<svg') &&
+      shopeeSlipHtml.includes('HÀNG DỄ VỠ'),
+    'Render HTML cô lập Tem Vận Đơn Shopee A6 (105×148mm) chứa mã vạch SVG SPX & khung cảnh báo Hàng Dễ Vỡ'
+  )
+
   if (!process.argv.includes('--live')) {
     console.log(`\nHoàn tất kiểm thử Offline: ${passed} PASS, ${failed} FAIL.`)
+    await db.$disconnect()
     if (failed > 0) process.exit(1)
     return
   }
@@ -524,6 +570,115 @@ async function main() {
       await db.product.deleteMany({ where: { id: tempProductId } })
     }
   }
+
+  // -------------------------------------------------------------------------
+  // PHẦN 6: KIỂM THỬ IN TỰ ĐỘNG NGẦM WINDOWS SPOOLER (0 HỘP THOẠI — AN TOÀN 0 GIẤY/MỰC)
+  // -------------------------------------------------------------------------
+  console.log('\n[6/6] Kiểm thử Live Windows Spooler Silent Auto-Print (GDI+ Bitmap Dry-Run & PDF Spool)...')
+  const winListRes = await fetch(
+    `${BASE_URL}/api/peripherals?role=pos&stationId=${encodeURIComponent(testStationId)}&refreshPrinters=1`
+  )
+  const winListJson = (await winListRes.json()) as {
+    ok?: boolean
+    windowsPrinters?: Array<{ name: string; isDefault: boolean; isPhysical: boolean; isVirtual: boolean }>
+  }
+  const detectedPrinters = winListJson.windowsPrinters || []
+  const physicalPrinters = detectedPrinters.filter((p) => p.isPhysical)
+  assert(
+    winListRes.status === 200 && detectedPrinters.length >= 1,
+    `Quét danh sách máy in Windows Spooler thành công (${detectedPrinters.length} máy in, ${physicalPrinters.length} máy in vật lý: ${
+      physicalPrinters.map((p) => p.name).join(', ') || 'PDF/Virtual'
+    })`
+  )
+
+  const dryRunReceiptRes = await fetch(`${BASE_URL}/api/peripherals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'WINDOWS_SPOOLER_PRINT',
+      jobType: 'POS_RECEIPT',
+      paperSize: 'K80',
+      dryRun: true,
+      receipt: {
+        code: 'DH261115-SILENT01',
+        invoiceCode: 'XK261115-01',
+        customerName: 'Nguyễn Minh Anh',
+        items: [{ sku: 'BM-DEC-COC-TRON', name: 'Cốc Thạch Cao Đa Năng', quantity: 2, price: 79000 }],
+        total: 158000,
+        paymentMethod: 'CASH',
+        cashReceived: 200000,
+        changeDue: 42000,
+      },
+    }),
+  })
+  const dryRunReceiptJson = (await dryRunReceiptRes.json()) as {
+    ok?: boolean
+    mode?: string
+    bytesGenerated?: number
+    pagesPrinted?: number
+    error?: string
+  }
+  assert(
+    dryRunReceiptRes.status === 200 &&
+      dryRunReceiptJson.ok === true &&
+      dryRunReceiptJson.mode === 'WINDOWS_DRY_RUN' &&
+      Number(dryRunReceiptJson.bytesGenerated) > 1000,
+    `Render GDI+ Hóa đơn POS K80 tiếng Việt + CODE128 Vector ngầm thành công (${dryRunReceiptJson.bytesGenerated} bytes PNG, 0 hộp thoại)`,
+    dryRunReceiptJson.error
+  )
+
+  const pdfSpoolBatchRes = await fetch(`${BASE_URL}/api/peripherals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'WINDOWS_SPOOLER_PRINT',
+      jobType: 'SHOPEE_BATCH_SLIPS',
+      shopeeFormat: 'A6_LABEL',
+      paperSize: 'K80',
+      testPdfSpool: true,
+      slips: [
+        {
+          orderCode: 'DH261115-SPX01',
+          shopeeOrderSn: '261115SPX001',
+          hasFragile: true,
+          carrier: 'SPX Express',
+          trackingCode: 'SPXVN0688991122',
+          recipient: { name: 'Trần Thu Hà', phone: '09******12', address: 'Quận 3, TP.HCM' },
+          items: [{ sku: 'BM-DEC-COC-TRON', name: 'Cốc Thạch Cao Đa Năng', quantity: 1, price: 79000, fragile: true }],
+          total: 79000,
+          codAmount: 79000,
+        },
+        {
+          orderCode: 'DH261115-SPX02',
+          shopeeOrderSn: '261115SPX002',
+          hasFragile: false,
+          carrier: 'GHN',
+          trackingCode: 'GHNVN9988776655',
+          recipient: { name: 'Lê Hoàng Nam', phone: '09******88', address: 'Cầu Giấy, Hà Nội' },
+          items: [{ sku: 'BM-DEC-OVAL-DEN', name: 'Khay Thạch Cao Oval Đen', quantity: 2, price: 59000 }],
+          total: 118000,
+          codAmount: 0,
+        },
+      ],
+    }),
+  })
+  const pdfSpoolBatchJson = (await pdfSpoolBatchRes.json()) as {
+    ok?: boolean
+    mode?: string
+    printerName?: string
+    pagesPrinted?: number
+    bytesGenerated?: number
+    error?: string
+  }
+  assert(
+    pdfSpoolBatchRes.status === 200 &&
+      pdfSpoolBatchJson.ok === true &&
+      (pdfSpoolBatchJson.mode === 'WINDOWS_PDF_SPOOL_TEST' || pdfSpoolBatchJson.mode === 'WINDOWS_DRY_RUN') &&
+      pdfSpoolBatchJson.pagesPrinted === 2 &&
+      Number(pdfSpoolBatchJson.bytesGenerated) > 1500,
+    `Spool ngầm 2 trang Tem Vận Đơn Shopee A6 qua Windows Spooler (${pdfSpoolBatchJson.printerName}, mode=${pdfSpoolBatchJson.mode}, ${pdfSpoolBatchJson.bytesGenerated} bytes, 0 giấy thật)`,
+    pdfSpoolBatchJson.error
+  )
 
   console.log('\n======================================================================')
   console.log(`📊 KẾT QUẢ CUỐI CÙNG: ${passed} PASS / ${failed} FAIL`)
