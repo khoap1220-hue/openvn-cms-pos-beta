@@ -1,0 +1,23 @@
+{
+  "deployment_id": "beta-openvn-cms-pos-backe-4d7f1a",
+  "project_name": "openvn-cms-pos-backend",
+  "access_mode": "open",
+  "passcodes_count": 0,
+  "ttl_hours": 0.0,
+  "expires_at": "",
+  "rate_limit_rpm": 120,
+  "daily_quota_cap": 85000,
+  "feedback_widget_injected": true,
+  "edge_worker_emitted": false,
+  "nextjs_prerender_staged": true,
+  "base_path": "/openvn-cms-pos-beta",
+  "required_worker_env_vars": {
+    "BETA_PROJECT_NAME": "openvn-cms-pos-backend",
+    "BETA_DEPLOYMENT_ID": "beta-openvn-cms-pos-backe-4d7f1a",
+    "BETA_ACCESS_MODE": "open",
+    "BETA_EXPIRES_AT": "",
+    "BETA_RATE_LIMIT_RPM": "120",
+    "BETA_DAILY_QUOTA_CAP": "85000",
+    "note_secret": "Pass `BETA_PASSCODES` via encrypted secret sync, never commit plaintext!"
+  }
+}
