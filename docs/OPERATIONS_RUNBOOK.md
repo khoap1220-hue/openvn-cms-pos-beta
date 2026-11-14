@@ -1,13 +1,14 @@
 # Sổ Tay Vận Hành & Khai Thác Hệ Thống (`docs/OPERATIONS_RUNBOOK.md`)
 
 ## 1. Kiến trúc Dịch vụ khi Vận hành
-Hệ thống **OPENVN · Ưu Đàm Suite (v2.6.0)** vận hành gồm 2 tiến trình song song:
-1. **CMS, POS & Public Blog Server (Next.js 16 Standalone / App Router)**: chạy tại cổng `3010`:
+Hệ thống **OPENVN · Ưu Đàm Suite (v2.6.0)** vận hành gồm 3 tiến trình song song:
+1. **CMS, POS & Public Blog Server (Next.js 16.4.3 Standalone / App Router)**: chạy tại cổng `3010`:
    - `http://localhost:3010/` — Trung tâm Quản trị CMS & Hạch toán Nội bộ
    - `http://localhost:3010/pos` (và `/store`) — Quầy POS Bán tại kho toàn màn hình (hỗ trợ cả máy tính bảng / thiết bị trong cùng mạng LAN `0.0.0.0:3010`)
    - `http://localhost:3010/blog` — Chuyên trang Blog & Tin tức công khai (*Ưu Đàm Tạp Bút*)
    - `http://localhost:3010/login` — Cổng Đăng nhập Quản trị viên (tự động điều hướng về trang đích `?next=...`)
 2. **Realtime Event Bus (Socket.io Server)**: chạy tại cổng `3013` (`http://localhost:3013`), phát sóng tức thì các sự kiện đơn hàng, vận đơn, biến động số dư SePay, tồn kho và tin nhắn Zalo; tự động fallback sang polling 10 giây nếu mất kết nối WebSocket.
+3. **Shopee Seller Sync Daemon (Python HTTP Bridge)**: chạy tại cổng `51898` (`http://localhost:51898/shopee/status`), đồng bộ danh mục/hàng đợi 2 chiều với shop `thaimy1605` (`197195817`) và gia hạn phiên qua Chrome CDP cổng `9222`.
 
 ---
 
@@ -16,7 +17,7 @@ Hệ thống **OPENVN · Ưu Đàm Suite (v2.6.0)** vận hành gồm 2 tiến t
 ### A. Khởi động 1-Click trên Windows
 - **Chế độ Vận hành Thực tế (Production Standalone — Khuyên dùng tại cửa hàng)**:
   - Nhấp đúp `run-production.bat` (hoặc chạy `powershell -ExecutionPolicy Bypass -File .\start-cms.ps1 -Production`).
-  - Tự động ánh xạ đường dẫn tuyệt đối tới `db/custom.db`, khởi động Realtime Service (`:3013`), đóng gói bản build nếu chưa có và chạy `.next/standalone/server.js` tốc độ cao.
+  - Tự động ánh xạ đường dẫn tuyệt đối tới `db/custom.db`, khởi động Realtime Service (`:3013`) và Shopee Daemon (`:51898`), đóng gói bản build nếu chưa có, đồng bộ sang `.runtime/standalone` và chạy `node .runtime/standalone/server.js` tốc độ cao.
 - **Chế độ Phát triển / Tinh chỉnh giao diện (Development)**:
   - Nhấp đúp `run-cms.bat` (hoặc chạy `powershell -ExecutionPolicy Bypass -File .\start-cms.ps1`).
 
@@ -30,10 +31,11 @@ Container tự động kích hoạt `HEALTHCHECK` định kỳ 30 giây kiểm t
 ```bash
 npm run ops:health
 ```
-Lệnh `scripts/ops-healthcheck.mjs` kiểm định 3 tầng:
+Lệnh `scripts/ops-healthcheck.mjs` kiểm định 4 tầng:
 1. **SQLite Database (`db/custom.db`)**: Tồn tại, đọc được và đúng chuẩn binary header `SQLite format 3`.
 2. **Realtime Event Bus (`GET :3013/health`)**: Phản hồi `200 OK`, báo cáo uptime và số kết nối trực tuyến.
-3. **CMS & API Gateway (`GET :3010/api`)**: Phản hồi `200 OK` (`status: 'healthy'`, `version: '2.6.0'`) kèm số liệu sản phẩm, đơn hàng, kho và kênh bán trực tiếp.
+3. **Shopee Sync Daemon (`GET :51898/shopee/status`)**: Phản hồi `200 OK`, báo cáo `shop=thaimy1605 [197195817]` và `dlq=0`.
+4. **CMS & API Gateway (`GET :3010/api`)**: Phản hồi `200 OK` (`status: 'healthy'`, `version: '2.6.0'`) kèm số liệu sản phẩm, đơn hàng, kho và kênh bán trực tiếp.
 
 ---
 

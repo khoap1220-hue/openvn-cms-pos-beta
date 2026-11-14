@@ -2,7 +2,7 @@
 **Dự Án**: OPENVN · Ưu Đàm Suite (Multi-Channel Omnisales & Zero-Storage CDN)  
 **Tệp Tài Liệu**: `HANDOVER_MAINTENANCE.md`  
 **Phiên Bản**: v2.6.0 Production  
-**Gian Hàng Trọng Tâm**: Shop Shopee `thaimy1605` (Shop ID: `288333857`, 17 SKU Bất Biến)  
+**Gian Hàng Trọng Tâm**: Shop Shopee `thaimy1605` (Shop ID: `197195817`, 18 SKU Biến Thể Bất Biến)  
 **Tiêu Chuẩn Tuân Thủ**: Quy tắc Bắt buộc Triển khai Free Beta & Chuẩn Kỹ sư Senior Human Engineer (TIER 5)
 
 ---
@@ -11,7 +11,7 @@
 
 Hệ thống OPENVN · Ưu Đàm Suite đã được đóng gói thành cụm 3 phân hệ tự chủ, hỗ trợ vận hành 24/7 cả trên máy chủ cục bộ Windows/Linux lẫn nền tảng điện toán đám mây Docker / Render / GitHub Pages Free Beta:
 
-- **Phân Hệ 1 (Fullstack CMS & POS)**: Next.js 16.1.1 Standalone Server (Node.js 22), cổng mặc định `3010` (hoặc `PORT=3000` trong container). Tích hợp L1 RAM Cache, hỗ trợ CSDL kép SQLite WAL (`db/custom.db`) và Supabase PostgreSQL (`DATABASE_URL`).
+- **Phân Hệ 1 (Fullstack CMS & POS)**: Next.js 16.4.3 Standalone Server (Node.js 22), cổng mặc định `3010` (hoặc `PORT=3000` trong container). Tích hợp L1 RAM Cache, hỗ trợ CSDL kép SQLite WAL (`db/custom.db`) và Supabase PostgreSQL (`DATABASE_URL`).
 - **Phân Hệ 2 (Realtime WebSocket Event Bus)**: Socket.io Standalone Service (`mini-services/realtime`), cổng mặc định `3013` (hoặc `REALTIME_PORT=3003`). Phát sóng thời gian thực cho các sự kiện đơn hàng, vận đơn, tồn kho và thay đổi danh mục sản phẩm.
 - **Phân Hệ 3 (Shopee Seller Sync Daemon 24/7)**: Kịch bản Python 3 (`scripts/shopee_seller_sync.py`), cổng HTTP Bridge `51898` kết nối Chrome DevTools Protocol cổng `9222` (`launch-chrome-shopee.bat`). Quản lý hàng đợi đệm Spool Queue 2 chiều (`.shopee_inbound_queue.json`) và cổng upload ảnh Zero-Storage Media CDN Pointer (`/shopee/upload-image`).
 - **Bản Demo Live 24/7 (GitHub Pages CDN `$0`)**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/`
@@ -30,7 +30,7 @@ Dự án cung cấp đầy đủ các kịch bản khởi chạy 1-Click độc 
    :: hoặc: run-production.bat
    :: trên Linux/macOS: ./start.sh
    ```
-   *Cơ chế ngầm*: Gọi `powershell -NoProfile -ExecutionPolicy Bypass -File .\start-cms.ps1 -Production` (hoặc `./start.sh` trên POSIX). Tự động kiểm tra `node_modules`, sinh Prisma client, khởi động ngầm Realtime Bus (:3013) và Shopee Daemon (:51898), biên dịch standalone nếu chưa có và khởi chạy `node .next/standalone/server.js` tại cổng `3010`.
+   *Cơ chế ngầm*: Gọi `powershell -NoProfile -ExecutionPolicy Bypass -File .\start-cms.ps1 -Production` (hoặc `./start.sh` trên POSIX). Tự động kiểm tra `node_modules`, sinh Prisma client, khởi động ngầm Realtime Bus (:3013) và Shopee Daemon (:51898), biên dịch standalone nếu chưa có, đồng bộ sang Blue-Green Runtime (`.runtime/standalone`) và khởi chạy `node .runtime/standalone/server.js` tại cổng `3010`.
 2. **Nâng Cấp Không Gián Đoạn Trên Nhánh Chính (`Safe Upgrade on Main`)**:
    ```bash
    # Diễn tập kiểm tra an toàn (Dry-Run — không ghi DB):
@@ -134,7 +134,7 @@ Mọi phản hồi và dữ liệu nghiệm thu được lưu trữ tập trung 
 1. **Hành Động `SNAPSHOT` (Trước khi chạy test)**:
    - Gửi yêu cầu: `POST /api/ledger/test-guard` `{ "action": "SNAPSHOT" }`.
    - Hệ thống lưu trạng thái hiện tại vào khóa `beta_test_snapshot_v1`.
-   - **Khóa Chuẩn Bất Biến (Canonical Locking)**: 17 sản phẩm thật của shop `thaimy1605` được neo cứng thông số tồn kho (`307/307`) và giá bán, không bao giờ bị đóng băng dữ liệu lỗi.
+   - **Khóa Chuẩn Bất Biến (Canonical Locking)**: 18 SKU biến thể thật của shop `thaimy1605` được neo cứng thông số tồn kho CMS (`0/0` — tương ứng 18 phân loại đang ẩn trên sàn khi chưa nhập kho CMS) và giá bán chuẩn, không bao giờ bị đóng băng dữ liệu lỗi.
 2. **Hành Động `RESTORE_AND_CLEAN` (Ngay sau khi test xong)**:
    - Gửi yêu cầu: `POST /api/ledger/test-guard` `{ "action": "RESTORE_AND_CLEAN" }`.
    - Kích hoạt **Quy trình dọn dẹp 5 nhóm Topo (5-Group Topological Cascade Teardown)**:
@@ -143,19 +143,19 @@ Mọi phản hồi và dữ liệu nghiệm thu được lưu trữ tập trung 
      - Nhóm 3 (Đơn hàng/Thẻ kho): `OrderItem` -> `Order` -> `StockMovement`.
      - Nhóm 4 (BOM/Tồn kho): `BomComponent` -> `ChannelListing` -> `WarehouseStock` -> `Product` (bảo vệ danh sách trắng `PROTECTED_REAL_SKUS`).
      - Nhóm 5 (Gốc/Tiếp thị): `Customer` -> `Partner` -> `Campaign` -> `Voucher`.
-   - Tự động dọn sạch Spool Queue (`.shopee_inbound_queue.json`, `.shopee_dlq.json`).
-   - Phục hồi 100% thuộc tính của 17 sản phẩm shop `thaimy1605` trên cả Supabase PostgreSQL và SQLite cục bộ (`db/custom.db`).
+   - Tự động dọn sạch Spool Queue (`.shopee_inbound_queue.json`, `.shopee_dlq.json`) và cô lập đơn kiểm thử khỏi vòng lặp Autopilot qua `src/lib/synthetic-filter.ts`.
+   - Phục hồi 100% thuộc tính của 18 SKU biến thể shop `thaimy1605` trên cả Supabase PostgreSQL và SQLite cục bộ (`db/custom.db`).
 
 ### 4.2 Bộ Hook Bảo Vệ Tiến Trình Chống Crash (`registerProcessGuard`)
 Module `scripts/test_guard_helper.ts` tích hợp hook chặn mọi sự kiện ngắt đột ngột (`SIGINT`, `SIGTERM`, `uncaughtException`, `unhandledRejection`, `process.exit`). Kể cả khi tiến trình test bị tắt cưỡng bức, lệnh dọn dẹp `RESTORE_AND_CLEAN` vẫn luôn được kích hoạt để đảm bảo dữ liệu không bao giờ bị ô nhiễm.
 
 ### 4.3 Chuẩn Đối Soát Baseline 24 Bảng CSDL Cốt Lõi (`db/baseline-counts.json`)
 Tệp `db/baseline-counts.json` lưu trữ định lượng chuẩn xác của CSDL sản xuất sạch (Clean Operational Baseline):
-- `Product`: 17 (17 SKU chuẩn của shop `thaimy1605`)
+- `Product`: 18 (18 SKU biến thể chuẩn của shop `thaimy1605`)
 - `Category`: 1
 - `Order`: 3 | `OrderItem`: 2 | `Customer`: 3 | `SalesInvoice`: 3
-- `Warehouse`: 1 | `WarehouseStock`: 17
-- `StockMovement`: 4 | `AccountingPeriod`: 5 | `Channel`: 10 | `ChannelListing`: 40
+- `Warehouse`: 1 | `WarehouseStock`: 18
+- `StockMovement`: 0 | `AccountingPeriod`: 5 | `Channel`: 10 | `ChannelListing`: 51 | `AppSetting`: 21
 - `IntegrationCredential`: 14 | `ApiKey`: 1 | `WebhookEndpoint`: 2 | `AutomationSetting`: 7 | `OrderEvent`: 12
 - Các bảng không phát sinh rác: `PurchaseInvoice` (0), `Voucher` (0), `BomComponent` (0), `Partner` (0), `Shipment` (0), `AfterSalesCase` (0).
 
@@ -171,27 +171,28 @@ node scripts/check-counts.mjs
 
 Mọi kỹ sư hoặc hệ thống CI/CD trước khi bàn giao và đưa phiên bản mới vào phục vụ đều phải kiểm tra đạt 100% các tiêu chí sau:
 
-- [ ] **Kiểm tra biên dịch TypeScript không lỗi**:
+- [x] **Kiểm tra biên dịch TypeScript & Linter không lỗi**:
   ```bash
   npx tsc --noEmit
+  npm run lint
   ```
-  *(Kỳ vọng: Thoát mã 0, 0 lỗi cú pháp/kiểu dữ liệu).*
-- [ ] **Kiểm tra độ toàn vẹn 24 bảng CSDL cốt lõi**:
+  *(Kỳ vọng: Thoát mã 0, 0 lỗi cú pháp/kiểu dữ liệu, 0 cảnh báo).*
+- [x] **Kiểm tra độ toàn vẹn 24 bảng CSDL cốt lõi**:
   ```bash
   node scripts/check-counts.mjs
   ```
   *(Kỳ vọng: 24/24 bảng MATCH, Core Parity Status: 100% MATCH (PASS)).*
-- [ ] **Kiểm tra sức khỏe 4 tầng dịch vụ**:
+- [x] **Kiểm tra sức khỏe 4 tầng dịch vụ**:
   ```bash
   node scripts/ops-healthcheck.mjs
   ```
   *(Kỳ vọng: Cả 4 dịch vụ SQLite, Realtime Bus, Shopee Daemon, CMS Gateway đều báo OK).*
-- [ ] **Kiểm toán bất biến 17 sản phẩm shop thaimy1605 (Delta = 0)**:
+- [x] **Kiểm toán bất biến 18 sản phẩm shop thaimy1605 (Delta = 0)**:
   ```bash
   npx tsx -e "import { assert13RealProductsInvariant } from './scripts/test_guard_helper'; assert13RealProductsInvariant().then(r => console.log('PASS:', r.summary));"
   ```
-  *(Kỳ vọng: stockDelta === 0 && priceDelta === 0).*
-- [ ] **Xác nhận trạng thái Test-Guard sạch hoàn toàn**:
+  *(Kỳ vọng: `Kiểm toán 18 sản phẩm shop thaimy1605: ĐẠT 100% (DELTA = 0)`, `stockDelta === 0 && priceDelta === 0`).*
+- [x] **Xác nhận trạng thái Test-Guard sạch hoàn toàn**:
   ```bash
   curl -s http://127.0.0.1:3010/api/ledger/test-guard
   ```

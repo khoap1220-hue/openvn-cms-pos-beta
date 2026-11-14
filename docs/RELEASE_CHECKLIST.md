@@ -99,31 +99,32 @@ Chạy bằng lệnh: `npm run verify` / `node --experimental-strip-types script
 ## 4. Cổng Kiểm Tra Toàn Vẹn CSDL Sản Xuất & Chống Rò Rỉ (R7 Parity Audit)
 Lệnh kiểm tra: `node scripts/check-counts.mjs`
 - [x] **File sao lưu CSDL**: `db/custom.db.bak` đã tạo an toàn từ Milestone M1.
-- [x] **Khớp 100% toàn bộ 24 bảng dữ liệu nghiệp vụ cốt lõi (Delta = 0)**:
-  - `Product`: 22/22 MATCH
-  - `Category`: 4/4 MATCH
-  - `Order`: 174/174 MATCH
-  - `OrderItem`: 229/229 MATCH
-  - `Customer`: 35/35 MATCH
-  - `SalesInvoice`: 10/10 MATCH
-  - `PurchaseInvoice`: 4/4 MATCH
-  - `StockMovement`: 259/259 MATCH
-  - `Warehouse`: 4/4 MATCH
-  - `WarehouseStock`: 32/32 MATCH
-  - `Voucher`: 4/4 MATCH
-  - `BomComponent`: 5/5 MATCH
+- [x] **Khớp 100% toàn bộ 24 bảng dữ liệu nghiệp vụ cốt lõi (`db/baseline-counts.json`, Delta = 0)**:
+  - `Product`: 18/18 MATCH
+  - `Category`: 1/1 MATCH
+  - `Order`: 3/3 MATCH
+  - `OrderItem`: 2/2 MATCH
+  - `Customer`: 3/3 MATCH
+  - `SalesInvoice`: 3/3 MATCH
+  - `PurchaseInvoice`: 0/0 MATCH
+  - `StockMovement`: 0/0 MATCH
+  - `Warehouse`: 1/1 MATCH
+  - `WarehouseStock`: 18/18 MATCH
+  - `Voucher`: 0/0 MATCH
+  - `BomComponent`: 0/0 MATCH
   - `AccountingPeriod`: 5/5 MATCH
-  - `Partner`: 1/1 MATCH
+  - `Partner`: 0/0 MATCH
   - `Channel`: 10/10 MATCH
-  - `ChannelListing`: 170/170 MATCH
-  - `Shipment`: 85/85 MATCH
-  - `AfterSalesCase`: 2/2 MATCH
-  - `AppSetting`: 16/16 MATCH
+  - `ChannelListing`: 51/51 MATCH
+  - `Shipment`: 0/0 MATCH
+  - `AfterSalesCase`: 0/0 MATCH
+  - `AppSetting`: 21/21 MATCH
   - `IntegrationCredential`: 14/14 MATCH
   - `ApiKey`: 1/1 MATCH
   - `WebhookEndpoint`: 2/2 MATCH
-  - `AutomationSetting`: 6/6 MATCH
-  - `OrderEvent`: 395/395 MATCH
+  - `AutomationSetting`: 7/7 MATCH
+  - `OrderEvent`: 12/12 MATCH
+- [x] **Master Production Suite (`npm run test:master`) & Loyalty Suite (`npm run test:loyalty`)**: Đạt **139/139 PASS (100%)** và **11/11 PASS (100%)**, cô lập hoàn toàn đơn kiểm thử qua `src/lib/synthetic-filter.ts`.
 - [x] **Xác nhận không rò rỉ dữ liệu test**: Sau khi chạy xong toàn bộ các bộ test tự động, 24 bảng cốt lõi giữ nguyên số lượng bản ghi.
 
 ---

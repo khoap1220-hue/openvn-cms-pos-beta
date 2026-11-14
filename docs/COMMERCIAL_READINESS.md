@@ -5,7 +5,7 @@
 ## 1. Năng Lực Thương Mại Đã Sẵn Sàng Khai Thác
 
 1. **Bán Hàng Đa Kênh & Quầy POS Tại Kho (`/pos`, `/store`, `OrdersView`)**:
-   - Đầy đủ danh mục **22 sản phẩm & bộ quà tặng** (Nến bấc gỗ, Trầm hương, Thạch cao vi khoáng *An Nhiên Thạch*, Combo quà tặng kèm định mức BOM tự động trừ kho thành phần).
+   - Đầy đủ danh mục chuẩn **18 SKU biến thể sản phẩm** của gian hàng `thaimy1605` (tồn kho CMS đầu kỳ `0/0`, liên kết 1-1 với 18 phân loại trên Shopee, sẵn sàng mở rộng không giới hạn SP lẻ và Combo quà tặng kèm định mức BOM tự động trừ kho thành phần).
    - Xử lý đơn hàng đa sàn (*Shopee, TikTok Shop, Lazada, Tiki, Zalo OA, Facebook, Website, POS tại kho*) với hạch toán phí sàn tự động (`platformFeePct` / `platformFee`).
    - Hỗ trợ quét mã vạch `CODE128`, in tem nhãn sản phẩm, in phiếu gửi hàng khổ `A6` hàng loạt và in hóa đơn nhiệt `K80` (ESC/POS).
 

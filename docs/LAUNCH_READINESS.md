@@ -6,14 +6,15 @@
 
 | Hạng mục Kiểm định | Cổng Kiểm chứng | Kết quả | Ghi chú Vận hành |
 | :--- | :--- | :---: | :--- |
-| **Kiểu tĩnh TypeScript** | `npx tsc --noEmit` | 🟢 **PASS** (`0 errors`) | Tương thích hoàn toàn Next.js 16.1.1 & React 19 |
+| **Kiểu tĩnh TypeScript** | `npx tsc --noEmit` | 🟢 **PASS** (`0 errors`) | Tương thích hoàn toàn Next.js 16.4.3 & React 19 |
 | **Chuẩn mã nguồn ESLint** | `npm run lint` | 🟢 **PASS** (`0 errors, 0 warnings`) | Toàn bộ `src/` sạch 100% cảnh báo |
 | **Chuẩn Next.js 16 Proxy** | `src/proxy.ts` | 🟢 **PASS** | Đã nâng cấp từ `middleware.ts` sang `proxy.ts`, mở luồng tài nguyên tĩnh & trang công khai |
-| **Đóng gói Production** | `npm run build` | 🟢 **PASS** | Standalone bundle `.next/standalone/server.js` + static + public assets |
+| **Đóng gói Production** | `npm run build` | 🟢 **PASS** | Standalone bundle `.next/standalone` đồng bộ sang `.runtime/standalone/server.js` |
 | **Toàn vẹn Sổ kho (`StockMovement`)** | `npm run test:chain` | 🟢 **PASS** | Chuỗi biến động kho khớp 100% tồn kho thực tế |
+| **Master Production Suite** | `npm run test:master` | 🟢 **PASS** (`139/139`) | Bao phủ Fast Write L1 Cache, Zero-Storage CDN, 24 bảng CSDL & Test-Guard `thaimy1605` |
 | **Master E2E Suite (8 Bộ)** | `npm run test:e2e` | 🟢 **PASS** (`8/8 Suites`) | Bao phủ R1–R7, 21 kịch bản thực tế & 113 kiểm định Auto Social |
 | **Hội viên & Chiến dịch CRM** | `npm run test:loyalty` | 🟢 **PASS** (`11/11`) | Tích/tiêu điểm, 4 hạng thẻ, sóng ưu đãi theo sản phẩm |
-| **Kiểm tra Sức khỏe Trực tuyến** | `npm run ops:health` | 🟢 **PASS** (`3/3 Green`) | Kiểm tra SQLite header + Realtime `:3013` + API Gateway `:3010` |
+| **Kiểm tra Sức khỏe Trực tuyến** | `npm run ops:health` | 🟢 **PASS** (`4/4 Green`) | Kiểm tra SQLite header + Realtime `:3013` + Shopee Sync `:51898` + API Gateway `:3010` |
 
 ---
 

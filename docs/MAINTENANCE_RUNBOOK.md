@@ -124,7 +124,7 @@ node scripts/backup-pre-autosocial.mjs
    ```bash
    curl -X POST http://127.0.0.1:3010/api/ledger/test-guard -H "Content-Type: application/json" -d "{\"action\":\"SNAPSHOT\"}"
    ```
-   - Xác nhận phản hồi: `{"ok": true, "session": "beta_test_snapshot_v1"}`. Tồn kho 17 sản phẩm thật của shop `thaimy1605` được đóng băng thành chuẩn bất biến.
+   - Xác nhận phản hồi: `{"ok": true, "session": "beta_test_snapshot_v1"}`. Tồn kho 18 SKU biến thể thật của shop `thaimy1605` (`0/0`) được đóng băng thành chuẩn bất biến.
 
 ---
 
@@ -212,12 +212,12 @@ node scripts/ops-healthcheck.mjs
    - Độ trễ phản hồi (Latency) < 50ms.
 3. **Tầng 3 — Shopee Seller Sync Daemon (`GET :51898/shopee/status`)**:
    - HTTP Status: `200 OK`.
-   - Phản hồi chứa: `status: "ok"` hoặc `alive: true`, `shopId: "288333857"`, `username: "thaimy1605"`.
+   - Phản hồi chứa: `ok: true`, `shopId: "197195817"`, `username: "thaimy1605"`.
    - Hàng đợi lỗi Dead Letter Queue (`dlqCount`): `0`.
 4. **Tầng 4 — CMS Standalone & API Gateway (`GET :3010/api`)**:
    - HTTP Status: `200 OK`.
    - Phản hồi: `status: "healthy"`, `version: "2.6.0"`.
-   - Số liệu metric hoạt động đầy đủ (`activeProducts >= 17`, `activeWarehouses >= 1`).
+   - Số liệu metric hoạt động đầy đủ (`activeProducts >= 18`, `activeWarehouses >= 1`).
 
 ---
 
@@ -282,7 +282,7 @@ Gọi điểm cuối Test-Guard với hành động phục hồi vô điều ki�
 ```bash
 curl -s -X POST http://127.0.0.1:3010/api/ledger/test-guard -H "Content-Type: application/json" -d "{\"action\":\"RESTORE_AND_CLEAN\"}"
 ```
-*Ghi chú*: Điểm cuối này kích hoạt cơ chế 5-Group Topological Cascade Teardown, dọn sạch 100% bản ghi rác và phục hồi nguyên vẹn thuộc tính tồn kho (`307/307`) và giá bán của 17 sản phẩm thật của shop `thaimy1605`.
+*Ghi chú*: Điểm cuối này kích hoạt cơ chế 5-Group Topological Cascade Teardown, dọn sạch 100% bản ghi rác và phục hồi nguyên vẹn thuộc tính tồn kho CMS (`0/0`) và giá bán của 18 SKU biến thể thật của shop `thaimy1605`.
 
 #### Bước 5: Khởi Động Lại Hệ Thống Standalone
 Kích hoạt bộ khởi chạy 1-Click:
@@ -301,7 +301,7 @@ Kiểm tra bất biến chi tiết SKU:
 ```bash
 npx tsx -e "import { assert13RealProductsInvariant } from './scripts/test_guard_helper'; assert13RealProductsInvariant().then(r => console.log('PASS:', r.summary));"
 ```
-*Yêu cầu bắt buộc*: In ra `🛡️ [INVARIANT AUDIT] Kiểm toán 13 sản phẩm shop thaimy1605: ĐẠT 100% (DELTA = 0)`.
+*Yêu cầu bắt buộc*: In ra `Kiểm toán 18 sản phẩm shop thaimy1605: ĐẠT 100% (DELTA = 0)`.
 
 #### Bước 7: Mở Lại Luồng Đồng Bộ Shopee
 Sau khi toàn bộ dịch vụ đã xanh (All Green):
