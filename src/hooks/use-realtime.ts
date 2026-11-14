@@ -51,10 +51,22 @@ function stopPolling() {
   pollTimer = null
 }
 
+function isPrivateLanHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local')) return true
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname)
+  if (!m) return false
+  const a = Number(m[1])
+  const b = Number(m[2])
+  if (a === 10 || a === 127) return true
+  if (a === 192 && b === 168) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  return false
+}
+
 function isRemoteTunnel(): boolean {
   if (typeof window === 'undefined') return false
   if (window.location.port === '81') return false
-  return window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+  return !isPrivateLanHost(window.location.hostname)
 }
 
 function resolveSocketUrl(): string {

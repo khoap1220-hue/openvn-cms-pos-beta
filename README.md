@@ -1,4 +1,4 @@
-# OPENVN · Ưu Đàm Suite (`v2.6.0`)
+# OPENVN · Ưu Đàm Suite (`v2.7.0`)
 
 Hệ thống **CMS Quản Lý Bán Hàng Đa Kênh · Quầy POS Bán Tại Kho · Tiếp Thị Tự Động Auto Social AI · Hóa Đơn Điện Tử GTGT · Đồng Bộ Shopee 24/7** dành cho gian hàng **Ưu Đàm / Bơ Mộc (`thaimy1605`)**.
 
@@ -18,7 +18,8 @@ Hệ thống **CMS Quản Lý Bán Hàng Đa Kênh · Quầy POS Bán Tại Kho 
 
 Các phân hệ giao diện chính:
 - `http://localhost:3010/` — Trung tâm Quản trị CMS (21 phân hệ nghiệp vụ, Buồng lái AI, Hạch toán P&L 5 tầng, Kênh bán đa sàn, Auto Social).
-- `http://localhost:3010/pos` — Quầy thu ngân POS bán tại kho (quét mã vạch `F2`, tìm kiếm `F3`, thanh toán `F9`, in nhiệt ESC/POS K80, VietQR/SePay).
+- `http://localhost:3010/pos` — Quầy thu ngân POS bán tại kho (súng mã vạch USB/Bluetooth HID toàn cục, tự động in Bill K80 LAN `:9100` / WebUSB / WebSerial / mở két RJ11, tự động in đơn Shopee A6 / K80, VietQR/SePay).
+- `http://localhost:3010/pos/scanner` — Tay quét mã vạch & bấm tính tiền từ xa trên Điện thoại kết nối trực tiếp với Máy POS đang mở qua Wi-Fi LAN (`?s=<stationId>&t=<pairToken>`).
 - `http://localhost:3010/blog` — Chuyên trang Blog công khai chuẩn SEO.
 - `http://localhost:3010/store` — Gian hàng mẫu trực tuyến.
 
@@ -79,6 +80,9 @@ npm run test:e2e
 # 7. Kiểm thử Nhập cURL / Chrome Extension Shopee & Xử lý Bất đồng bộ khi Mất Liên Kết
 npx tsx scripts/test-shopee-curl-and-extension.ts --live
 npx tsx scripts/test-shopee-async-disconnection.ts --live
+
+# 8. Kiểm thử Ngoại vi POS, Điện thoại Quét mã & Tự động In Bill / Đơn Shopee
+npx tsx scripts/test-pos-peripherals-and-autoprint.ts --live
 ```
 
 ---

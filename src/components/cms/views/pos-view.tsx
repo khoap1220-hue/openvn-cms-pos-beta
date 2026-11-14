@@ -15,6 +15,7 @@ import {
   Crown,
   FileText,
   History,
+  ImageUp,
   LayoutGrid,
   List,
   Loader2,
@@ -28,6 +29,7 @@ import {
   Search,
   Share2,
   ShoppingBag,
+  Smartphone,
   Sparkles,
   Store,
   Trash2,
@@ -42,7 +44,26 @@ import {
 
 import { apiGet, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
-import { printReceipt } from '@/lib/escpos'
+import {
+  loadPrinterConfig,
+  type PeripheralPrinterConfig,
+  printReceipt,
+  printShopeeOrderSlip,
+  savePrinterConfig,
+  type ShopeeThermalSlipInput,
+} from '@/lib/escpos'
+import {
+  decodeBarcodeFromImageFile,
+  detectBarcodeUniversal,
+  playPosBeep,
+} from '@/lib/barcode-decoder'
+import { barcodeSvg } from '@/lib/barcode'
+import { useRealtime } from '@/hooks/use-realtime'
+import {
+  PosPeripheralsDialog,
+  type PosStationClientView,
+  type RecentShopeeOrderSummary,
+} from '@/components/cms/pos-peripherals-dialog'
 import { DEFAULT_LOYALTY_CONFIG, type LoyaltyPolicyConfig } from '@/lib/loyalty-policy-shared'
 import {
   MEMBER_TIERS,
@@ -221,7 +242,63 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const [cameraFilter, setCameraFilter] = useState('')
   const [showPromoMobile, setShowPromoMobile] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const cameraPhotoInputRef = useRef<HTMLInputElement | null>(null)
   const lastScannedRef = useRef<{ code: string; time: number }>({ code: '', time: 0 })
+
+  // ===== Trung tâm Thiết bị ngoại vi, Điện thoại quét mã & Tự động in POS / Shopee =====
+  const [peripheralsOpen, setPeripheralsOpen] = useState(false)
+  const [printerConfig, setPrinterConfig] = useState<PeripheralPrinterConfig>(() => loadPrinterConfig())
+  const [stationView, setStationView] = useState<
+    (PosStationClientView & {
+      pendingScanEvents?: Array<{
+        seq: number
+        id: string
+        code: string
+        quantity: number
+        deviceName: string
+      }>
+      pendingCartMutations?: Array<{
+        seq: number
+        id: string
+        action: 'SET_QTY' | 'CLEAR_CART'
+        productId?: string
+        quantity?: number
+      }>
+      pendingCheckoutRequests?: Array<{
+        seq: number
+        id: string
+        paymentMethod: 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'COD'
+        cashReceived?: number
+        autoPrintBill: boolean
+        status: 'PENDING' | 'COMPLETED' | 'FAILED'
+      }>
+      pendingShopeePrintJobs?: Array<{
+        id: string
+        orderId: string
+        orderCode: string
+        shopeeOrderSn: string
+      }>
+    }) | null
+  >(null)
+  const [recentShopeeOrders, setRecentShopeeOrders] = useState<RecentShopeeOrderSummary[]>([])
+  const [activePrintMode, setActivePrintMode] = useState<'K80_BILL' | 'SHOPEE_A6' | null>(null)
+  const [shopeeA6Slip, setShopeeA6Slip] = useState<ShopeeThermalSlipInput | null>(null)
+  const lastConsumedScanSeqRef = useRef<number>(0)
+  const lastConsumedMutSeqRef = useRef<number>(0)
+  const inFlightRemoteCheckoutIdsRef = useRef<Set<string>>(new Set())
+  const inFlightShopeePrintJobIdsRef = useRef<Set<string>>(new Set())
+  const stationIdRef = useRef<string>('POS-UUDAM-01')
+
+  const updatePrinterConfig = useCallback((patch: Partial<PeripheralPrinterConfig>) => {
+    setPrinterConfig((prev) => {
+      const next = { ...prev, ...patch }
+      savePrinterConfig(next)
+      if (typeof patch.autoPrintPosBill === 'boolean') {
+        setAutoPrintReceipt(patch.autoPrintPosBill)
+      }
+      return next
+    })
+  }, [])
 
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) ?? tabs[0],
@@ -722,242 +799,547 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     }
   }
 
-  // ===== Xử lý Thanh toán & Xuất kho (F9) =====
-  const handleCheckout = useCallback(async () => {
-    if (!posChannel) {
-      toast({ title: 'Chưa tìm thấy kênh bán POS', variant: 'destructive' })
-      return
-    }
-    if (activeTab.items.length === 0) {
-      toast({
-        title: 'Giỏ hàng tại kho đang trống',
-        description: 'Vui lòng quét mã vạch hoặc chọn ít nhất 1 sản phẩm để xuất bán.',
-        variant: 'destructive',
-      })
-      return
-    }
-    if (
-      activeTab.fulfillmentMode === 'SHIP_FROM_WAREHOUSE' &&
-      !activeTab.shippingAddress.trim() &&
-      !activeTab.customer?.address
-    ) {
-      toast({
-        title: 'Vui lòng nhập địa chỉ giao hàng',
-        description: 'Đơn đóng gói & giao từ kho cần có địa chỉ người nhận.',
-        variant: 'destructive',
-      })
-      return
-    }
+  // ===== Xuất in thực tế Hóa đơn nhiệt K80 (LAN :9100 / WebUSB / WebSerial / @media print 80mm) =====
+  const dispatchPosReceiptPrint = useCallback(
+    async (
+      rec: CompletedPosReceipt,
+      opts?: { manualTrigger?: boolean; openModal?: boolean }
+    ): Promise<string> => {
+      if (opts?.openModal !== false) {
+        setReceiptModal(rec)
+      }
+      setActivePrintMode('K80_BILL')
 
-    setSubmitting(true)
-    try {
-      const isPickup = activeTab.fulfillmentMode === 'PICKUP_AT_WAREHOUSE'
-      const whLabel = selectedWarehouse ? `[Kho: ${selectedWarehouse.name}]` : '[Kho Trung Tâm Ưu Đàm]'
-      const noteParts: string[] = [
-        isPickup ? `[POS Tại Kho - Nhận hàng ngay] ${whLabel}` : `[POS Tại Kho - Đóng gói giao đi] ${whLabel}`,
-      ]
-      if (activeTab.voucherCode) {
-        noteParts.push(`Voucher ${activeTab.voucherCode}`)
-      }
-      if (manualDiscount > 0) {
-        noteParts.push(`Chiết khấu trực tiếp: -${formatVND(manualDiscount)}`)
-      }
-      if (redeemPoints > 0) {
-        noteParts.push(`Đổi ${redeemPoints} điểm: -${formatVND(pointsDiscount)}`)
-      }
-      if (activeTab.note.trim()) {
-        noteParts.push(activeTab.note.trim())
+      const receiptPayload = {
+        ...rec.order,
+        invoiceCode: rec.invoiceCode,
+        customerName: rec.customer?.name ?? rec.order.customer?.name ?? 'Khách mua tại kho',
+        customerPhone: rec.customer?.phone ?? rec.order.customer?.phone ?? undefined,
+        discountAmount: rec.discountAmount,
+        cashReceived: rec.cashReceived,
+        changeDue: rec.changeDue,
       }
 
-      const nowDate = new Date()
-      const yy = String(nowDate.getFullYear()).slice(-2)
-      const mm = String(nowDate.getMonth() + 1).padStart(2, '0')
-      const dd = String(nowDate.getDate()).padStart(2, '0')
-      const fallbackCode = `DH${yy}${mm}${dd}-${String(Math.floor(1000 + Math.random() * 9000))}`
-      const fallbackCustomerName = activeTab.customer?.name || 'Khách mua trực tiếp tại kho'
-
-      const res = await apiPost<{ order: Order }>('/api/orders', {
-        code: fallbackCode,
-        channelId: posChannel.id,
-        channel: {
-          id: posChannel.id,
-          key: posChannel.key,
-          name: posChannel.name,
-          color: posChannel.color,
+      const printRes = await printReceipt(receiptPayload, {
+        config: printerConfig,
+        onWindowPrint: () => {
+          const isAutomatedBrowser =
+            typeof navigator !== 'undefined' && Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
+          if (opts?.manualTrigger || !isAutomatedBrowser) {
+            setTimeout(() => {
+              window.print()
+            }, 120)
+          }
         },
-        warehouseId: selectedWarehouse?.id,
-        voucherCode: activeTab.voucherCode || undefined,
-        items: activeTab.items.map((it, idx) => ({
-          id: `pos-item-${Date.now()}-${idx}`,
-          productId: it.productId,
-          quantity: it.quantity,
-          price: it.price,
-          unitMultiplier: it.unitMultiplier,
-          unitLabel: it.unitLabel,
-          product: {
-            id: it.productId,
-            sku: it.sku,
-            name: it.name,
-          },
-        })),
-        customerId: activeTab.customer?.id,
-        customerName: fallbackCustomerName,
-        customerPhone: activeTab.customer?.phone || undefined,
-        customer: {
-          id: activeTab.customer?.id || 'pos-guest',
-          name: fallbackCustomerName,
-          phone: activeTab.customer?.phone || null,
-        },
-        address: isPickup
-          ? `Nhận trực tiếp tại ${selectedWarehouse?.name ?? 'Kho Ưu Đàm'}`
-          : activeTab.shippingAddress.trim() || activeTab.customer?.address || undefined,
-        note: noteParts.join(' · '),
-        paymentMethod: activeTab.paymentMethod,
-        status: isPickup ? 'COMPLETED' : 'CONFIRMED',
-        paymentStatus: isPickup ? 'PAID' : 'UNPAID',
-        subtotal,
-        shippingFee,
-        discountAmount: manualDiscount,
-        total: grandTotal,
-        redeemPoints,
-        instantComplete: isPickup,
       })
 
-      const normalizedOrder: Order = {
-        ...res.order,
-        id: res.order?.id || `pos-${Date.now()}`,
-        code: res.order?.code || fallbackCode,
-        status: res.order?.status || (isPickup ? 'COMPLETED' : 'CONFIRMED'),
-        paymentMethod: res.order?.paymentMethod || activeTab.paymentMethod,
-        paymentStatus: res.order?.paymentStatus || (isPickup ? 'PAID' : 'UNPAID'),
-        subtotal: Number.isFinite(Number(res.order?.subtotal)) ? Number(res.order.subtotal) : subtotal,
-        shippingFee: Number.isFinite(Number(res.order?.shippingFee)) ? Number(res.order.shippingFee) : shippingFee,
-        total: Number.isFinite(Number(res.order?.total)) ? Number(res.order.total) : grandTotal,
-        channel: res.order?.channel?.name
-          ? res.order.channel
-          : {
-              id: posChannel.id,
-              key: posChannel.key,
-              name: posChannel.name,
-              color: posChannel.color,
-            },
-        customer: res.order?.customer?.name
-          ? res.order.customer
-          : {
-              id: activeTab.customer?.id || 'pos-guest',
-              name: fallbackCustomerName,
-              phone: activeTab.customer?.phone || null,
-            },
-        items:
-          Array.isArray(res.order?.items) && res.order.items.length > 0
-            ? res.order.items.map((it, idx) => {
-                const cartItem =
-                  activeTab.items.find((c) => c.productId === it.productId) ?? activeTab.items[idx]
-                const safePrice = Number.isFinite(Number(it.price))
-                  ? Number(it.price)
-                  : (cartItem?.price ?? 0)
-                return {
-                  ...it,
-                  id: it.id || `pos-item-${idx}`,
-                  price: safePrice,
-                  quantity: Number(it.quantity) || cartItem?.quantity || 1,
-                  product: it.product?.name
-                    ? it.product
-                    : {
-                        id: cartItem?.productId || it.productId,
-                        sku: cartItem?.sku || 'SKU',
-                        name: cartItem?.name || 'Sản phẩm',
-                      },
-                }
-              })
-            : activeTab.items.map((it, idx) => ({
-                id: `pos-item-${idx}`,
-                orderId: res.order?.id || 'pos',
-                productId: it.productId,
-                quantity: it.quantity,
-                price: it.price,
-                product: {
-                  id: it.productId,
-                  sku: it.sku,
-                  name: it.name,
-                },
-              })),
+      if (!printRes.success && printRes.error) {
+        toast({
+          title: 'Cảnh báo cổng máy in nhiệt — đã chuyển dự phòng K80',
+          description: printRes.error,
+          variant: 'destructive',
+        })
       }
+      return printRes.method
+    },
+    [printerConfig, toast]
+  )
 
-      let issuedInvoiceCode: string | null = null
-      if (autoIssueInvoice && isPickup) {
-        try {
-          const invRes = await apiPost<{ invoice: { code: string } }>('/api/sales-invoices', {
-            orderId: normalizedOrder.id,
-            note: `Xuất hóa đơn tự động từ quầy POS tại kho (${normalizedOrder.code})`,
+  // ===== Xuất in tự động / thủ công Vận đơn Sàn Shopee (Tem A6 105×148mm hoặc Nhiệt K80) =====
+  const dispatchShopeeOrderPrint = useCallback(
+    async (orderId: string, jobId?: string, manualTrigger = false) => {
+      try {
+        const slipRes = await apiPost<{ slips: ShopeeThermalSlipInput[] }>('/api/orders/batch-slips', {
+          orderIds: [orderId],
+        })
+        const slip = slipRes.slips?.[0]
+        if (!slip) {
+          toast({
+            title: 'Không tìm thấy dữ liệu vận đơn Shopee',
+            description: `Mã ID: ${orderId}`,
+            variant: 'destructive',
           })
-          issuedInvoiceCode = invRes.invoice?.code || null
-        } catch {
-          // Không chặn luồng thanh toán nếu kỳ kế toán khóa
+          return
         }
+
+        const res = await printShopeeOrderSlip(slip, {
+          config: printerConfig,
+          onWindowPrint: () => {
+            setShopeeA6Slip(slip)
+            setActivePrintMode('SHOPEE_A6')
+            const isAutomatedBrowser =
+              typeof navigator !== 'undefined' && Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
+            if (manualTrigger || !isAutomatedBrowser) {
+              setTimeout(() => {
+                window.print()
+              }, 150)
+            }
+          },
+        })
+
+        await fetch('/api/peripherals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'ACK_PRINT_JOB',
+            stationId: stationIdRef.current,
+            jobId: jobId || orderId,
+            printedMethod: res.method,
+            status: 'PRINTED',
+          }),
+        }).catch(() => null)
+
+        if (printerConfig.soundEnabled) playPosBeep('shopee')
+        toast({
+          title: `Đã phát lệnh in đơn Shopee ${slip.orderCode}`,
+          description: `Mã vận đơn: ${slip.trackingCode} (${slip.carrier}) · Cổng in: ${res.method}`,
+        })
+      } catch (err) {
+        toast({
+          title: 'Lỗi khi tự động in đơn Shopee',
+          description: err instanceof Error ? err.message : 'Vui lòng kiểm tra máy in',
+          variant: 'destructive',
+        })
       }
+    },
+    [printerConfig, toast]
+  )
 
-      const receipt: CompletedPosReceipt = {
-        order: normalizedOrder,
-        invoiceCode: issuedInvoiceCode,
-        customer: activeTab.customer,
-        fulfillmentMode: activeTab.fulfillmentMode,
-        discountAmount: totalDiscount,
-        redeemPoints,
-        pointsEarned: estimatedPointsEarned,
-        cashReceived: cashReceivedNum,
-        changeDue,
-        cashierTime: formatDateTime(new Date().toISOString()),
-      }
-
-      toast({
-        title: `Thanh toán thành công đơn ${normalizedOrder.code}`,
-        description: `${formatVND(normalizedOrder.total)}${
-          issuedInvoiceCode ? ` · Phiếu xuất/HĐ: ${issuedInvoiceCode}` : ''
-        }`,
-      })
-
-      if (autoPrintReceipt) {
-        setReceiptModal(receipt)
-      }
-
-      // Làm mới giỏ hàng hiện tại & tải lại tồn kho
-      updateActiveTab((tab) => ({
-        ...createEmptyTab(Number(tab.label.replace(/\D/g, '')) || 1),
-        id: tab.id,
-        label: tab.label,
-      }))
-      setMobileSection('catalog')
-      void loadData(true)
-    } catch (err) {
-      toast({
-        title: 'Không thể hoàn tất thanh toán POS',
-        description: err instanceof Error ? err.message : 'Vui lòng kiểm tra lại tồn kho',
-        variant: 'destructive',
-      })
-    } finally {
-      setSubmitting(false)
+  const handleTestPrintPosBill = useCallback(async () => {
+    const sampleOrder: Order = {
+      id: 'sample-pos-k80',
+      code: 'POS-TEST-K80',
+      customerId: null,
+      channelId: 'pos',
+      note: null,
+      address: null,
+      status: 'COMPLETED',
+      paymentMethod: 'CASH',
+      paymentStatus: 'PAID',
+      subtotal: 138000,
+      shippingFee: 0,
+      total: 138000,
+      createdAt: new Date().toISOString(),
+      channel: { id: 'pos', key: 'POS', name: 'POS Tại Kho', color: '#0066CC' },
+      customer: { id: 'guest', name: 'Khách kiểm tra máy in K80', phone: '0909000111' },
+      items: [
+        {
+          id: 'sample-1',
+          orderId: 'sample-pos-k80',
+          productId: 'sample-p1',
+          quantity: 1,
+          price: 79000,
+          product: {
+            id: 'sample-p1',
+            sku: 'BM-DEC-COC-TRON',
+            name: 'Cốc Thạch Cao Xi Măng Trụ Trơn Đa Năng',
+          },
+        },
+        {
+          id: 'sample-2',
+          orderId: 'sample-pos-k80',
+          productId: 'sample-p2',
+          quantity: 1,
+          price: 59000,
+          product: {
+            id: 'sample-p2',
+            sku: 'BM-DEC-OVAL-TRANG',
+            name: 'Khay Thạch Cao Bầu Dục Oval Trắng',
+          },
+        },
+      ],
     }
-  }, [
-    posChannel,
-    selectedWarehouse,
-    activeTab,
-    manualDiscount,
-    redeemPoints,
-    pointsDiscount,
-    shippingFee,
-    autoIssueInvoice,
-    totalDiscount,
-    estimatedPointsEarned,
-    cashReceivedNum,
-    changeDue,
-    autoPrintReceipt,
-    toast,
-    updateActiveTab,
-    loadData,
-  ])
+    const sampleRec: CompletedPosReceipt = {
+      order: sampleOrder,
+      invoiceCode: 'XK-TEST-001',
+      customer: null,
+      fulfillmentMode: 'PICKUP_AT_WAREHOUSE',
+      discountAmount: 0,
+      redeemPoints: 0,
+      pointsEarned: 0,
+      cashReceived: 150000,
+      changeDue: 12000,
+      cashierTime: formatDateTime(new Date().toISOString()),
+    }
+    const method = await dispatchPosReceiptPrint(sampleRec, { manualTrigger: true, openModal: true })
+    toast({
+      title: `Đã gửi bản in thử Hóa đơn POS (${printerConfig.paperSize})`,
+      description: `Phương thức thực thi: ${method}`,
+    })
+  }, [dispatchPosReceiptPrint, printerConfig.paperSize, toast])
 
-  // ===== Quét mã vạch / QR bằng Camera điện thoại (HTML5 getUserMedia + BarcodeDetector) =====
+  const handleTestPrintShopeeSlip = useCallback(async () => {
+    const sampleSlip: ShopeeThermalSlipInput = {
+      orderId: 'sample-shopee-slip',
+      orderCode: 'DH-SHOPEE-TEST',
+      shopeeOrderSn: '261114TESTSPX',
+      createdAt: new Date().toISOString(),
+      hasFragile: true,
+      carrier: 'SPX Express',
+      trackingCode: 'SPXVN0688991122',
+      sender: {
+        name: 'Shop thaimy1605 — Kho Ưu Đàm',
+        phone: '1900 6868',
+        address: 'Kho Trung Tâm Ưu Đàm, TP. Hồ Chí Minh',
+      },
+      recipient: {
+        name: 'Nguyễn Minh Anh (Mẫu Kiểm Thử In)',
+        phone: '09******88',
+        address: 'Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+      },
+      items: [
+        {
+          sku: 'BM-DEC-COC-TRON',
+          name: 'Cốc Thạch Cao Xi Măng Trụ Trơn Đa Năng',
+          quantity: 1,
+          price: 79000,
+          fragile: true,
+        },
+      ],
+      total: 79000,
+      codAmount: 0,
+      paymentMethod: 'SHOPEE_WALLET',
+    }
+    const res = await printShopeeOrderSlip(sampleSlip, {
+      config: printerConfig,
+      onWindowPrint: () => {
+        setShopeeA6Slip(sampleSlip)
+        setActivePrintMode('SHOPEE_A6')
+        const isAutomatedBrowser =
+          typeof navigator !== 'undefined' && Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
+        if (!isAutomatedBrowser) {
+          setTimeout(() => {
+            window.print()
+          }, 150)
+        }
+      },
+    })
+    if (printerConfig.soundEnabled) playPosBeep('shopee')
+    toast({
+      title: `Đã phát lệnh in thử Đơn Shopee (${printerConfig.shopeeFormat})`,
+      description: `Phương thức thực thi: ${res.method}`,
+    })
+  }, [printerConfig, toast])
+
+  // ===== Xử lý Thanh toán & Xuất kho (F9 hoặc từ Điện thoại đang liên kết) =====
+  const handleCheckout = useCallback(
+    async (remoteOpts?: {
+      remoteCheckoutId?: string
+      overridePaymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'COD'
+      forceAutoPrint?: boolean
+    }) => {
+      const reportRemoteFailure = async (errMsg: string) => {
+        if (!remoteOpts?.remoteCheckoutId) return
+        await fetch('/api/peripherals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'COMPLETE_REMOTE_CHECKOUT',
+            stationId: stationIdRef.current,
+            checkoutId: remoteOpts.remoteCheckoutId,
+            status: 'FAILED',
+            error: errMsg,
+          }),
+        }).catch(() => null)
+      }
+
+      if (!posChannel) {
+        toast({ title: 'Chưa tìm thấy kênh bán POS', variant: 'destructive' })
+        await reportRemoteFailure('Chưa cấu hình kênh bán POS')
+        return
+      }
+      if (activeTab.items.length === 0) {
+        toast({
+          title: 'Giỏ hàng tại kho đang trống',
+          description: 'Vui lòng quét mã vạch hoặc chọn ít nhất 1 sản phẩm để xuất bán.',
+          variant: 'destructive',
+        })
+        await reportRemoteFailure('Giỏ hàng trên máy POS đang trống')
+        return
+      }
+      if (
+        activeTab.fulfillmentMode === 'SHIP_FROM_WAREHOUSE' &&
+        !activeTab.shippingAddress.trim() &&
+        !activeTab.customer?.address
+      ) {
+        toast({
+          title: 'Vui lòng nhập địa chỉ giao hàng',
+          description: 'Đơn đóng gói & giao từ kho cần có địa chỉ người nhận.',
+          variant: 'destructive',
+        })
+        await reportRemoteFailure('Thiếu địa chỉ nhận hàng cho đơn giao từ kho')
+        return
+      }
+
+      const effectivePaymentMethod = remoteOpts?.overridePaymentMethod ?? activeTab.paymentMethod
+
+      setSubmitting(true)
+      try {
+        const isPickup = activeTab.fulfillmentMode === 'PICKUP_AT_WAREHOUSE'
+        const whLabel = selectedWarehouse ? `[Kho: ${selectedWarehouse.name}]` : '[Kho Trung Tâm Ưu Đàm]'
+        const noteParts: string[] = [
+          isPickup ? `[POS Tại Kho - Nhận hàng ngay] ${whLabel}` : `[POS Tại Kho - Đóng gói giao đi] ${whLabel}`,
+        ]
+        if (remoteOpts?.remoteCheckoutId) {
+          noteParts.push('[Kích hoạt tính tiền từ Tay Quét ĐT Liên Kết]')
+        }
+        if (activeTab.voucherCode) {
+          noteParts.push(`Voucher ${activeTab.voucherCode}`)
+        }
+        if (manualDiscount > 0) {
+          noteParts.push(`Chiết khấu trực tiếp: -${formatVND(manualDiscount)}`)
+        }
+        if (redeemPoints > 0) {
+          noteParts.push(`Đổi ${redeemPoints} điểm: -${formatVND(pointsDiscount)}`)
+        }
+        if (activeTab.note.trim()) {
+          noteParts.push(activeTab.note.trim())
+        }
+
+        const nowDate = new Date()
+        const yy = String(nowDate.getFullYear()).slice(-2)
+        const mm = String(nowDate.getMonth() + 1).padStart(2, '0')
+        const dd = String(nowDate.getDate()).padStart(2, '0')
+        const fallbackCode = `DH${yy}${mm}${dd}-${String(Math.floor(1000 + Math.random() * 9000))}`
+        const fallbackCustomerName = activeTab.customer?.name || 'Khách mua trực tiếp tại kho'
+
+        const res = await apiPost<{ order: Order }>('/api/orders', {
+          code: fallbackCode,
+          channelId: posChannel.id,
+          channel: {
+            id: posChannel.id,
+            key: posChannel.key,
+            name: posChannel.name,
+            color: posChannel.color,
+          },
+          warehouseId: selectedWarehouse?.id,
+          voucherCode: activeTab.voucherCode || undefined,
+          items: activeTab.items.map((it, idx) => ({
+            id: `pos-item-${Date.now()}-${idx}`,
+            productId: it.productId,
+            quantity: it.quantity,
+            price: it.price,
+            unitMultiplier: it.unitMultiplier,
+            unitLabel: it.unitLabel,
+            product: {
+              id: it.productId,
+              sku: it.sku,
+              name: it.name,
+            },
+          })),
+          customerId: activeTab.customer?.id,
+          customerName: fallbackCustomerName,
+          customerPhone: activeTab.customer?.phone || undefined,
+          customer: {
+            id: activeTab.customer?.id || 'pos-guest',
+            name: fallbackCustomerName,
+            phone: activeTab.customer?.phone || null,
+          },
+          address: isPickup
+            ? `Nhận trực tiếp tại ${selectedWarehouse?.name ?? 'Kho Ưu Đàm'}`
+            : activeTab.shippingAddress.trim() || activeTab.customer?.address || undefined,
+          note: noteParts.join(' · '),
+          paymentMethod: effectivePaymentMethod,
+          status: isPickup ? 'COMPLETED' : 'CONFIRMED',
+          paymentStatus: isPickup ? 'PAID' : 'UNPAID',
+          subtotal,
+          shippingFee,
+          discountAmount: manualDiscount,
+          total: grandTotal,
+          redeemPoints,
+          instantComplete: isPickup,
+        })
+
+        const normalizedOrder: Order = {
+          ...res.order,
+          id: res.order?.id || `pos-${Date.now()}`,
+          code: res.order?.code || fallbackCode,
+          status: res.order?.status || (isPickup ? 'COMPLETED' : 'CONFIRMED'),
+          paymentMethod: res.order?.paymentMethod || effectivePaymentMethod,
+          paymentStatus: res.order?.paymentStatus || (isPickup ? 'PAID' : 'UNPAID'),
+          subtotal: Number.isFinite(Number(res.order?.subtotal)) ? Number(res.order.subtotal) : subtotal,
+          shippingFee: Number.isFinite(Number(res.order?.shippingFee)) ? Number(res.order.shippingFee) : shippingFee,
+          total: Number.isFinite(Number(res.order?.total)) ? Number(res.order.total) : grandTotal,
+          channel: res.order?.channel?.name
+            ? res.order.channel
+            : {
+                id: posChannel.id,
+                key: posChannel.key,
+                name: posChannel.name,
+                color: posChannel.color,
+              },
+          customer: res.order?.customer?.name
+            ? res.order.customer
+            : {
+                id: activeTab.customer?.id || 'pos-guest',
+                name: fallbackCustomerName,
+                phone: activeTab.customer?.phone || null,
+              },
+          items:
+            Array.isArray(res.order?.items) && res.order.items.length > 0
+              ? res.order.items.map((it, idx) => {
+                  const cartItem =
+                    activeTab.items.find((c) => c.productId === it.productId) ?? activeTab.items[idx]
+                  const safePrice = Number.isFinite(Number(it.price))
+                    ? Number(it.price)
+                    : (cartItem?.price ?? 0)
+                  return {
+                    ...it,
+                    id: it.id || `pos-item-${idx}`,
+                    price: safePrice,
+                    quantity: Number(it.quantity) || cartItem?.quantity || 1,
+                    product: it.product?.name
+                      ? it.product
+                      : {
+                          id: cartItem?.productId || it.productId,
+                          sku: cartItem?.sku || 'SKU',
+                          name: cartItem?.name || 'Sản phẩm',
+                        },
+                  }
+                })
+              : activeTab.items.map((it, idx) => ({
+                  id: `pos-item-${idx}`,
+                  orderId: res.order?.id || 'pos',
+                  productId: it.productId,
+                  quantity: it.quantity,
+                  price: it.price,
+                  product: {
+                    id: it.productId,
+                    sku: it.sku,
+                    name: it.name,
+                  },
+                })),
+        }
+
+        let issuedInvoiceCode: string | null = null
+        if (autoIssueInvoice && isPickup) {
+          try {
+            const invRes = await apiPost<{ invoice: { code: string } }>('/api/sales-invoices', {
+              orderId: normalizedOrder.id,
+              note: `Xuất hóa đơn tự động từ quầy POS tại kho (${normalizedOrder.code})`,
+            })
+            issuedInvoiceCode = invRes.invoice?.code || null
+          } catch {
+            // Không chặn luồng thanh toán nếu kỳ kế toán khóa
+          }
+        }
+
+        const receipt: CompletedPosReceipt = {
+          order: normalizedOrder,
+          invoiceCode: issuedInvoiceCode,
+          customer: activeTab.customer,
+          fulfillmentMode: activeTab.fulfillmentMode,
+          discountAmount: totalDiscount,
+          redeemPoints,
+          pointsEarned: estimatedPointsEarned,
+          cashReceived: cashReceivedNum,
+          changeDue,
+          cashierTime: formatDateTime(new Date().toISOString()),
+        }
+
+        if (printerConfig.soundEnabled) playPosBeep('checkout')
+
+        let printedMethod = 'MODAL_ONLY'
+        const shouldAutoPrintNow =
+          Boolean(remoteOpts?.forceAutoPrint) || printerConfig.autoPrintPosBill
+        if (shouldAutoPrintNow) {
+          printedMethod = await dispatchPosReceiptPrint(receipt, {
+            manualTrigger: false,
+            openModal: autoPrintReceipt,
+          })
+        } else if (autoPrintReceipt) {
+          setReceiptModal(receipt)
+        }
+
+        if (remoteOpts?.remoteCheckoutId) {
+          await fetch('/api/peripherals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'COMPLETE_REMOTE_CHECKOUT',
+              stationId: stationIdRef.current,
+              checkoutId: remoteOpts.remoteCheckoutId,
+              status: 'COMPLETED',
+              orderCode: normalizedOrder.code,
+              total: normalizedOrder.total,
+              paymentMethod: effectivePaymentMethod,
+              printedMethod,
+            }),
+          }).catch(() => null)
+        }
+
+        toast({
+          title: `Thanh toán thành công đơn ${normalizedOrder.code}`,
+          description: `${formatVND(normalizedOrder.total)}${
+            shouldAutoPrintNow ? ` · Tự động in (${printedMethod})` : ''
+          }${issuedInvoiceCode ? ` · HĐ: ${issuedInvoiceCode}` : ''}`,
+        })
+
+        // Làm mới giỏ hàng hiện tại & tải lại tồn kho
+        updateActiveTab((tab) => ({
+          ...createEmptyTab(Number(tab.label.replace(/\D/g, '')) || 1),
+          id: tab.id,
+          label: tab.label,
+        }))
+        setMobileSection('catalog')
+        void loadData(true)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Vui lòng kiểm tra lại tồn kho'
+        toast({
+          title: 'Không thể hoàn tất thanh toán POS',
+          description: msg,
+          variant: 'destructive',
+        })
+        await reportRemoteFailure(msg)
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [
+      posChannel,
+      selectedWarehouse,
+      activeTab,
+      manualDiscount,
+      redeemPoints,
+      pointsDiscount,
+      subtotal,
+      grandTotal,
+      shippingFee,
+      autoIssueInvoice,
+      totalDiscount,
+      estimatedPointsEarned,
+      cashReceivedNum,
+      changeDue,
+      autoPrintReceipt,
+      printerConfig.autoPrintPosBill,
+      printerConfig.soundEnabled,
+      dispatchPosReceiptPrint,
+      toast,
+      updateActiveTab,
+      loadData,
+    ]
+  )
+
+  // ===== Quét mã vạch / QR đa trình duyệt (Native BarcodeDetector + Pure-TS CODE128/EAN-13 + Chụp ảnh) =====
+  const handleCameraPhotoCapture = useCallback(
+    async (file: File | null) => {
+      if (!file) return
+      const hit = await decodeBarcodeFromImageFile(file)
+      if (hit) {
+        if (printerConfig.soundEnabled) playPosBeep('scan')
+        handleBarcodeSubmit(hit)
+      } else {
+        if (printerConfig.soundEnabled) playPosBeep('error')
+        toast({
+          title: 'Chưa đọc được mã vạch từ ảnh chụp',
+          description: 'Hãy chụp rõ nét vạch đen trắng hoặc chọn nhanh SKU bên dưới.',
+          variant: 'destructive',
+        })
+      }
+    },
+    [handleBarcodeSubmit, printerConfig.soundEnabled, toast]
+  )
+
   useEffect(() => {
     if (!cameraOpen) return
     let activeStream: MediaStream | null = null
@@ -967,7 +1349,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
 
     const startCamera = async () => {
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        setCameraError('Trình duyệt hiện tại chưa cấp quyền Camera. Bạn có thể chạm chọn nhanh mã SKU bên dưới.')
+        setCameraError(
+          'Kết nối HTTP nội bộ ưu tiên nút "Chụp ảnh mã vạch" ngay bên dưới để quét bằng Camera gốc.'
+        )
         return
       }
       try {
@@ -985,39 +1369,29 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           await videoRef.current.play().catch(() => null)
         }
 
-        const BarcodeDetectorCtor = (
-          window as unknown as {
-            BarcodeDetector?: new (opts?: { formats?: string[] }) => {
-              detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>>
-            }
-          }
-        ).BarcodeDetector
-
-        if (BarcodeDetectorCtor) {
-          const detector = new BarcodeDetectorCtor({
-            formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code', 'upc_a', 'upc_e'],
-          })
-          scanTimer = setInterval(async () => {
-            if (!videoRef.current || videoRef.current.readyState < 2) return
-            try {
-              const codes = await detector.detect(videoRef.current)
-              const raw = codes[0]?.rawValue?.trim()
-              if (raw) {
-                const now = Date.now()
-                if (lastScannedRef.current.code === raw && now - lastScannedRef.current.time < 1800) {
-                  return
-                }
-                lastScannedRef.current = { code: raw, time: now }
-                if (typeof navigator.vibrate === 'function') navigator.vibrate(60)
-                handleBarcodeSubmit(raw)
+        scanTimer = setInterval(async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) return
+          try {
+            const hit = await detectBarcodeUniversal(videoRef.current)
+            const raw = hit?.trim()
+            if (raw) {
+              const now = Date.now()
+              if (lastScannedRef.current.code === raw && now - lastScannedRef.current.time < 1800) {
+                return
               }
-            } catch {
-              // Bỏ qua frame lỗi
+              lastScannedRef.current = { code: raw, time: now }
+              if (typeof navigator.vibrate === 'function') navigator.vibrate(60)
+              if (printerConfig.soundEnabled) playPosBeep('scan')
+              handleBarcodeSubmit(raw)
             }
-          }, 260)
-        }
+          } catch {
+            // Bỏ qua frame lỗi
+          }
+        }, 260)
       } catch {
-        setCameraError('Không mở được Camera sau (hoặc chưa cấp quyền). Hãy chạm chọn nhanh mã vạch bên dưới.')
+        setCameraError(
+          'Không mở được luồng video trực tiếp — hãy bấm "Chụp ảnh mã vạch" hoặc chạm chọn SKU bên dưới.'
+        )
       }
     }
 
@@ -1027,7 +1401,267 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       if (scanTimer) clearInterval(scanTimer)
       if (activeStream) activeStream.getTracks().forEach((t) => t.stop())
     }
-  }, [cameraOpen, handleBarcodeSubmit])
+  }, [cameraOpen, handleBarcodeSubmit, printerConfig.soundEnabled])
+
+  // ===== Lắng nghe toàn cục Súng Quét Mã Vạch USB / Bluetooth 2.4GHz HID (< 65ms/ký tự + Enter) =====
+  useEffect(() => {
+    let hidBuffer = ''
+    let lastKeyTime = 0
+
+    const onGlobalScannerKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toUpperCase() || ''
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable
+      ) {
+        return
+      }
+
+      const now = Date.now()
+      if (e.key === 'Enter') {
+        if (hidBuffer.length >= 4 && now - lastKeyTime < 150) {
+          e.preventDefault()
+          const scanned = hidBuffer
+          hidBuffer = ''
+          if (printerConfig.soundEnabled) playPosBeep('scan')
+          handleBarcodeSubmit(scanned)
+        } else {
+          hidBuffer = ''
+        }
+        return
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (now - lastKeyTime > 85) {
+          hidBuffer = e.key
+        } else {
+          hidBuffer += e.key
+        }
+        lastKeyTime = now
+      }
+    }
+
+    window.addEventListener('keydown', onGlobalScannerKey)
+    return () => window.removeEventListener('keydown', onGlobalScannerKey)
+  }, [handleBarcodeSubmit, printerConfig.soundEnabled])
+
+  // ===== Đồng bộ Trạm POS Liên Kết với Điện thoại Quét mã & Hàng đợi Tự động in Shopee =====
+  const pullStationHub = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/peripherals?role=pos&stationId=${encodeURIComponent(stationIdRef.current)}`,
+        { cache: 'no-store' }
+      )
+      if (!res.ok) return
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        station?: typeof stationView
+        recentShopeeOrders?: RecentShopeeOrderSummary[]
+      } | null
+      if (!json?.ok || !json.station) return
+
+      setStationView(json.station)
+      if (json.recentShopeeOrders) setRecentShopeeOrders(json.recentShopeeOrders)
+
+      // 1. Tiêu thụ sự kiện quét mã từ Điện thoại
+      const pendingScans = (json.station.pendingScanEvents || []).filter(
+        (ev) => ev.seq > lastConsumedScanSeqRef.current
+      )
+      if (pendingScans.length > 0) {
+        for (const ev of pendingScans) {
+          lastConsumedScanSeqRef.current = Math.max(lastConsumedScanSeqRef.current, ev.seq)
+          if (printerConfig.soundEnabled) playPosBeep('scan')
+          for (let q = 0; q < Math.max(1, ev.quantity); q++) {
+            handleBarcodeSubmit(ev.code)
+          }
+        }
+      }
+
+      // 2. Tiêu thụ thao tác chỉnh số lượng / xóa giỏ từ Điện thoại
+      const pendingMuts = (json.station.pendingCartMutations || []).filter(
+        (m) => m.seq > lastConsumedMutSeqRef.current
+      )
+      if (pendingMuts.length > 0) {
+        for (const m of pendingMuts) {
+          lastConsumedMutSeqRef.current = Math.max(lastConsumedMutSeqRef.current, m.seq)
+          if (m.action === 'CLEAR_CART') {
+            updateActiveTab((tab) => ({ ...tab, items: [] }))
+          } else if (m.action === 'SET_QTY' && m.productId) {
+            updateItemQty(m.productId, m.quantity ?? 0)
+          }
+        }
+      }
+
+      // 3. Tiêu thụ yêu cầu Tính tiền & Tự động in Bill từ Điện thoại
+      const pendingChk = (json.station.pendingCheckoutRequests || []).find(
+        (c) => c.status === 'PENDING' && !inFlightRemoteCheckoutIdsRef.current.has(c.id)
+      )
+      if (pendingChk && !submitting) {
+        inFlightRemoteCheckoutIdsRef.current.add(pendingChk.id)
+        void handleCheckout({
+          remoteCheckoutId: pendingChk.id,
+          overridePaymentMethod: pendingChk.paymentMethod,
+          forceAutoPrint: pendingChk.autoPrintBill,
+        })
+      }
+
+      // 4. Tự động in Đơn hàng Shopee mới nếu công tắc autoPrintShopeeOrder đang BẬT
+      if (printerConfig.autoPrintShopeeOrder) {
+        const nextShopeeJob = (json.station.pendingShopeePrintJobs || []).find(
+          (j) => !inFlightShopeePrintJobIdsRef.current.has(j.id)
+        )
+        if (nextShopeeJob) {
+          inFlightShopeePrintJobIdsRef.current.add(nextShopeeJob.id)
+          void dispatchShopeeOrderPrint(nextShopeeJob.orderId, nextShopeeJob.id, false)
+        }
+      }
+    } catch {
+      // Bỏ qua trên bản tĩnh GitHub Pages không có backend Node
+    }
+  }, [
+    dispatchShopeeOrderPrint,
+    handleBarcodeSubmit,
+    handleCheckout,
+    printerConfig.autoPrintShopeeOrder,
+    printerConfig.soundEnabled,
+    submitting,
+    updateActiveTab,
+  ])
+
+  // Đăng ký Trạm POS ngay khi mở màn hình
+  useEffect(() => {
+    void fetch('/api/peripherals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'REGISTER_STATION',
+        stationId: stationIdRef.current,
+        warehouseName: selectedWarehouse?.name || 'Kho Trung Tâm Ưu Đàm',
+        autoPrintPosBill: printerConfig.autoPrintPosBill,
+        autoPrintShopeeOrder: printerConfig.autoPrintShopeeOrder,
+        printerTransport: printerConfig.transport,
+        paperSize: printerConfig.paperSize,
+        shopeeFormat: printerConfig.shopeeFormat,
+      }),
+    })
+      .then(() => pullStationHub())
+      .catch(() => null)
+  }, [])
+
+  // Đẩy trạng thái giỏ hàng POS lên Hub để Điện thoại nhìn thấy tức thì
+  useEffect(() => {
+    const snapshot = {
+      tabLabel: activeTab.label,
+      items: activeTab.items.map((it) => ({
+        productId: it.productId,
+        sku: it.sku,
+        name: it.name,
+        price: it.price,
+        quantity: it.quantity,
+        unitLabel: it.unitLabel,
+      })),
+      subtotal,
+      discountAmount: totalDiscount,
+      shippingFee,
+      grandTotal,
+      totalQuantity,
+      paymentMethod: activeTab.paymentMethod,
+      customerName: activeTab.customer?.name ?? null,
+      updatedAt: new Date().toISOString(),
+    }
+
+    const t = setTimeout(() => {
+      void fetch('/api/peripherals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'SYNC_STATION_STATE',
+          stationId: stationIdRef.current,
+          cartSnapshot: snapshot,
+          autoPrintPosBill: printerConfig.autoPrintPosBill,
+          autoPrintShopeeOrder: printerConfig.autoPrintShopeeOrder,
+          printerTransport: printerConfig.transport,
+          paperSize: printerConfig.paperSize,
+          shopeeFormat: printerConfig.shopeeFormat,
+          ackScanSeqUpTo: lastConsumedScanSeqRef.current,
+          ackMutationSeqUpTo: lastConsumedMutSeqRef.current,
+        }),
+      })
+        .then((r) => r.json())
+        .then((d: { ok?: boolean; station?: typeof stationView }) => {
+          if (d?.ok && d.station) setStationView(d.station)
+        })
+        .catch(() => null)
+    }, 80)
+
+    return () => clearTimeout(t)
+  }, [
+    activeTab.customer?.name,
+    activeTab.items,
+    activeTab.label,
+    activeTab.paymentMethod,
+    grandTotal,
+    printerConfig.autoPrintPosBill,
+    printerConfig.autoPrintShopeeOrder,
+    printerConfig.paperSize,
+    printerConfig.shopeeFormat,
+    printerConfig.transport,
+    shippingFee,
+    subtotal,
+    totalDiscount,
+    totalQuantity,
+  ])
+
+  // Nhận sự kiện Realtime < 10ms từ Điện thoại & Webhook Đơn Shopee
+  useRealtime((ev) => {
+    if (
+      ev.type === 'peripheral.event' ||
+      ev.type === 'order.created' ||
+      ev.type === 'realtime.poll'
+    ) {
+      const data = (ev.data || {}) as { subType?: string }
+      if (data.subType === 'STATION_CART_SYNCED') return
+      void pullStationHub()
+    }
+  })
+
+  // Vòng lặp đồng bộ dự phòng khi đang mở hộp thoại Ngoại vi, có ĐT kết nối hoặc bật Auto-Print Shopee
+  useEffect(() => {
+    const hasConnectedPhone = (stationView?.connectedPhones?.length || 0) > 0
+    if (!peripheralsOpen && !hasConnectedPhone && !printerConfig.autoPrintShopeeOrder) return
+    const timer = setInterval(() => {
+      void pullStationHub()
+    }, 2500)
+    return () => clearInterval(timer)
+  }, [
+    peripheralsOpen,
+    printerConfig.autoPrintShopeeOrder,
+    pullStationHub,
+    stationView?.connectedPhones?.length,
+  ])
+
+  const handleRotatePairToken = useCallback(async () => {
+    const res = await fetch('/api/peripherals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'REGISTER_STATION',
+        stationId: stationIdRef.current,
+        rotateToken: true,
+      }),
+    })
+    const json = (await res.json().catch(() => null)) as { ok?: boolean; station?: typeof stationView } | null
+    if (json?.ok && json.station) {
+      setStationView(json.station)
+      toast({
+        title: 'Đã cấp Mã PIN ghép nối mới',
+        description: `Mã PIN mới: ${json.station.pairToken}`,
+      })
+    }
+  }, [toast])
 
   const handleShareReceipt = useCallback(
     async (rec: CompletedPosReceipt) => {
@@ -1177,6 +1811,29 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
             <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono">F3: Tìm hàng</span>
             <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono">F9: Thanh toán</span>
           </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              void pullStationHub()
+              setPeripheralsOpen(true)
+            }}
+            className="h-8 gap-1.5 border border-emerald-400/40 bg-emerald-500/20 px-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30 hover:text-white"
+            title="Kết nối Điện thoại quét mã, Súng mã vạch, Máy in Bill K80 & Tự động in đơn Shopee"
+          >
+            <Smartphone className="h-3.5 w-3.5 text-emerald-300" />
+            <span>Thiết bị &amp; Quét ĐT</span>
+            {(stationView?.connectedPhones?.length || 0) > 0 && (
+              <span className="rounded-full bg-emerald-400 px-1.5 py-0.2 text-[10px] font-extrabold text-slate-950">
+                {stationView?.connectedPhones?.length}
+              </span>
+            )}
+            {printerConfig.autoPrintShopeeOrder && (
+              <span className="hidden rounded bg-orange-500 px-1 py-0.2 text-[9px] font-bold text-white sm:inline">
+                Auto Shopee
+              </span>
+            )}
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -2540,21 +3197,28 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 />
               </div>
 
-              {/* 6. TÙY CHỌN CHỨNG TỪ & IN HÓA ĐƠN NHIỆT K80 */}
+              {/* 6. TÙY CHỌN CHỨNG TỪ, TỰ ĐỘNG IN BILL K80 & TỰ ĐỘNG IN ĐƠN SHOPEE */}
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
                 <label className="flex cursor-pointer items-center gap-2">
                   <Checkbox
                     checked={autoIssueInvoice}
                     onCheckedChange={(v) => setAutoIssueInvoice(Boolean(v))}
                   />
-                  <span>Tự lập Hóa đơn bán / Phiếu xuất kho</span>
+                  <span>Tự lập Hóa đơn bán</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
                   <Checkbox
-                    checked={autoPrintReceipt}
-                    onCheckedChange={(v) => setAutoPrintReceipt(Boolean(v))}
+                    checked={printerConfig.autoPrintPosBill}
+                    onCheckedChange={(v) => updatePrinterConfig({ autoPrintPosBill: Boolean(v) })}
                   />
-                  <span>Mở phiếu K80 sau thanh toán</span>
+                  <span>Tự động in Bill K80</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 font-medium text-orange-700 dark:text-orange-400">
+                  <Checkbox
+                    checked={printerConfig.autoPrintShopeeOrder}
+                    onCheckedChange={(v) => updatePrinterConfig({ autoPrintShopeeOrder: Boolean(v) })}
+                  />
+                  <span>Tự in đơn Shopee</span>
                 </label>
               </div>
 
@@ -2670,6 +3334,33 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   <p>{cameraError}</p>
                 </div>
               )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-500/30 bg-emerald-50/50 px-3 py-2 text-xs dark:bg-emerald-950/20">
+              <span className="text-muted-foreground">
+                Quét qua ảnh chụp Camera gốc (chạy mượt cả trên HTTP Wi-Fi LAN):
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 shrink-0 bg-emerald-600 text-xs text-white hover:bg-emerald-500"
+                onClick={() => cameraPhotoInputRef.current?.click()}
+              >
+                <ImageUp className="mr-1.5 h-3.5 w-3.5" />
+                Chụp ảnh mã vạch
+              </Button>
+              <input
+                ref={cameraPhotoInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null
+                  e.currentTarget.value = ''
+                  void handleCameraPhotoCapture(f)
+                }}
+              />
             </div>
 
             <div className="space-y-2">
@@ -2938,12 +3629,15 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
             )}
             <Button
               onClick={() => {
-                if (receiptModal) void printReceipt(receiptModal.order)
-                else window.print()
+                if (receiptModal) {
+                  void dispatchPosReceiptPrint(receiptModal, { manualTrigger: true, openModal: true })
+                } else {
+                  window.print()
+                }
               }}
               className="bg-[#0066CC] text-white hover:bg-[#0055B3]"
             >
-              <Printer className="mr-1.5 h-4 w-4" /> In phiếu K80 / A5
+              <Printer className="mr-1.5 h-4 w-4" /> In phiếu {printerConfig.paperSize}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3070,6 +3764,158 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ===== TRUNG TÂM THIẾT BỊ NGOẠI VI, ĐIỆN THOẠI QUÉT MÃ & TỰ ĐỘNG IN POS / SHOPEE ===== */}
+      <PosPeripheralsDialog
+        open={peripheralsOpen}
+        onOpenChange={setPeripheralsOpen}
+        station={stationView}
+        recentShopeeOrders={recentShopeeOrders}
+        printerConfig={printerConfig}
+        onUpdatePrinterConfig={updatePrinterConfig}
+        onRotatePairToken={handleRotatePairToken}
+        onRefreshStation={pullStationHub}
+        onTestPrintPosBill={handleTestPrintPosBill}
+        onTestPrintShopeeSlip={handleTestPrintShopeeSlip}
+        onPrintShopeeOrderById={async (orderId) => {
+          await dispatchShopeeOrderPrint(orderId, undefined, true)
+        }}
+      />
+
+      {/* ===== KHUNG IN CÔ LẬP @media print CHUẨN KHỔ K80 (80mm) & TEM SHOPEE A6 (105×148mm) ===== */}
+      {(receiptModal || shopeeA6Slip) && (
+        <div className="pos-isolated-print-sheet hidden print:block">
+          <style>{`
+            @media print {
+              body * { visibility: hidden !important; }
+              .pos-isolated-print-sheet, .pos-isolated-print-sheet * {
+                visibility: visible !important;
+              }
+              .pos-isolated-print-sheet {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: ${activePrintMode === 'SHOPEE_A6' ? '105mm' : printerConfig.paperSize === 'K58' ? '58mm' : '80mm'} !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 3mm !important;
+                margin: 0 !important;
+                z-index: 999999 !important;
+              }
+              @page {
+                size: ${activePrintMode === 'SHOPEE_A6' ? '105mm 148mm' : printerConfig.paperSize === 'K58' ? '58mm auto' : '80mm auto'};
+                margin: 0;
+              }
+            }
+          `}</style>
+
+          {activePrintMode === 'SHOPEE_A6' && shopeeA6Slip ? (
+            <div className="border-2 border-black p-2 font-sans text-[11px] leading-snug text-black">
+              <div className="flex items-center justify-between border-b-2 border-black pb-1.5">
+                <div className="text-sm font-black uppercase">SHOPEE · {shopeeA6Slip.carrier}</div>
+                <div className="border border-black px-1.5 py-0.5 font-mono text-[10px] font-bold">
+                  {shopeeA6Slip.codAmount > 0 ? 'COD THU HỘ' : 'ĐÃ THANH TOÁN'}
+                </div>
+              </div>
+              <div className="my-2 flex flex-col items-center border-b border-dashed border-black pb-2">
+                <div
+                  className="w-full max-w-[88mm] overflow-hidden"
+                  dangerouslySetInnerHTML={{
+                    __html: barcodeSvg(shopeeA6Slip.trackingCode || shopeeA6Slip.orderCode, {
+                      height: 44,
+                      moduleWidth: 2,
+                      showText: true,
+                    }),
+                  }}
+                />
+                <div className="mt-0.5 font-mono text-[10px]">
+                  Đơn CMS: <strong>{shopeeA6Slip.orderCode}</strong>
+                  {shopeeA6Slip.shopeeOrderSn ? ` · Shopee #${shopeeA6Slip.shopeeOrderSn}` : ''}
+                </div>
+              </div>
+              <div className="border-b border-black py-1.5">
+                <div className="font-bold uppercase">Người nhận: {shopeeA6Slip.recipient.name}</div>
+                <div>SĐT: {shopeeA6Slip.recipient.phone}</div>
+                <div>Đ/C: {shopeeA6Slip.recipient.address}</div>
+              </div>
+              {shopeeA6Slip.hasFragile && (
+                <div className="my-1.5 border-2 border-black py-1 text-center text-xs font-black uppercase">
+                  HÀNG DỄ VỠ (THẠCH CAO / GỐM) — XIN NHẸ TAY
+                </div>
+              )}
+              <div className="py-1.5">
+                <div className="font-bold">Danh sách đóng gói ({shopeeA6Slip.items.length} mã):</div>
+                {shopeeA6Slip.items.map((it, idx) => (
+                  <div key={idx} className="flex justify-between gap-2 py-0.5">
+                    <span>
+                      [{it.sku}] {it.name}
+                    </span>
+                    <strong className="shrink-0">x{it.quantity}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t-2 border-black pt-1.5 text-sm font-black">
+                <span>TIỀN THU HỘ (COD):</span>
+                <span>{formatVND(shopeeA6Slip.codAmount)}</span>
+              </div>
+            </div>
+          ) : receiptModal ? (
+            <div className="font-mono text-[11px] leading-snug text-black">
+              <div className="border-b border-dashed border-black pb-1.5 text-center">
+                <div className="text-sm font-bold uppercase">CỬA HÀNG &amp; KHO ƯU ĐÀM</div>
+                <div className="text-[10px]">Shop: thaimy1605 (#197195817)</div>
+                <div className="mt-0.5 font-bold">HÓA ĐƠN BÁN LẺ POS ({printerConfig.paperSize})</div>
+              </div>
+              <div className="border-b border-dashed border-black py-1.5 text-[10px]">
+                <div className="flex justify-between">
+                  <span>Mã đơn:</span>
+                  <strong>{receiptModal.order.code}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Thời gian:</span>
+                  <span>{receiptModal.cashierTime}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Khách hàng:</span>
+                  <span>{receiptModal.customer?.name ?? 'Khách lẻ tại kho'}</span>
+                </div>
+              </div>
+              <div className="border-b border-dashed border-black py-1.5">
+                {receiptModal.order.items.map((it) => (
+                  <div key={it.id} className="py-0.5">
+                    <div className="font-semibold">{it.product?.name ?? 'Sản phẩm'}</div>
+                    <div className="flex justify-between text-[10px]">
+                      <span>
+                        {it.quantity} x {formatVND(it.price)}
+                      </span>
+                      <strong>{formatVND(it.quantity * it.price)}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="pt-1.5 text-[11px]">
+                <div className="flex justify-between font-bold">
+                  <span>TỔNG CỘNG:</span>
+                  <span>{formatVND(receiptModal.order.total)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span>Thanh toán ({receiptModal.order.paymentMethod}):</span>
+                  <span>{formatVND(receiptModal.cashReceived)}</span>
+                </div>
+                {receiptModal.changeDue > 0 && (
+                  <div className="flex justify-between text-[10px] font-bold">
+                    <span>Tiền thừa:</span>
+                    <span>{formatVND(receiptModal.changeDue)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-center text-[10px]">
+                Cảm ơn Quý khách &amp; Hẹn gặp lại!
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   )
 }

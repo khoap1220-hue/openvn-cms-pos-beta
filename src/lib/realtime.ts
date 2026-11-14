@@ -28,6 +28,7 @@ export type CmsEventType =
   | 'campaign.wave.updated'
   | 'behavior.new'
   | 'marketplace.unlisted_alert'
+  | 'peripheral.event'
 
 export interface MaintenanceMemoryState {
   enabled: boolean

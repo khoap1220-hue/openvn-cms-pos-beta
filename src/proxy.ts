@@ -27,10 +27,12 @@ import {
 const PUBLIC_PREFIXES = [
   '/login',
   '/blog',
+  '/pos/scanner',
   '/api/health',
   '/api/auth',
   '/api/webhooks/',
   '/api/barcode',
+  '/api/peripherals',
   '/api/behavior-logs/internal',
   '/_next',
   '/thach-cao/',
@@ -182,7 +184,8 @@ function shouldAutoAuditApiMutation(pathname: string, method: string): boolean {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/iam') ||
     pathname.startsWith('/api/behavior-logs') ||
-    pathname.startsWith('/api/simulate')
+    pathname.startsWith('/api/simulate') ||
+    pathname.startsWith('/api/peripherals')
   ) {
     return false
   }

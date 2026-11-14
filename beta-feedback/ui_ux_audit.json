@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-14T14:57:07Z",
+  "updated_at": "2026-11-14T15:53:23Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,8 +13,8 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-747DBD053FFBF2180ED4",
-    "signed_at": "2026-11-14T14:57:07Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-EC4D87E783C6804C5BBA",
+    "signed_at": "2026-11-14T15:53:23Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
@@ -303,14 +303,14 @@
     {
       "view_key": "pos",
       "tsx_file": "src/components/cms/views/pos-view.tsx",
-      "sha256_before": "2174b2a561e503c0",
+      "sha256_before": "501bc7838bbcc4f0",
       "metrics": {
         "cards": 3,
         "tables": 0,
         "badges": 7,
         "truncate_nodes": 9,
         "nowrap_nodes": 4,
-        "accessible_labels": 25
+        "accessible_labels": 26
       },
       "findings": [
         "Phát hiện `9` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",

@@ -1,7 +1,7 @@
 # Sổ Tay Bàn Giao Vận Hành & Khung Bảo Trì Tự Chủ (Operational Handover & Autonomous Maintenance)
 **Dự Án**: OPENVN · Ưu Đàm Suite (Multi-Channel Omnisales & Zero-Storage CDN)  
 **Tệp Tài Liệu**: `HANDOVER_MAINTENANCE.md`  
-**Phiên Bản**: v2.6.0 Production  
+**Phiên Bản**: v2.7.0 Production  
 **Gian Hàng Trọng Tâm**: Shop Shopee `thaimy1605` (Shop ID: `197195817`, 18 SKU Biến Thể Bất Biến)  
 **Tiêu Chuẩn Tuân Thủ**: Quy tắc Bắt buộc Triển khai Free Beta & Chuẩn Kỹ sư Senior Human Engineer (TIER 5)
 
@@ -97,6 +97,18 @@ Dự án cung cấp đầy đủ các kịch bản khởi chạy 1-Click độc 
 - **Nhập phiên Cookie linh hoạt (`/api/channels/shopee-session` & `/api/channels/shopee-extension`)**: Hỗ trợ dán trực tiếp lệnh cURL / PowerShell `Invoke-WebRequest` / Fetch / Cookie Header hoặc cài đặt Tiện ích Chrome riêng của shop `thaimy1605` (`197195817`) để tự động đẩy Cookie về CMS mà không cần bật cổng CDP `9222`.
 - **Cảnh báo mất liên kết toàn cục (`src/app/page.tsx` & `src/app/api/channels/async-queue/route.ts`)**: Khi phiên Cookie Shopee hết hạn, Daemon `:51898` ngoại tuyến, hoặc sản phẩm bị đứt liên kết Item/Model ID trên sàn (`BROKEN_LINK`), hệ thống hiển thị cảnh báo tức thì trên Thanh Header toàn cục, Banner đầu trang ở mọi phân hệ CMS, Toast Realtime (`channel.session_lost` / `channel.link_lost`) và huy hiệu từng dòng trong bảng Kênh bán.
 - **Xử lý bất đồng bộ an toàn (`WAITING_SESSION` — Zero Data Loss)**: Mọi giao dịch bán lẻ POS và chỉnh sửa tồn kho/giá/trạng thái hiển thị khi mất kết nối đều trả về `200 OK` (`queuedAsync: true`), bảo lưu bền vững trong hàng đợi `OUTBOX_PENDING` (`WAITING_SESSION`, không đốt bộ đếm retry và không rơi vào `DEAD_LETTER`). Ngay khi nạp lại phiên Cookie hợp lệ, Daemon tự động hoàn trả `DEAD_LETTER` về hàng đợi và xả toàn bộ tác vụ Outbox lên Shopee trước khi quét đơn mới.
+
+### 2.6 Thiết Bị Ngoại Vi POS, Điện Thoại Quét Mã & Tự Động In Bill / Đơn Shopee (`/api/peripherals` & `/pos/scanner`)
+- **Thiết bị ngoại vi quầy POS (`src/lib/escpos.ts`, `src/components/cms/views/pos-view.tsx`)**:
+  - Súng quét mã vạch USB / Bluetooth 2.4GHz HID lắng nghe xung phím toàn cục (`< 85ms`/ký tự + `Enter`) không cần đặt con trỏ vào ô nhập.
+  - Hỗ trợ đầy đủ 4 kênh xuất máy in: Mạng LAN / Wi-Fi RAW TCP `:9100` (chống SSRF ngoài dải RFC-1918), Cáp USB trực tiếp (`WebUSB`), Cổng COM / Bluetooth SPP (`WebSerial`), và In trình duyệt cô lập `@media print` chuẩn khổ `K80 (80mm)`, `K58 (58mm)` kèm xung mở két tiền RJ11 (`ESC p`).
+- **Điện thoại quét mã & bấm Tính tiền từ xa (`/pos/scanner?s=<stationId>&t=<pairToken>`)**:
+  - Ghép nối tức thì qua mã QR SVG offline (`src/lib/qr-svg.ts`) + PIN 6 số (`timingSafeEqual`).
+  - Bộ giải mã 3 tầng (`src/lib/barcode-decoder.ts`): `BarcodeDetector` gốc + giải mã Pure-TS `CODE128`/`EAN-13` đa dòng cho iOS Safari/Firefox + Chụp ảnh mã vạch trực tiếp (`capture="environment"`) chạy mượt cả trên HTTP Wi-Fi LAN không cần HTTPS.
+  - Đồng bộ giỏ hàng 2 chiều `< 10ms` qua Socket.IO (`:3013` hỗ trợ dải LAN RFC-1918) và cho phép nhân viên bấm **Tính tiền & Tự động in Bill trên Máy POS** ngay từ điện thoại.
+- **Tự động in Hóa đơn POS & Tự động in Đơn Shopee (`autoPrintPosBill` & `autoPrintShopeeOrder`)**:
+  - Khi bật `autoPrintPosBill`, đơn thanh toán tại POS hoặc từ điện thoại lập tức phát lệnh in hóa đơn K80 tự động.
+  - Khi bật `autoPrintShopeeOrder`, mọi đơn Shopee mới (`createOrder` kênh `SHOPEE` / `INBOUND_SHOPEE_ORDER_SYNC`) tự động đi vào hàng đợi chống trùng (`enqueueShopeeOrderForLinkedPos`) và tự động in **Tem vận đơn chuẩn A6 (`105×148mm`)** hoặc **Phiếu đóng gói nhiệt ESC/POS K80**.
 
 ---
 

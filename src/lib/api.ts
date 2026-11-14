@@ -28,6 +28,7 @@ export function prefetchCoreCmsViews(): void {
     '/api/channels/product-links',
     '/api/channels/shopee-session',
     '/api/channels/async-queue',
+    '/api/peripherals',
     '/api/orders',
     '/api/inventory',
     '/api/periods',

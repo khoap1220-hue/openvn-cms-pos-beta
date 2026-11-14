@@ -13,7 +13,7 @@
 ## 📋 Báo Cáo Chuẩn Định Dạng M.A.T.R.I.X (`matrix-quy-trinh-chuan`)
 
 ### 1. `Đã làm gì` (Phạm vi, Tệp & Các Cổng Nghiệm Thu Đã Thực Hiện)
-- **Thời gian kiểm toán & ký số gần nhất**: `2026-11-14T14:57:07Z`
+- **Thời gian kiểm toán & ký số gần nhất**: `2026-11-14T15:53:23Z`
 - **Dự án mục tiêu**: `workspace-57aaf18c-d0b6-44bc-8c6d-cf1574a56005 (1)` (`E:\Z.AI\workspace-57aaf18c-d0b6-44bc-8c6d-cf1574a56005 (1)`)
 - **Hội đồng 6 Agent Fullstack vận hành**: `FS-AGENT-01` (Frontend/UX), `FS-AGENT-02` (Backend/API), `FS-AGENT-03` (Database/ORM), `FS-AGENT-04` (AST Self-Healing), `FS-AGENT-05` (Pre/Post QA Inspector), `FS-AGENT-06` (SecOps & Contract Notary).
 - **Các tệp đã nghiệm thu Trước & Sau khi sửa**:
@@ -40,337 +40,337 @@
 ## 🏛️ Sổ Chứng Chỉ & Hợp Đồng Số Chi Tiết Từng Phản Hồi
 
 ### Phản hồi `#48` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB48` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB48`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB48` (0x94A4044FA7…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x94A4044FA7E3692DD0972B880A777878`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB48` (0x8A13CD022B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x8A13CD022B50F503ADD55D7660AA17C0`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `5c504e193531f0cb` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#47` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB47` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB47`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB47` (0xAE78825458…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xAE78825458414F1F6DD756AD27E5DF03`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB47` (0x2BD30DF95D…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x2BD30DF95D8D268D89B1A62E09428797`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Đúng lỗi CSS, sai về sự tồn tại của bộ lọc).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `f29f27081b62cbf0` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc + Đồng bộ viền tương tác focus-visible theo var(--ring) và giữ nguyên kích thước chuẩn shadcn/ui + Tối ưu cuộn ngang mượt cho bảng dữ liệu lớn theo đúng khung Card var(--radius) của dự án gốc
 
 ### Phản hồi `#46` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB46` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB46`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB46` (0xA806E47427…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xA806E4742711D19DC12A6228B6C98FE2`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB46` (0x10EF207922…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x10EF207922B5B50164980EF34E7CD870`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `44fd9b33ef24e1b6` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#45` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB45` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB45`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB45` (0x894DFB9184…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x894DFB91849B460D0F5CB778F5F01765`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB45` (0x719196AC8A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x719196AC8AC4F4F3D84AE3E42E5D2B04`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `79a0626f546cd22b` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#44` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB44` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB44`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB44` (0xA8E73771F6…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xA8E73771F6BC7F24A2337A6017252951`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB44` (0xD36A124804…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xD36A1248047D049A1E6723B90A84B505`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `22021c520de50eac`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `0af521aaf451397d` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#43` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB43` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB43`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB43` (0x5E911ECE02…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x5E911ECE0285BD0DEB1D6B80B1D779AC`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB43` (0x46F332EE90…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x46F332EE90CEDF18332E9E735DEE1A01`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `a19840cbeb1acb81` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#42` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB42` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB42`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB42` (0x55E5434D6B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x55E5434D6B7E38A2D92D2210CD47ECE7`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB42` (0x9E7F14A4DE…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x9E7F14A4DED4EBF8AD64B406F8E5622F`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `e3b0c44298fc1c14`, API `672ad6a19d1f4800`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `23fc284b9df62e58` hợp lệ AST, DB `2fabbe44ea906b24` & API `672ad6a19d1f4800` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#41` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB41` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB41`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB41` (0x6B61D8681E…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x6B61D8681E9E7553AF2F3549B2CF0A82`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB41` (0xCABFD2BF53…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xCABFD2BF53FB33C434B720A1ABCA1211`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `cd3dc65fba98184c`, API `8e42037fbe19d4ba`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `c9c0a0b1536dceec` hợp lệ AST, DB `2fabbe44ea906b24` & API `8e42037fbe19d4ba` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#40` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB40` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB40`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB40` (0x210949B500…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x210949B500176B88E53869BA450653F0`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB40` (0xFC1281E7AC…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xFC1281E7AC32A44A92EF506365D456AF`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả đúng có lỗi hiển thị nhưng sai vị trí và không nhận ra tính năng đã có).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `31b5d08a2460a8f3` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#39` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB39` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB39`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB39` (0xEEB6D257C8…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xEEB6D257C842A167B7895A3218B697D4`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ, nhưng không rõ vị trí và nguyên nhân gốc rễ).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB39` (0x0761F8206F…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x0761F8206FBE212855B84B7EAF5E14E6`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ, nhưng không rõ vị trí và nguyên nhân gốc rễ).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `a42ec7a46d283531` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#38` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB38` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB38`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB38` (0x92F0D78AAC…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x92F0D78AAC1ADB83AFE74FD05AF3780B`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB38` (0x19A0DCE2BD…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x19A0DCE2BDB31F342ADEA5172C5DEB60`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi UI nhưng có thể là do hiểu nhầm tính năng).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `1a72e078ce88bdad` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#37` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB37` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB37`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB37` (0x4513C1B440…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x4513C1B4409967EE79B5EE0E8E8DBCAC`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB37` (0x1333362A82…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1333362A8264C3A1C6A680FBAD6D5A42`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `12be107ef1234fea`, API `505db8bbb51e93b4`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% - Đúng lỗi tràn CSS).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `2ba40b7e0238b7d8` hợp lệ AST, DB `2fabbe44ea906b24` & API `505db8bbb51e93b4` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#36` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB36` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB36`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB36` (0x60671999C3…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x60671999C3A5B15F9DB1DE66E2AEFEF6`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (55% - Hiểu nhầm vị trí và bản chất lỗi).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB36` (0xE94668D487…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xE94668D487B8615EECDC116C8670655F`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (55% - Hiểu nhầm vị trí và bản chất lỗi).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6777b3935edc9508` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#35` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB35` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB35`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB35` (0xA1B33EC261…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xA1B33EC26138FFC726489CEB0A34AFE0`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân gốc).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB35` (0x27DC1A7593…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x27DC1A7593AE2F00BA7C89B47CCF244F`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân gốc).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `62d8dee6ecf4a2c8` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#34` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB34` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB34`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB34` (0x335F5D658D…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x335F5D658DB65F1D2A31F928A8E31DF0`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB34` (0xA7C38D3F77…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xA7C38D3F77479318E9DBD4BED8F34171`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ chưa chính xác vị trí và nguyên nhân).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `28cdace0275583b8` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#33` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB33` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB33`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB33` (0xAD181D2722…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xAD181D27226973070D31552611582929`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB33` (0x1D56F9E6D5…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1D56F9E6D5705CD289BE7D8C13FDD897`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `0479c23897ae6110` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#32` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB32` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB32`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB32` (0xD0CED4F40C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xD0CED4F40C0739D6629A67D0A491C7E9`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB32` (0x9A2492AAF1…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x9A2492AAF1F6D53C051EFCDF1C9A751B`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `418c7432089a327a`, API `12b2f4f02200ff91`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (95% - Đúng lỗi tràn văn bản (text-overflow)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `7e749b5c70158160` hợp lệ AST, DB `2fabbe44ea906b24` & API `12b2f4f02200ff91` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#31` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB31` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB31`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB31` (0xC23A6490A1…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xC23A6490A1A109A592603EF32EE5D4D4`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB31` (0x2186BFB391…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x2186BFB39154A7596599D263B5D5F30D`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `6847c4b46379b739`, API `672ad6a19d1f4800`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (95% - Xác nhận lỗi tràn chữ tại các thành phần hiển thị danh mục/tên sản phẩm).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6066cf7683a55c9c` hợp lệ AST, DB `2fabbe44ea906b24` & API `672ad6a19d1f4800` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#30` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB30` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB30`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB30` (0xD7B015E28F…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xD7B015E28F0161329DF34932B23EDAA4`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB30` (0x9F7DCD9D1F…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x9F7DCD9D1FD4DF42C3797AE34515DB5F`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `b0fe6ec2270ca738` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#29` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB29` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB29`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB29` (0xE7730DA832…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xE7730DA832F96DD54C15057994AEF279`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB29` (0x2A9D84CC1B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x2A9D84CC1B20A991835F92118B6026E3`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `894a5c72a006ef5e` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#28` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB28` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB28`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB28` (0xA824155147…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xA824155147EA3FD8CFB3C2B94061F0A9`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB28` (0xEB272BBCE4…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xEB272BBCE41B048659822FD73361D5F8`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `5025a34eb6741d10` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#27` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB27` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB27`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB27` (0x6E24F59F60…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x6E24F59F6072771E99BEAD5D9FD114F1`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB27` (0x01C0268B39…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x01C0268B392633CF04762C0F1A979738`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `22021c520de50eac`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `639665430bdfffe8` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#26` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB26` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB26`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB26` (0x40DF38E267…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x40DF38E267E0457B9312EF2D2F4F759C`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB26` (0x29CC51F4B9…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x29CC51F4B91A7D2D5128E0E71CB01B89`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `cd3dc65fba98184c`, API `8e42037fbe19d4ba`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `f8a551eaf83c18f6` hợp lệ AST, DB `2fabbe44ea906b24` & API `8e42037fbe19d4ba` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#25` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB25` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB25`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB25` (0x20F08D894E…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x20F08D894E37C8663882822E3AE9E6A9`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB25` (0xF177347455…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xF17734745583227FEA7E47F697B43D7B`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6a1d8dbda2b993d7` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#24` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB24` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB24`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB24` (0xF68860FDD9…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xF68860FDD96B3DF719029CE57B93D6EE`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB24` (0xF93068FC00…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xF93068FC00D0C3014A5B0BB468249707`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `3a8caa051d59ffb0` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#23` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB23` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB23`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB23` (0xCC56DE70C9…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xCC56DE70C9F6336C21CA0AACE096DD50`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB23` (0x87DDD31081…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x87DDD310815306BC7CD9A86D6A6EB7A1`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `08b1b8d7ec68ef7e` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#22` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB22` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB22`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB22` (0x991F19E3D6…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x991F19E3D6C56EF1E9335DBAB9C6237C`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB22` (0x2F42DF83CE…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x2F42DF83CEA2ED5590A45F39A7F33592`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6a07d221f1df0d2f` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#21` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB21` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB21`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB21` (0x7A97B2E2E4…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x7A97B2E2E4F4017D9C22B80746D65F98`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB21` (0xF1C2B5B082…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xF1C2B5B08247DA4566A588722ADE64BE`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `f1daf92df118e9e1` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#20` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB20` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB20`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB20` (0xB32B555A46…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xB32B555A460210F4188D7F6A4F512309`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB20` (0x1FECEBE4F6…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1FECEBE4F691AAB25FDE0BB47F0F3B28`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `23398a3bc3988361` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#19` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB19` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB19`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB19` (0xFE4C0F4681…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xFE4C0F4681EEB3D0EC2E86EA37384544`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB19` (0x04C8B5A6C0…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x04C8B5A6C08D241811EFE8AC57F997DC`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `6847c4b46379b739`, API `672ad6a19d1f4800`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `33fa7c74119a292c` hợp lệ AST, DB `2fabbe44ea906b24` & API `672ad6a19d1f4800` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#18` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB18` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB18`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB18` (0x18F963B82C…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x18F963B82C21BFB7397365FAC372E897`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB18` (0x66922C54B2…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x66922C54B269B38A53C334D8AF57CAB1`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `22021c520de50eac`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `207ee916df9b58fd` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#17` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB17` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB17`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB17` (0xBBA1ADB078…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xBBA1ADB078219579AE7F1B4314206C68`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB17` (0x1E47F70CF0…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1E47F70CF0DF24E9423B9CD77F25D10C`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `2ac8287cb816f1a9` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#16` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB16` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB16`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB16` (0xB238556626…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xB23855662654F5D0482916C272100BBD`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB16` (0x3A9518056B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x3A9518056B3C2FC38007E43397C46E0A`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `aa4f857bbf274fb0` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#15` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB15` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB15`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB15` (0x6C1AD13714…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x6C1AD1371460D137A6735190B8CF1BD3`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB15` (0x2696CAC84B…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x2696CAC84BC15923DF0BF1E5CA64087B`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `deec4ecbef4b5248` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#14` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB14` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB14`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB14` (0xF083E07C09…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xF083E07C098F27337FF57695FBB64480`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB14` (0x1BCDE49C51…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1BCDE49C51DD362D9D996E5C31073CE2`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `094557ed15310bd9` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#13` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB13` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB13`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB13` (0x77E182B164…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x77E182B16434FEC41E9DF6B0C4EECAA4`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB13` (0x113D5A1AC0…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x113D5A1AC0E67262A598F7B0DBC3E81E`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `92c83283b3b4427f` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#12` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB12` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB12`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB12` (0x0C46F29060…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x0C46F29060A3C981EF68B5DED50A0E9A`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB12` (0x88BDC596ED…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x88BDC596EDDDA5B183B93FABE79C12EF`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `3e9c50ef0bce2fbd` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#11` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB11` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB11`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB11` (0x07F199A8FE…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x07F199A8FE9D6167B36B565E6BB96471`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB11` (0xBD2B8C5EDC…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xBD2B8C5EDCBD94EEDDB29C3C661808BE`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `9f30e7b8d543ccae` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#10` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB10` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB10`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB10` (0x5870CE2C51…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x5870CE2C51281C973953FBF6B4A66A93`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB10` (0x7797E9CC1A…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x7797E9CC1AF8DE1A3D658E08B6ABBAA9`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `55b92d79068217d8` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ tương tác dòng bảng dữ liệu màn hình `customers` theo token var(--muted) / var(--border) gốc
 
 ### Phản hồi `#9` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB9` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB9`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB9` (0x1D26B4A8C8…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1D26B4A8C8E80A36C902F6CE8A848C4F`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB9` (0x8C3A471A80…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x8C3A471A801C56190EE989BE578BF4D9`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `12be107ef1234fea`, API `505db8bbb51e93b4`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `9f116438495a5ad3` hợp lệ AST, DB `2fabbe44ea906b24` & API `505db8bbb51e93b4` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#8` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB8` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB8`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB8` (0x0A8C11BA53…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x0A8C11BA53C7295BB0B623046E6031D4`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB8` (0x756FEB5B68…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x756FEB5B6842FBB69B7CAFFE8A396F97`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `5092228de9bf7cdb` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#7` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB7` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB7`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB7` (0xBE1E3655CB…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xBE1E3655CB2D2AD9B0ACC50004EFE276`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB7` (0x45EF034581…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x45EF034581F65F05C36AD28834A77AA5`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `e9c825ecae9b8599` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#6` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB6` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB6`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB6` (0x7121E7C2F3…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x7121E7C2F39C3D8407079081187DC744`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB6` (0xB6DB6AB441…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xB6DB6AB441C79A61197B4C69C80099FC`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6d7bc10e224d3d3e` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#5` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB5` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB5`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB5` (0x4C372F3BDD…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x4C372F3BDDDDDECBA164E05CD556B84D`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB5` (0x9FDFA68282…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x9FDFA68282D44EC76DF86852ED96E6E1`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6cae41fbaea2e223` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#4` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB4` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB4`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB4` (0x1DB8A95A0E…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1DB8A95A0E34AA00B41823B37D2573B5`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB4` (0x1E1DFFAEBE…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x1E1DFFAEBE4B7C9053403D38E7171C01`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `6847c4b46379b739`, API `672ad6a19d1f4800`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `d3eb0430bdbe3f0c` hợp lệ AST, DB `2fabbe44ea906b24` & API `672ad6a19d1f4800` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#3` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB3` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB3`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB3` (0x9C0FE78097…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x9C0FE78097DD661A3027AC9EDC0CF676`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB3` (0xACAEFCF018…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xACAEFCF0189BB2E14EB704B7F19B9AAF`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `d6c22156309d014f` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#2` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB2` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB2`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB2` (0x745613B4E5…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x745613B4E5B7AFEA3F85CD5F10510AC7`
-- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `2174b2a561e503c0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB2` (0x781F4453B5…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x781F4453B5E31192385D9FEF25B10095`
+- **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `501bc7838bbcc4f0`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `c2bd062c2a3a78e6` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Đồng bộ hiệu ứng focus/hover thanh lọc Đa Kho & bảng Ma trận theo token var(--primary) / var(--border) gốc + Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc
 
 ### Phản hồi `#1` — Chứng chỉ `MATRIX-CERT-WORKSPACE-57-FB1` • Hợp đồng `CONTRACT-MATRIX-FS-WORKSPACE5-FB1`
-- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB1` (0xD8810415E7…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
-- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0xD8810415E77D63C37F590EF1DAC00223`
+- **Trạng thái**: 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB1` (0x53C9184093…) • 6/6 Fullstack Agents Ký & Chịu Trách Nhiệm • Nghiệm Thu Trước & Sau PASS
+- **Chữ ký Hợp đồng Số (`Master HMAC-SHA256`)**: `0x53C91840939EFA96D3DC3A10001D0334`
 - **Nghiệm thu Trước khi sửa (`Pre-Fix`)**: Đã khóa mốc SHA-256 Trước khi sửa (FE `22021c520de50eac`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM)).
 - **Nghiệm thu Sau khi sửa (`Post-Fix`)**: Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `649652a9af86313d` hợp lệ AST, DB `2fabbe44ea906b24` & API `52aef42bb0621b1c` bất biến 100%, Design Sync 100%.
 - **Bản vá đã áp dụng**: Hiển thị đầy đủ văn bản bị cắt (.truncate) khi hover theo đúng token màu var(--foreground) gốc

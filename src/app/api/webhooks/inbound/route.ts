@@ -16,6 +16,7 @@ import {
   syncProductWarehouseStock,
 } from '@/lib/warehouse-service'
 import { PROTECTED_REAL_SKUS } from '@/app/api/ledger/test-guard/route'
+import { enqueueShopeeOrderForLinkedPos } from '@/lib/peripheral-hub'
 
 export const dynamic = 'force-dynamic'
 
@@ -2073,6 +2074,20 @@ export async function POST(req: NextRequest) {
             orderSn,
           })
 
+          if (nextStatus === 'CONFIRMED' || nextStatus === 'SHIPPING') {
+            enqueueShopeeOrderForLinkedPos({
+              orderId: updated.id,
+              orderCode: updated.code,
+              shopeeOrderSn: orderSn,
+              customerName: d.customerName ?? null,
+              note: updated.note,
+              total: updated.total,
+              trackingCode: d.trackingNumber ?? null,
+              carrier: d.shippingCarrier ?? null,
+              itemCount: Array.isArray(d.items) ? d.items.reduce((s, it) => s + (Number(it.quantity) || 1), 0) : 1,
+            })
+          }
+
           return NextResponse.json({
             ok: true,
             action: 'STATUS_UPDATED',
@@ -2311,6 +2326,18 @@ export async function POST(req: NextRequest) {
         shippingCarrier: d.shippingCarrier,
         shopeeOrderStatus: d.shopeeOrderStatus,
         orderSn,
+      })
+
+      enqueueShopeeOrderForLinkedPos({
+        orderId: created.id,
+        orderCode: created.code,
+        shopeeOrderSn: orderSn,
+        customerName: d.customerName ?? null,
+        note: created.note,
+        total: created.total,
+        trackingCode: d.trackingNumber ?? null,
+        carrier: d.shippingCarrier ?? null,
+        itemCount: resolvedItems.reduce((s, it) => s + it.quantity, 0),
       })
 
       return NextResponse.json({

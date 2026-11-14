@@ -20,6 +20,7 @@ import {
   getAllUnitConfigs,
   syncLinkedVariantStocks,
 } from '@/lib/unit-conversion'
+import { enqueueShopeeOrderForLinkedPos } from '@/lib/peripheral-hub'
 
 export function isMaskedOrDummyPhone(phone: unknown): boolean {
   if (!phone || typeof phone !== 'string') return true
@@ -545,6 +546,19 @@ export async function createOrder(input: CreateOrderInput) {
     message: `Tiếp nhận đơn hàng mới ${order.code} (${itemsSummary}) từ ${order.customer?.name ?? 'khách lẻ'} qua kênh ${channel.name} — tổng giá trị ${(order.total).toLocaleString('vi-VN')}đ`,
   })
   broadcast('order.created', order)
+
+  // Tự động đẩy đơn Shopee mới vào hàng đợi in tự động cho Máy POS đang liên kết
+  if (channel.key === 'SHOPEE' && !input.instantComplete) {
+    enqueueShopeeOrderForLinkedPos({
+      orderId: order.id,
+      orderCode: order.code,
+      shopeeOrderSn: extractedShopeeOrderSn || undefined,
+      customerName: order.customer?.name ?? input.customerName ?? null,
+      note: order.note,
+      total: order.total,
+      itemCount: order.items.reduce((s, it) => s + it.quantity, 0),
+    })
+  }
 
   // Trí nhớ dài hạn: đơn mới → chắt lọc lại hồ sơ khách (contextSummary/preferences/painPoints)
   if (finalCustomerId) {
