@@ -681,6 +681,23 @@ async function sendViaLanTcp(
   }
 }
 
+/**
+ * Chỉ nhận diện trình quét QA Headless thực thụ (HeadlessChrome / AgentBrowser Tester DOM).
+ * TUYỆT ĐỐI KHÔNG chặn cửa sổ Chrome thật của người dùng dù bật CDP (--remote-debugging-port) khiến navigator.webdriver = true.
+ */
+export function isHeadlessQaCrawler(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  if (/HeadlessChrome|PhantomJS|Playwright/i.test(ua)) return true
+  if (
+    typeof document !== 'undefined' &&
+    document.querySelector('[data-ab-branch-idx], #__ab_tester_hud__')
+  ) {
+    return true
+  }
+  return false
+}
+
 async function sendViaWindowsSpooler(input: {
   printerName?: string
   jobType: 'POS_RECEIPT' | 'SHOPEE_SLIP' | 'SHOPEE_BATCH_SLIPS'
@@ -691,11 +708,10 @@ async function sendViaWindowsSpooler(input: {
   receipt?: ReceiptOrder | Record<string, any>
   slip?: ShopeeThermalSlipInput
   slips?: ShopeeThermalSlipInput[]
+  forceRealPrint?: boolean
 }): Promise<{ ok: boolean; printerName?: string; mode?: string; error?: string }> {
   try {
-    const isAutomatedWebdriver =
-      typeof navigator !== 'undefined' &&
-      Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
+    const qaCrawlerActive = isHeadlessQaCrawler()
     const res = await fetch('/api/peripherals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -710,8 +726,9 @@ async function sendViaWindowsSpooler(input: {
         receipt: input.receipt,
         slip: input.slip,
         slips: input.slips,
-        // An toàn phần cứng: trình duyệt kiểm thử tự động (WebDriver) chạy chế độ render GDI+ Dry-Run, không làm tốn giấy/mực thật
-        dryRun: isAutomatedWebdriver,
+        // Chỉ bật Dry-Run khi HeadlessChrome / AgentBrowser QA đang tự động quét nút,
+        // đảm bảo 100% lệnh in của người dùng trên Chrome (kể cả Chrome mở qua CDP Shopee) in ra giấy thật.
+        dryRun: qaCrawlerActive,
       }),
     })
     const data = (await res.json().catch(() => ({}))) as {
@@ -884,10 +901,7 @@ export function renderShopeeSlipPrintHtml(
 /** In HTML qua Iframe ẩn cô lập hoàn toàn — không xung đột Radix Dialog, không in trang trắng */
 export function printHtmlViaCleanIframe(html: string): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false
-  const isAutomatedWebdriver =
-    typeof navigator !== 'undefined' &&
-    Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
-  if (isAutomatedWebdriver) {
+  if (isHeadlessQaCrawler()) {
     return true
   }
 
@@ -1017,11 +1031,13 @@ export async function printReceipt(
     fallbackToWindowPrint?: boolean
     config?: PeripheralPrinterConfig
     onWindowPrint?: () => void
+    forceRealPrint?: boolean
   }
 ): Promise<{
   success: boolean
   method: PrintExecutionMethod
   printerName?: string
+  mode?: string
   error?: string
 }> {
   const cfg = options?.config ?? loadPrinterConfig()
@@ -1048,12 +1064,14 @@ export async function printReceipt(
       rawEscPos: cfg.rawEscPosOnWindows,
       payloadBase64: cfg.rawEscPosOnWindows ? uint8ToBase64(encoded) : undefined,
       receipt: order,
+      forceRealPrint: options?.forceRealPrint,
     })
     if (winRes.ok) {
       return {
         success: true,
         method: 'windows_spooler',
         printerName: winRes.printerName,
+        mode: winRes.mode,
       }
     }
     if (cfg.transport === 'windows_spooler' && !fallback) {
@@ -1092,11 +1110,13 @@ export async function printShopeeOrderSlip(
     config?: PeripheralPrinterConfig
     fallbackToWindowPrint?: boolean
     onWindowPrint?: () => void
+    forceRealPrint?: boolean
   }
 ): Promise<{
   success: boolean
   method: PrintExecutionMethod
   printerName?: string
+  mode?: string
   error?: string
 }> {
   const cfg = options?.config ?? loadPrinterConfig()
@@ -1120,12 +1140,14 @@ export async function printShopeeOrderSlip(
       rawEscPos: useRawOnWin,
       payloadBase64: useRawOnWin ? uint8ToBase64(encoded) : undefined,
       slip,
+      forceRealPrint: options?.forceRealPrint,
     })
     if (winRes.ok) {
       return {
         success: true,
         method: 'windows_spooler',
         printerName: winRes.printerName,
+        mode: winRes.mode,
       }
     }
     if (cfg.transport === 'windows_spooler' && !fallback) {

@@ -466,6 +466,7 @@ function Draw-OpenvnPage {
     [float]$printableW
   )
 
+  $g.PageUnit = [System.Drawing.GraphicsUnit]::Display
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
 
@@ -675,8 +676,9 @@ $doc.add_PrintPage({
   param($sender, $e)
   $curPage = $pages[$script:pageIdx]
   $bounds = $e.PageBounds
-  $availW = [Math]::Max(150.0, ([float]$bounds.Width - 12.0))
-  $null = Draw-OpenvnPage -g $e.Graphics -page $curPage -originX 6.0 -originY 6.0 -printableW $availW
+  $availW = [Math]::Max(150.0, ([float]$bounds.Width - 20.0))
+  $marginOffset = if ($availW -gt 350.0) { 12.0 } else { 2.0 }
+  $null = Draw-OpenvnPage -g $e.Graphics -page $curPage -originX $marginOffset -originY $marginOffset -printableW $availW
   $script:pageIdx++
   $e.HasMorePages = ($script:pageIdx -lt $pages.Count)
 })
@@ -711,10 +713,17 @@ export async function printSilentViaWindowsSpooler(
 
   const printers = await listWindowsPrinters()
   const requestedName = String(req.printerName || '').trim()
+  const preferredPhysical =
+    printers.find((p) => p.isPhysical && p.isDefault) ??
+    printers.find((p) => p.isPhysical && p.kind === 'thermal_or_label') ??
+    printers.find((p) => p.isPhysical)
   let resolvedPrinterName = ''
 
   if (req.dryRun) {
-    resolvedPrinterName = requestedName || printers[0]?.name || 'DRY-RUN-VIRTUAL-PRINTER'
+    resolvedPrinterName =
+      !requestedName || requestedName.toUpperCase() === 'AUTO_PHYSICAL'
+        ? preferredPhysical?.name || printers[0]?.name || 'DRY-RUN-VIRTUAL-PRINTER'
+        : requestedName
   } else if (req.testPdfSpool) {
     const pdfPrinter = printers.find((p) => /microsoft print to pdf/i.test(p.name))
     if (!pdfPrinter) {
@@ -729,10 +738,6 @@ export async function printSilentViaWindowsSpooler(
     }
     resolvedPrinterName = pdfPrinter.name
   } else if (!requestedName || requestedName.toUpperCase() === 'AUTO_PHYSICAL') {
-    const preferredPhysical =
-      printers.find((p) => p.isPhysical && p.isDefault) ??
-      printers.find((p) => p.isPhysical && p.kind === 'thermal_or_label') ??
-      printers.find((p) => p.isPhysical)
     if (!preferredPhysical) {
       return {
         ok: false,

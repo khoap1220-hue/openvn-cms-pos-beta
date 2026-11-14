@@ -45,6 +45,7 @@ import {
 import { apiGet, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import {
+  isHeadlessQaCrawler,
   loadPrinterConfig,
   type PeripheralPrinterConfig,
   printReceipt,
@@ -291,6 +292,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       }>
     }) | null
   >(null)
+  const stationViewRef = useRef(stationView)
+  stationViewRef.current = stationView
   const [recentShopeeOrders, setRecentShopeeOrders] = useState<RecentShopeeOrderSummary[]>([])
   const [activePrintMode, setActivePrintMode] = useState<'K80_BILL' | 'SHOPEE_A6' | null>(null)
   const [shopeeA6Slip, setShopeeA6Slip] = useState<ShopeeThermalSlipInput | null>(null)
@@ -871,10 +874,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         config: printerConfig,
         onWindowPrint: () => {
           setReceiptModal(rec)
-          const isAutomatedBrowser =
-            typeof navigator !== 'undefined' &&
-            Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
-          if (opts?.manualTrigger || !isAutomatedBrowser) {
+          if (opts?.manualTrigger || !isHeadlessQaCrawler()) {
             setTimeout(() => {
               window.print()
             }, 120)
@@ -920,10 +920,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           onWindowPrint: () => {
             setShopeeA6Slip(slip)
             setActivePrintMode('SHOPEE_A6')
-            const isAutomatedBrowser =
-              typeof navigator !== 'undefined' &&
-              Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
-            if (manualTrigger || !isAutomatedBrowser) {
+            if (manualTrigger || !isHeadlessQaCrawler()) {
               setTimeout(() => {
                 window.print()
               }, 150)
@@ -1064,10 +1061,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       onWindowPrint: () => {
         setShopeeA6Slip(sampleSlip)
         setActivePrintMode('SHOPEE_A6')
-        const isAutomatedBrowser =
-          typeof navigator !== 'undefined' &&
-          Boolean((navigator as Navigator & { webdriver?: boolean }).webdriver)
-        if (!isAutomatedBrowser) {
+        if (!isHeadlessQaCrawler()) {
           setTimeout(() => {
             window.print()
           }, 150)
@@ -1076,8 +1070,13 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     })
     if (printerConfig.soundEnabled) playPosBeep('shopee')
     toast({
-      title: `Đã phát lệnh in thử Đơn Shopee (${printerConfig.shopeeFormat})`,
-      description: formatPrintMethodLabel(res.method, res.printerName),
+      title: res.success
+        ? `Đã đẩy lệnh in thật sang máy in (${printerConfig.shopeeFormat})`
+        : 'Không gửi được lệnh in thử Đơn Shopee',
+      description: res.success
+        ? formatPrintMethodLabel(res.method, res.printerName)
+        : res.error || 'Vui lòng kiểm tra kết nối máy in',
+      variant: res.success ? 'default' : 'destructive',
     })
   }, [formatPrintMethodLabel, printerConfig, toast])
 
@@ -1692,23 +1691,24 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       updatedAt: new Date().toISOString(),
     }
 
+    const curStation = stationViewRef.current
     const baseMirror =
       readMirroredStation(stationIdRef.current) ??
-      ensureFallbackMirroredStation(stationIdRef.current, stationView?.pairToken || '160588')
+      ensureFallbackMirroredStation(stationIdRef.current, curStation?.pairToken || '160588')
     const nextMirror: MirroredStationState = {
       ...baseMirror,
       stationId: stationIdRef.current,
-      stationName: stationView?.stationName || baseMirror.stationName,
-      pairToken: stationView?.pairToken || baseMirror.pairToken,
-      warehouseName: selectedWarehouse?.name || stationView?.warehouseName || baseMirror.warehouseName,
+      stationName: curStation?.stationName || baseMirror.stationName,
+      pairToken: curStation?.pairToken || baseMirror.pairToken,
+      warehouseName: selectedWarehouse?.name || curStation?.warehouseName || baseMirror.warehouseName,
       autoPrintPosBill: printerConfig.autoPrintPosBill,
       autoPrintShopeeOrder: printerConfig.autoPrintShopeeOrder,
       printerTransport: printerConfig.transport,
       paperSize: printerConfig.paperSize,
       shopeeFormat: printerConfig.shopeeFormat,
-      lanIps: stationView?.lanIps || baseMirror.lanIps,
-      connectedPhones: stationView?.connectedPhones || baseMirror.connectedPhones,
-      recentScanEvents: stationView?.recentScanEvents || baseMirror.recentScanEvents,
+      lanIps: curStation?.lanIps || baseMirror.lanIps,
+      connectedPhones: curStation?.connectedPhones || baseMirror.connectedPhones,
+      recentScanEvents: curStation?.recentScanEvents || baseMirror.recentScanEvents,
       cartSnapshot: snapshot,
     }
     writeMirroredStation(nextMirror)
@@ -1729,13 +1729,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           ackScanSeqUpTo: lastConsumedScanSeqRef.current,
           ackMutationSeqUpTo: lastConsumedMutSeqRef.current,
         }),
-      })
-        .then((r) => r.json())
-        .then((d: { ok?: boolean; station?: typeof stationView }) => {
-          if (d?.ok && d.station) setStationView(d.station)
-        })
-        .catch(() => null)
-    }, 80)
+      }).catch(() => null)
+    }, 120)
 
     return () => clearTimeout(t)
   }, [
@@ -1751,12 +1746,6 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     printerConfig.transport,
     selectedWarehouse?.name,
     shippingFee,
-    stationView?.connectedPhones,
-    stationView?.lanIps,
-    stationView?.pairToken,
-    stationView?.recentScanEvents,
-    stationView?.stationName,
-    stationView?.warehouseName,
     subtotal,
     totalDiscount,
     totalQuantity,

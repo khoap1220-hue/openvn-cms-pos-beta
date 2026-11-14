@@ -7,6 +7,7 @@ import {
   encodeReceipt,
   encodeShopeeSlip,
   ESC_POS_COMMANDS,
+  isHeadlessQaCrawler,
   removeVietnameseDiacritics,
   renderReceiptPrintHtml,
   renderShopeeSlipPrintHtml,
@@ -236,6 +237,39 @@ async function main() {
       shopeeSlipHtml.includes('HÀNG DỄ VỠ'),
     'Render HTML cô lập Tem Vận Đơn Shopee A6 (105×148mm) chứa mã vạch SVG SPX & khung cảnh báo Hàng Dễ Vỡ'
   )
+
+  const origNav = globalThis.navigator
+  try {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {
+        webdriver: true,
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36',
+      },
+    })
+    assert(
+      isHeadlessQaCrawler() === false,
+      'Cửa sổ Chrome thật bật CDP Shopee (navigator.webdriver=true) KHÔNG bị khóa Dry-Run — cho phép in ra giấy thật 100%'
+    )
+
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {
+        webdriver: true,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) HeadlessChrome/131.0.0.0 Safari/537.36',
+      },
+    })
+    assert(
+      isHeadlessQaCrawler() === true,
+      'Trình quét tự động HeadlessChrome vẫn được nhận diện sang Dry-Run để bảo vệ giấy/mực'
+    )
+  } finally {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: origNav,
+    })
+  }
 
   if (!process.argv.includes('--live')) {
     console.log(`\nHoàn tất kiểm thử Offline: ${passed} PASS, ${failed} FAIL.`)
