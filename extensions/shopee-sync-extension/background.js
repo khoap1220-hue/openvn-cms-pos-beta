@@ -1,123 +1,319 @@
-// OPENVN Shopee Auto-Sync - Background Service Worker
+// ============================================================================
+// OPENVN SHOPEE AUTO-SYNC EXTENSION v2.0 (LIÊN KẾT RIÊNG CHO SHOP)
+// Tự động trích xuất & đồng bộ Cookie phiên Kênh Người Bán Shopee về CMS
+// ============================================================================
 
-const SYNC_URL_WORKER = 'http://127.0.0.1:51898/shopee/session';
-const SYNC_URL_CMS = 'http://127.0.0.1:3010/api/webhooks/inbound';
-const CMS_API_KEY = '191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955';
+const SESSION_WATCH_COOKIES = new Set([
+  'SPC_ST',
+  'SPC_SC_SESSION',
+  'SPC_EC',
+  'SPC_CDS',
+  'csrftoken',
+]);
 
-async function extractAndSyncCookies() {
-  try {
-    const cookiesVn = await chrome.cookies.getAll({ domain: 'banhang.shopee.vn' });
-    const cookiesRoot = await chrome.cookies.getAll({ domain: 'shopee.vn' });
-    const allCookies = [...cookiesVn, ...cookiesRoot];
+let cachedBaseConfig = null;
+let cookieDebounceTimer = null;
 
-    if (!allCookies || allCookies.length === 0) {
-      await chrome.storage.local.set({ syncStatus: 'NO_COOKIES', lastChecked: Date.now() });
-      return { success: false, reason: 'Chưa có cookie Shopee' };
+async function loadEffectiveConfig() {
+  if (!cachedBaseConfig) {
+    try {
+      const resp = await fetch(chrome.runtime.getURL('shop-config.json'));
+      cachedBaseConfig = await resp.json();
+    } catch {
+      cachedBaseConfig = {
+        shopId: '197195817',
+        username: 'thaimy1605',
+        shopLabel: 'OPENVN · Ưu Đàm (thaimy1605)',
+        cmsOrigin: 'http://127.0.0.1:3010',
+        bridgePort: 51898,
+        pairingToken: '',
+        enforceShopLock: true,
+      };
     }
+  }
 
-    const cookieDict = {};
-    for (const c of allCookies) {
+  const stored = await chrome.storage.local.get([
+    'cmsOrigin',
+    'bridgePort',
+    'pairingToken',
+    'enforceShopLock',
+  ]);
+
+  return {
+    ...cachedBaseConfig,
+    cmsOrigin: (stored.cmsOrigin || cachedBaseConfig.cmsOrigin || 'http://127.0.0.1:3010').replace(/\/+$/, ''),
+    bridgePort: Number(stored.bridgePort || cachedBaseConfig.bridgePort || 51898),
+    pairingToken:
+      stored.pairingToken !== undefined ? stored.pairingToken : (cachedBaseConfig.pairingToken || ''),
+    enforceShopLock:
+      typeof stored.enforceShopLock === 'boolean'
+        ? stored.enforceShopLock
+        : Boolean(cachedBaseConfig.enforceShopLock ?? true),
+  };
+}
+
+async function collectShopeeCookies() {
+  const [rootCookies, sellerCookies] = await Promise.all([
+    chrome.cookies.getAll({ domain: 'shopee.vn' }),
+    chrome.cookies.getAll({ domain: 'banhang.shopee.vn' }),
+  ]);
+
+  const cookieDict = {};
+  for (const c of [...rootCookies, ...sellerCookies]) {
+    if (c && c.name) {
       cookieDict[c.name] = c.value;
     }
+  }
+  return cookieDict;
+}
 
-    if (!cookieDict['SPC_ST'] && !cookieDict['SPC_SC_SESSION']) {
-      await chrome.storage.local.set({ syncStatus: 'NOT_LOGGED_IN', lastChecked: Date.now() });
-      return { success: false, reason: 'Chưa đăng nhập Kênh Người Bán' };
+async function extractAndPushCookies(triggerReason = 'AUTO') {
+  const cfg = await loadEffectiveConfig();
+  try {
+    const cookieDict = await collectShopeeCookies();
+    const cookieCount = Object.keys(cookieDict).length;
+
+    if (!cookieDict['SPC_ST'] && !cookieDict['SPC_SC_SESSION'] && !cookieDict['SPC_EC']) {
+      const state = {
+        lastSyncStatus: 'CHUA_DANG_NHAP_SHOPEE',
+        lastError: 'Chưa phát hiện phiên đăng nhập trên banhang.shopee.vn. Hãy mở Kênh Người Bán và đăng nhập.',
+        cookieCount,
+        triggerReason,
+      };
+      await chrome.storage.local.set(state);
+      return { ok: false, ...state };
     }
 
-    const spc_cds = cookieDict['SPC_CDS'] || '78068754-dc8b-492a-8882-736c29a39ad4';
-    const csrf_token = cookieDict['csrftoken'] || 'h1P2HlVFJHvAkVFJLw2GRtx6SALbxBOz';
+    if (String(cookieDict['SPC_U'] || '') === '3813970') {
+      const state = {
+        lastSyncStatus: 'COOKIE_MAU_BI_CHAN',
+        lastError: 'Phát hiện Cookie mẫu thử nghiệm cũ (SPC_U=3813970). Đã chặn đồng bộ.',
+        cookieCount,
+        triggerReason,
+      };
+      await chrome.storage.local.set(state);
+      return { ok: false, ...state };
+    }
 
-    // 1. Thử gửi trực tiếp cho Python Sync Daemon qua cổng 51898
-    let sent = false;
-    let shopInfo = null;
+    const expectedShopId = cfg.enforceShopLock ? String(cfg.shopId || '') : '';
+    const payload = {
+      cookies: cookieDict,
+      spc_cds: cookieDict['SPC_CDS'] || '',
+      csrf_token: cookieDict['csrftoken'] || '',
+      source: 'CHROME_EXTENSION_BRIDGE',
+      expectedShopId,
+    };
 
+    const bridgeUrl = `http://127.0.0.1:${cfg.bridgePort}/shopee/session`;
+    let pushed = false;
+    let syncedVia = '';
+    let detectedShopId = '';
+    let detectedUsername = '';
+    let lastError = '';
+
+    // 1. Ưu tiên đẩy thẳng tới Python Shopee Daemon (:51898) để xác thực tức thì với Shopee
     try {
-      const resp = await fetch(SYNC_URL_WORKER, {
+      const res = await fetch(bridgeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cookies: cookieDict,
-          spc_cds: spc_cds,
-          csrf_token: csrf_token
-        })
+        body: JSON.stringify(payload),
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        sent = true;
-        shopInfo = data;
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.ok) {
+        pushed = true;
+        syncedVia = `Python Daemon (:${cfg.bridgePort})`;
+        detectedShopId = String(data.shopId || '');
+        detectedUsername = String(data.username || '');
+      } else if (res.status === 409) {
+        const mismatchState = {
+          lastSyncStatus: 'SAI_TAI_KHOAN_SHOP',
+          lastError:
+            data.error ||
+            `Tài khoản đang đăng nhập (#${data.shopId || '?'}) không khớp với shop liên kết #${cfg.shopId}.`,
+          detectedShopId: String(data.shopId || ''),
+          detectedUsername: String(data.username || ''),
+          cookieCount,
+          triggerReason,
+        };
+        await chrome.storage.local.set(mismatchState);
+        return { ok: false, ...mismatchState };
+      } else {
+        lastError = data.error || `Python Bridge trả mã HTTP ${res.status}`;
       }
-    } catch (e) {
-      // Daemon có thể chưa chạy, chuyển sang gửi qua CMS Webhook
+    } catch {
+      // Daemon :51898 chưa bật -> chuyển sang cổng dự phòng CMS Webhook (:3010)
     }
 
-    // 2. Thử gửi qua CMS Inbound Webhook
-    if (!sent) {
-      try {
-        const resp2 = await fetch(SYNC_URL_CMS, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Apikey ${CMS_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            event: 'INBOUND_SHOPEE_SESSION_UPDATE',
-            data: {
-              cookies: cookieDict,
-              spc_cds: spc_cds,
-              csrf_token: csrf_token
-            }
-          })
-        });
-        if (resp2.ok) {
-          sent = true;
-        }
-      } catch (e) {
-        // Cả 2 đều lỗi kết nối
+    // 2. Dự phòng đẩy vào cổng Webhook của CMS (:3010)
+    if (!pushed) {
+      const cmsWebhookUrl = `${cfg.cmsOrigin}/api/webhooks/inbound`;
+      const headers = { 'Content-Type': 'application/json' };
+      if (cfg.pairingToken) {
+        headers['Authorization'] = `Apikey ${cfg.pairingToken}`;
+      }
+      const res2 = await fetch(cmsWebhookUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          event: 'INBOUND_SHOPEE_SESSION_UPDATE',
+          data: payload,
+        }),
+      });
+      const data2 = await res2.json().catch(() => ({}));
+      if (res2.ok && data2.ok) {
+        pushed = true;
+        syncedVia = data2.verifiedLive
+          ? `CMS + Daemon (${cfg.cmsOrigin})`
+          : `CMS Dự phòng (${cfg.cmsOrigin})`;
+        detectedShopId = String(data2.shopId || cfg.shopId || '');
+        detectedUsername = String(data2.username || cfg.username || '');
+      } else if (res2.status === 409) {
+        const mismatchState = {
+          lastSyncStatus: 'SAI_TAI_KHOAN_SHOP',
+          lastError: data2.error || 'Tài khoản Shopee không khớp với shop liên kết.',
+          cookieCount,
+          triggerReason,
+        };
+        await chrome.storage.local.set(mismatchState);
+        return { ok: false, ...mismatchState };
+      } else {
+        lastError =
+          data2.error ||
+          lastError ||
+          `Không kết nối được CMS (${cfg.cmsOrigin}) hoặc thiếu Pairing Token.`;
       }
     }
 
-    if (sent) {
-      const info = {
-        syncStatus: 'SYNCED',
-        lastSync: Date.now(),
-        cookieCount: Object.keys(cookieDict).length,
-        shopId: shopInfo?.shopId || '197195817',
-        username: shopInfo?.username || 'thaimy1605'
+    if (pushed) {
+      const okState = {
+        lastSyncTime: new Date().toLocaleString('vi-VN'),
+        lastSyncStatus: 'DONG_BO_THANH_CONG',
+        lastError: '',
+        syncedVia,
+        detectedShopId,
+        detectedUsername,
+        cookieCount,
+        triggerReason,
       };
-      await chrome.storage.local.set(info);
-      return { success: true, ...info };
-    } else {
-      await chrome.storage.local.set({ syncStatus: 'DISCONNECTED_DAEMON', lastChecked: Date.now() });
-      return { success: false, reason: 'Chưa bật daemon đồng bộ (run-shopee-sync.bat)' };
+      await chrome.storage.local.set(okState);
+      return { ok: true, ...okState };
     }
+
+    const failState = {
+      lastSyncStatus: 'LOI_KET_NOI_CMS',
+      lastError,
+      cookieCount,
+      triggerReason,
+    };
+    await chrome.storage.local.set(failState);
+    return { ok: false, ...failState };
   } catch (err) {
-    console.error('Error extracting cookies:', err);
-    return { success: false, reason: err.message };
+    const errState = {
+      lastSyncStatus: 'LOI_NGOAI_LE',
+      lastError: String(err && err.message ? err.message : err),
+    };
+    await chrome.storage.local.set(errState);
+    return { ok: false, ...errState };
   }
 }
 
-// Lắng nghe khi cookie thay đổi
-chrome.cookies.onChanged.addListener((changeInfo) => {
-  if (changeInfo.cookie.domain.includes('shopee.vn')) {
-    if (['SPC_ST', 'SPC_SC_SESSION', 'SPC_SI', 'csrftoken'].includes(changeInfo.cookie.name)) {
-      extractAndSyncCookies();
-    }
-  }
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create('syncShopeeCookies', { periodInMinutes: 10 });
+  extractAndPushCookies('INSTALL');
 });
 
-// Định kỳ kiểm tra mỗi 10 phút
-chrome.alarms.create('shopee_periodic_sync', { periodInMinutes: 10 });
+chrome.runtime.onStartup.addListener(() => {
+  chrome.alarms.create('syncShopeeCookies', { periodInMinutes: 10 });
+  extractAndPushCookies('STARTUP');
+});
+
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'shopee_periodic_sync') {
-    extractAndSyncCookies();
+  if (alarm.name === 'syncShopeeCookies') {
+    extractAndPushCookies('ALARM_10M');
   }
 });
 
-// Lắng nghe tin nhắn từ Popup
-chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
-  if (req.action === 'SYNC_NOW') {
-    extractAndSyncCookies().then((res) => sendResponse(res));
+chrome.cookies.onChanged.addListener((changeInfo) => {
+  if (changeInfo.removed) return;
+  const domain = (changeInfo.cookie && changeInfo.cookie.domain) || '';
+  const name = (changeInfo.cookie && changeInfo.cookie.name) || '';
+  if (domain.includes('shopee.vn') && SESSION_WATCH_COOKIES.has(name)) {
+    if (cookieDebounceTimer) clearTimeout(cookieDebounceTimer);
+    cookieDebounceTimer = setTimeout(() => {
+      extractAndPushCookies(`COOKIE_${name}`);
+    }, 2500);
+  }
+});
+
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (
+    changeInfo.status === 'complete' &&
+    tab &&
+    typeof tab.url === 'string' &&
+    tab.url.includes('banhang.shopee.vn')
+  ) {
+    extractAndPushCookies('SELLER_TAB_OPENED');
+  }
+});
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!msg || typeof msg !== 'object') return false;
+
+  if (msg.action === 'FORCE_SYNC') {
+    extractAndPushCookies('MANUAL_BUTTON').then((resp) => sendResponse(resp));
     return true;
   }
+
+  if (msg.action === 'GET_CONFIG_AND_STATE') {
+    Promise.all([
+      loadEffectiveConfig(),
+      chrome.storage.local.get([
+        'lastSyncTime',
+        'lastSyncStatus',
+        'lastError',
+        'syncedVia',
+        'detectedShopId',
+        'detectedUsername',
+        'cookieCount',
+      ]),
+    ]).then(([cfg, state]) => {
+      sendResponse({ ok: true, config: cfg, state });
+    });
+    return true;
+  }
+
+  if (msg.action === 'SAVE_SETTINGS') {
+    const updates = {};
+    if (typeof msg.cmsOrigin === 'string') {
+      updates.cmsOrigin = msg.cmsOrigin.trim().replace(/\/+$/, '');
+    }
+    if (typeof msg.pairingToken === 'string') {
+      updates.pairingToken = msg.pairingToken.trim();
+    }
+    if (typeof msg.enforceShopLock === 'boolean') {
+      updates.enforceShopLock = msg.enforceShopLock;
+    }
+    chrome.storage.local.set(updates).then(() => {
+      extractAndPushCookies('SETTINGS_UPDATED').then((resp) => sendResponse(resp));
+    });
+    return true;
+  }
+
+  if (msg.action === 'EXPORT_COOKIE_HEADER') {
+    collectShopeeCookies().then((dict) => {
+      const pairs = Object.entries(dict)
+        .map(([k, v]) => `${k}=${v}`)
+        .join('; ');
+      sendResponse({
+        ok: Object.keys(dict).length > 0,
+        cookieCount: Object.keys(dict).length,
+        hasSession: Boolean(dict['SPC_ST'] || dict['SPC_SC_SESSION'] || dict['SPC_EC']),
+        cookieHeader: pairs ? `Cookie: ${pairs}` : '',
+      });
+    });
+    return true;
+  }
+
+  return false;
 });

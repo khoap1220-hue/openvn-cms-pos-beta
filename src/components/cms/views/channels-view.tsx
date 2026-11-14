@@ -8,6 +8,10 @@ import { PageHeader, EmptyState, ErrorState, TableSkeleton } from '@/components/
 import { StatCard } from '@/components/cms/stat-card'
 import { ChannelBadge, ConnectedDot, SyncInfo } from '@/components/cms/channel-badge'
 import { ConfirmDialog } from '@/components/cms/confirm-dialog'
+import {
+  ShopeeCookieSyncDialog,
+  type ShopeeSessionStatus,
+} from '@/components/cms/shopee-cookie-sync-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -43,9 +47,11 @@ import {
   ClipboardCheck,
   Eye,
   EyeOff,
+  KeyRound,
   Link2,
   Loader2,
   PackagePlus,
+  Puzzle,
   RefreshCw,
   Save,
   Search,
@@ -211,8 +217,25 @@ export function ChannelsView() {
   const [bulkPriceValue, setBulkPriceValue] = useState<string>('')
   const [bulkStockMode, setBulkStockMode] = useState<'NONE' | 'SET' | 'ADD_DELTA'>('NONE')
   const [bulkStockValue, setBulkStockValue] = useState<string>('')
+  const [shopeeSession, setShopeeSession] = useState<ShopeeSessionStatus | null>(null)
+  const [cookieDialogOpen, setCookieDialogOpen] = useState(false)
+  const [cookieDialogTab, setCookieDialogTab] = useState<'curl' | 'extension'>('curl')
 
   const { toast } = useToast()
+
+  const openCookieSyncDialog = useCallback((tab: 'curl' | 'extension' = 'curl') => {
+    setCookieDialogTab(tab)
+    setCookieDialogOpen(true)
+  }, [])
+
+  const loadShopeeSession = useCallback(async () => {
+    try {
+      const res = await apiGet<ShopeeSessionStatus>('/api/channels/shopee-session')
+      setShopeeSession(res)
+    } catch {
+      // ignore silent error when offline
+    }
+  }, [])
 
   const loadLinks = useCallback(async (silent = false) => {
     if (!silent) setLoadingLinks(true)
@@ -235,6 +258,7 @@ export function ChannelsView() {
       const [data] = await Promise.all([
         apiGet<{ channels: Channel[] }>('/api/channels'),
         loadLinks(silent),
+        loadShopeeSession(),
       ])
       setChannels(data.channels)
     } catch (e) {
@@ -937,12 +961,71 @@ export function ChannelsView() {
                       Đồng bộ tất cả lệch ({linkData?.stats.driftCount})
                     </Button>
                   )}
+                  <Button
+                    variant={shopeeSession?.alive ? 'outline' : 'default'}
+                    size="sm"
+                    className={
+                      shopeeSession?.alive
+                        ? 'border-emerald-300 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/80 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
+                        : 'bg-orange-600 text-white hover:bg-orange-700'
+                    }
+                    onClick={() => openCookieSyncDialog('curl')}
+                  >
+                    <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                    {shopeeSession?.alive
+                      ? `Cookie Shopee Live (${shopeeSession.username || 'thaimy1605'})`
+                      : 'Nhập cURL / Extension Cookie'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openCookieSyncDialog('extension')}
+                  >
+                    <Puzzle className="mr-1.5 h-3.5 w-3.5 text-orange-600" />
+                    Extension Shop
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => void loadLinks()} disabled={loadingLinks}>
                     <RefreshCw className={loadingLinks ? 'mr-1.5 h-4 w-4 animate-spin' : 'mr-1.5 h-4 w-4'} />
                     Làm mới liên kết
                   </Button>
                 </div>
               </div>
+
+              {shopeeSession && !shopeeSession.alive && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-amber-300 bg-amber-50/80 px-3.5 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                    <span>
+                      Phiên Cookie Kênh Người Bán Shopee (
+                      <b>
+                        {shopeeSession.username || 'thaimy1605'} · #
+                        {shopeeSession.shopId || '197195817'}
+                      </b>
+                      ) đã hết hạn — hãy dán lệnh cURL mới hoặc cài Extension liên kết riêng của
+                      Shop để đồng bộ trực tiếp.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      className="h-7 bg-orange-600 px-2.5 text-xs text-white hover:bg-orange-700"
+                      onClick={() => openCookieSyncDialog('curl')}
+                    >
+                      <KeyRound className="mr-1 h-3 w-3" />
+                      Dán lệnh cURL
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 bg-background px-2.5 text-xs"
+                      onClick={() => openCookieSyncDialog('extension')}
+                    >
+                      <Puzzle className="mr-1 h-3 w-3 text-orange-600" />
+                      Tải Extension Shop
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Thanh Radar Kiểm soát Rủi ro & Sức khỏe Đồng bộ 2 Chiều */}
               <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -1883,6 +1966,48 @@ export function ChannelsView() {
                       </div>
                     </div>
 
+                    {channel.key === 'SHOPEE' && (
+                      <div className="rounded-lg border border-orange-200/80 bg-orange-50/40 p-2.5 text-xs dark:border-orange-900/50 dark:bg-orange-950/20">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-foreground">
+                            Phiên Cookie ({shopeeSession?.username || 'thaimy1605'})
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={
+                              shopeeSession?.alive
+                                ? 'border-emerald-300 bg-emerald-50 text-[10px] text-emerald-700'
+                                : 'border-amber-300 bg-amber-50 text-[10px] text-amber-700'
+                            }
+                          >
+                            {shopeeSession?.alive ? 'Live' : 'Cần nạp lại'}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 bg-background px-2 text-[11px]"
+                            onClick={() => openCookieSyncDialog('curl')}
+                          >
+                            <KeyRound className="mr-1 h-3 w-3 text-orange-600" />
+                            Nhập cURL
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 bg-background px-2 text-[11px]"
+                            onClick={() => openCookieSyncDialog('extension')}
+                          >
+                            <Puzzle className="mr-1 h-3 w-3 text-orange-600" />
+                            Extension Shop
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mt-auto">
                       <Separator className="mb-3" />
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2592,6 +2717,19 @@ export function ChannelsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShopeeCookieSyncDialog
+        open={cookieDialogOpen}
+        onOpenChange={setCookieDialogOpen}
+        initialTab={cookieDialogTab}
+        sessionStatus={shopeeSession}
+        onSessionUpdated={(nextStatus) => {
+          if (nextStatus) {
+            setShopeeSession(nextStatus)
+          }
+          void load(true)
+        }}
+      />
 
       <ConfirmDialog
         open={pendingDisconnect !== null}

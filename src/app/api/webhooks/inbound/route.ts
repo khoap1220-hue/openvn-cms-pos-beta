@@ -247,6 +247,16 @@ async function syncOrderShipment({
   return null
 }
 
+const WEBHOOK_CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Signature',
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: WEBHOOK_CORS_HEADERS })
+}
+
 // POST /api/webhooks/inbound — nhận webhook từ hệ thống ngoài (ký HMAC X-Signature hoặc Authorization: Apikey cho SePay)
 export async function POST(req: NextRequest) {
   try {
@@ -257,7 +267,10 @@ export async function POST(req: NextRequest) {
       req.headers.get('authorization')
     )
     if (!verified.ok) {
-      return NextResponse.json({ error: verified.reason }, { status: 401 })
+      return NextResponse.json(
+        { error: verified.reason },
+        { status: 401, headers: WEBHOOK_CORS_HEADERS }
+      )
     }
 
     const event = verified.payload.event
@@ -838,54 +851,155 @@ export async function POST(req: NextRequest) {
         cookies?: Record<string, string>
         spc_cds?: string
         csrf_token?: string
+        source?: string
+        expectedShopId?: string
       }
-      if (!d.cookies || typeof d.cookies !== 'object') {
-        return NextResponse.json({ error: 'Dữ liệu cookies không hợp lệ' }, { status: 400 })
+      if (
+        !d.cookies ||
+        typeof d.cookies !== 'object' ||
+        Object.keys(d.cookies).length === 0 ||
+        String(d.cookies['SPC_U'] || '') === '3813970'
+      ) {
+        return NextResponse.json(
+          { error: 'Dữ liệu cookies không hợp lệ hoặc là cookie mẫu bị chặn' },
+          { status: 400, headers: WEBHOOK_CORS_HEADERS }
+        )
       }
 
-      const spc_cds = d.spc_cds || d.cookies['SPC_CDS'] || '78068754-dc8b-492a-8882-736c29a39ad4'
-      const csrf_token = d.csrf_token || d.cookies['csrftoken'] || 'h1P2HlVFJHvAkVFJLw2GRtx6SALbxBOz'
+      const spc_cds = d.spc_cds || d.cookies['SPC_CDS'] || 'c2344aba-5428-425d-bba9-04838a499109'
+      const csrf_token = d.csrf_token || d.cookies['csrftoken'] || '0BQKllKGsakrP1WMZnz4ZKeXdP3neixB'
+      const source = d.source || 'CHROME_EXTENSION_AUTO_SYNC'
+      const expectedShopId = (d.expectedShopId || '').trim()
 
-      // Lưu ra file .shopee_session.json để Worker chạy Python đọc ngay lập tức
-      const fs = await import('fs')
-      const path = await import('path')
-      const sessionPath = path.resolve(process.cwd(), 'scripts', '.shopee_session.json')
-      fs.writeFileSync(
-        sessionPath,
-        JSON.stringify(
-          {
+      let verifiedLive = false
+      let detectedShopId: string | null = null
+      let detectedUsername: string | null = null
+      let daemonOnline = false
+
+      // 1. Chuyển tiếp sang Python Sync Daemon (:51898) để nạp nóng RAM + xác thực trực tiếp Shopee
+      const bridgePort = process.env.SHOPEE_SYNC_PORT || '51898'
+      try {
+        const bridgeRes = await fetch(`http://127.0.0.1:${bridgePort}/shopee/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             cookies: d.cookies,
             spc_cds,
             csrf_token,
-            updated_at: new Date().toISOString(),
-            source: 'CHROME_EXTENSION_AUTO_SYNC',
-          },
-          null,
-          2,
-        ),
-        'utf-8',
-      )
+            source,
+            expectedShopId,
+          }),
+          signal: AbortSignal.timeout(8000),
+        })
+        daemonOnline = true
+        const bridgeData = (await bridgeRes.json().catch(() => ({}))) as {
+          ok?: boolean
+          shopId?: string
+          username?: string
+          error?: string
+        }
+        if (bridgeRes.status === 409) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                bridgeData.error ||
+                'Tài khoản Shopee đang đăng nhập không khớp với Shop liên kết.',
+              shopId: bridgeData.shopId,
+              username: bridgeData.username,
+            },
+            { status: 409, headers: WEBHOOK_CORS_HEADERS }
+          )
+        }
+        if (bridgeRes.ok && bridgeData.ok) {
+          verifiedLive = true
+          detectedShopId = bridgeData.shopId ? String(bridgeData.shopId) : null
+          detectedUsername = bridgeData.username ? String(bridgeData.username) : null
+        }
+      } catch {
+        // Daemon chưa chạy -> vẫn lưu xuống .shopee_session.json bên dưới để Daemon đọc khi khởi động
+      }
+
+      // 2. Nếu Daemon chưa chạy (hoặc chưa tự ghi), ghi dự phòng xuống scripts/.shopee_session.json
+      if (!verifiedLive && !daemonOnline) {
+        const fs = await import('fs')
+        const path = await import('path')
+        const envRoot = process.env.OPENVN_PROJECT_ROOT?.trim()
+        const candDirect = path.join(
+          /* turbopackIgnore: true */ envRoot || process.cwd(),
+          'scripts',
+          '.shopee_session.json'
+        )
+        const candParent = path.join(
+          /* turbopackIgnore: true */ process.cwd(),
+          '..',
+          '..',
+          'scripts',
+          '.shopee_session.json'
+        )
+        const sessionPath = fs.existsSync(/* turbopackIgnore: true */ path.dirname(candDirect))
+          ? candDirect
+          : candParent
+        fs.writeFileSync(
+          sessionPath,
+          JSON.stringify(
+            {
+              cookies: d.cookies,
+              spc_cds,
+              csrf_token,
+              updated_at: new Date().toISOString(),
+              source,
+            },
+            null,
+            2,
+          ),
+          'utf-8',
+        )
+      }
+
+      const maskedSpcCds =
+        spc_cds.length > 8 ? `${spc_cds.slice(0, 4)}••••${spc_cds.slice(-4)}` : '••••'
 
       await logLedger({
         scope: 'WEBHOOK',
         action: 'INBOUND_RECEIVED',
         entityType: 'Integration',
-        title: `Shopee: Tự động cập nhật phiên đăng nhập Kênh Người Bán (${Object.keys(d.cookies).length} cookies)`,
+        title: `Shopee: Cập nhật phiên Cookie Kênh Người Bán (${Object.keys(d.cookies).length} cookies · ${verifiedLive ? 'Live' : 'Dự phòng'})`,
         detail: {
-          spc_cds,
+          spc_cds_masked: maskedSpcCds,
           has_spc_st: Boolean(d.cookies['SPC_ST']),
           has_spc_sc_session: Boolean(d.cookies['SPC_SC_SESSION']),
-          source: 'CHROME_EXTENSION',
+          verified_live: verifiedLive,
+          shop_id: detectedShopId,
+          username: detectedUsername,
+          source,
         },
         actor: 'API',
         originSource: 'MARKETPLACE_SYNC',
       })
 
-      return NextResponse.json({
-        ok: true,
-        message: 'Shopee session updated successfully',
-        cookieCount: Object.keys(d.cookies).length,
+      broadcast('channel.updated', {
+        key: 'SHOPEE',
+        sessionUpdated: true,
+        verifiedLive,
+        shopId: detectedShopId,
+        username: detectedUsername,
       })
+
+      return NextResponse.json(
+        {
+          ok: true,
+          verifiedLive,
+          daemonOnline,
+          shopId: detectedShopId,
+          username: detectedUsername,
+          message: verifiedLive
+            ? 'Đã xác thực & cập nhật phiên Cookie Shopee Live!'
+            : 'Đã lưu phiên Cookie dự phòng (Daemon đang ngoại tuyến).',
+          cookieCount: Object.keys(d.cookies).length,
+        },
+        { headers: WEBHOOK_CORS_HEADERS }
+      )
     }
 
     // ===== 11. SHOPEE_PRODUCT_SYNC & SHOPEE_BATCH_SYNC: Đồng bộ Sản phẩm/Phân loại từ Shopee về CMS (Batch + Zero-Write Fast-Path) =====

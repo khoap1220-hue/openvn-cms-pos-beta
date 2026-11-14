@@ -13,6 +13,8 @@ $DbFilePath = (Join-Path $PSScriptRoot "db/custom.db") -replace '\\', '/'
 
 $env:HOSTNAME = "0.0.0.0"
 $env:PORT = "$CmsPort"
+$env:OPENVN_PROJECT_ROOT = "$PSScriptRoot"
+$env:NODE_PATH = (Join-Path $PSScriptRoot "node_modules")
 $env:REALTIME_PORT = "$RealtimePort"
 $env:REALTIME_URL = "http://localhost:$RealtimePort"
 $env:NEXT_PUBLIC_REALTIME_PORT = "$RealtimePort"

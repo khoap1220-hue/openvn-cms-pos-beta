@@ -1,22 +1,15 @@
-# Hướng Dẫn Cài Đặt Tiện Ích OPENVN Shopee Auto-Sync (Chrome Extension)
+# Tiện Ích Đồng Bộ Cookie Shopee Liên Kết Riêng — thaimy1605 (#197195817)
 
-Tiện ích này giúp tự động bắt Cookie phiên đăng nhập từ Kênh Người Bán Shopee (`banhang.shopee.vn`) và đẩy về hệ thống OPENVN CMS/POS ngầm, giúp bạn không bao giờ phải copy cURL hay lo hết hạn phiên.
+Gói Chrome Extension này đã được cấu hình sẵn thông tin liên kết riêng cho gian hàng **OPENVN · Ưu Đàm (thaimy1605)** (Shop ID: `197195817`).
 
----
+## Hướng dẫn cài đặt (30 giây)
+1. Giải nén file `.zip` vừa tải về ra một thư mục cố định trên máy tính.
+2. Mở trình duyệt Chrome / Edge / Cốc Cốc (nơi bạn đăng nhập **banhang.shopee.vn**), truy cập địa chỉ:
+   `chrome://extensions` (hoặc `edge://extensions`).
+3. Bật công tắc **Chế độ dành cho nhà phát triển (Developer mode)** ở góc trên bên phải.
+4. Nhấn nút **Tải tiện ích đã giải nén (Load unpacked)** và chọn thư mục vừa giải nén ở Bước 1.
+5. Mở trang `https://banhang.shopee.vn` — Extension sẽ tự động nhận diện phiên Cookie của shop `thaimy1605` và đồng bộ thẳng về OPENVN CMS.
 
-### Các bước cài đặt (Chỉ làm 1 lần duy nhất - mất 30 giây):
-
-1. Mở trình duyệt **Google Chrome**.
-2. Trên thanh địa chỉ, nhập: `chrome://extensions` rồi nhấn Enter.
-3. Ở góc trên cùng bên phải, bật công tắc **"Chế độ dành cho nhà phát triển" (Developer mode)**.
-4. Nhấn nút **"Tải tiện ích đã giải nén" (Load unpacked)** ở góc trên bên trái.
-5. Chọn thư mục:
-   `y:\Z.AI\workspace-57aaf18c-d0b6-44bc-8c6d-cf1574a56005 (1)\extensions\shopee-sync-extension`
-6. Nhấn **Select Folder** (Chọn thư mục).
-
----
-
-### Cách sử dụng:
-* Biểu tượng **⚡ OPENVN Shopee Sync** sẽ xuất hiện trên thanh tiện ích của Chrome.
-* Mỗi khi bạn mở trang Kênh Người Bán (`banhang.shopee.vn`), Extension sẽ tự động phát hiện và gửi Cookie mới nhất về POS qua cổng 51898.
-* Bạn cũng có thể bấm vào biểu tượng tiện ích và nhấn nút **"Đồng bộ Cookie ngay"** bất cứ lúc nào.
+## Cơ chế bảo vệ an toàn
+- **Khóa cứng Shop ID (`197195817`)**: Ngăn đồng bộ nhầm nếu trình duyệt đăng nhập tài khoản Shopee khác.
+- **Tự động gia hạn ngầm**: Tự động làm mới mỗi 10 phút hoặc ngay khi Shopee cấp lại `SPC_ST` / `SPC_SC_SESSION`.

@@ -2,7 +2,7 @@
 
 > [!IMPORTANT] Vận Hành Độc Lập 24/7 Kèm Hợp Đồng Số Chịu Trách Nhiệm (`HMAC-SHA256`):
 > - **Mã Hợp Đồng Số UI/UX**: **`CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS`**
-> - **Chữ Ký Số Công Chứng (`HMAC-SHA256`)**: **`SIG-UIUX-AGENT-PRO-8DB41FEF2914C0672730`**
+> - **Chữ Ký Số Công Chứng (`HMAC-SHA256`)**: **`SIG-UIUX-AGENT-PRO-1B7FA878AD0D5AA75BE2`**
 > - **Bộ Kỹ Năng Tích Hợp**: `ui-ux-pro-max` (84 Styles, 192 Palettes, 98 UX Rules) + `matrix-thiet-ke-giao-dien-uxui` (6 Gates `G0..G5`) + `ui-styling` (`shadcn/ui` + Tailwind v4) + `design-system`.
 > - **Cam Kết Trách Nhiệm**: Agent Độc Lập UIUX-AGENT-PRO cam kết chịu trách nhiệm 100% về chất lượng thẩm mỹ, bố cục Responsive đa màn hình (390px -> 2560px), độ tương phản WCAG 2.2, đồng bộ tuyệt đối biến :root của hệ thiết kế gốc OPENVN và không làm thay đổi Database/API.
 

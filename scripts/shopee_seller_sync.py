@@ -1612,12 +1612,16 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             dlq = load_dlq()
             st = load_sync_state()
             with GLOBAL_STATE["lock"]:
+                mem_cookies = GLOBAL_STATE.get("cookies") or {}
                 resp = {
                     "ok": True,
                     "alive": GLOBAL_STATE["alive"],
                     "paused": GLOBAL_STATE.get("paused", False),
                     "shopId": GLOBAL_STATE["shopId"],
                     "username": GLOBAL_STATE["username"],
+                    "cookieCount": len(mem_cookies),
+                    "hasSpcSt": bool(mem_cookies.get("SPC_ST")),
+                    "hasSpcScSession": bool(mem_cookies.get("SPC_SC_SESSION")),
                     "lastSync": GLOBAL_STATE["lastSync"],
                     "dryRun": is_outbox_dry_run(),
                     "asyncQueue": {
@@ -1651,10 +1655,49 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             try:
                 body = json.loads(post_data.decode('utf-8'))
                 incoming_cookies = body.get("cookies", {})
+                if (
+                    not isinstance(incoming_cookies, dict)
+                    or len(incoming_cookies) == 0
+                    or str(incoming_cookies.get("SPC_U", "")) == "3813970"
+                    or incoming_cookies.get("SPC_ST") == "test_token"
+                ):
+                    payload = json.dumps({
+                        "ok": False,
+                        "verifiedLive": False,
+                        "error": "Dữ liệu Cookie trống hoặc là Cookie mẫu thử nghiệm không hợp lệ."
+                    }).encode('utf-8')
+                    self.send_response(400)
+                    self._send_cors()
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
+                source = str(body.get("source") or "CHROME_EXTENSION_BRIDGE")
+                expected_shop_id = str(body.get("expectedShopId") or "").strip()
                 spc_cds = body.get("spc_cds") or incoming_cookies.get("SPC_CDS", GLOBAL_STATE["spc_cds"])
                 csrf_token = body.get("csrf_token") or incoming_cookies.get("csrftoken", GLOBAL_STATE["csrf_token"])
                 alive, shopid, uname = keep_alive_ping(incoming_cookies, spc_cds, csrf_token)
                 if alive:
+                    if expected_shop_id and str(shopid) != expected_shop_id:
+                        payload = json.dumps({
+                            "ok": False,
+                            "verifiedLive": False,
+                            "code": "SHOP_MISMATCH",
+                            "shopId": str(shopid),
+                            "username": str(uname),
+                            "expectedShopId": expected_shop_id,
+                            "error": f"Tài khoản Shopee đang đăng nhập ({uname} · #{shopid}) không khớp với shop liên kết (#{expected_shop_id})."
+                        }).encode('utf-8')
+                        self.send_response(409)
+                        self._send_cors()
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Content-Length', str(len(payload)))
+                        self.end_headers()
+                        self.wfile.write(payload)
+                        return
+
                     with GLOBAL_STATE["lock"]:
                         GLOBAL_STATE["cookies"] = incoming_cookies
                         GLOBAL_STATE["spc_cds"] = spc_cds
@@ -1662,30 +1705,79 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                         GLOBAL_STATE["shopId"] = str(shopid)
                         GLOBAL_STATE["username"] = str(uname)
                         GLOBAL_STATE["alive"] = True
-                    save_session(incoming_cookies, spc_cds, csrf_token, source="CHROME_EXTENSION_BRIDGE")
+                    save_session(incoming_cookies, spc_cds, csrf_token, source=source)
+                    payload = json.dumps({
+                        "ok": True,
+                        "verifiedLive": True,
+                        "shopId": str(shopid),
+                        "username": str(uname),
+                        "cookieCount": len(incoming_cookies),
+                        "source": source,
+                        "message": "Xác thực & cập nhật phiên Cookie Shopee thành công!"
+                    }).encode('utf-8')
                     self.send_response(200)
                     self._send_cors()
                     self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(payload)))
                     self.end_headers()
-                    self.wfile.write(json.dumps({
-                        "ok": True,
-                        "shopId": shopid,
-                        "username": uname,
-                        "cookieCount": len(incoming_cookies),
-                        "message": "Cập nhật Cookie thành công!"
-                    }).encode('utf-8'))
+                    self.wfile.write(payload)
                 else:
+                    payload = json.dumps({
+                        "ok": False,
+                        "verifiedLive": False,
+                        "error": "Cookie đã hết hạn hoặc không hợp lệ đối với Kênh Người Bán Shopee."
+                    }).encode('utf-8')
                     self.send_response(400)
                     self._send_cors()
                     self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(payload)))
                     self.end_headers()
-                    self.wfile.write(json.dumps({"ok": False, "error": "Cookie không hợp lệ đối với Shopee"}).encode('utf-8'))
+                    self.wfile.write(payload)
             except Exception as e:
+                payload = json.dumps({"ok": False, "error": str(e)}).encode('utf-8')
                 self.send_response(500)
                 self._send_cors()
                 self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
                 self.end_headers()
-                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode('utf-8'))
+                self.wfile.write(payload)
+        elif self.path == '/shopee/check-session':
+            try:
+                disk_cookies, disk_cds, disk_csrf = load_session()
+                with GLOBAL_STATE["lock"]:
+                    curr_cookies = dict(GLOBAL_STATE["cookies"]) if GLOBAL_STATE.get("cookies") else dict(disk_cookies)
+                    curr_spc_cds = GLOBAL_STATE["spc_cds"] or disk_cds
+                    curr_csrf = GLOBAL_STATE["csrf_token"] or disk_csrf
+                alive, shopid, uname = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                with GLOBAL_STATE["lock"]:
+                    GLOBAL_STATE["alive"] = bool(alive)
+                    if alive and shopid:
+                        GLOBAL_STATE["shopId"] = str(shopid)
+                    if alive and uname:
+                        GLOBAL_STATE["username"] = str(uname)
+                    eff_shop = GLOBAL_STATE["shopId"]
+                    eff_user = GLOBAL_STATE["username"]
+                payload = json.dumps({
+                    "ok": True,
+                    "alive": bool(alive),
+                    "shopId": eff_shop,
+                    "username": eff_user,
+                    "cookieCount": len(curr_cookies)
+                }).encode('utf-8')
+                self.send_response(200)
+                self._send_cors()
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except Exception as e:
+                payload = json.dumps({"ok": False, "error": str(e)}).encode('utf-8')
+                self.send_response(500)
+                self._send_cors()
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
         elif self.path == '/shopee/pause':
             with GLOBAL_STATE["lock"]:
                 GLOBAL_STATE["paused"] = True

@@ -1,24 +1,25 @@
 {
   "manifest_version": 3,
-  "name": "OPENVN Shopee Auto-Sync",
-  "version": "1.0.0",
-  "description": "Tự động trích xuất và đồng bộ Cookie phiên Shopee Kênh Người Bán về hệ thống OPENVN CMS/POS",
+  "name": "OPENVN Shopee Auto-Sync — thaimy1605 (#197195817)",
+  "version": "2.0.0",
+  "description": "Tiện ích liên kết riêng cho shop thaimy1605 (#197195817) — tự động đồng bộ Cookie Kênh Người Bán Shopee về OPENVN CMS.",
   "permissions": [
     "cookies",
+    "alarms",
     "storage",
-    "alarms"
+    "tabs"
   ],
   "host_permissions": [
-    "*://banhang.shopee.vn/*",
     "*://*.shopee.vn/*",
-    "http://127.0.0.1:51898/*",
-    "http://127.0.0.1:3010/*"
+    "*://banhang.shopee.vn/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "OPENVN Shopee Auto-Sync"
+    "default_title": "OPENVN Shopee Auto-Sync (thaimy1605)"
   }
 }
