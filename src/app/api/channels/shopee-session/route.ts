@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
-import { broadcast } from '@/lib/realtime'
+import { broadcast, invalidateApiCache } from '@/lib/realtime'
 import {
   maskSecretValue,
   parseShopeeCurlOrCookieInput,
@@ -427,12 +427,22 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const requeuedRes = await db.ledgerEntry.updateMany({
+      where: {
+        scope: 'CHANNEL',
+        action: { in: ['OUTBOX_DEAD_LETTER', 'OUTBOX_DEFERRED'] },
+      },
+      data: {
+        action: 'OUTBOX_PENDING',
+      },
+    })
+
     await logLedger({
       scope: 'CHANNEL',
       action: 'SHOPEE_COOKIE_IMPORTED',
       entityType: 'Channel',
       entityCode: 'SHOPEE',
-      title: `Shopee (${detectedUsername || binding.username}): Nạp phiên Cookie qua ${parsed.format} (${parsed.cookieCount} cookies)`,
+      title: `Shopee (${detectedUsername || binding.username}): Nạp phiên Cookie qua ${parsed.format} (${parsed.cookieCount} cookies)${requeuedRes.count > 0 ? ` · Tự động xếp lại ${requeuedRes.count} tác vụ Outbox` : ''}`,
       detail: {
         format: parsed.format,
         cookieCount: parsed.cookieCount,
@@ -442,11 +452,19 @@ export async function POST(req: NextRequest) {
         username: detectedUsername,
         daemonOnline,
         verifiedLive,
+        requeuedOutboxCount: requeuedRes.count,
       },
       actor: 'OPERATOR',
       originSource: 'MANUAL_ADMIN',
     })
 
+    invalidateApiCache('channels:product-links')
+    broadcast('channel.session_restored', {
+      key: 'SHOPEE',
+      shopId: detectedShopId,
+      username: detectedUsername,
+      requeuedCount: requeuedRes.count,
+    })
     broadcast('channel.updated', {
       key: 'SHOPEE',
       sessionUpdated: true,
@@ -461,7 +479,8 @@ export async function POST(req: NextRequest) {
       imported: true,
       verifiedLive,
       format: parsed.format,
-      message: `Đã xác thực & nạp thành công ${parsed.cookieCount} Cookie cho shop ${detectedUsername} (#${detectedShopId})!`,
+      requeuedOutboxCount: requeuedRes.count,
+      message: `Đã xác thực & nạp thành công ${parsed.cookieCount} Cookie cho shop ${detectedUsername} (#${detectedShopId})! Hàng đợi bất đồng bộ đang tự động đồng bộ.`,
     })
   } catch (err) {
     return NextResponse.json(

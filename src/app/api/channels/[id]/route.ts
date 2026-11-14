@@ -43,11 +43,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       syncedListings = products.length
 
       if (sync === true) {
+        let sessionAlive = true
+        let daemonOnline = false
         if (updated.key === 'SHOPEE') {
-          void fetch(`${process.env.SHOPEE_SYNC_PORT ? `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT}` : 'http://127.0.0.1:51898'}/shopee/trigger-sync`, {
-            method: 'POST',
-            signal: AbortSignal.timeout(8000),
-          }).catch(() => null)
+          const bridgeBase = process.env.SHOPEE_SYNC_PORT
+            ? `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT}`
+            : 'http://127.0.0.1:51898'
+          try {
+            const stRes = await fetch(`${bridgeBase}/shopee/status`, {
+              method: 'GET',
+              signal: AbortSignal.timeout(1500),
+              cache: 'no-store',
+            })
+            if (stRes.ok) {
+              const stJson = (await stRes.json()) as { ok?: boolean; alive?: boolean; dryRun?: boolean }
+              daemonOnline = Boolean(stJson.ok)
+              sessionAlive = Boolean(stJson.alive || stJson.dryRun)
+            } else {
+              sessionAlive = false
+            }
+          } catch {
+            daemonOnline = false
+            sessionAlive = false
+          }
+
+          if (daemonOnline) {
+            void fetch(`${bridgeBase}/shopee/trigger-sync`, {
+              method: 'POST',
+              signal: AbortSignal.timeout(8000),
+            }).catch(() => null)
+          }
         }
         await logLedger({
           scope: 'SETTINGS',
@@ -55,9 +80,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           entityType: 'Channel',
           entityId: updated.id,
           entityCode: updated.key,
-          title: `Đồng bộ kênh bán «${updated.name}» (${syncedListings} sản phẩm ACTIVE, thêm mới ${toAdd.length})`,
-          detail: { channelKey: updated.key, syncedListings, addedListings: toAdd.length },
+          title: `Đồng bộ kênh bán «${updated.name}» (${syncedListings} sản phẩm ACTIVE, thêm mới ${toAdd.length})${updated.key === 'SHOPEE' && !sessionAlive ? ' [Phiên Cookie hết hạn — Xếp hàng đợi bất đồng bộ]' : ''}`,
+          detail: { channelKey: updated.key, syncedListings, addedListings: toAdd.length, sessionAlive },
           actor: 'OPERATOR',
+        })
+        broadcast('channel.updated', {
+          id: updated.id,
+          key: updated.key,
+          connected: updated.connected,
+          sessionAlive,
+        })
+        broadcast('product.updated', { channelId: updated.id, connected: updated.connected })
+        return NextResponse.json({
+          channel: updated,
+          syncedListings,
+          sessionAlive,
+          daemonOnline,
+          queuedAsync: updated.key === 'SHOPEE' && !sessionAlive,
         })
       }
     } else if (data.connected === false) {

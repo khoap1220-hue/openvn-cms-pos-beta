@@ -35,6 +35,7 @@ import {
   ExternalLink,
   Fingerprint,
   KeyRound,
+  Layers,
   LayoutDashboard,
   Loader2,
   LogIn,
@@ -44,6 +45,7 @@ import {
   MessageSquare,
   Package,
   Plus,
+  Puzzle,
   ReceiptText,
   Rocket,
   Search,
@@ -52,8 +54,10 @@ import {
   ShoppingCart,
   Store,
   Truck,
+  Unlink,
   Users,
   Warehouse,
+  X,
 } from 'lucide-react'
 import {
   SidebarInset,
@@ -77,7 +81,7 @@ import { AutopilotView } from '@/components/cms/views/autopilot-view'
 import { DashboardView } from '@/components/cms/views/dashboard-view'
 import { ProductsView } from '@/components/cms/views/products-view'
 import { OrdersView } from '@/components/cms/views/orders-view'
-import { ChannelsView } from '@/components/cms/views/channels-view'
+import { ChannelsView, type ChannelsExternalOpenRequest } from '@/components/cms/views/channels-view'
 import { CustomersView } from '@/components/cms/views/customers-view'
 import { InventoryView } from '@/components/cms/views/inventory-view'
 import { ReportsView } from '@/components/cms/views/reports-view'
@@ -560,8 +564,115 @@ export default function Home() {
 
   const { profile: shopProfile, refreshProfile: refreshShopProfile } = useShopProfile()
 
+  const [channelHealth, setChannelHealth] = useState<{
+    connection: {
+      shopeeChannelEnabled: boolean
+      daemonOnline: boolean
+      sessionAlive: boolean
+      state: 'CONNECTED' | 'SESSION_EXPIRED' | 'DAEMON_OFFLINE' | 'CHANNEL_DISABLED'
+      shopId: string
+      username: string
+    }
+    summary: {
+      totalActionable: number
+      pendingCount: number
+      waitingSessionCount: number
+      deadLetterCount: number
+      brokenLinkCount: number
+      unlinkedMarketplaceCount: number
+    }
+    alerts: Array<{
+      id: string
+      severity: 'critical' | 'warning' | 'info'
+      title: string
+      description: string
+      ctaType: 'RECONNECT_COOKIE' | 'OPEN_ASYNC_QUEUE'
+    }>
+  } | null>(null)
+  const [channelBannerDismissedSig, setChannelBannerDismissedSig] = useState<string | null>(null)
+  const [channelOpenRequest, setChannelOpenRequest] = useState<ChannelsExternalOpenRequest | null>(null)
+
+  const refreshChannelHealth = useCallback(async () => {
+    try {
+      const res = await fetch('/api/channels/async-queue', { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json()
+      if (json?.ok && json.connection && json.summary) {
+        setChannelHealth({
+          connection: json.connection,
+          summary: json.summary,
+          alerts: Array.isArray(json.alerts) ? json.alerts : [],
+        })
+      }
+    } catch {
+      // Bỏ qua khi ngoại tuyến hoặc trang tĩnh chưa có endpoint động
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => void refreshChannelHealth(), 200)
+    const timer = setInterval(() => void refreshChannelHealth(), 45_000)
+    return () => {
+      clearTimeout(t)
+      clearInterval(timer)
+    }
+  }, [refreshChannelHealth])
+
+  const openChannelsAction = useCallback(
+    (target: ChannelsExternalOpenRequest['target']) => {
+      setChannelOpenRequest({ nonce: Date.now(), target })
+      setActiveView('channels')
+    },
+    [setActiveView]
+  )
+
   // 'realtime.poll' = WS hỏng, đang fallback polling 10s → làm mới badge im lặng
   useRealtime((e) => {
+    if (
+      [
+        'channel.updated',
+        'channel.session_lost',
+        'channel.session_restored',
+        'channel.link_lost',
+        'outbox.updated',
+        'channel.unlinked_item',
+      ].includes(e.type)
+    ) {
+      void refreshChannelHealth()
+      if (e.type === 'channel.session_lost') {
+        setChannelBannerDismissedSig(null)
+        const d = (e.data ?? {}) as { username?: string; shopId?: string; deferredOutboxCount?: number }
+        toast({
+          title: `Mất liên kết phiên Cookie Shopee (${d.username || 'thaimy1605'})`,
+          description:
+            (d.deferredOutboxCount ?? 0) > 0
+              ? `Đang giữ an toàn ${d.deferredOutboxCount} thay đổi trong Hàng đợi Bất đồng bộ. Hãy dán cURL hoặc bật Extension Shop để tự đồng bộ lại.`
+              : 'Mọi thay đổi giá/tồn trên CMS vẫn được lưu an toàn vào Hàng đợi Bất đồng bộ.',
+          variant: 'destructive',
+        })
+      } else if (e.type === 'channel.session_restored') {
+        setChannelBannerDismissedSig(null)
+        const d = (e.data ?? {}) as { username?: string; requeuedCount?: number }
+        toast({
+          title: `Đã khôi phục kết nối Shopee (${d.username || 'thaimy1605'})`,
+          description:
+            (d.requeuedCount ?? 0) > 0
+              ? `Hàng đợi Bất đồng bộ đang tự động đẩy ${d.requeuedCount} tác vụ tồn đọng lên Sàn Shopee.`
+              : 'Phiên Cookie trực tuyến — đồng bộ 2 chiều hoạt động bình thường.',
+        })
+      } else if (e.type === 'channel.link_lost') {
+        setChannelBannerDismissedSig(null)
+        const d = (e.data ?? {}) as { sku?: string; reason?: string }
+        toast({
+          title: `Cảnh báo đứt liên kết mã Sàn [${d.sku || 'SKU'}]`,
+          description:
+            d.reason ||
+            'Phân loại trên Shopee không còn khớp Model ID. Hãy kiểm tra trong Hàng đợi Bất đồng bộ.',
+          variant: 'destructive',
+        })
+      }
+    }
+
     if (!['order.created', 'order.updated', 'message.new', 'settings.updated', 'review.received', 'realtime.poll'].includes(e.type)) return
     if (badgeTimer.current) clearTimeout(badgeTimer.current)
     badgeTimer.current = setTimeout(() => {
@@ -572,6 +683,16 @@ export default function Home() {
       }
     }, 1200)
   })
+
+  const canViewChannels = canAccessView(permissions, 'channels')
+  const primaryChannelAlert = channelHealth?.alerts?.[0] ?? null
+  const channelAlertSignature = primaryChannelAlert
+    ? `${primaryChannelAlert.id}:${channelHealth?.summary.waitingSessionCount ?? 0}:${channelHealth?.summary.brokenLinkCount ?? 0}:${channelHealth?.summary.deadLetterCount ?? 0}`
+    : null
+  const showGlobalChannelAlert =
+    canViewChannels &&
+    Boolean(primaryChannelAlert) &&
+    channelAlertSignature !== channelBannerDismissedSig
 
   const canViewDashboard = canAccessView(permissions, 'dashboard')
   const canViewLiveOps = canAccessView(permissions, 'liveops')
@@ -656,6 +777,42 @@ export default function Home() {
             >
               <Search className="h-4 w-4" />
             </Button>
+
+            {/* Cảnh báo mất liên kết Sàn / Hàng đợi Bất đồng bộ trực tiếp trên Header */}
+            {canViewChannels &&
+              channelHealth &&
+              (!channelHealth.connection.sessionAlive ||
+                channelHealth.summary.brokenLinkCount > 0 ||
+                channelHealth.summary.waitingSessionCount > 0 ||
+                channelHealth.summary.deadLetterCount > 0) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChannelsAction(
+                      !channelHealth.connection.sessionAlive ? 'cookie-curl' : 'async-queue'
+                    )
+                  }
+                  className={cn(
+                    'hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors lg:inline-flex',
+                    channelHealth.summary.brokenLinkCount > 0 ||
+                      channelHealth.summary.waitingSessionCount > 0
+                      ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300'
+                      : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300'
+                  )}
+                  title="Cảnh báo kết nối Sàn Shopee & Hàng đợi đồng bộ bất đồng bộ"
+                >
+                  <Unlink className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {channelHealth.summary.brokenLinkCount > 0
+                      ? `${channelHealth.summary.brokenLinkCount} đứt mã Sàn`
+                      : !channelHealth.connection.sessionAlive
+                        ? channelHealth.summary.waitingSessionCount > 0
+                          ? `Mất phiên Shopee · Chờ đẩy (${channelHealth.summary.waitingSessionCount})`
+                          : 'Mất liên kết Shopee'
+                        : `Hàng đợi Sàn (${channelHealth.summary.totalActionable})`}
+                  </span>
+                </button>
+              )}
 
             {/* Cảnh báo tồn kho gọn (chỉ hiện trực tiếp trên màn hình cực rộng >= 2xl, dưới 2xl gộp vào menu Ca trực) */}
             {canViewInventory && badges.lowStock > 0 && (
@@ -797,6 +954,31 @@ export default function Home() {
                     )}
                   </DropdownMenuItem>
                 )}
+                {canViewChannels &&
+                  channelHealth &&
+                  (!channelHealth.connection.sessionAlive ||
+                    channelHealth.summary.totalActionable > 0) && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        openChannelsAction(
+                          !channelHealth.connection.sessionAlive ? 'cookie-curl' : 'async-queue'
+                        )
+                      }
+                      className="cursor-pointer gap-2"
+                    >
+                      <Unlink className="h-4 w-4 text-orange-600" />
+                      <span>
+                        {!channelHealth.connection.sessionAlive
+                          ? 'Khôi phục liên kết Shopee'
+                          : 'Hàng đợi Bất đồng bộ Sàn'}
+                      </span>
+                      {channelHealth.summary.totalActionable > 0 && (
+                        <Badge className="ml-auto bg-orange-600 px-1.5 py-0 text-[10px] text-white">
+                          {channelHealth.summary.totalActionable}
+                        </Badge>
+                      )}
+                    </DropdownMenuItem>
+                  )}
                 {canViewInventory && badges.lowStock > 0 && (
                   <DropdownMenuItem onClick={() => setActiveView('inventory')} className="cursor-pointer gap-2">
                     <AlertTriangle className="h-4 w-4 text-rose-500" />
@@ -869,6 +1051,89 @@ export default function Home() {
 
         <main className="min-w-0 flex-1 overflow-x-hidden px-2.5 py-3 sm:px-4 sm:py-5 md:px-6">
           <div className="mx-auto w-full max-w-[1440px]">
+            {showGlobalChannelAlert && primaryChannelAlert && channelHealth && (
+              <div
+                role="alert"
+                data-testid="global-channel-disconnection-banner"
+                className={cn(
+                  'mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-xs shadow-xs sm:items-center sm:px-4',
+                  primaryChannelAlert.severity === 'critical'
+                    ? 'border-red-300 bg-red-50/90 text-red-950 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200'
+                    : 'border-amber-300 bg-amber-50/90 text-amber-950 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200'
+                )}
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                  <AlertTriangle
+                    className={cn(
+                      'mt-0.5 h-4 w-4 shrink-0',
+                      primaryChannelAlert.severity === 'critical'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-amber-600 dark:text-amber-400'
+                    )}
+                  />
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2 font-semibold">
+                      <span>{primaryChannelAlert.title}</span>
+                      {channelHealth.summary.waitingSessionCount > 0 && (
+                        <Badge className="bg-orange-600 px-1.5 py-0 text-[10px] text-white">
+                          {channelHealth.summary.waitingSessionCount} tác vụ chờ tự động đẩy
+                        </Badge>
+                      )}
+                      {channelHealth.summary.brokenLinkCount > 0 && (
+                        <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
+                          {channelHealth.summary.brokenLinkCount} đứt liên kết mã
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-[11.5px] leading-relaxed opacity-90">
+                      {primaryChannelAlert.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                  {!channelHealth.connection.sessionAlive && (
+                    <>
+                      <Button
+                        size="sm"
+                        className="h-7 bg-orange-600 px-2.5 text-xs text-white hover:bg-orange-700"
+                        onClick={() => openChannelsAction('cookie-curl')}
+                      >
+                        <KeyRound className="mr-1 h-3 w-3" />
+                        Dán lệnh cURL
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 bg-background px-2.5 text-xs"
+                        onClick={() => openChannelsAction('cookie-extension')}
+                      >
+                        <Puzzle className="mr-1 h-3 w-3 text-orange-600" />
+                        Extension Shop
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 bg-background px-2.5 text-xs font-medium"
+                    onClick={() => openChannelsAction('async-queue')}
+                  >
+                    <Layers className="mr-1 h-3 w-3 text-sky-600" />
+                    Hàng đợi Bất đồng bộ ({channelHealth.summary.totalActionable})
+                  </Button>
+                  <button
+                    type="button"
+                    aria-label="Ẩn tạm cảnh báo mất liên kết"
+                    onClick={() => setChannelBannerDismissedSig(channelAlertSignature)}
+                    className="ml-0.5 rounded p-1 opacity-70 transition-opacity hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+                    title="Ẩn tạm cảnh báo này"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
             {!isCurrentViewAllowed ? (
               <div className="mx-auto my-10 max-w-xl">
                 <Card className="border-amber-200 shadow-sm dark:border-amber-900/60">
@@ -921,7 +1186,9 @@ export default function Home() {
                     }}
                   />
                 )}
-                {activeView === 'channels' && <ChannelsView />}
+                {activeView === 'channels' && (
+                  <ChannelsView externalOpenRequest={channelOpenRequest} />
+                )}
                 {activeView === 'campaigns' && <CampaignsView onNavigate={handleNavigateWithParam} />}
                 {activeView === 'auto-social' && (
                   <AutoSocialView

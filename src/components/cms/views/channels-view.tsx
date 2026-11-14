@@ -12,6 +12,10 @@ import {
   ShopeeCookieSyncDialog,
   type ShopeeSessionStatus,
 } from '@/components/cms/shopee-cookie-sync-dialog'
+import {
+  ShopeeAsyncQueueDialog,
+  type AsyncQueueSnapshot,
+} from '@/components/cms/shopee-async-queue-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,9 +49,11 @@ import {
   CheckCircle2,
   CheckSquare,
   ClipboardCheck,
+  Clock,
   Eye,
   EyeOff,
   KeyRound,
+  Layers,
   Link2,
   Loader2,
   PackagePlus,
@@ -142,6 +148,10 @@ interface LinkedMarketplaceItem {
   isUnlisted?: boolean
   lowStockThreshold?: number
   pendingOutboxSync?: boolean
+  brokenMarketplaceLink?: boolean
+  brokenLinkReason?: string
+  outboxState?: 'PENDING' | 'WAITING_SESSION' | 'RETRYING' | 'DEAD_LETTER' | 'BROKEN_LINK'
+  outboxError?: string
 }
 
 interface CmsProductOption {
@@ -165,13 +175,24 @@ interface ProductLinksResponse {
     oversellRiskCount?: number
     lowStockRiskCount?: number
     pendingOutboxCount?: number
+    brokenLinkCount?: number
+    failedOutboxCount?: number
   }
   linkedItems: LinkedMarketplaceItem[]
   unlinkedItems: UnlinkedMarketplaceItem[]
   cmsProducts: CmsProductOption[]
 }
 
-export function ChannelsView() {
+export interface ChannelsExternalOpenRequest {
+  nonce: number
+  target: 'cookie-curl' | 'cookie-extension' | 'async-queue'
+}
+
+export function ChannelsView({
+  externalOpenRequest,
+}: {
+  externalOpenRequest?: ChannelsExternalOpenRequest | null
+} = {}) {
   const [channels, setChannels] = useState<Channel[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -220,6 +241,8 @@ export function ChannelsView() {
   const [shopeeSession, setShopeeSession] = useState<ShopeeSessionStatus | null>(null)
   const [cookieDialogOpen, setCookieDialogOpen] = useState(false)
   const [cookieDialogTab, setCookieDialogTab] = useState<'curl' | 'extension'>('curl')
+  const [asyncQueueSnapshot, setAsyncQueueSnapshot] = useState<AsyncQueueSnapshot | null>(null)
+  const [asyncQueueOpen, setAsyncQueueOpen] = useState(false)
 
   const { toast } = useToast()
 
@@ -236,6 +259,29 @@ export function ChannelsView() {
       // ignore silent error when offline
     }
   }, [])
+
+  const loadAsyncQueue = useCallback(async () => {
+    try {
+      const res = await apiGet<AsyncQueueSnapshot>('/api/channels/async-queue')
+      if (res?.ok) {
+        setAsyncQueueSnapshot(res)
+      }
+    } catch {
+      // ignore silent error when offline
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!externalOpenRequest) return
+    if (externalOpenRequest.target === 'cookie-curl') {
+      openCookieSyncDialog('curl')
+    } else if (externalOpenRequest.target === 'cookie-extension') {
+      openCookieSyncDialog('extension')
+    } else if (externalOpenRequest.target === 'async-queue') {
+      void loadAsyncQueue()
+      setAsyncQueueOpen(true)
+    }
+  }, [externalOpenRequest, openCookieSyncDialog, loadAsyncQueue])
 
   const loadLinks = useCallback(async (silent = false) => {
     if (!silent) setLoadingLinks(true)
@@ -259,6 +305,7 @@ export function ChannelsView() {
         apiGet<{ channels: Channel[] }>('/api/channels'),
         loadLinks(silent),
         loadShopeeSession(),
+        loadAsyncQueue(),
       ])
       setChannels(data.channels)
     } catch (e) {
@@ -270,7 +317,7 @@ export function ChannelsView() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [toast, loadLinks])
+  }, [toast, loadLinks, loadShopeeSession, loadAsyncQueue])
 
   useEffect(() => {
     void load()
@@ -281,6 +328,10 @@ export function ChannelsView() {
     if (
       [
         'channel.updated',
+        'channel.session_lost',
+        'channel.session_restored',
+        'channel.link_lost',
+        'outbox.updated',
         'channel.unlinked_item',
         'channel.product_linked',
         'inventory.updated',
@@ -351,8 +402,18 @@ export function ChannelsView() {
   const handleSync = async (channel: Channel) => {
     setSyncingId(channel.id)
     try {
-      await apiPatch<{ channel: Channel }>(`/api/channels/${channel.id}`, { sync: true })
-      toast({ title: `Đã đồng bộ kênh ${channel.name}`, description: 'Dữ liệu kênh & liên kết SKU đã được cập nhật.' })
+      const res = await apiPatch<{
+        channel: Channel
+        queuedAsync?: boolean
+      }>(`/api/channels/${channel.id}`, { sync: true })
+      toast({
+        title: res.queuedAsync
+          ? `Đã xếp hàng đợi bất đồng bộ cho ${channel.name}`
+          : `Đã đồng bộ kênh ${channel.name}`,
+        description: res.queuedAsync
+          ? 'Phiên Cookie Shopee đang hết hạn — dữ liệu được giữ an toàn trong Hàng đợi Bất đồng bộ và sẽ tự động đồng bộ khi kết nối lại.'
+          : 'Dữ liệu kênh & liên kết SKU đã được cập nhật.',
+      })
       await load()
     } catch (e) {
       toast({
@@ -623,6 +684,8 @@ export function ChannelsView() {
         sku?: string
         targetStock?: number
         targetPrice?: number
+        queuedAsync?: boolean
+        message?: string
       }>('/api/channels/product-links', {
         action: 'PUSH_STOCK_TO_CHANNEL',
         productId: linked.cmsProductId,
@@ -633,10 +696,14 @@ export function ChannelsView() {
       const pushedStock = typeof res.targetStock === 'number' ? res.targetStock : linked.cmsStock
       const pushedPrice = typeof res.targetPrice === 'number' ? res.targetPrice : linked.cmsSellPrice
       toast({
-        title: `Đã đẩy đồng bộ [${pushedSku}] lên sàn Shopee`,
-        description: `Tồn kho: ${pushedStock} · Giá bán: ${formatVND(pushedPrice)}`,
+        title: res.queuedAsync
+          ? `Đã xếp [${pushedSku}] vào Hàng đợi Bất đồng bộ`
+          : `Đã đẩy đồng bộ [${pushedSku}] lên sàn Shopee`,
+        description:
+          res.message || `Tồn kho: ${pushedStock} · Giá bán: ${formatVND(pushedPrice)}`,
       })
       void loadLinks(true)
+      void loadAsyncQueue()
     } catch (e) {
       toast({
         title: 'Đẩy đồng bộ thất bại',
@@ -984,48 +1051,28 @@ export function ChannelsView() {
                     <Puzzle className="mr-1.5 h-3.5 w-3.5 text-orange-600" />
                     Extension Shop
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={
+                      (asyncQueueSnapshot?.summary.totalActionable ?? 0) > 0
+                        ? 'border-orange-400 bg-orange-50/80 text-orange-800 hover:bg-orange-100/80 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300'
+                        : ''
+                    }
+                    onClick={() => {
+                      void loadAsyncQueue()
+                      setAsyncQueueOpen(true)
+                    }}
+                  >
+                    <Layers className="mr-1.5 h-3.5 w-3.5 text-sky-600" />
+                    Hàng đợi Bất đồng bộ ({asyncQueueSnapshot?.summary.totalActionable ?? 0})
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => void loadLinks()} disabled={loadingLinks}>
                     <RefreshCw className={loadingLinks ? 'mr-1.5 h-4 w-4 animate-spin' : 'mr-1.5 h-4 w-4'} />
                     Làm mới liên kết
                   </Button>
                 </div>
               </div>
-
-              {shopeeSession && !shopeeSession.alive && (
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-amber-300 bg-amber-50/80 px-3.5 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                    <span>
-                      Phiên Cookie Kênh Người Bán Shopee (
-                      <b>
-                        {shopeeSession.username || 'thaimy1605'} · #
-                        {shopeeSession.shopId || '197195817'}
-                      </b>
-                      ) đã hết hạn — hãy dán lệnh cURL mới hoặc cài Extension liên kết riêng của
-                      Shop để đồng bộ trực tiếp.
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      className="h-7 bg-orange-600 px-2.5 text-xs text-white hover:bg-orange-700"
-                      onClick={() => openCookieSyncDialog('curl')}
-                    >
-                      <KeyRound className="mr-1 h-3 w-3" />
-                      Dán lệnh cURL
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 bg-background px-2.5 text-xs"
-                      onClick={() => openCookieSyncDialog('extension')}
-                    >
-                      <Puzzle className="mr-1 h-3 w-3 text-orange-600" />
-                      Tải Extension Shop
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               {/* Thanh Radar Kiểm soát Rủi ro & Sức khỏe Đồng bộ 2 Chiều */}
               <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -1081,17 +1128,35 @@ export function ChannelsView() {
                   <Link2 className="h-4 w-4 shrink-0 opacity-80" />
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border border-sky-200 bg-sky-50/50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadAsyncQueue()
+                    setAsyncQueueOpen(true)
+                  }}
+                  className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                    (asyncQueueSnapshot?.summary.brokenLinkCount ?? 0) > 0 ||
+                    (asyncQueueSnapshot?.summary.deadLetterCount ?? 0) > 0
+                      ? 'border-red-300 bg-red-50/70 text-red-800 hover:bg-red-100/70 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
+                      : (asyncQueueSnapshot?.summary.waitingSessionCount ?? 0) > 0
+                        ? 'border-amber-300 bg-amber-50/70 text-amber-800 hover:bg-amber-100/70 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
+                        : 'border-sky-200 bg-sky-50/50 text-sky-800 hover:bg-sky-100/60 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300'
+                  }`}
+                >
                   <div>
-                    <div className="font-semibold">Hàng đợi Outbox & TTL</div>
-                    <div className="text-[11px] opacity-80">
-                      {(linkData?.stats?.pendingOutboxCount ?? 0) > 0
-                        ? `Đang đẩy ${linkData?.stats.pendingOutboxCount} SP lên Sàn...`
-                        : '0 nghẽn · Tự giải phóng khóa 180s'}
+                    <div className="font-semibold">Hàng đợi Bất đồng bộ (Outbox)</div>
+                    <div className="text-[11px] opacity-85">
+                      {(asyncQueueSnapshot?.summary.brokenLinkCount ?? 0) > 0
+                        ? `${asyncQueueSnapshot?.summary.brokenLinkCount} SP đứt mã Sàn · Bấm xử lý`
+                        : (asyncQueueSnapshot?.summary.waitingSessionCount ?? 0) > 0
+                          ? `Giữ an toàn ${asyncQueueSnapshot?.summary.waitingSessionCount} SP chờ phiên`
+                          : (asyncQueueSnapshot?.summary.pendingCount ?? 0) > 0
+                            ? `Đang đẩy ${asyncQueueSnapshot?.summary.pendingCount} SP lên Sàn...`
+                            : '0 tồn đọng · Bảo toàn mất kết nối'}
                     </div>
                   </div>
-                  <Zap className="h-4 w-4 shrink-0 opacity-80" />
-                </div>
+                  <Layers className="h-4 w-4 shrink-0 opacity-80" />
+                </button>
               </div>
 
               {/* Thanh lọc & Tìm kiếm */}
@@ -1574,13 +1639,44 @@ export function ChannelsView() {
                                         Sàn đang ẩn
                                       </Badge>
                                     )}
-                                    {item.syncStatus === 'IN_SYNC' ? (
+                                    {item.brokenMarketplaceLink ? (
+                                      <Badge
+                                        variant="destructive"
+                                        className="w-fit px-1.5 py-0 text-[10px]"
+                                        title={
+                                          item.brokenLinkReason ||
+                                          'Mã sản phẩm / phân loại trên Shopee không còn khớp'
+                                        }
+                                      >
+                                        <Unlink className="mr-1 h-2.5 w-2.5" />
+                                        Đứt liên kết Sàn
+                                      </Badge>
+                                    ) : item.outboxState === 'DEAD_LETTER' ? (
+                                      <Badge
+                                        variant="secondary"
+                                        className="w-fit bg-rose-500/15 px-1.5 py-0 text-[10px] text-rose-700 dark:text-rose-300"
+                                        title={item.outboxError || 'Tác vụ lỗi tạm dừng trong DLQ'}
+                                      >
+                                        <AlertTriangle className="mr-1 h-2.5 w-2.5" />
+                                        Lỗi đồng bộ (DLQ)
+                                      </Badge>
+                                    ) : item.outboxState === 'WAITING_SESSION' ||
+                                      (item.pendingOutboxSync && shopeeSession && !shopeeSession.alive) ? (
+                                      <Badge
+                                        variant="secondary"
+                                        className="w-fit bg-amber-500/15 px-1.5 py-0 text-[10px] text-amber-700 dark:text-amber-300"
+                                        title="Đang giữ an toàn trong Hàng đợi Bất đồng bộ — tự đẩy ngay khi nạp lại Cookie Shopee"
+                                      >
+                                        <Clock className="mr-1 h-2.5 w-2.5" />
+                                        Chờ kết nối lại
+                                      </Badge>
+                                    ) : item.syncStatus === 'IN_SYNC' && !item.pendingOutboxSync ? (
                                       <Badge variant="secondary" className="w-fit bg-emerald-500/10 px-1.5 py-0 text-[10px] text-emerald-600 dark:text-emerald-400">
                                         <CheckCircle2 className="mr-1 h-2.5 w-2.5" />
                                         Khớp 2 chiều
                                       </Badge>
                                     ) : (
-                                      <Badge variant="secondary" className="w-fit bg-amber-500/15 px-1.5 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                      <Badge variant="secondary" className="w-fit bg-sky-500/15 px-1.5 py-0 text-[10px] text-sky-700 dark:text-sky-300">
                                         <AlertTriangle className="mr-1 h-2.5 w-2.5" />
                                         Chờ Outbox
                                       </Badge>
@@ -2717,6 +2813,23 @@ export function ChannelsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShopeeAsyncQueueDialog
+        open={asyncQueueOpen}
+        onOpenChange={setAsyncQueueOpen}
+        snapshot={asyncQueueSnapshot}
+        onSnapshotChange={setAsyncQueueSnapshot}
+        onRefresh={async () => {
+          await Promise.all([loadAsyncQueue(), loadLinks(true), loadShopeeSession()])
+        }}
+        onOpenCookieDialog={(tab) => openCookieSyncDialog(tab)}
+        onUnlinkToRelink={(productId) => {
+          const linked = linkData?.linkedItems.find((x) => x.cmsProductId === productId)
+          if (linked) {
+            void handleUnlinkProduct(linked)
+          }
+        }}
+      />
 
       <ShopeeCookieSyncDialog
         open={cookieDialogOpen}

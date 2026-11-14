@@ -75,6 +75,10 @@ npm run test:loyalty
 
 # 6. Toàn bộ 8 bộ Master E2E Suite (Sổ kho, R1–R5, 21 kịch bản thực tế, 113 kiểm định Auto Social)
 npm run test:e2e
+
+# 7. Kiểm thử Nhập cURL / Chrome Extension Shopee & Xử lý Bất đồng bộ khi Mất Liên Kết
+npx tsx scripts/test-shopee-curl-and-extension.ts --live
+npx tsx scripts/test-shopee-async-disconnection.ts --live
 ```
 
 ---

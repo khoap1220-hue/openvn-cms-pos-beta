@@ -81,6 +81,9 @@ GLOBAL_STATE = {
     "username": "thaimy1605",
     "alive": False,
     "paused": False,
+    "lastAlertedLost": False,
+    "lastAlertReason": "",
+    "deferredOutboxCount": 0,
     "lastSync": 0,
     "lastInboundFlush": 0,
     "lastOutboundFlush": 0,
@@ -131,6 +134,71 @@ def append_to_dlq(item, reason):
             "item": item
         })
         _write_json_file(DLQ_FILE, dlq[-200:])
+
+def requeue_dlq_to_inbound():
+    """Chuyển các sự kiện trong DLQ quay lại hàng đợi Spool Inbound để thử lại bất đồng bộ."""
+    with GLOBAL_STATE["queueLock"]:
+        dlq = _read_json_file(DLQ_FILE, [])
+        if not dlq:
+            return 0
+        inb_q = _read_json_file(INBOUND_QUEUE_FILE, [])
+        existing_keys = {str(x.get("idempotencyKey") or "") for x in inb_q if isinstance(x, dict)}
+        for entry in dlq:
+            item = entry.get("item") if isinstance(entry, dict) else None
+            if isinstance(item, dict) and item.get("event"):
+                idem = str(item.get("idempotencyKey") or "")
+                if idem and idem in existing_keys:
+                    continue
+                item["attempts"] = 0
+                item["nextRetryAt"] = 0
+                inb_q.append(item)
+                if idem:
+                    existing_keys.add(idem)
+        _write_json_file(INBOUND_QUEUE_FILE, inb_q)
+        _write_json_file(DLQ_FILE, [])
+        return len(dlq)
+
+def _classify_shopee_error(err_val):
+    """Phân loại lỗi từ Shopee API để điều phối bất đồng bộ an toàn:
+    - AUTH_EXPIRED: Hết hạn phiên Cookie / HTTP 401/403 -> Giữ nguyên trong Outbox (WAITING_SESSION), không đốt retry vào DLQ.
+    - BROKEN_LINK: Sản phẩm/phân loại bị xóa hoặc lệch Model ID trên Shopee -> Đánh dấu mất liên kết mã hàng (BROKEN_LINK).
+    - TRANSIENT: Lỗi mạng / quá tải tạm thời -> Thử lại theo cấp số nhân (Exponential Backoff).
+    """
+    raw = str(err_val or "")
+    low = raw.lower()
+    auth_markers = (
+        "http 401",
+        "http 403",
+        "not login",
+        "login required",
+        "please login",
+        "unauthorized",
+        "invalid session",
+        "session expired",
+        "token expired",
+        "100010005",
+        "error_auth",
+        "forbidden",
+    )
+    if any(m in low for m in auth_markers):
+        return "AUTH_EXPIRED"
+
+    broken_markers = (
+        "model_id_mismatch_guard",
+        "uninitialized_variation_guard",
+        "item not found",
+        "product not found",
+        "model not found",
+        "product_not_exist",
+        "item_not_exist",
+        "model_not_exist",
+        "item is deleted",
+        "product has been deleted",
+    )
+    if any(m in low for m in broken_markers):
+        return "BROKEN_LINK"
+
+    return "TRANSIENT"
 
 def load_sync_state():
     return _read_json_file(SYNC_STATE_FILE, {"products": {}, "orders": {}})
@@ -1403,6 +1471,24 @@ def flush_inbound_queue_to_cms():
     save_sync_state(sync_state)
     return processed
 
+def notify_session_alert(alert_type, reason=""):
+    """Báo cáo tức thì trạng thái phiên kết nối Shopee (SESSION_LOST / SESSION_RESTORED) về CMS để hiển thị cảnh báo toàn cục."""
+    if is_outbox_dry_run():
+        return False
+    with GLOBAL_STATE["lock"]:
+        shop_id = GLOBAL_STATE.get("shopId") or "197195817"
+        uname = GLOBAL_STATE.get("username") or "thaimy1605"
+        deferred_cnt = int(GLOBAL_STATE.get("deferredOutboxCount") or 0)
+    ok, _ = call_cms_webhook("INBOUND_SHOPEE_SESSION_ALERT", {
+        "alertType": alert_type,
+        "shopId": str(shop_id),
+        "username": str(uname),
+        "reason": str(reason or ""),
+        "deferredOutboxCount": deferred_cnt,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")
+    })
+    return ok
+
 def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
     """
     LUỒNG 2 (OUTBOUND CONSUMER: CMS -> Sàn Shopee):
@@ -1416,7 +1502,18 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
 
     jobs = resp.get("jobs", [])
     if not jobs:
+        with GLOBAL_STATE["lock"]:
+            GLOBAL_STATE["deferredOutboxCount"] = 0
         return 0
+
+    if not is_outbox_dry_run():
+        with GLOBAL_STATE["lock"]:
+            is_alive = bool(GLOBAL_STATE.get("alive"))
+        if not is_alive:
+            with GLOBAL_STATE["lock"]:
+                GLOBAL_STATE["deferredOutboxCount"] = len(jobs)
+            print(f"[OUTBOX WAITING_SESSION] Phiên Cookie Shopee mất kết nối — Giữ an toàn {len(jobs)} tác vụ trong hàng đợi bất đồng bộ (0 đốt retry / 0 rơi vào DLQ).")
+            return 0
 
     completed_count = 0
     sync_state = load_sync_state()
@@ -1552,41 +1649,82 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                 print(f"[OUTBOUND -> SHOPEE CDN] Đã đồng bộ ảnh [{sku}] lên Media CDN (0MB DB) & ACK Sổ Cái CMS!")
         else:
             err_msg = " | ".join(errors)
-            attempts = retry_info["attempts"] + 1
-            if attempts >= MAX_RETRY_ATTEMPTS:
+            err_kind = _classify_shopee_error(err_msg)
+            if err_kind == "AUTH_EXPIRED":
+                should_alert = False
+                with GLOBAL_STATE["lock"]:
+                    GLOBAL_STATE["alive"] = False
+                    GLOBAL_STATE["deferredOutboxCount"] = max(1, len(jobs) - completed_count)
+                    if not GLOBAL_STATE.get("lastAlertedLost"):
+                        GLOBAL_STATE["lastAlertedLost"] = True
+                        GLOBAL_STATE["lastAlertReason"] = err_msg
+                        should_alert = True
+                call_cms_webhook("OUTBOX_ACK_RESULT", {
+                    "outboxId": outbox_id,
+                    "productId": job.get("productId"),
+                    "sku": sku,
+                    "shopeeItemId": item_id,
+                    "shopeeModelId": model_id,
+                    "status": "DEFERRED_SESSION_LOST",
+                    "error": err_msg,
+                    "idempotencyKey": idem_key
+                })
+                if should_alert:
+                    notify_session_alert("SESSION_LOST", f"Phiên Cookie hết hạn khi đồng bộ [{sku}]: {err_msg[:180]}")
+                print(f"[OUTBOUND DEFERRED] Phiên Shopee mất kết nối khi đẩy [{sku}] -> Tạm hoãn lô Outbox chờ nạp lại Cookie (0 mất dữ liệu).")
+                break
+            elif err_kind == "BROKEN_LINK":
                 GLOBAL_STATE["outboundRetries"].pop(outbox_id, None)
-                append_to_dlq(job, err_msg)
                 call_cms_webhook("OUTBOX_ACK_RESULT", {
                     "outboxId": outbox_id,
                     "productId": job.get("productId"),
                     "sku": sku,
                     "shopeeItemId": item_id,
                     "shopeeModelId": model_id,
-                    "status": "DEAD_LETTER",
-                    "attempt": attempts,
+                    "status": "BROKEN_LINK",
                     "error": err_msg,
                     "idempotencyKey": idem_key
                 })
-                print(f"[OUTBOUND -> DLQ] [{sku}] lỗi sau {attempts} lần thử -> Chuyển vào Dead-Letter Queue: {err_msg}")
+                print(f"[OUTBOUND BROKEN_LINK] [{sku}] mất liên kết Item/Model trên Shopee: {err_msg}")
             else:
-                backoff = min(300, 2 ** attempts)
-                GLOBAL_STATE["outboundRetries"][outbox_id] = {
-                    "attempts": attempts,
-                    "nextRetryAt": time.time() + backoff
-                }
-                call_cms_webhook("OUTBOX_ACK_RESULT", {
-                    "outboxId": outbox_id,
-                    "productId": job.get("productId"),
-                    "sku": sku,
-                    "shopeeItemId": item_id,
-                    "shopeeModelId": model_id,
-                    "status": "RETRY",
-                    "attempt": attempts,
-                    "error": err_msg,
-                    "idempotencyKey": idem_key
-                })
-                print(f"[OUTBOUND RETRY #{attempts}] [{sku}] sẽ thử lại sau {backoff}s. Lỗi: {err_msg}")
+                attempts = retry_info["attempts"] + 1
+                if attempts >= MAX_RETRY_ATTEMPTS:
+                    GLOBAL_STATE["outboundRetries"].pop(outbox_id, None)
+                    append_to_dlq(job, err_msg)
+                    call_cms_webhook("OUTBOX_ACK_RESULT", {
+                        "outboxId": outbox_id,
+                        "productId": job.get("productId"),
+                        "sku": sku,
+                        "shopeeItemId": item_id,
+                        "shopeeModelId": model_id,
+                        "status": "DEAD_LETTER",
+                        "attempt": attempts,
+                        "error": err_msg,
+                        "idempotencyKey": idem_key
+                    })
+                    print(f"[OUTBOUND -> DLQ] [{sku}] lỗi sau {attempts} lần thử -> Chuyển vào Dead-Letter Queue: {err_msg}")
+                else:
+                    backoff = min(300, 2 ** attempts)
+                    GLOBAL_STATE["outboundRetries"][outbox_id] = {
+                        "attempts": attempts,
+                        "nextRetryAt": time.time() + backoff
+                    }
+                    call_cms_webhook("OUTBOX_ACK_RESULT", {
+                        "outboxId": outbox_id,
+                        "productId": job.get("productId"),
+                        "sku": sku,
+                        "shopeeItemId": item_id,
+                        "shopeeModelId": model_id,
+                        "status": "RETRY",
+                        "attempt": attempts,
+                        "error": err_msg,
+                        "idempotencyKey": idem_key
+                    })
+                    print(f"[OUTBOUND RETRY #{attempts}] [{sku}] sẽ thử lại sau {backoff}s. Lỗi: {err_msg}")
 
+    with GLOBAL_STATE["lock"]:
+        if GLOBAL_STATE.get("alive"):
+            GLOBAL_STATE["deferredOutboxCount"] = max(0, len(jobs) - completed_count)
     return completed_count
 
 # =============================================================================
@@ -1624,10 +1762,13 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                     "hasSpcScSession": bool(mem_cookies.get("SPC_SC_SESSION")),
                     "lastSync": GLOBAL_STATE["lastSync"],
                     "dryRun": is_outbox_dry_run(),
+                    "deferredOutboxCount": GLOBAL_STATE.get("deferredOutboxCount", 0),
+                    "lastAlertReason": GLOBAL_STATE.get("lastAlertReason", ""),
                     "asyncQueue": {
                         "inboundPending": len(inb_q),
                         "inboundProcessedTotal": GLOBAL_STATE["inboundProcessed"],
                         "outboundProcessedTotal": GLOBAL_STATE["outboundProcessed"],
+                        "deferredOutboxCount": GLOBAL_STATE.get("deferredOutboxCount", 0),
                         "dlqCount": len(dlq),
                         "trackedProducts": len(st.get("products", {})),
                         "trackedOrders": len(st.get("orders", {})),
@@ -1705,7 +1846,27 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                         GLOBAL_STATE["shopId"] = str(shopid)
                         GLOBAL_STATE["username"] = str(uname)
                         GLOBAL_STATE["alive"] = True
+                        GLOBAL_STATE["lastAlertedLost"] = False
+                        GLOBAL_STATE["lastAlertReason"] = ""
+                        GLOBAL_STATE["outboundRetries"].clear()
                     save_session(incoming_cookies, spc_cds, csrf_token, source=source)
+                    requeued_dlq = requeue_dlq_to_inbound()
+
+                    def _bg_replay_on_session_restore():
+                        try:
+                            notify_session_alert("SESSION_RESTORED", f"Đã nạp lại Cookie qua {source}")
+                            time.sleep(0.2)
+                            with PIPELINE_LOCK:
+                                # Xả toàn bộ hàng đợi Outbox bất đồng bộ từ CMS lên Shopee TRƯỚC khi quét Inbound
+                                process_outbound_outbox_from_cms(incoming_cookies, spc_cds, csrf_token)
+                                if not is_inbound_product_sync_disabled():
+                                    detect_and_enqueue_inbound_products(incoming_cookies, spc_cds, csrf_token, str(shopid), str(uname), force=False)
+                                detect_and_enqueue_inbound_orders(incoming_cookies, spc_cds, csrf_token)
+                                flush_inbound_queue_to_cms()
+                        except Exception as e_rep:
+                            print(f"[SESSION-RESTORE REPLAY ERR] {e_rep}")
+
+                    threading.Thread(target=_bg_replay_on_session_restore, daemon=True).start()
                     payload = json.dumps({
                         "ok": True,
                         "verifiedLive": True,
@@ -1713,7 +1874,9 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                         "username": str(uname),
                         "cookieCount": len(incoming_cookies),
                         "source": source,
-                        "message": "Xác thực & cập nhật phiên Cookie Shopee thành công!"
+                        "autoReplayScheduled": True,
+                        "requeuedDlqCount": requeued_dlq,
+                        "message": "Xác thực & cập nhật phiên Cookie Shopee thành công! Hàng đợi bất đồng bộ đang tự động xả."
                     }).encode('utf-8')
                     self.send_response(200)
                     self._send_cors()
@@ -1749,14 +1912,29 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                     curr_spc_cds = GLOBAL_STATE["spc_cds"] or disk_cds
                     curr_csrf = GLOBAL_STATE["csrf_token"] or disk_csrf
                 alive, shopid, uname = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                alert_to_send = None
                 with GLOBAL_STATE["lock"]:
+                    was_lost = bool(GLOBAL_STATE.get("lastAlertedLost"))
                     GLOBAL_STATE["alive"] = bool(alive)
                     if alive and shopid:
                         GLOBAL_STATE["shopId"] = str(shopid)
                     if alive and uname:
                         GLOBAL_STATE["username"] = str(uname)
+                    if not alive and not was_lost:
+                        GLOBAL_STATE["lastAlertedLost"] = True
+                        GLOBAL_STATE["lastAlertReason"] = "Kiểm tra phiên phát hiện Cookie Shopee đã hết hạn"
+                        alert_to_send = ("SESSION_LOST", GLOBAL_STATE["lastAlertReason"])
+                    elif alive and was_lost:
+                        GLOBAL_STATE["lastAlertedLost"] = False
+                        GLOBAL_STATE["lastAlertReason"] = ""
+                        alert_to_send = ("SESSION_RESTORED", "Phiên Cookie Shopee đã hoạt động trở lại")
                     eff_shop = GLOBAL_STATE["shopId"]
                     eff_user = GLOBAL_STATE["username"]
+                if alert_to_send:
+                    threading.Thread(
+                        target=lambda: notify_session_alert(alert_to_send[0], alert_to_send[1]),
+                        daemon=True,
+                    ).start()
                 payload = json.dumps({
                     "ok": True,
                     "alive": bool(alive),
@@ -1829,6 +2007,38 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                 "ok": True,
                 "scheduled": True
             }).encode('utf-8'))
+        elif self.path == '/shopee/retry-dlq':
+            requeued_dlq = requeue_dlq_to_inbound()
+            with GLOBAL_STATE["lock"]:
+                GLOBAL_STATE["outboundRetries"].clear()
+                curr_cookies = dict(GLOBAL_STATE["cookies"])
+                curr_spc_cds = GLOBAL_STATE["spc_cds"]
+                curr_csrf = GLOBAL_STATE["csrf_token"]
+                is_alive = bool(GLOBAL_STATE.get("alive"))
+
+            def _bg_retry_dlq():
+                try:
+                    time.sleep(0.1)
+                    with PIPELINE_LOCK:
+                        if is_alive or is_outbox_dry_run():
+                            process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
+                        flush_inbound_queue_to_cms()
+                except Exception as e_dlq:
+                    print(f"[RETRY-DLQ BG ERR] {e_dlq}")
+
+            threading.Thread(target=_bg_retry_dlq, daemon=True).start()
+            payload = json.dumps({
+                "ok": True,
+                "requeuedDlqCount": requeued_dlq,
+                "alive": is_alive,
+                "scheduled": True
+            }).encode('utf-8')
+            self.send_response(200)
+            self._send_cors()
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
         elif self.path == '/shopee/upload-image':
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
@@ -1939,12 +2149,22 @@ def run_async_cycle_once(force_products=False):
             alive, shopid, uname = keep_alive_ping(cookies, spc_cds, csrf_token)
 
     if not alive:
+        with GLOBAL_STATE["lock"]:
+            GLOBAL_STATE["alive"] = False
         if is_outbox_dry_run():
             print("[WARN] Phien Shopee khong hoat dong nhung DRY_RUN dang BAT: Tien hanh xa Outbound Outbox gia lap an toan.")
             out_cnt = process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
             return True
-        print("[ERROR] Phiên Shopee không hoạt động.")
+        process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
+        print("[ERROR] Phiên Shopee không hoạt động — Hàng đợi Outbox được giữ nguyên an toàn.")
         return False
+
+    with GLOBAL_STATE["lock"]:
+        GLOBAL_STATE["alive"] = True
+        if shopid:
+            GLOBAL_STATE["shopId"] = str(shopid)
+        if uname:
+            GLOBAL_STATE["username"] = str(uname)
 
     # Bước 1: Outbound Outbox (CMS -> Shopee) chạy trước để đẩy mọi thay đổi tồn kho từ CMS/POS lên Shopee
     out_cnt = process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
@@ -2001,6 +2221,8 @@ def run_loop(interval_sec=20):
     if alive:
         with GLOBAL_STATE["lock"]:
             GLOBAL_STATE["alive"] = True
+            GLOBAL_STATE["lastAlertedLost"] = False
+            GLOBAL_STATE["lastAlertReason"] = ""
             GLOBAL_STATE["shopId"] = str(shopid)
             GLOBAL_STATE["username"] = str(uname)
         print(f"[OK] Phiên Shopee hoạt động: Shop ID {shopid} ({uname})")
@@ -2009,6 +2231,16 @@ def run_loop(interval_sec=20):
             if not is_inbound_product_sync_disabled():
                 detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shopid, uname, force=False)
             flush_inbound_queue_to_cms()
+    else:
+        with GLOBAL_STATE["lock"]:
+            GLOBAL_STATE["alive"] = False
+            GLOBAL_STATE["lastAlertedLost"] = True
+            GLOBAL_STATE["lastAlertReason"] = "Phiên Cookie Shopee đã hết hạn — hệ thống đang giữ hàng đợi đồng bộ bất đồng bộ"
+        print("[WARN] Phiên Cookie Shopee hiện đã hết hạn — Đã bật chế độ Hàng đợi Bất đồng bộ (0 đốt retry / 0 mất dữ liệu).")
+        with PIPELINE_LOCK:
+            process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
+            flush_inbound_queue_to_cms()
+        notify_session_alert("SESSION_LOST", "Phiên Cookie Shopee đã hết hạn — mọi thay đổi giá/tồn được giữ an toàn trong hàng đợi bất đồng bộ.")
 
     last_ping = time.time()
 
@@ -2016,6 +2248,7 @@ def run_loop(interval_sec=20):
         try:
             with GLOBAL_STATE["lock"]:
                 is_paused = bool(GLOBAL_STATE.get("paused"))
+                curr_alive = bool(GLOBAL_STATE.get("alive"))
                 curr_cookies = dict(GLOBAL_STATE["cookies"])
                 curr_spc_cds = GLOBAL_STATE["spc_cds"]
                 curr_csrf = GLOBAL_STATE["csrf_token"]
@@ -2026,26 +2259,57 @@ def run_loop(interval_sec=20):
                 time.sleep(min(interval_sec, 2))
                 continue
 
-            if time.time() - last_ping > 600:
+            ping_interval = 600 if curr_alive else 180
+            if time.time() - last_ping > ping_interval:
                 p_alive, sid, un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                if not p_alive:
+                    if try_cdp_recovery():
+                        curr_cookies, curr_spc_cds, curr_csrf = load_session()
+                        p_alive, sid, un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
                 if p_alive:
-                    print(f"[{time.strftime('%H:%M:%S')}] [HEARTBEAT] Đã gia hạn phiên trượt Shopee thành công.")
+                    was_lost = False
+                    with GLOBAL_STATE["lock"]:
+                        was_lost = not bool(GLOBAL_STATE.get("alive")) or bool(GLOBAL_STATE.get("lastAlertedLost"))
+                        GLOBAL_STATE["alive"] = True
+                        GLOBAL_STATE["cookies"] = curr_cookies
+                        GLOBAL_STATE["spc_cds"] = curr_spc_cds
+                        GLOBAL_STATE["csrf_token"] = curr_csrf
+                        GLOBAL_STATE["lastAlertedLost"] = False
+                        GLOBAL_STATE["lastAlertReason"] = ""
+                        if sid:
+                            GLOBAL_STATE["shopId"] = str(sid)
+                            shopid = str(sid)
+                        if un:
+                            GLOBAL_STATE["username"] = str(un)
+                            uname = str(un)
+                    curr_alive = True
+                    print(f"[{time.strftime('%H:%M:%S')}] [HEARTBEAT] Đã gia hạn / khôi phục phiên trượt Shopee thành công.")
+                    if was_lost:
+                        notify_session_alert("SESSION_RESTORED", "Đã tự động khôi phục phiên Cookie Shopee.")
                 else:
-                    try_cdp_recovery()
+                    should_alert = False
+                    with GLOBAL_STATE["lock"]:
+                        GLOBAL_STATE["alive"] = False
+                        if not GLOBAL_STATE.get("lastAlertedLost"):
+                            GLOBAL_STATE["lastAlertedLost"] = True
+                            GLOBAL_STATE["lastAlertReason"] = "Phiên Cookie Shopee vừa hết hạn trong ca trực"
+                            should_alert = True
+                    curr_alive = False
+                    if should_alert:
+                        notify_session_alert("SESSION_LOST", "Phiên Cookie Shopee vừa hết hạn — các thay đổi từ CMS đang được xếp hàng bất đồng bộ.")
                 last_ping = time.time()
 
             with PIPELINE_LOCK:
-                # 1. Xử lý hàng đợi Outbound Outbox (CMS -> Sàn Shopee)
+                # 1. Xử lý hàng đợi Outbound Outbox (CMS -> Sàn Shopee; nếu mất phiên sẽ tự giữ WAITING_SESSION)
                 process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
 
-                # 2. Quét biến động Sản phẩm & Đơn hàng từ Sàn Shopee -> Spool Queue
-                if is_inbound_product_sync_disabled():
-                    pass
-                else:
-                    detect_and_enqueue_inbound_products(curr_cookies, curr_spc_cds, curr_csrf, shopid, uname, force=False)
-                detect_and_enqueue_inbound_orders(curr_cookies, curr_spc_cds, curr_csrf)
+                # 2. Quét biến động Sản phẩm & Đơn hàng từ Sàn Shopee -> Spool Queue (chỉ khi phiên đang sống)
+                if curr_alive:
+                    if not is_inbound_product_sync_disabled():
+                        detect_and_enqueue_inbound_products(curr_cookies, curr_spc_cds, curr_csrf, shopid, uname, force=False)
+                    detect_and_enqueue_inbound_orders(curr_cookies, curr_spc_cds, curr_csrf)
 
-                # 3. Xả hàng đợi Inbound Spool Queue -> CMS
+                # 3. Xả hàng đợi Inbound Spool Queue (nếu còn tồn trên đĩa) -> CMS
                 flush_inbound_queue_to_cms()
 
             with GLOBAL_STATE["lock"]:

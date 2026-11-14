@@ -93,6 +93,11 @@ Dự án cung cấp đầy đủ các kịch bản khởi chạy 1-Click độc 
   python deploy_beta.py --watch
   ```
 
+### 2.5 Cảnh Báo Mất Liên Kết Đa Tầng & Hàng Đợi Xử Lý Bất Đồng Bộ Sàn Shopee
+- **Nhập phiên Cookie linh hoạt (`/api/channels/shopee-session` & `/api/channels/shopee-extension`)**: Hỗ trợ dán trực tiếp lệnh cURL / PowerShell `Invoke-WebRequest` / Fetch / Cookie Header hoặc cài đặt Tiện ích Chrome riêng của shop `thaimy1605` (`197195817`) để tự động đẩy Cookie về CMS mà không cần bật cổng CDP `9222`.
+- **Cảnh báo mất liên kết toàn cục (`src/app/page.tsx` & `src/app/api/channels/async-queue/route.ts`)**: Khi phiên Cookie Shopee hết hạn, Daemon `:51898` ngoại tuyến, hoặc sản phẩm bị đứt liên kết Item/Model ID trên sàn (`BROKEN_LINK`), hệ thống hiển thị cảnh báo tức thì trên Thanh Header toàn cục, Banner đầu trang ở mọi phân hệ CMS, Toast Realtime (`channel.session_lost` / `channel.link_lost`) và huy hiệu từng dòng trong bảng Kênh bán.
+- **Xử lý bất đồng bộ an toàn (`WAITING_SESSION` — Zero Data Loss)**: Mọi giao dịch bán lẻ POS và chỉnh sửa tồn kho/giá/trạng thái hiển thị khi mất kết nối đều trả về `200 OK` (`queuedAsync: true`), bảo lưu bền vững trong hàng đợi `OUTBOX_PENDING` (`WAITING_SESSION`, không đốt bộ đếm retry và không rơi vào `DEAD_LETTER`). Ngay khi nạp lại phiên Cookie hợp lệ, Daemon tự động hoàn trả `DEAD_LETTER` về hàng đợi và xả toàn bộ tác vụ Outbox lên Shopee trước khi quét đơn mới.
+
 ---
 
 ## 3. Quy Trình Tiếp Nhận Báo Lỗi & Bảo Trì Tự Chủ (Maintenance & Bug Reception Instructions)

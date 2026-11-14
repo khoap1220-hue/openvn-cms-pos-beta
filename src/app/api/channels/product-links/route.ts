@@ -83,6 +83,26 @@ export interface LinkedMarketplaceItem {
   isUnlisted?: boolean
   lowStockThreshold?: number
   pendingOutboxSync?: boolean
+  brokenMarketplaceLink?: boolean
+  brokenLinkReason?: string
+  outboxState?: 'PENDING' | 'WAITING_SESSION' | 'RETRYING' | 'DEAD_LETTER' | 'BROKEN_LINK'
+  outboxError?: string
+}
+
+async function probeShopeeDaemonAlive(): Promise<{ daemonOnline: boolean; alive: boolean }> {
+  const port = process.env.SHOPEE_SYNC_PORT || '51898'
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/shopee/status`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(1200),
+      cache: 'no-store',
+    })
+    if (!res.ok) return { daemonOnline: false, alive: false }
+    const j = (await res.json()) as { ok?: boolean; alive?: boolean; dryRun?: boolean }
+    return { daemonOnline: Boolean(j.ok), alive: Boolean(j.alive || j.dryRun) }
+  } catch {
+    return { daemonOnline: false, alive: false }
+  }
 }
 
 const GENERIC_SKU_PREFIXES = new Set(['BM', 'DEC', 'SP', 'AN', 'ANT'])
@@ -186,7 +206,7 @@ export async function GET() {
       return NextResponse.json(cached)
     }
 
-    const [allProducts, unlinkedLedgers, activeOrders, allStockMovements] = await Promise.all([
+    const [allProducts, unlinkedLedgers, activeOrders, allStockMovements, outboxLedgers] = await Promise.all([
       db.product.findMany({
         orderBy: { updatedAt: 'desc' },
       }),
@@ -216,7 +236,25 @@ export async function GET() {
           note: true,
         },
       }),
+      db.ledgerEntry.findMany({
+        where: {
+          scope: 'CHANNEL',
+          action: { in: ['OUTBOX_PENDING', 'OUTBOX_DEAD_LETTER'] },
+        },
+        select: {
+          entityId: true,
+          action: true,
+        },
+      }),
     ])
+
+    const pendingOutboxProductIds = new Set<string>()
+    const deadLetterProductIds = new Set<string>()
+    for (const row of outboxLedgers) {
+      if (!row.entityId) continue
+      if (row.action === 'OUTBOX_PENDING') pendingOutboxProductIds.add(row.entityId)
+      else if (row.action === 'OUTBOX_DEAD_LETTER') deadLetterProductIds.add(row.entityId)
+    }
 
     // Lập chỉ mục đối chiếu đơn hàng & biến động kho theo productId
     const orderStatsByProduct = new Map<
@@ -362,8 +400,20 @@ export async function GET() {
 
       const isUnlisted = Boolean(attrs.isUnlistedOnShopee)
       const lastEditMs = attrs.lastCmsEditAt ? new Date(String(attrs.lastCmsEditAt)).getTime() : 0
+      const hasDurableOutbox = pendingOutboxProductIds.has(p.id)
       const pendingOutboxSync =
-        attrs.pendingOutboxSync === true && lastEditMs > 0 && Date.now() - lastEditMs < 180_000
+        hasDurableOutbox ||
+        (attrs.pendingOutboxSync === true && lastEditMs > 0 && Date.now() - lastEditMs < 180_000)
+      const brokenMarketplaceLink = Boolean(attrs.brokenMarketplaceLink)
+      const brokenLinkReason = attrs.brokenLinkReason ? String(attrs.brokenLinkReason) : undefined
+      const outboxError = attrs.outboxError ? String(attrs.outboxError) : undefined
+      let outboxState: LinkedMarketplaceItem['outboxState'] = undefined
+      if (brokenMarketplaceLink) outboxState = 'BROKEN_LINK'
+      else if (deadLetterProductIds.has(p.id) || attrs.outboxState === 'DEAD_LETTER')
+        outboxState = 'DEAD_LETTER'
+      else if (attrs.outboxState === 'WAITING_SESSION') outboxState = 'WAITING_SESSION'
+      else if (attrs.outboxState === 'RETRYING') outboxState = 'RETRYING'
+      else if (pendingOutboxSync) outboxState = 'PENDING'
 
       linkedItems.push({
         cmsProductId: p.id,
@@ -403,6 +453,10 @@ export async function GET() {
         isUnlisted,
         lowStockThreshold: p.lowStockThreshold || 5,
         pendingOutboxSync,
+        brokenMarketplaceLink,
+        brokenLinkReason,
+        outboxState,
+        outboxError,
       })
     }
 
@@ -528,6 +582,8 @@ export async function GET() {
           (i) => !i.isUnlisted && i.cmsStock > 0 && i.cmsStock <= (i.lowStockThreshold ?? 5)
         ).length,
         pendingOutboxCount: linkedItems.filter((i) => i.pendingOutboxSync).length,
+        brokenLinkCount: linkedItems.filter((i) => i.brokenMarketplaceLink).length,
+        failedOutboxCount: linkedItems.filter((i) => i.outboxState === 'DEAD_LETTER').length,
       },
       linkedItems,
       unlinkedItems,
@@ -741,6 +797,12 @@ export async function POST(req: NextRequest) {
         reconciliationStatus: 'RECONCILED_OK',
         lastSyncedShopeeStock: takeFromMarketplace ? nextStock : shopeeStock,
         lastSyncedShopeePrice: shopeePrice,
+        brokenMarketplaceLink: false,
+        brokenLinkReason: undefined,
+        brokenLinkDetectedAt: undefined,
+        outboxState: undefined,
+        outboxError: undefined,
+        outboxSuppressedKey: undefined,
       }
 
       const updated = await db.product.update({
@@ -819,17 +881,29 @@ export async function POST(req: NextRequest) {
         })
       }
 
-      // Đánh dấu các bản ghi UNLINKED_MARKETPLACE_ITEM của model này thành CHANNEL_PRODUCT_LINKED
-      await db.ledgerEntry.updateMany({
-        where: {
-          scope: 'CHANNEL',
-          action: 'UNLINKED_MARKETPLACE_ITEM',
-          entityCode: `${shopeeItemId}_${shopeeModelId}`,
-        },
-        data: {
-          action: 'CHANNEL_PRODUCT_LINKED',
-        },
-      })
+      // Đánh dấu các bản ghi UNLINKED_MARKETPLACE_ITEM của model này thành CHANNEL_PRODUCT_LINKED và xóa cờ OUTBOX_BROKEN_LINK cũ
+      await Promise.all([
+        db.ledgerEntry.updateMany({
+          where: {
+            scope: 'CHANNEL',
+            action: 'UNLINKED_MARKETPLACE_ITEM',
+            entityCode: `${shopeeItemId}_${shopeeModelId}`,
+          },
+          data: {
+            action: 'CHANNEL_PRODUCT_LINKED',
+          },
+        }),
+        db.ledgerEntry.updateMany({
+          where: {
+            scope: 'CHANNEL',
+            action: 'OUTBOX_BROKEN_LINK',
+            entityId: updated.id,
+          },
+          data: {
+            action: 'OUTBOX_COMPLETED',
+          },
+        }),
+      ])
 
       // Nếu chọn chiều CMS_TO_SHOPEE và tồn kho khác nhau -> đẩy ngay vào Outbox để đồng bộ lên Shopee
       if (syncDir === 'CMS_TO_SHOPEE') {
@@ -1180,11 +1254,30 @@ export async function POST(req: NextRequest) {
       delete attrs.linkMode
       delete attrs.lastSyncedShopeeStock
       delete attrs.lastSyncedShopeePrice
+      delete attrs.pendingOutboxSync
+      delete attrs.brokenMarketplaceLink
+      delete attrs.brokenLinkReason
+      delete attrs.brokenLinkDetectedAt
+      delete attrs.outboxState
+      delete attrs.outboxError
+      delete attrs.outboxSuppressedKey
 
-      await db.product.update({
-        where: { id: product.id },
-        data: { attributes: JSON.stringify(attrs) },
-      })
+      await Promise.all([
+        db.product.update({
+          where: { id: product.id },
+          data: { attributes: JSON.stringify(attrs) },
+        }),
+        db.ledgerEntry.updateMany({
+          where: {
+            scope: 'CHANNEL',
+            action: { in: ['OUTBOX_PENDING', 'OUTBOX_DEAD_LETTER', 'OUTBOX_BROKEN_LINK'] },
+            entityId: product.id,
+          },
+          data: {
+            action: 'OUTBOX_CANCELLED',
+          },
+        }),
+      ])
 
       // Nếu có sản phẩm CMS trùng lặp nào khác đang giữ cùng (oldItemId, oldModelId) thì gỡ luôn để tránh ẩn mất bản ghi UNLINKED
       if (oldItemId) {
@@ -1285,8 +1378,15 @@ export async function POST(req: NextRequest) {
       const targetPrice = listing?.price ?? product.sellPrice
       const targetStock = product.stock
 
+      const bridgeState = await probeShopeeDaemonAlive()
+
       // Ghi nhận trạng thái chờ đẩy Outbox; lastSyncedShopeeStock/Price/Unlisted chỉ cập nhật khi nhận OUTBOX_ACK_RESULT (status = COMPLETED)
       attrs.pendingOutboxSync = true
+      attrs.outboxState = bridgeState.alive ? 'PENDING' : 'WAITING_SESSION'
+      delete attrs.outboxError
+      delete attrs.outboxSuppressedKey
+      delete attrs.brokenMarketplaceLink
+      delete attrs.brokenLinkReason
       attrs.cmsTargetStock = targetStock
       attrs.cmsTargetPrice = targetPrice
       attrs.cmsTargetUnlisted = Boolean(attrs.isUnlistedOnShopee)
@@ -1298,13 +1398,13 @@ export async function POST(req: NextRequest) {
         data: { attributes: nextAttrsJson },
       })
 
-      void logLedger({
+      await logLedger({
         scope: 'CHANNEL',
         action: 'OUTBOX_PENDING',
         entityType: 'Product',
         entityId: product.id,
         entityCode: product.sku,
-        title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: Đẩy tồn kho [${product.sku}] (${targetStock}) & giá (${targetPrice.toLocaleString('vi-VN')}₫) lên Shopee`,
+        title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox${bridgeState.alive ? '' : ' (Chờ kết nối lại)'}: Đẩy tồn kho [${product.sku}] (${targetStock}) & giá (${targetPrice.toLocaleString('vi-VN')}₫) lên Shopee`,
         detail: {
           direction: 'CMS_TO_SHOPEE',
           source: 'OPENVN_CMS',
@@ -1315,6 +1415,7 @@ export async function POST(req: NextRequest) {
           targetStock,
           targetPrice,
           targetUnlisted: Boolean(attrs.isUnlistedOnShopee),
+          queuedWhileDisconnected: !bridgeState.alive,
           reason: 'MANUAL_PUSH_FROM_PRODUCT_FORM',
         },
         actor: 'OPERATOR',
@@ -1323,7 +1424,16 @@ export async function POST(req: NextRequest) {
 
       const inPlacePatched = patchProductInApiCache(product.id, { attributes: nextAttrsJson })
       broadcast('inventory.updated', { productId: product.id, sku: product.sku, stockAfter: targetStock, inPlacePatched })
-      fetch('http://127.0.0.1:51898/shopee/trigger-sync', { method: 'POST' }).catch(() => null)
+      broadcast('outbox.updated', {
+        productId: product.id,
+        sku: product.sku,
+        status: bridgeState.alive ? 'PENDING' : 'WAITING_SESSION',
+      })
+      if (bridgeState.daemonOnline) {
+        fetch(`http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`, {
+          method: 'POST',
+        }).catch(() => null)
+      }
 
       return NextResponse.json({
         ok: true,
@@ -1333,6 +1443,11 @@ export async function POST(req: NextRequest) {
         targetPrice,
         shopeeItemId,
         shopeeModelId,
+        queuedAsync: !bridgeState.alive,
+        sessionAlive: bridgeState.alive,
+        message: bridgeState.alive
+          ? `Đã đưa [${product.sku}] vào hàng đợi Outbox và đang đồng bộ tức thì lên Sàn Shopee.`
+          : `Phiên Cookie Shopee đang mất liên kết — Yêu cầu đồng bộ [${product.sku}] đã được lưu an toàn vào Hàng đợi Bất đồng bộ và sẽ tự động đẩy lên Sàn ngay khi kết nối lại.`,
       })
     }
 
@@ -1953,12 +2068,23 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      const bridgeStateBulk = outboxTriggered
+        ? await probeShopeeDaemonAlive()
+        : { daemonOnline: true, alive: true }
+
       broadcast('inventory.updated', { bulkCount: affectedSkus.length })
       broadcast('product.updated', { bulkCount: affectedSkus.length })
       broadcast('channel.updated', { bulkCount: affectedSkus.length })
-
       if (outboxTriggered) {
-        fetch('http://127.0.0.1:51898/shopee/trigger-sync', { method: 'POST' }).catch(() => null)
+        broadcast('outbox.updated', {
+          bulkCount: affectedSkus.length,
+          status: bridgeStateBulk.alive ? 'PENDING' : 'WAITING_SESSION',
+        })
+        if (bridgeStateBulk.daemonOnline) {
+          fetch(`http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`, {
+            method: 'POST',
+          }).catch(() => null)
+        }
       }
 
       return NextResponse.json({
@@ -1969,7 +2095,15 @@ export async function POST(req: NextRequest) {
         affectedCount: affectedSkus.length,
         affectedSkus,
         outboxTriggered,
-        message: `Đã xử lý ${affectedSkus.length} sản phẩm: ${affectedSkus.join(', ')}${outboxTriggered ? ' (Đang đồng bộ lên Sàn Shopee)' : ''}`,
+        queuedAsync: outboxTriggered && !bridgeStateBulk.alive,
+        sessionAlive: bridgeStateBulk.alive,
+        message: `Đã xử lý ${affectedSkus.length} sản phẩm: ${affectedSkus.join(', ')}${
+          outboxTriggered
+            ? bridgeStateBulk.alive
+              ? ' (Đang đồng bộ lên Sàn Shopee)'
+              : ' (Phiên Shopee đang mất kết nối — Đã xếp vào Hàng đợi Bất đồng bộ an toàn, tự động đẩy khi kết nối lại)'
+            : ''
+        }`,
       })
     }
 

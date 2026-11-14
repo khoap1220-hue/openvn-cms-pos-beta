@@ -2413,6 +2413,11 @@ export async function POST(req: NextRequest) {
           continue
         }
 
+        // Nếu sản phẩm đang bị đánh dấu đứt liên kết mã trên Sàn (BROKEN_LINK) và chưa có lệnh đẩy lại tường minh -> tạm ngưng sinh job tự động để không lặp vô hạn
+        if (Boolean(attrs.brokenMarketplaceLink) && !explicitByProductId.has(p.id)) {
+          continue
+        }
+
         const shopeeListing = p.listings.find((l) => l.channel.key === 'SHOPEE')
         const targetStock =
           typeof attrs.cmsTargetStock === 'number' ? attrs.cmsTargetStock : p.stock
@@ -2433,6 +2438,13 @@ export async function POST(req: NextRequest) {
           typeof attrs.lastSyncedShopeeUnlisted === 'boolean' ? attrs.lastSyncedShopeeUnlisted : null
 
         const hasExplicitOutbox = explicitByProductId.has(p.id) || Boolean(attrs.pendingOutboxSync)
+        if (
+          !hasExplicitOutbox &&
+          typeof attrs.outboxSuppressedKey === 'string' &&
+          attrs.outboxSuppressedKey === `${targetStock}_${targetPrice}_${targetUnlisted ? 1 : 0}`
+        ) {
+          continue
+        }
         const stockDrifted = lastSyncedStock !== targetStock
         const priceDrifted = lastSyncedPrice > 0 && lastSyncedPrice !== targetPrice
         const unlistedDrifted =
@@ -2485,7 +2497,7 @@ export async function POST(req: NextRequest) {
         syncedPrice?: number
         syncedUnlisted?: boolean
         syncedImage?: string | null
-        status?: 'COMPLETED' | 'RETRY' | 'DEAD_LETTER'
+        status?: 'COMPLETED' | 'RETRY' | 'DEAD_LETTER' | 'DEFERRED_SESSION_LOST' | 'BROKEN_LINK'
         error?: string
         attempt?: number
         idempotencyKey?: string
@@ -2530,6 +2542,13 @@ export async function POST(req: NextRequest) {
         delete attrs.cmsTargetPrice
         delete attrs.cmsTargetUnlisted
         delete attrs.cmsTargetImage
+        delete attrs.outboxState
+        delete attrs.outboxError
+        delete attrs.lastOutboxDeferredAt
+        delete attrs.brokenMarketplaceLink
+        delete attrs.brokenLinkReason
+        delete attrs.brokenLinkDetectedAt
+        delete attrs.outboxSuppressedKey
         const syncedImageUrl =
           typeof d.syncedImage === 'string' && /^https?:\/\//i.test(d.syncedImage.trim())
             ? d.syncedImage.trim()
@@ -2646,6 +2665,8 @@ export async function POST(req: NextRequest) {
           originSource: 'SHOPEE_SYNC',
         })
 
+        invalidateApiCache('channels:product-links')
+        broadcast('outbox.updated', { productId: product.id, sku: product.sku, status: 'COMPLETED' })
         if (isLinkedShopee) {
           broadcast('inventory.updated', { productId: product.id, sku: product.sku, stockAfter: syncedStock })
         }
@@ -2663,9 +2684,147 @@ export async function POST(req: NextRequest) {
         })
       }
 
-      // Trường hợp RETRY hoặc DEAD_LETTER
+      let failAttrs: Record<string, unknown> = {}
+      try {
+        failAttrs = product.attributes ? (JSON.parse(product.attributes) as Record<string, unknown>) : {}
+      } catch {
+        failAttrs = {}
+      }
+
+      // Trường hợp mất phiên Cookie giữa chừng: Giữ nguyên trong OUTBOX_PENDING (WAITING_SESSION), KHÔNG đốt retry vào DLQ
+      if (d.status === 'DEFERRED_SESSION_LOST') {
+        failAttrs.pendingOutboxSync = true
+        failAttrs.outboxState = 'WAITING_SESSION'
+        failAttrs.lastOutboxDeferredAt = new Date().toISOString()
+        failAttrs.outboxError = d.error
+          ? String(d.error).slice(0, 300)
+          : 'Phiên Cookie Shopee hết hạn — đang chờ nạp lại để tự động đồng bộ'
+
+        await db.product.update({
+          where: { id: product.id },
+          data: { attributes: JSON.stringify(failAttrs) },
+        })
+        patchProductInApiCache(product.id, { attributes: JSON.stringify(failAttrs) })
+
+        const existingPending = await db.ledgerEntry.count({
+          where: {
+            scope: 'CHANNEL',
+            action: 'OUTBOX_PENDING',
+            entityId: product.id,
+          },
+        })
+        if (existingPending === 0) {
+          await logLedger({
+            scope: 'CHANNEL',
+            action: 'OUTBOX_PENDING',
+            entityType: 'Product',
+            entityId: product.id,
+            entityCode: product.sku,
+            title: `[HÀNG ĐỢI BẤT ĐỒNG BỘ] Tạm giữ đồng bộ [${product.sku}] chờ khôi phục phiên Cookie Shopee`,
+            detail: {
+              direction: 'CMS_TO_SHOPEE',
+              status: 'WAITING_SESSION',
+              sku: product.sku,
+              shopeeItemId: d.shopeeItemId || failAttrs.shopeeItemId,
+              shopeeModelId: d.shopeeModelId || failAttrs.shopeeModelId,
+              targetStock: typeof failAttrs.cmsTargetStock === 'number' ? failAttrs.cmsTargetStock : product.stock,
+              targetPrice: typeof failAttrs.cmsTargetPrice === 'number' ? failAttrs.cmsTargetPrice : product.sellPrice,
+              error: d.error,
+              idempotencyKey: d.idempotencyKey,
+            },
+            actor: 'API',
+            originSource: 'SHOPEE_SYNC',
+          })
+        }
+
+        invalidateApiCache('channels:product-links')
+        broadcast('outbox.updated', {
+          productId: product.id,
+          sku: product.sku,
+          status: 'WAITING_SESSION',
+        })
+        return NextResponse.json({
+          ok: true,
+          status: 'DEFERRED_SESSION_LOST',
+          sku: product.sku,
+        })
+      }
+
+      // Trường hợp đứt liên kết mã sản phẩm / phân loại trên Shopee (xóa phân loại hoặc đổi Model ID)
+      if (d.status === 'BROKEN_LINK') {
+        const reasonStr = d.error
+          ? String(d.error).slice(0, 300)
+          : 'Mã sản phẩm hoặc phân loại trên Sàn Shopee không còn tồn tại / lệch Model ID'
+        failAttrs.pendingOutboxSync = false
+        failAttrs.outboxState = 'BROKEN_LINK'
+        failAttrs.brokenMarketplaceLink = true
+        failAttrs.brokenLinkReason = reasonStr
+        failAttrs.brokenLinkDetectedAt = new Date().toISOString()
+
+        await db.product.update({
+          where: { id: product.id },
+          data: { attributes: JSON.stringify(failAttrs) },
+        })
+        patchProductInApiCache(product.id, { attributes: JSON.stringify(failAttrs) })
+
+        await db.ledgerEntry.updateMany({
+          where: {
+            scope: 'CHANNEL',
+            action: 'OUTBOX_PENDING',
+            entityId: product.id,
+          },
+          data: {
+            action: 'OUTBOX_BROKEN_LINK',
+          },
+        })
+
+        await logLedger({
+          scope: 'CHANNEL',
+          action: 'OUTBOX_BROKEN_LINK',
+          entityType: 'Product',
+          entityId: product.id,
+          entityCode: product.sku,
+          title: `[CẢNH BÁO ĐỨT LIÊN KẾT SÀN] Mã [${product.sku}] mất liên kết Item/Model trên Shopee (#${d.shopeeItemId || failAttrs.shopeeItemId || '?'})`,
+          detail: {
+            direction: 'CMS_TO_SHOPEE',
+            status: 'BROKEN_LINK',
+            outboxId: d.outboxId,
+            shopeeItemId: d.shopeeItemId || failAttrs.shopeeItemId,
+            shopeeModelId: d.shopeeModelId || failAttrs.shopeeModelId,
+            error: reasonStr,
+            idempotencyKey: d.idempotencyKey,
+          },
+          actor: 'API',
+          originSource: 'SHOPEE_SYNC',
+        })
+
+        invalidateApiCache('channels:product-links')
+        invalidateApiCache('products')
+        broadcast('channel.link_lost', {
+          productId: product.id,
+          sku: product.sku,
+          shopeeItemId: d.shopeeItemId || failAttrs.shopeeItemId,
+          shopeeModelId: d.shopeeModelId || failAttrs.shopeeModelId,
+          reason: reasonStr,
+        })
+        broadcast('outbox.updated', {
+          productId: product.id,
+          sku: product.sku,
+          status: 'BROKEN_LINK',
+        })
+        return NextResponse.json({
+          ok: true,
+          status: 'BROKEN_LINK',
+          sku: product.sku,
+        })
+      }
+
+      // Trường hợp RETRY hoặc DEAD_LETTER (lỗi mạng tạm thời)
       const failAction = d.status === 'DEAD_LETTER' ? 'OUTBOX_DEAD_LETTER' : 'OUTBOX_RETRY'
+      failAttrs.outboxState = d.status === 'DEAD_LETTER' ? 'DEAD_LETTER' : 'RETRYING'
+      failAttrs.outboxError = d.error ? String(d.error).slice(0, 300) : undefined
       if (d.status === 'DEAD_LETTER') {
+        failAttrs.pendingOutboxSync = false
         await db.ledgerEntry.updateMany({
           where: {
             scope: 'CHANNEL',
@@ -2677,6 +2836,17 @@ export async function POST(req: NextRequest) {
           },
         })
       }
+      await db.product.update({
+        where: { id: product.id },
+        data: { attributes: JSON.stringify(failAttrs) },
+      })
+      patchProductInApiCache(product.id, { attributes: JSON.stringify(failAttrs) })
+      invalidateApiCache('channels:product-links')
+      broadcast('outbox.updated', {
+        productId: product.id,
+        sku: product.sku,
+        status: d.status,
+      })
 
       await logLedger({
         scope: 'CHANNEL',
@@ -2803,6 +2973,84 @@ export async function POST(req: NextRequest) {
       if (ids.length === 0) return NextResponse.json({ ok: true, deletedCount: 0 })
       const res = await db.ledgerEntry.deleteMany({ where: { id: { in: ids } } })
       return NextResponse.json({ ok: true, deletedCount: res.count })
+    }
+
+    // ===== 18. INBOUND_SHOPEE_SESSION_ALERT: Cảnh báo mất phiên / khôi phục phiên Cookie Shopee & tự động xếp lại hàng đợi =====
+    if (event === 'INBOUND_SHOPEE_SESSION_ALERT') {
+      const d = (data ?? {}) as {
+        alertType?: 'SESSION_LOST' | 'SESSION_RESTORED'
+        shopId?: string
+        username?: string
+        reason?: string
+        deferredOutboxCount?: number
+      }
+      const alertType = d.alertType === 'SESSION_RESTORED' ? 'SESSION_RESTORED' : 'SESSION_LOST'
+      const shopName = String(d.username || 'thaimy1605')
+      const shopId = String(d.shopId || '197195817')
+
+      let requeuedCount = 0
+      if (alertType === 'SESSION_RESTORED') {
+        const rq = await db.ledgerEntry.updateMany({
+          where: {
+            scope: 'CHANNEL',
+            action: { in: ['OUTBOX_DEAD_LETTER', 'OUTBOX_DEFERRED'] },
+          },
+          data: {
+            action: 'OUTBOX_PENDING',
+          },
+        })
+        requeuedCount = rq.count
+      }
+
+      await logLedger({
+        scope: 'CHANNEL',
+        action: alertType === 'SESSION_RESTORED' ? 'SHOPEE_SESSION_RESTORED' : 'SHOPEE_SESSION_LOST',
+        entityType: 'Channel',
+        entityCode: 'SHOPEE',
+        title:
+          alertType === 'SESSION_RESTORED'
+            ? `[KHÔI PHỤC LIÊN KẾT] Shopee (${shopName} · #${shopId}) đã kết nối lại${requeuedCount > 0 ? ` — Tự động xếp lại ${requeuedCount} tác vụ vào hàng đợi` : ''}`
+            : `[CẢNH BÁO MẤT LIÊN KẾT] Phiên Cookie Shopee (${shopName} · #${shopId}) hết hạn — Kích hoạt Hàng đợi Bất đồng bộ an toàn`,
+        detail: {
+          alertType,
+          shopId,
+          username: shopName,
+          reason: d.reason || null,
+          deferredOutboxCount: d.deferredOutboxCount ?? 0,
+          requeuedCount,
+        },
+        actor: 'SYSTEM',
+        originSource: 'SHOPEE_SYNC',
+      })
+
+      invalidateApiCache('channels:product-links')
+      if (alertType === 'SESSION_LOST') {
+        broadcast('channel.session_lost', {
+          key: 'SHOPEE',
+          shopId,
+          username: shopName,
+          reason: d.reason || 'Phiên Cookie Kênh Người Bán Shopee đã hết hạn.',
+          deferredOutboxCount: d.deferredOutboxCount ?? 0,
+        })
+      } else {
+        broadcast('channel.session_restored', {
+          key: 'SHOPEE',
+          shopId,
+          username: shopName,
+          requeuedCount,
+        })
+        broadcast('channel.updated', {
+          key: 'SHOPEE',
+          sessionUpdated: true,
+          verifiedLive: true,
+        })
+      }
+
+      return NextResponse.json({
+        ok: true,
+        alertType,
+        requeuedCount,
+      })
     }
 
     return NextResponse.json({ error: `Sự kiện «${event}» không được hỗ trợ` }, { status: 400 })
