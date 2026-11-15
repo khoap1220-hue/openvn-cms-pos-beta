@@ -98,7 +98,7 @@ export async function syncProductWarehouseStock(
   }
   if (!targetWarehouseId) return
 
-  if (delta > 0) {
+  if (delta >= 0) {
     const existing = product.warehouseStocks.find((ws) => ws.warehouseId === targetWarehouseId)
     await db.warehouseStock.upsert({
       where: { warehouseId_productId: { warehouseId: targetWarehouseId, productId } },
@@ -106,8 +106,12 @@ export async function syncProductWarehouseStock(
       create: { warehouseId: targetWarehouseId, productId, quantity: delta },
     })
   } else {
-    // Cần trừ bớt Math.abs(delta), ưu tiên trừ từ targetWarehouseId rồi đến các kho khác
+    // Cần trừ bớt Math.abs(delta), ưu tiên trừ phần tồn dương từ targetWarehouseId rồi đến các kho khác;
+    // nếu còn dư (trường hợp bán âm kho thật Product.stock < 0), ghi nhận phần âm vào targetWarehouseId để Σ WarehouseStock === Product.stock
     let remainingToSubtract = Math.abs(delta)
+    let targetQtyAfterPositivePass =
+      product.warehouseStocks.find((ws) => ws.warehouseId === targetWarehouseId)?.quantity ?? 0
+
     const orderedStocks = [...product.warehouseStocks].sort((a, b) => {
       if (a.warehouseId === targetWarehouseId) return -1
       if (b.warehouseId === targetWarehouseId) return 1
@@ -116,14 +120,31 @@ export async function syncProductWarehouseStock(
 
     for (const ws of orderedStocks) {
       if (remainingToSubtract <= 0) break
+      if (ws.quantity <= 0) continue
       const take = Math.min(ws.quantity, remainingToSubtract)
       if (take > 0) {
+        const nextWsQty = ws.quantity - take
         await db.warehouseStock.update({
           where: { id: ws.id },
-          data: { quantity: ws.quantity - take },
+          data: { quantity: nextWsQty },
         })
+        if (ws.warehouseId === targetWarehouseId) {
+          targetQtyAfterPositivePass = nextWsQty
+        }
         remainingToSubtract -= take
       }
+    }
+
+    if (remainingToSubtract > 0) {
+      await db.warehouseStock.upsert({
+        where: { warehouseId_productId: { warehouseId: targetWarehouseId, productId } },
+        update: { quantity: targetQtyAfterPositivePass - remainingToSubtract },
+        create: {
+          warehouseId: targetWarehouseId,
+          productId,
+          quantity: -remainingToSubtract,
+        },
+      })
     }
   }
 }

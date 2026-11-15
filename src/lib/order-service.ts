@@ -24,6 +24,10 @@ import {
   cancelPendingShopeePrintJob,
   enqueueShopeeOrderForLinkedPos,
 } from '@/lib/peripheral-hub'
+import {
+  canChannelSellNegative,
+  getInventorySyncPolicy,
+} from '@/lib/inventory-policy'
 
 export function isMaskedOrDummyPhone(phone: unknown): boolean {
   if (!phone || typeof phone !== 'string') return true
@@ -108,6 +112,8 @@ export interface CreateOrderInput {
    * ghi nhận cảnh báo lệch kho để đối soát sau (không làm gián đoạn phiên Live).
    */
   allowStockShortage?: boolean
+  /** Cho phép trừ thẳng tồn kho vật lý CMS xuống số âm (< 0) theo cài đặt cửa hàng */
+  allowNegativeStock?: boolean
   /** Trì hoãn đẩy hàng đợi in POS đến sau khi đồng bộ xong mã vận đơn Shipment */
   deferPosPrintEnqueue?: boolean
   /** Giá bán thực tế từng sản phẩm từ đơn Sàn (nếu có Flash Sale / Live Voucher) */
@@ -120,10 +126,17 @@ export async function createOrder(input: CreateOrderInput) {
     throw new Error('Đơn hàng cần ít nhất 1 sản phẩm')
   }
 
-  const channel = await db.channel.findUnique({ where: { id: input.channelId } })
+  const [channel, inventoryPolicy] = await Promise.all([
+    db.channel.findUnique({ where: { id: input.channelId } }),
+    getInventorySyncPolicy(),
+  ])
   if (!channel) throw new Error('Kênh bán không tồn tại')
 
-  const allowShortage = Boolean(input.allowStockShortage)
+  const allowNegative =
+    input.allowNegativeStock !== undefined
+      ? Boolean(input.allowNegativeStock)
+      : canChannelSellNegative(inventoryPolicy, channel.key)
+  const allowShortage = Boolean(input.allowStockShortage) || allowNegative
   const stockShortageWarnings: StockShortageWarningItem[] = []
 
   await ensureUnitConversionsSeeded()
@@ -259,7 +272,7 @@ export async function createOrder(input: CreateOrderInput) {
     }
   }
 
-  if (allowShortage) {
+  if (allowShortage && !allowNegative) {
     const allProductIds = new Set<string>([...directDemands.keys(), ...comboDemands.keys()])
     for (const pid of allProductIds) {
       const dEntry = directDemands.get(pid)
@@ -464,15 +477,24 @@ export async function createOrder(input: CreateOrderInput) {
   const shopeeSnMatch = (input.note || '').match(/Shopee Order #([A-Za-z0-9_-]+)/i)
   const extractedShopeeOrderSn = shopeeSnMatch?.[1] || ''
   const deductedSimpleIds: string[] = []
+  let shouldTriggerShopeeOutbox = false
+
   for (const it of orderItems) {
     if (it.isCombo) continue // COMBO: trừ kho thành phần (dưới), không trừ kho gộp
     const targetProduct = await db.product.findUnique({ where: { id: it.targetStockProductId } })
     if (targetProduct) {
-      const availableBefore = Math.max(0, targetProduct.stock)
+      const stockBefore = targetProduct.stock
+      const availableBefore = Math.max(0, stockBefore)
       const deductAmt = Math.max(1, it.deductBaseQty)
-      const actualDeducted = allowShortage ? Math.min(availableBefore, deductAmt) : deductAmt
+      const actualDeducted = allowNegative
+        ? deductAmt
+        : allowShortage
+          ? Math.min(availableBefore, deductAmt)
+          : deductAmt
       const shortageQty = Math.max(0, deductAmt - actualDeducted)
-      const after = Math.max(0, availableBefore - actualDeducted)
+      const after = allowNegative
+        ? stockBefore - actualDeducted
+        : stockBefore - actualDeducted
       let prodAttrs: Record<string, unknown> = {}
       try {
         if (targetProduct.attributes) {
@@ -487,12 +509,17 @@ export async function createOrder(input: CreateOrderInput) {
         openingOrigin === 'CMS_WAREHOUSE' ? 'Gốc tồn Kho CMS' : 'Gốc tồn đầu từ Sàn Shopee'
 
       if (channel.key === 'SHOPEE') {
+        const prevLiveShopee =
+          typeof prodAttrs.liveShopeeStock === 'number'
+            ? prodAttrs.liveShopeeStock
+            : typeof prodAttrs.lastSyncedShopeeStock === 'number'
+              ? prodAttrs.lastSyncedShopeeStock
+              : Math.max(0, stockBefore)
+        const estimatedNextShopee =
+          prevLiveShopee >= deductAmt ? prevLiveShopee - deductAmt : prevLiveShopee
+
         if (shortageQty > 0) {
-          // Kho CMS thiếu tồn / bằng 0 khi nhận đơn Live: Bảo vệ tồn Sàn hiện có, KHÔNG ép đẩy 0 ngược lên Shopee
-          const prevLiveShopee =
-            typeof prodAttrs.liveShopeeStock === 'number' ? prodAttrs.liveShopeeStock : 0
-          const estimatedNextShopee =
-            prevLiveShopee >= deductAmt ? prevLiveShopee - deductAmt : prevLiveShopee
+          // Chế độ KHÔNG bán âm khi kho CMS = 0 / thiếu tồn: kẹp tồn CMS tại 0, bảo vệ tồn Sàn & ghi nhận lệch chờ đối soát
           const prevShortage = Math.max(0, Number(prodAttrs.pendingOrderShortageQty) || 0)
           prodAttrs.liveShopeeStock = estimatedNextShopee
           prodAttrs.lastSyncedShopeeStock = estimatedNextShopee
@@ -505,14 +532,44 @@ export async function createOrder(input: CreateOrderInput) {
           prodAttrs.lastShortageOrderSn = extractedShopeeOrderSn || code
           prodAttrs.lastShortageOrderCode = code
           prodAttrs.lastShortageAt = new Date().toISOString()
-        } else {
-          prodAttrs.lastSyncedShopeeStock = after
-          prodAttrs.liveShopeeStock = after
-          prodAttrs.unreconciledShopeeDelta = 0
-          prodAttrs.reconciliationStatus = 'RECONCILED_OK'
+        } else if (inventoryPolicy.syncMode === 'VIRTUAL_ALWAYS_IN_STOCK') {
+          // Chế độ Tồn ảo trên Sàn & Chống ghi đè tồn thật CMS (bao gồm cả khi bật Bán âm CMS after < 0):
+          // Tồn thật CMS = after; Tồn trên Sàn = estimatedNextShopee (tự bơm lại nếu bật virtualAutoRefill và chạm ngưỡng)
+          prodAttrs.liveShopeeStock = estimatedNextShopee
+          prodAttrs.lastSyncedShopeeStock = estimatedNextShopee
+          prodAttrs.unreconciledShopeeDelta = estimatedNextShopee - after
+          prodAttrs.reconciliationStatus =
+            after < 0
+              ? 'STOCK_DRIFT'
+              : after === 0 && estimatedNextShopee > 0
+                ? 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
+                : estimatedNextShopee === after
+                  ? 'RECONCILED_OK'
+                  : 'STOCK_DRIFT'
           prodAttrs.lastReconciledOrderSn = extractedShopeeOrderSn || code
           prodAttrs.lastReconciledOrderCode = code
           prodAttrs.lastReconciledAt = new Date().toISOString()
+          if (
+            inventoryPolicy.virtualAutoRefill &&
+            estimatedNextShopee <= inventoryPolicy.virtualMinThreshold &&
+            estimatedNextShopee !== inventoryPolicy.virtualStockQty
+          ) {
+            shouldTriggerShopeeOutbox = true
+          }
+        } else {
+          // Chế độ Đồng bộ CMS lên Sàn (SYNC_CMS_TO_MARKETPLACE)
+          const clampedForShopee = Math.max(0, after)
+          prodAttrs.liveShopeeStock = estimatedNextShopee
+          prodAttrs.lastSyncedShopeeStock = estimatedNextShopee
+          prodAttrs.unreconciledShopeeDelta = estimatedNextShopee - after
+          prodAttrs.reconciliationStatus =
+            estimatedNextShopee === clampedForShopee && after >= 0 ? 'RECONCILED_OK' : 'STOCK_DRIFT'
+          prodAttrs.lastReconciledOrderSn = extractedShopeeOrderSn || code
+          prodAttrs.lastReconciledOrderCode = code
+          prodAttrs.lastReconciledAt = new Date().toISOString()
+          if (estimatedNextShopee !== clampedForShopee) {
+            shouldTriggerShopeeOutbox = true
+          }
         }
       }
 
@@ -524,14 +581,18 @@ export async function createOrder(input: CreateOrderInput) {
         },
       })
       await syncProductWarehouseStock(targetProduct.id, targetWarehouseId)
+      const negativeNoteSuffix =
+        after < 0
+          ? ` [Bán âm kho thật CMS: ${stockBefore} ➔ ${after} ${targetProduct.unit || 'bộ'} — tự bù trừ khi nhập kho]`
+          : ''
       const shortageNoteSuffix =
         shortageQty > 0
           ? ` [CẢNH BÁO LỆCH KHO CHỜ ĐỐI SOÁT: thiếu ${shortageQty} ${targetProduct.unit || 'bộ'} tại CMS — đã trừ ${actualDeducted}/${deductAmt}, nhận & in đơn không gián đoạn Live]`
           : ''
       const movementNote =
         channel.key === 'SHOPEE'
-          ? `Xuất kho cho đơn ${code} (Đối chiếu Đơn Sàn Shopee ${extractedShopeeOrderSn ? `#${extractedShopeeOrderSn}` : ''} · Trừ trên ${openingOriginShort})${it.unitSummaryNote || ''}${shortageNoteSuffix}`
-          : `Xuất kho cho đơn ${code}${it.unitSummaryNote || ''}${shortageNoteSuffix}`
+          ? `Xuất kho cho đơn ${code} (Đối chiếu Đơn Sàn Shopee ${extractedShopeeOrderSn ? `#${extractedShopeeOrderSn}` : ''} · Trừ trên ${openingOriginShort})${it.unitSummaryNote || ''}${negativeNoteSuffix}${shortageNoteSuffix}`
+          : `Xuất kho cho đơn ${code}${it.unitSummaryNote || ''}${negativeNoteSuffix}${shortageNoteSuffix}`
       await db.stockMovement.create({
         data: {
           productId: targetProduct.id,
@@ -545,25 +606,32 @@ export async function createOrder(input: CreateOrderInput) {
       if (actualDeducted > 0) {
         deductedSimpleIds.push(targetProduct.id)
       }
-      // Tự động đẩy vào Transactional Outbox (CMS -> Sàn Shopee) khi trừ kho tại POS / kênh khác
-      if (channel.key !== 'SHOPEE' && targetProduct.attributes) {
+      // Tự động đẩy vào Transactional Outbox (CMS -> Sàn Shopee) khi trừ kho tại POS / kênh khác CHỈ KHI bật chế độ Đồng bộ CMS lên Sàn
+      if (
+        channel.key !== 'SHOPEE' &&
+        inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE' &&
+        targetProduct.attributes
+      ) {
         try {
           const attrs = JSON.parse(targetProduct.attributes) as Record<string, unknown>
           if (attrs.shopeeItemId && attrs.shopeeModelId) {
+            const clampedShopeeTarget = Math.max(0, after)
+            shouldTriggerShopeeOutbox = true
             logLedgerAsync({
               scope: 'CHANNEL',
               action: 'OUTBOX_PENDING',
               entityType: 'Product',
               entityId: targetProduct.id,
               entityCode: targetProduct.sku,
-              title: `Outbox: Đơn ${code} (${channel.name}) trừ kho [${targetProduct.sku}] → chờ đồng bộ tồn (${after}) lên Shopee`,
+              title: `Outbox: Đơn ${code} (${channel.name}) trừ kho thật [${targetProduct.sku}] (${after}) → chờ đồng bộ tồn (${clampedShopeeTarget}) lên Shopee`,
               detail: {
                 orderCode: code,
                 channelKey: channel.key,
                 sku: targetProduct.sku,
                 shopeeItemId: String(attrs.shopeeItemId),
                 shopeeModelId: String(attrs.shopeeModelId),
-                targetStock: after,
+                cmsRealStock: after,
+                targetStock: clampedShopeeTarget,
               },
               actor: 'SYSTEM',
               originSource: 'SHOPEE_SYNC',
@@ -581,6 +649,12 @@ export async function createOrder(input: CreateOrderInput) {
       syncLinkedVariantStocks(db, deductedSimpleIds),
     ])
   }
+  if (shouldTriggerShopeeOutbox) {
+    fetch(
+      `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+      { method: 'POST' }
+    ).catch(() => null)
+  }
 
   // COMBO/SET quà tặng: trừ kho từng thành phần × định mức + đồng bộ tồn hiển thị của combo
   if (comboDemands.size > 0) {
@@ -588,9 +662,10 @@ export async function createOrder(input: CreateOrderInput) {
       const issued = await issueComboComponents(
         tx,
         new Map([...comboDemands.entries()].map(([pid, e]) => [pid, e.required])),
-        (componentName, qty) => `Trừ thành phần combo ${qty} ${componentName} cho đơn ${code}`
+        (componentName, qty) => `Trừ thành phần combo ${qty} ${componentName} cho đơn ${code}`,
+        { allowNegative, warehouseId: targetWarehouseId }
       )
-      // Ghi nhận bút toán 0 cho thành phần combo có tồn = 0 (khi allowShortage = true) để cancelOrder bảo toàn kho = 0
+      // Ghi nhận bút toán 0 cho thành phần combo có tồn = 0 (khi allowShortage = true & !allowNegative) để cancelOrder bảo toàn kho = 0
       for (const r of issued) {
         if (r.deducted === 0 && r.required > 0) {
           await tx.stockMovement.create({
@@ -599,7 +674,7 @@ export async function createOrder(input: CreateOrderInput) {
               warehouseId: targetWarehouseId,
               type: 'COMBO_ISSUE',
               quantity: 0,
-              stockAfter: 0,
+              stockAfter: r.stockAfter,
               note: `Trừ thành phần combo 0/${r.required} ${r.componentName} cho đơn ${code} [CẢNH BÁO LỆCH KHO CHỜ ĐỐI SOÁT]`,
             },
           })
@@ -1003,10 +1078,8 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
   }
 
   // 5. Ensure warehouse stock matches product stock totals
-  if (targetOrder.warehouseId) {
-    for (const pid of result.restockedIds) {
-      await syncProductWarehouseStock(pid, targetOrder.warehouseId).catch(() => null)
-    }
+  for (const pid of result.restockedIds) {
+    await syncProductWarehouseStock(pid, targetOrder.warehouseId).catch(() => null)
   }
 
   // 6. Timeline, Lineage & Realtime broadcast
@@ -1037,6 +1110,13 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
   broadcast('order.updated', { id: targetOrder.id, status: 'CANCELLED', code: targetOrder.code })
   if (result.restockedIds.length > 0) {
     broadcast('inventory.updated', { orderId: targetOrder.id, restoredCount: result.restockedIds.length })
+    const policy = await getInventorySyncPolicy().catch(() => null)
+    if (policy?.syncMode === 'SYNC_CMS_TO_MARKETPLACE') {
+      fetch(
+        `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+        { method: 'POST' }
+      ).catch(() => null)
+    }
   }
 
   return {

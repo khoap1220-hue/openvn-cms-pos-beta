@@ -758,7 +758,7 @@ export function InventoryView({
         const row = map[p.id]
         const sumAllocated = row ? Object.values(row).reduce((s, q) => s + q, 0) : 0
         if (!row || sumAllocated === 0) {
-          map[p.id] = { ...(row || {}), [defaultWhId]: Math.max(0, p.stock) }
+          map[p.id] = { ...(row || {}), [defaultWhId]: p.stock }
         }
       }
     }
@@ -787,7 +787,7 @@ export function InventoryView({
     let totalCostValue = 0
     for (const p of all) {
       const qty = getProductStockInSelectedWh(p)
-      if (selectedWarehouseId !== 'ALL' && p.type !== 'COMBO' && qty <= 0) continue
+      if (selectedWarehouseId !== 'ALL' && p.type !== 'COMBO' && qty === 0) continue
       if (p.type === 'COMBO') {
         comboCount += 1
       } else if (isRawMaterialProduct(p)) {
@@ -812,7 +812,7 @@ export function InventoryView({
     const q = stockSearch.trim().toLowerCase()
     return all.filter((p) => {
       const whQty = getProductStockInSelectedWh(p)
-      if (selectedWarehouseId !== 'ALL' && p.type !== 'COMBO' && whQty <= 0 && !q) return false
+      if (selectedWarehouseId !== 'ALL' && p.type !== 'COMBO' && whQty === 0 && !q) return false
       if (stockFilterType === 'RAW' && !isRawMaterialProduct(p)) return false
       if (stockFilterType === 'FINISHED' && (p.type === 'COMBO' || isRawMaterialProduct(p))) return false
       if (stockFilterType === 'COMBO' && p.type !== 'COMBO') return false
@@ -2109,11 +2109,12 @@ export function InventoryView({
                           const displayStock = getProductStockInSelectedWh(p)
                           const unitCost = getNormalizedUnitCost(p)
                           const totalVal = isCombo ? 0 : Math.max(0, displayStock) * unitCost
+                          const isNegative = displayStock < 0
                           const isOut = displayStock <= 0
                           const isLow = !isOut && !isCombo && displayStock <= p.lowStockThreshold
                           const perWhMap = whStockByProduct[p.id] || {}
                           const activeWhList = warehouses.filter(
-                            (wh) => (perWhMap[wh.id] ?? 0) > 0 || selectedWarehouseId === wh.id
+                            (wh) => (perWhMap[wh.id] ?? 0) !== 0 || selectedWarehouseId === wh.id
                           )
                           const shownWhList = activeWhList.slice(0, 2)
                           const extraWhCount = Math.max(0, activeWhList.length - shownWhList.length)
@@ -2233,7 +2234,12 @@ export function InventoryView({
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-right">
-                                <div className="font-mono text-sm font-bold tabular-nums">
+                                <div
+                                  className={cn(
+                                    'font-mono text-sm font-bold tabular-nums',
+                                    isNegative && 'text-purple-700 dark:text-purple-300'
+                                  )}
+                                >
                                   {formatNumber(displayStock)} <span className="text-xs font-normal text-muted-foreground">{baseUnit}</span>
                                 </div>
                                 {selectedWarehouseObj && !isCombo && (
@@ -2251,7 +2257,11 @@ export function InventoryView({
                                 {isCombo ? 'Theo BOM' : `${formatNumber(p.lowStockThreshold)} ${baseUnit}`}
                               </TableCell>
                               <TableCell>
-                                {isOut ? (
+                                {isNegative ? (
+                                  <Badge className="border-transparent bg-purple-100 text-[10px] text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                                    Âm kho ({formatNumber(displayStock)})
+                                  </Badge>
+                                ) : isOut ? (
                                   <Badge className="border-transparent bg-rose-100 text-[10px] text-rose-700 dark:bg-rose-950 dark:text-rose-400">
                                     Hết hàng
                                   </Badge>

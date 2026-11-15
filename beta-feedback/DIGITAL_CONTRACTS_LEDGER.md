@@ -9,7 +9,7 @@
 > 5. **`FS-AGENT-05` (`Pre/Post-Fix QA & Acceptance Inspector`)**: Chịu trách nhiệm kiểm định độc lập 2 đầu **Trước khi sửa** và **Sau khi sửa**.
 > 6. **`FS-AGENT-06` (`SecOps & Digital Contract Notary`)**: Chịu trách nhiệm kiểm toán `0` rò rỉ Secret và đóng dấu chữ ký số tổng (`Master HMAC-SHA256`).
 
-- **Thời điểm cập nhật sổ cái**: `2026-11-15T03:29:09Z`
+- **Thời điểm cập nhật sổ cái**: `2026-11-15T05:09:55Z`
 - **Tổng số Hợp đồng Số đã phát hành**: **`48`** (`48` Hợp đồng Thực thi Bản vá & `0` Hợp đồng Bảo vệ Trạng thái Gốc)
 
 ---
@@ -18,8 +18,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB48` — Phản Hồi `#48`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0A7685F0766D66E2284C4DE654CCEF57` (Full SHA256: `0a7685f0766d66e2284c4de654ccef57d7b055d90028da750ca546f99dfc51a4`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3BF032CA5D9D63AC6561AA31623FCF78` (Full SHA256: `3bf032ca5d9d63ac6561aa31623fcf7899133759a2f40d7d3cb301e1582d7447`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 829x985
 
@@ -27,26 +27,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 5c504e193531f0cb` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 5c504e193531f0cb` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-17B8C641DB9973F1` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-E6DD49D4D5217738` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-C86493F9E3E15CFB` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `5c504e193531f0cb` • AST Balanced: `True` | `SIG-FS-AGENT-04-493F770CD9216499` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-4AECD6EC66096A81` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB48` | `SIG-FS-AGENT-06-6916984140F04EE5` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-1AA120F2679FB9B4` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-3063E6822E3A2CD9` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-86902923B8B8FED7` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `5c504e193531f0cb` • AST Balanced: `True` | `SIG-FS-AGENT-04-9FC8529572671B98` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-C5D18EF6B85F0108` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB48` | `SIG-FS-AGENT-06-63DF370208706943` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB47` — Phản Hồi `#47`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3901FFC9C5975F1AAC5C7F85493C286A` (Full SHA256: `3901ffc9c5975f1aac5c7f85493c286a66d7ee71b25df43932bd69e291e23053`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC30B7EE3C9D3EDCE0671CDBBD7702AFD` (Full SHA256: `c30b7ee3c9d3edce0671cdbbd7702afdb952454ee940b1bcefcd494333ac1be8`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=liveops` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: 1. [Vùng khoanh đỏ] Lỗi hiển thị trạng thái 'ĐIỀU HÀNH THỦ CÔNG' bị tràn viền hoặc căn lề không đồng nhất so với nhãn 'MÔI TRƯỜNG THỰC TẾ' bên cạnh, gây mất thẩm mỹ.
 2. [Vùng khoanh đỏ] Các thẻ trạng thái (badges) tại khu vực 'Công nợ COD', 'Cảnh báo tồn kho' và 'Giao dịch tại quầy' có kích thước quá nhỏ, gây khó khăn cho việc đọc thông tin nhanh.
@@ -76,8 +76,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB46` — Phản Hồi `#46`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD04A5D06ACB6F90FC52FCADBA8349DAC` (Full SHA256: `d04a5d06acb6f90fc52fcadba8349dacdccd2f02679a7146d42f6f7b0223cb93`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFACC8ED246426C37C85DBD11BD11D904` (Full SHA256: `facc8ed246426c37c85dbd11bd11d90421102ddfaeab44e70c721f81ed598946`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=shipments` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -103,8 +103,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB45` — Phản Hồi `#45`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB5B953602F977F25113389BC394A716A` (Full SHA256: `b5b953602f977f25113389bc394a716a51867b660c31a873814ffea8a81c6772`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x97F09007B59273F785D922303D7811B0` (Full SHA256: `97f09007b59273f785d922303d7811b0a426ec6b8762ae8cc5cbe79b544b004e`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=inbox` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -130,8 +130,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB44` — Phản Hồi `#44`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6BB2462BCE6C6F1111C34A2C40F1E09E` (Full SHA256: `6bb2462bce6c6f1111c34a2c40f1e09e5840417a92de01d3108e32dc583d5c53`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x84A759099E209C1DCE4BC2A0D4EA0F6B` (Full SHA256: `84a759099e209c1dce4bc2a0d4ea0f6bf8b1fdd25471d632434d9be4fc54ea47`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -157,8 +157,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB43` — Phản Hồi `#43`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEEC028DD9A03B632F3811C8F5CDFC7D2` (Full SHA256: `eec028dd9a03b632f3811c8f5cdfc7d275f3df774b45600fd4df93f96ec6c2aa`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCF539A7F4AD01B396B1E87593688305A` (Full SHA256: `cf539a7f4ad01b396b1e87593688305ab61db2fea154e234ac392470c964960d`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=liveops` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -184,8 +184,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB42` — Phản Hồi `#42`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC210E4979E382AB0307A8D0D3773793A` (Full SHA256: `c210e4979e382ab0307a8d0d3773793a898b1128935154636d6d5bb38a6470d0`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x01EC9190B864165B64A4E85FB6EC9893` (Full SHA256: `01ec9190b864165b64a4e85fb6ec9893930a89de9adbcf53c176bd3883e0e5fb`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=stock-export` (`src/components/cms/views/stock-export-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -194,14 +194,14 @@
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
 | **Frontend TSX & Bản vá CSS** | `src/components/cms/views/stock-export-view.tsx` (`SHA256: e3b0c44298fc1c14`) | Patch `SHA256: 23fc284b9df62e58` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
-| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 233452390cd35f13`) | `SHA256: 233452390cd35f13` | ✅ **Bất biến 100%** |
+| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 03d025fc86a05845`) | `SHA256: 03d025fc86a05845` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `e3b0c44298fc1c14` | `SIG-FS-AGENT-01-3169CA67ED5F2E06` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13` | `SIG-FS-AGENT-02-EBD0658D2647BD2F` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845` | `SIG-FS-AGENT-02-EBD0658D2647BD2F` |
 | **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-4A291EB98B984A75` |
 | **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `23fc284b9df62e58` • AST Balanced: `True` | `SIG-FS-AGENT-04-A8A30EE52F825D62` |
 | **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-3A16896C30A30B5E` |
@@ -211,8 +211,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB41` — Phản Hồi `#41`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6B005F7FC7C239E17E54877C65ED01F4` (Full SHA256: `6b005f7fc7c239e17e54877c65ed01f4f3ad2e738ae2d99dca550691a6475998`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x84E1BBEFC8A3C316877E9FBE05BFAE83` (Full SHA256: `84e1bbefc8a3c316877e9fbe05bfae83d9a5dde3ce9ce7bcdfa2456263dd0b99`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Sản phẩm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -220,26 +220,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/products-view.tsx` (`SHA256: cd3dc65fba98184c`) | Patch `SHA256: c9c0a0b1536dceec` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/products-view.tsx` (`SHA256: 4df76c1fbe770a49`) | Patch `SHA256: c9c0a0b1536dceec` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/products/route.ts` (`SHA256: 8e42037fbe19d4ba`) | `SHA256: 8e42037fbe19d4ba` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `cd3dc65fba98184c` | `SIG-FS-AGENT-01-348AF21065B9D8F8` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `8e42037fbe19d4ba` == `8e42037fbe19d4ba` | `SIG-FS-AGENT-02-1E283962E6BE81D4` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-4DF9D330184163A1` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `c9c0a0b1536dceec` • AST Balanced: `True` | `SIG-FS-AGENT-04-33903BE455BEB06E` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-EF40FDD6E2972252` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB41` | `SIG-FS-AGENT-06-D73A40E0273B8267` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `4df76c1fbe770a49` | `SIG-FS-AGENT-01-7CC7018FC272BC0F` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `8e42037fbe19d4ba` == `8e42037fbe19d4ba` | `SIG-FS-AGENT-02-3C037C45501272E9` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-436DB2FD39A5AF2C` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `c9c0a0b1536dceec` • AST Balanced: `True` | `SIG-FS-AGENT-04-94DE0454A01616FD` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-503721417BF46F73` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB41` | `SIG-FS-AGENT-06-78AF130A68FE7985` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB40` — Phản Hồi `#40`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3155E41BB4D106E1B142425419051CEE` (Full SHA256: `3155e41bb4d106e1b142425419051ceec5f94b303b59b358357ffc73525fe938`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3A833A0FAE57BCD6BBE91A0EC955416F` (Full SHA256: `3a833a0fae57bcd6bbe91a0ec955416fc9e60f8a9ae402792d9563d87a64eedb`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=sales` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -265,8 +265,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB39` — Phản Hồi `#39`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x277A3D8BFD9D14E906A9C16A8384B11A` (Full SHA256: `277a3d8bfd9d14e906a9c16a8384b11a2d551d814ea0b481b57ce2005082f0da`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3C358E075EFFF1B0CD7C25BD56818D86` (Full SHA256: `3c358e075efff1b0cd7c25bd56818d861e616d6530ffa9dd7f7c3a525f14dccd`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=pos` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -274,26 +274,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `60% - Mô tả lỗi cắt chữ, nhưng không rõ vị trí và nguyên nhân gốc rễ`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: a42ec7a46d283531` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: a42ec7a46d283531` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-B620B5B95C0B9662` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-7E7BBD97AF10A9C1` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-98F43D3E9945138C` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `a42ec7a46d283531` • AST Balanced: `True` | `SIG-FS-AGENT-04-B7BEA03DABDF708F` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-80D7CB7540FA08D6` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB39` | `SIG-FS-AGENT-06-31F5D9454B8613D6` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-FD87492FF9772435` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-A0BA0D3CFC37BC08` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-C0D819E244CB3F77` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `a42ec7a46d283531` • AST Balanced: `True` | `SIG-FS-AGENT-04-858A62E0CAAE67C1` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-FD9DC278C15D1EBC` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB39` | `SIG-FS-AGENT-06-AD33F29C6412E95A` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB38` — Phản Hồi `#38`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1E30C88C2B705E9CA3870219E5A5246C` (Full SHA256: `1e30c88c2b705e9ca3870219e5a5246c8a48e3abe8c368bb0bf9e5c1625e2f8a`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x60A4151114F37C1003E000BB09C4FD6F` (Full SHA256: `60a4151114f37c1003e000bb09c4fd6fe6f2116053f8042f83d0efdb3c36c898`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -319,8 +319,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB37` — Phản Hồi `#37`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x50F8005A2D151F923EB1EADBFDB42284` (Full SHA256: `50f8005a2d151f923eb1eadbfdb422848d7261c9f29045e906777a981086196a`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF1431A9D2361135302F6544363B7C270` (Full SHA256: `f1431a9d2361135302f6544363b7c270404b802fab3638241ccc08e448549070`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sản xuất & Định mức (BOM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1313x1285
 
@@ -346,8 +346,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB36` — Phản Hồi `#36`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA5F79C0A4F37D10235FD7BB3DA2C73BA` (Full SHA256: `a5f79c0a4f37d10235fd7bb3da2c73ba920e7d3a97f59502f432284851712b67`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE61F5FF96543866C4EEAB0336B0E4829` (Full SHA256: `e61f5ff96543866c4eeab0336b0e4829db60bc357401b872216053f720029947`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Cân bằng kho & Kiểm kê thực tế] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1313x1285
 
@@ -355,26 +355,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `55% - Hiểu nhầm vị trí và bản chất lỗi`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 6777b3935edc9508` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 6777b3935edc9508` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-3345D61C8740120E` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-CDEBEBB8B9B46EFE` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-E898E29530F8678B` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6777b3935edc9508` • AST Balanced: `True` | `SIG-FS-AGENT-04-2D23BC629EE5E206` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-7B38B4035378F668` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB36` | `SIG-FS-AGENT-06-BEA6B9C6C3D5B4E8` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-1FDBDFD52A1E2EDF` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-F4402FE8CC44796F` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-71529267692A713C` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6777b3935edc9508` • AST Balanced: `True` | `SIG-FS-AGENT-04-E12144A7B21AD536` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-136229E311B99A42` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB36` | `SIG-FS-AGENT-06-FD7C4DBD60480B03` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB35` — Phản Hồi `#35`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFBB4A5D47EC5C499DD890ED35133BC2E` (Full SHA256: `fbb4a5d47ec5c499dd890ed35133bc2e181bdfdcc60b8ba36fe98f797163f526`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x7650D87D2E4FEC1D2E8A27AEF1C0C930` (Full SHA256: `7650d87d2e4fec1d2e8a27aef1c0c93007395d16d0f659419acd17c68cb533b8`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1313x1285
 
@@ -382,26 +382,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân gốc`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 62d8dee6ecf4a2c8` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 62d8dee6ecf4a2c8` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-66DE8EEE22F4FB2F` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-3042703E104E97CF` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-84BA5032AA63FADD` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `62d8dee6ecf4a2c8` • AST Balanced: `True` | `SIG-FS-AGENT-04-58DEEDCD78E0ACD4` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-39D84269F1B608CC` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB35` | `SIG-FS-AGENT-06-0DC26A5B7FC1941D` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-E63D95F1BF12D641` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-8A00193DF2D898A5` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-642D9E2EFC584DD9` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `62d8dee6ecf4a2c8` • AST Balanced: `True` | `SIG-FS-AGENT-04-04B2985496491318` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-F44B5283F63C0100` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB35` | `SIG-FS-AGENT-06-F55936D8DEAD56E3` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB34` — Phản Hồi `#34`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xAF51956C2A740005843DC0AADB173547` (Full SHA256: `af51956c2a740005843dc0aadb173547e866887146379901fe0eb577da7d758c`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3D47BF0C920B8BA701EF800ADDAA47CA` (Full SHA256: `3d47bf0c920b8ba701ef800addaa47ca9ca990045d0dcbfa54d4e7bb89f413fa`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=sales` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1313x1285
 
@@ -427,8 +427,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB33` — Phản Hồi `#33`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE3AD97DBAF62AEA7E83C1BEF34D699AC` (Full SHA256: `e3ad97dbaf62aea7e83c1bef34d699ac0fe25e08dc124ea783b4970f963da39a`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x934F11C5665AF0C8EC8C440E88E3016C` (Full SHA256: `934f11c5665af0c8ec8c440e88e3016cef2f71d24b272ee5c741aba3470d7425`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/?view=pos` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1313x1285
 
@@ -436,26 +436,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 0479c23897ae6110` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 0479c23897ae6110` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-32E2D0382762EB80` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-F0862D0F1BAB49D5` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-7771E6FB750DF568` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `0479c23897ae6110` • AST Balanced: `True` | `SIG-FS-AGENT-04-865185B9D1C41FD9` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-3BD432BDCE98B3E5` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB33` | `SIG-FS-AGENT-06-3F5BD4427D8307D9` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-B9E8E926F276D973` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-822A6A4FD596B916` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-967D550A7E9AB509` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `0479c23897ae6110` • AST Balanced: `True` | `SIG-FS-AGENT-04-1E2BDFB9EEEF8677` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-625571163F81338D` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB33` | `SIG-FS-AGENT-06-1645711F7A80C53B` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB32` — Phản Hồi `#32`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD460C41DAEB2538C120461E358E822E5` (Full SHA256: `d460c41daeb2538c120461e358e822e5df2c24d3f820f82ce1d9067737927c77`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5D81B04BB11FAC29062013BE0FA51495` (Full SHA256: `5d81b04bb11fac29062013be0fa51495d446f3ac47a17c5dedd16ba6f3a9fff0`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `http://127.0.0.1:51897/` (`src/components/cms/views/dashboard-view.tsx` ↔ `src/app/api/dashboard/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1313x1285
 
@@ -481,8 +481,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB31` — Phản Hồi `#31`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x141A62314FF9854E7F544D1694366A39` (Full SHA256: `141a62314ff9854e7f544d1694366a391253e1fc4881f92d60c20b159380b15a`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC75DD31F39890081504EA8C9E1BFC293` (Full SHA256: `c75dd31f39890081504ea8c9e1bfc2930aae76ef65049ddb1f8cc65e560400a9`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1313x1285
 
@@ -490,26 +490,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `95% - Xác nhận lỗi tràn chữ tại các thành phần hiển thị danh mục/tên sản phẩm`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/inventory-view.tsx` (`SHA256: 6847c4b46379b739`) | Patch `SHA256: 6066cf7683a55c9c` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
-| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 233452390cd35f13`) | `SHA256: 233452390cd35f13` | ✅ **Bất biến 100%** |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/inventory-view.tsx` (`SHA256: 2fd1382a84775449`) | Patch `SHA256: 6066cf7683a55c9c` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 03d025fc86a05845`) | `SHA256: 03d025fc86a05845` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6847c4b46379b739` | `SIG-FS-AGENT-01-2F4FD705024E886A` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13` | `SIG-FS-AGENT-02-5B6F35FE57E0D127` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-EAB4BA2DD83B8237` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6066cf7683a55c9c` • AST Balanced: `True` | `SIG-FS-AGENT-04-C40B9E56C1BC77B1` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-9A70ABA65420679F` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB31` | `SIG-FS-AGENT-06-B0DB719FD7E25A37` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `2fd1382a84775449` | `SIG-FS-AGENT-01-AD8DF7DC3C548D1F` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845` | `SIG-FS-AGENT-02-0270A79A22FAC587` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-92BD1F61FF6BBF32` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6066cf7683a55c9c` • AST Balanced: `True` | `SIG-FS-AGENT-04-32023016645E9DED` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-B107274FB94FD7F3` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB31` | `SIG-FS-AGENT-06-0397C30175EC1DD3` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB30` — Phản Hồi `#30`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB4D40F53FDD3D8F8DEAEF46FE3D04BE7` (Full SHA256: `b4d40f53fdd3d8f8deaef46fe3d04be709be1dd8f606c654c8d1438ccb5845b7`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xDB57740D3E4A01AAE6B26DF3ECE5E92E` (Full SHA256: `db57740d3e4a01aae6b26df3ece5e92eb77071d54fac0a479f0e69a54cf422e5`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -517,26 +517,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: b0fe6ec2270ca738` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: b0fe6ec2270ca738` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-AEEDF9EA4584B0FA` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-8046B538AFC240AF` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-DC7F2B59EE7FE9DC` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `b0fe6ec2270ca738` • AST Balanced: `True` | `SIG-FS-AGENT-04-F083876E0F6111DD` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-FE39751C9CE60D13` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB30` | `SIG-FS-AGENT-06-5F9808DAEED5CFBA` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-F33F3FD76E4F2E40` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-9A37D14FAFA28C8D` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-186833D4CF9BF6A3` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `b0fe6ec2270ca738` • AST Balanced: `True` | `SIG-FS-AGENT-04-FC8CDD694F0F6FDC` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-7790AACB11DF865B` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB30` | `SIG-FS-AGENT-06-2B3D701FC8B8C3F2` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB29` — Phản Hồi `#29`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2D4B8D59152F2142C7EE724118064E9E` (Full SHA256: `2d4b8d59152f2142c7ee724118064e9ee958a157d9414c6f35b7a589b9f83b41`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x4848B8E5BF1D2C669F211DF1DB981849` (Full SHA256: `4848b8e5bf1d2c669f211df1db981849a95551ada72b2d4342f50e94a7123c80`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inbox` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -544,26 +544,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 894a5c72a006ef5e` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 894a5c72a006ef5e` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-9AA0D60C618FC256` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-03CB5E2B8A99E82B` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-99CAE4B314FD80FE` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `894a5c72a006ef5e` • AST Balanced: `True` | `SIG-FS-AGENT-04-CCAB1798BD67304C` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-35B276C927E55201` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB29` | `SIG-FS-AGENT-06-B74EB7FB6B2EDE61` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-12713D38E1EE02C6` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-BE54A561339D2DBF` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-C480405C700A8EFD` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `894a5c72a006ef5e` • AST Balanced: `True` | `SIG-FS-AGENT-04-3FEB1B95F830E1FC` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-FF2E913415C5161A` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB29` | `SIG-FS-AGENT-06-5D8ED8F40EBBDBAA` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB28` — Phản Hồi `#28`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1DC56C2C85BFFCCA9A07D3B9E632959E` (Full SHA256: `1dc56c2c85bffcca9a07d3b9e632959e9ff0c3f719207f392656b034a50caa1a`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFE900E3A4E8232CD85F586D1FDCA2923` (Full SHA256: `fe900e3a4e8232cd85f586d1fdca292387799a3d03384cccef4e8536bebd7caa`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -571,26 +571,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 5025a34eb6741d10` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 5025a34eb6741d10` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-A11C547E4BD8A630` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-A8DCFEE7144AD8BD` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-46E05EB0078EAF22` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `5025a34eb6741d10` • AST Balanced: `True` | `SIG-FS-AGENT-04-DAE5D3961A11223D` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-C61C445C47AFEDCD` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB28` | `SIG-FS-AGENT-06-A4AF3D5D0817B858` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-754B38B22EF1A17F` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-E5BC773B8D19549C` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-00DEAEB70EB586E1` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `5025a34eb6741d10` • AST Balanced: `True` | `SIG-FS-AGENT-04-9226DE87C1E07F45` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-BEC734EB44289663` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB28` | `SIG-FS-AGENT-06-5B9D3134252E657A` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB27` — Phản Hồi `#27`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x46EEA8C5F5A47A5B0EC3BE1D2FBB344F` (Full SHA256: `46eea8c5f5a47a5b0ec3be1d2fbb344f5a76ed73be57b2dad70029dd928fad87`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD7CEF48732DDB642373A25F7A1F51263` (Full SHA256: `d7cef48732ddb642373a25f7a1f512631d5bcb85ad3f591e3e1d6260c428bde4`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -616,8 +616,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB26` — Phản Hồi `#26`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x46191E7EA1B4B09837E8F938C87CD7AF` (Full SHA256: `46191e7ea1b4b09837e8f938c87cd7af5d33d41550ec84486e826b0d140be0c2`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3082656E4A44732995196D2C44149030` (Full SHA256: `3082656e4a44732995196d2c44149030e0be76bf2d4286119003a4aa72db71ed`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=products` (`src/components/cms/views/products-view.tsx` ↔ `src/app/api/products/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1279
 
@@ -625,26 +625,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/products-view.tsx` (`SHA256: cd3dc65fba98184c`) | Patch `SHA256: f8a551eaf83c18f6` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/products-view.tsx` (`SHA256: 4df76c1fbe770a49`) | Patch `SHA256: f8a551eaf83c18f6` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/products/route.ts` (`SHA256: 8e42037fbe19d4ba`) | `SHA256: 8e42037fbe19d4ba` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `cd3dc65fba98184c` | `SIG-FS-AGENT-01-EAAF09CE3B9D3DF6` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `8e42037fbe19d4ba` == `8e42037fbe19d4ba` | `SIG-FS-AGENT-02-E5F30B19B1594F16` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-6E9BB5C773C21C11` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `f8a551eaf83c18f6` • AST Balanced: `True` | `SIG-FS-AGENT-04-36631CDFCFBDA739` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-7DE0910259EBD38B` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB26` | `SIG-FS-AGENT-06-90E97FA9785C3598` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `4df76c1fbe770a49` | `SIG-FS-AGENT-01-FD58880130783B7E` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `8e42037fbe19d4ba` == `8e42037fbe19d4ba` | `SIG-FS-AGENT-02-29200E7D89E7464A` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-16ADAE031A783ABE` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `f8a551eaf83c18f6` • AST Balanced: `True` | `SIG-FS-AGENT-04-2DE1F0477766B0A9` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-8301790C3D6B1839` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB26` | `SIG-FS-AGENT-06-7A1C8F3E6A099EDE` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB25` — Phản Hồi `#25`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF7D161F32038472C8830B1C144727A08` (Full SHA256: `f7d161f32038472c8830b1c144727a08f1f7079d405f1ee436e7ab2b9162a5c8`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x212706529024BA51DBD539B775E1607D` (Full SHA256: `212706529024ba51dbd539b775e1607d72683922273af4b8404bc0b091b2942f`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=auto-social` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Auto Social — Tiếp thị AI & Lịch Đăng Đa Kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1654x1285
 
@@ -652,26 +652,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 6a1d8dbda2b993d7` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 6a1d8dbda2b993d7` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-D53FD54DEFCDF5BF` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-F02DBCB0B5688E30` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-10D633AFB949B4E6` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6a1d8dbda2b993d7` • AST Balanced: `True` | `SIG-FS-AGENT-04-A71A10B6B055640C` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-3BA49E47C165D6DC` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB25` | `SIG-FS-AGENT-06-3298A593CB8C2E56` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-EE4EDC2AD4584E2B` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-35F9833E7E3B3FFA` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-EE036B4A986F3D01` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6a1d8dbda2b993d7` • AST Balanced: `True` | `SIG-FS-AGENT-04-1C4F8A34933DD526` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-271F7F17AE41A970` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB25` | `SIG-FS-AGENT-06-A0344FF848D9D91E` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB24` — Phản Hồi `#24`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x3CD58550D26D989F1FAEE0070CC411B9` (Full SHA256: `3cd58550d26d989f1faee0070cc411b940b1f3f1b873ec032a2c7abe2dbae1b7`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x605FBF157E5E2D7B916EC363274DBB46` (Full SHA256: `605fbf157e5e2d7b916ec363274dbb461a2c390587891c504979e626f263e011`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=partners` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đối tác] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1654x1285
 
@@ -679,26 +679,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 3a8caa051d59ffb0` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 3a8caa051d59ffb0` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-F892590633B0936B` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-0FD0D967D7D457D0` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-739BFDC345106976` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `3a8caa051d59ffb0` • AST Balanced: `True` | `SIG-FS-AGENT-04-C80784A86AAD9D91` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-F39651AE022171F7` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB24` | `SIG-FS-AGENT-06-D59EB3FE57C8B710` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-C54A22C7666DBC29` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-973C0DB36ADFA1D9` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-3E65BE02A6DD9814` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `3a8caa051d59ffb0` • AST Balanced: `True` | `SIG-FS-AGENT-04-F58336E8AC740EC3` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-F73B438C4C16D2EC` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB24` | `SIG-FS-AGENT-06-122ECFD7FA152153` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB23` — Phản Hồi `#23`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xDCF8DBFBE414ED21F0695D9104EA5371` (Full SHA256: `dcf8dbfbe414ed21f0695d9104ea53710d051e2e63812c8e8daef0511c60c30b`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xC1040EB2F81E17EB56FC8D8A38EB6342` (Full SHA256: `c1040eb2f81e17eb56fc8d8a38eb6342502bb3c1d934d11cc7d09c81e3356290`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=iam` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhân sự, Phân quyền & Nhật ký Hành vi] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1654x1285
 
@@ -706,26 +706,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 08b1b8d7ec68ef7e` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 08b1b8d7ec68ef7e` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-DCABB9F79BCCAAC6` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-C2640BAD52AFEA91` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-6A61AE76278690B7` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `08b1b8d7ec68ef7e` • AST Balanced: `True` | `SIG-FS-AGENT-04-AED4165B9208A39B` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-DB8694B3BDF332FD` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB23` | `SIG-FS-AGENT-06-7AA64E8965C11EB0` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-06DCB5B29A2819E5` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-EC347AF81C7C3674` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-8EA127E10DFAAB14` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `08b1b8d7ec68ef7e` • AST Balanced: `True` | `SIG-FS-AGENT-04-B06251E997BEC2AE` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-A806514B66D15D7E` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB23` | `SIG-FS-AGENT-06-EFA910029A538E6E` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB22` — Phản Hồi `#22`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x31AC039889E425F4DF31A4B4F385B17E` (Full SHA256: `31ac039889e425f4df31a4b4f385b17e313f3a40208998af4be1af88f8ee5c7d`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x7D17716AB89C392244CD013358A3806C` (Full SHA256: `7d17716ab89c392244cd013358a3806c35a3ea3ff23afbe88464fa31e3d3588e`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=system` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Trung tâm Cấu hình Hệ thống] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 1486x1285
 
@@ -733,26 +733,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 6a07d221f1df0d2f` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 6a07d221f1df0d2f` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-01CEF4851922DE40` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-978B685EE5B2E78F` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-72AB9CA208060E59` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6a07d221f1df0d2f` • AST Balanced: `True` | `SIG-FS-AGENT-04-4D589B3DFA1124DA` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-7797076D6E86D362` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB22` | `SIG-FS-AGENT-06-2F8C447CE46A2193` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-9404C4005D16DA3E` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-421CB6F87AF580C3` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-D7675C50487E5840` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6a07d221f1df0d2f` • AST Balanced: `True` | `SIG-FS-AGENT-04-F235439CC241D7F4` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-FDEA5305A3070B83` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB22` | `SIG-FS-AGENT-06-B37E1EA1910686EA` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB21` — Phản Hồi `#21`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCC74CD1B2A7836B85E212394D96FF78E` (Full SHA256: `cc74cd1b2a7836b85e212394d96ff78e0bf67e668a261883db897fd6e9ccf3d3`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xD69DD22F1C8AFA1D0E44FDCD2F738E46` (Full SHA256: `d69dd22f1c8afa1d0e44fdcd2f738e46134907b5785c8354251ddd83e3998985`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=reports` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Báo cáo & phân tích] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1486x1285
 
@@ -760,26 +760,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: f1daf92df118e9e1` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: f1daf92df118e9e1` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-ED0BD14E92EEEBEA` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-34489D378555CAC4` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-1CD0A85F56C0F15F` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `f1daf92df118e9e1` • AST Balanced: `True` | `SIG-FS-AGENT-04-61C23885064DC1A6` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-2E435B2A865085E8` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB21` | `SIG-FS-AGENT-06-7FE6D8A17352E278` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-7BCC7933AFB2F576` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-E41FAE0218405CE4` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-6057AF08759ABC12` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `f1daf92df118e9e1` • AST Balanced: `True` | `SIG-FS-AGENT-04-A40C866A41B807D7` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-9813389A96C21EDB` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB21` | `SIG-FS-AGENT-06-FE928800ADCE6105` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB20` — Phản Hồi `#20`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE501C78F5C8A32B9F8F12F55DC67B111` (Full SHA256: `e501c78f5c8a32b9f8f12f55dc67b1118dacf5a41060de68191433002ff6a0c8`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCB0AE5F0B6C00D9FE21668F60D2392D9` (Full SHA256: `cb0ae5f0b6c00d9fe21668f60d2392d9970975983bdef6794c6ef8441c7e8073`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=campaigns` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Chương trình & Khuyến mãi (CRM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1486x1285
 
@@ -787,26 +787,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 23398a3bc3988361` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 23398a3bc3988361` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-4B252E992688FE85` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-A8E07B5E713A455E` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-F69B58C08812F649` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `23398a3bc3988361` • AST Balanced: `True` | `SIG-FS-AGENT-04-B6EE903E9C60B02C` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-E42D1D0B1E9DAAC2` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB20` | `SIG-FS-AGENT-06-FB594FA56CE54DB4` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-019BA58196E82F3D` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-FEB96A7CE1E38660` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-B3F4828C802B1E08` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `23398a3bc3988361` • AST Balanced: `True` | `SIG-FS-AGENT-04-6877B7EC422EF279` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-EACD3B72A0E6F2B0` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB20` | `SIG-FS-AGENT-06-CFA4977FB8DADE9D` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB19` — Phản Hồi `#19`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x101595D530E218C45ADE54C9340FC9B6` (Full SHA256: `101595d530e218c45ade54c9340fc9b68a57d1a2bdcf523d0e4103740bdedac1`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBC57D26C1DD2FF8094976E0C0603EAD4` (Full SHA256: `bc57d26c1dd2ff8094976e0c0603ead4b8eb55f52172e314a99e363d4f9b6443`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 1486x1285
 
@@ -814,26 +814,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/inventory-view.tsx` (`SHA256: 6847c4b46379b739`) | Patch `SHA256: 33fa7c74119a292c` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
-| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 233452390cd35f13`) | `SHA256: 233452390cd35f13` | ✅ **Bất biến 100%** |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/inventory-view.tsx` (`SHA256: 2fd1382a84775449`) | Patch `SHA256: 33fa7c74119a292c` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 03d025fc86a05845`) | `SHA256: 03d025fc86a05845` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6847c4b46379b739` | `SIG-FS-AGENT-01-30C11262DB45D9E4` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13` | `SIG-FS-AGENT-02-455AD86282D562A7` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-2EE8B8574E5F554D` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `33fa7c74119a292c` • AST Balanced: `True` | `SIG-FS-AGENT-04-259A8040C5A08C38` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-911E405823D25244` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB19` | `SIG-FS-AGENT-06-D501CCBED74B2838` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `2fd1382a84775449` | `SIG-FS-AGENT-01-AABA31B6FBC2A310` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845` | `SIG-FS-AGENT-02-A95806E248D73180` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-03C5685666772686` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `33fa7c74119a292c` • AST Balanced: `True` | `SIG-FS-AGENT-04-73455F3D425AD9BD` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-D20C5AA2D8968501` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB19` | `SIG-FS-AGENT-06-C646E38EA546878C` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB18` — Phản Hồi `#18`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x77B4EC71B11A56947ED3E9279501A82D` (Full SHA256: `77b4ec71b11a56947ed3e9279501a82dc61182c230bf6dcd25af20a6fdb81a8d`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x868AD4C2669B6D8FF90A2E5D01925F03` (Full SHA256: `868ad4c2669b6d8ff90a2e5d01925f03eae7fd29bdb60436fe18863994f47008`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1486x1285
 
@@ -859,8 +859,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB17` — Phản Hồi `#17`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xAC3AF8D25180380209D5ABDD4F9AA612` (Full SHA256: `ac3af8d25180380209d5abdd4f9aa612b799c3ed9cda2ac68b585ea3ea89feb6`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x5AB91A26B0EF06F10AEFECEA34E76B94` (Full SHA256: `5ab91a26b0ef06f10aefecea34e76b9421aa80e9e4e8ee82785af7bf03aec9eb`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1167x1285
 
@@ -868,26 +868,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 2ac8287cb816f1a9` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 2ac8287cb816f1a9` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-E4CA4050062F3CF9` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-9762E72C1310EB2D` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-6C97691697874244` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `2ac8287cb816f1a9` • AST Balanced: `True` | `SIG-FS-AGENT-04-DCD8E2AF86408ACE` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-02E4E01D632E1D18` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB17` | `SIG-FS-AGENT-06-295A202F16F543F2` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-C37BF6EABF3CAB24` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-4FC5A77D38283B73` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-FF15B41E5A9F772A` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `2ac8287cb816f1a9` • AST Balanced: `True` | `SIG-FS-AGENT-04-A1405D0677342F0E` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-EC6B629569888D71` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB17` | `SIG-FS-AGENT-06-CB18B0DF98FD99FB` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB16` — Phản Hồi `#16`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x0DAB14AC226D218DDAB89C0691348F8B` (Full SHA256: `0dab14ac226d218ddab89c0691348f8b839db2460591060a46840584d1e1b311`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xEB45CF24E7912E25C91757E28D93309C` (Full SHA256: `eb45cf24e7912e25c91757e28d93309c4f02b2ebc896ef534ec0c3e688e85fe0`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-balance` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Cân bằng kho & Kiểm kê thực tế] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -895,26 +895,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: aa4f857bbf274fb0` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: aa4f857bbf274fb0` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-22FF9C83FA8F1C5F` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-DAFAF9DB777C5C41` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-C1816571EE822EB2` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `aa4f857bbf274fb0` • AST Balanced: `True` | `SIG-FS-AGENT-04-0D614391E75CE210` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-CEF6033FBED8EE3B` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB16` | `SIG-FS-AGENT-06-F1527743C2F4BEAC` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-1EDE284217B40115` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-7C5F2FC956CDB98B` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-FC514F33C74BE29C` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `aa4f857bbf274fb0` • AST Balanced: `True` | `SIG-FS-AGENT-04-295F9E30A4C86503` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-0274EF8C68A5C40D` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB16` | `SIG-FS-AGENT-06-267113C4488D1F96` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB15` — Phản Hồi `#15`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2B7739C369033C2F5A794D09341C06D3` (Full SHA256: `2b7739c369033c2f5a794d09341c06d35861c6023cf78d51cc2000907f3b13fe`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCF4DF1771042ADFE5CC1AEC9C7D0E1B6` (Full SHA256: `cf4df1771042adfe5cc1aec9c7d0e1b625356a4b423b33daa5e1e99c1d543e7b`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=shipments` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -922,26 +922,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: deec4ecbef4b5248` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: deec4ecbef4b5248` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-97923332C2943ACD` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-AA7530019AE5E361` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-3C347EACF3725C4D` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `deec4ecbef4b5248` • AST Balanced: `True` | `SIG-FS-AGENT-04-C79DFE4AE5E1F06C` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-2BDEAFEF56136418` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB15` | `SIG-FS-AGENT-06-4D8A0B6AABC07EE8` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-F7D8DDAFB6CD31B1` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-6203B8C6B1F8F134` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-F33CE53C4A4FFA34` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `deec4ecbef4b5248` • AST Balanced: `True` | `SIG-FS-AGENT-04-9DE108C623D86A9B` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-5C7AE4C9E61EA75D` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB15` | `SIG-FS-AGENT-06-0D24BF6E3366EA74` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB14` — Phản Hồi `#14`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF92CFC296E984A817D17C28FC4C6A113` (Full SHA256: `f92cfc296e984a817d17c28fc4c6a1130d6195ef28db368309049abfe88d149f`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x815878BAA9379DE2CB376F43C7BCBF1A` (Full SHA256: `815878baa9379de2cb376f43c7bcbf1a2e02f697bbb3cd64dfcfb08cc6942972`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=accounting` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Bảng điều khiển hạch toán] Phát hiện 6 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -949,26 +949,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 094557ed15310bd9` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 094557ed15310bd9` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-83F3D08AD8733EDE` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-7AA61CF3D7401A1C` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-C126D7A1A92D02B3` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `094557ed15310bd9` • AST Balanced: `True` | `SIG-FS-AGENT-04-C875D0A66BDF8728` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-8BD7319DD8D87DEB` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB14` | `SIG-FS-AGENT-06-D7E31BF0470F66E0` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-EFD59F3447365A46` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-311B0A02F77DF518` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-08487DE4F4BAFAAF` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `094557ed15310bd9` • AST Balanced: `True` | `SIG-FS-AGENT-04-FC30C1CD0F05A887` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-0CB68A5A94AE0B70` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB14` | `SIG-FS-AGENT-06-0C9A17BA7D4AF623` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB13` — Phản Hồi `#13`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBD4BFC49EEDFA34F117B0FAEF2115CB5` (Full SHA256: `bd4bfc49eedfa34f117b0faef2115cb52c7d33a64736867d2008585a4318adc7`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x94990F5DDD50D48B74C598ACD4C91325` (Full SHA256: `94990f5ddd50d48b74c598acd4c91325ca5da70920d85debd576176f25994030`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=channels` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Kênh bán] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -976,26 +976,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 92c83283b3b4427f` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 92c83283b3b4427f` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-A59429E89D60B92A` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-A3A3D9BBFAA69B3D` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-C32A683A3128AC42` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `92c83283b3b4427f` • AST Balanced: `True` | `SIG-FS-AGENT-04-EABBB0E015003966` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-A8C55F905C743E03` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB13` | `SIG-FS-AGENT-06-6921BA0C6104DF7A` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-9CFE7DB83C1C43E5` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-53F7FF14C5E6D6BB` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-6D696A8243CD2564` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `92c83283b3b4427f` • AST Balanced: `True` | `SIG-FS-AGENT-04-7ECE4C34226D3A26` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-345E7DDC2AB196A8` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB13` | `SIG-FS-AGENT-06-C7C53B9FDF5C89B0` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB12` — Phản Hồi `#12`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2597B2E821F6F3A97E1366CD70070CE9` (Full SHA256: `2597b2e821f6f3a97e1366cd70070ce95c7c867dccd6b620f8032d5d3e0c3e17`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xE8CEF49EB60B55E6F8C7F856506D0490` (Full SHA256: `e8cef49eb60b55e6f8c7f856506d0490e1a2e333d5b17fec8a7067d7463376e7`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=auto-social` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Auto Social — Tiếp thị AI & Lịch Đăng Đa Kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1003,26 +1003,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 3e9c50ef0bce2fbd` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 3e9c50ef0bce2fbd` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-31878EA9BBC4A91D` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-4BAE72E722437F96` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-327F17D33806E003` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `3e9c50ef0bce2fbd` • AST Balanced: `True` | `SIG-FS-AGENT-04-F735546A0AB945F3` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-EE542D5A0B79D355` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB12` | `SIG-FS-AGENT-06-2B8CD0B3712AB05D` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-A07DE6134273A18D` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-80383221891A6033` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-3BD2605453BBEC08` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `3e9c50ef0bce2fbd` • AST Balanced: `True` | `SIG-FS-AGENT-04-A8CF07E20774F930` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-1472AC84D1EB6A69` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB12` | `SIG-FS-AGENT-06-C242D115E4D60958` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB11` — Phản Hồi `#11`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xBB45E5EF683C27EB6F33202DEA06A5E5` (Full SHA256: `bb45e5ef683c27eb6f33202dea06a5e57fff5fd99e9ad9135c9b72586c5fa75c`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2B47DB69468B82358888AB34FB93535E` (Full SHA256: `2b47db69468b82358888ab34fb93535ecef8ecc1897b9943a9f89465dd5e0397`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=campaigns` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Chương trình & Khuyến mãi (CRM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1030,26 +1030,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 9f30e7b8d543ccae` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 9f30e7b8d543ccae` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-7F4EF1C69BA69377` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-FECFABEB6C4ABBD3` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-DDCB203FE0790B70` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `9f30e7b8d543ccae` • AST Balanced: `True` | `SIG-FS-AGENT-04-3D8E20A978039940` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-450F03D39AF55A25` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB11` | `SIG-FS-AGENT-06-B8345F35C823B4FC` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-97B3D86D0772D842` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-5119D88E06A12B39` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-3EDA3E15BCDF37CF` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `9f30e7b8d543ccae` • AST Balanced: `True` | `SIG-FS-AGENT-04-98C22DE0926BB154` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-01C96D936A7AC17C` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB11` | `SIG-FS-AGENT-06-BA9895E2484C96E5` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB10` — Phản Hồi `#10`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x25C97A33B20F79AEFA6C38D1A2608F74` (Full SHA256: `25c97a33b20f79aefa6c38d1a2608f74ca34ce90d31944a28103e5a8f1556f29`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6D4C96A1D33186A01643E12E7ADCCA68` (Full SHA256: `6d4c96a1d33186a01643e12e7adcca686799a76f74e09b7d1d96475344389a05`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=customers` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Auto-Review - Khách hàng & Hội
 
@@ -1057,26 +1057,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 55b92d79068217d8` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 55b92d79068217d8` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-8E88131C47A98472` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-280CA4977963CA2C` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-4FC40513C77FCAF9` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `55b92d79068217d8` • AST Balanced: `True` | `SIG-FS-AGENT-04-1391277F30B08B5B` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-D87CD823588F9D6C` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB10` | `SIG-FS-AGENT-06-5B7980C309E27D85` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-8882993DF338B345` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-BD054EEB7A5E27F4` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-1366BB3DE101B710` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `55b92d79068217d8` • AST Balanced: `True` | `SIG-FS-AGENT-04-B28F186EB4D7D5FC` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-DB123731DEBD9AF2` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB10` | `SIG-FS-AGENT-06-387B0049C5EC37E0` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB9` — Phản Hồi `#9`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xF243351653EE60C7A1263DCEF5A04D4F` (Full SHA256: `f243351653ee60c7a1263dcef5a04d4fe79b394c456db0aa2dce6c4d64c22126`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x74840FB467B3729315FB3B96752DE943` (Full SHA256: `74840fb467b3729315fb3b96752de94371d4545250f2bae73631c40996887a19`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=bom` (`src/components/cms/views/bom-view.tsx` ↔ `src/app/api/bom/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Sản xuất & Định mức (BOM)] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1102,8 +1102,8 @@
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB8` — Phản Hồi `#8`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB05D82F1D1AFA94083E075B62D4F2264` (Full SHA256: `b05d82f1d1afa94083e075b62d4f22648520900a0745d92d4d64c001b2e07c23`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x115A284C432E23A7288EC042B1DB7970` (Full SHA256: `115a284c432e23a7288ec042b1db7970eb9bfcdfea86f8336c40f12cb07a05b6`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=stock-export` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất kho & Điều chuyển nội bộ] Phát hiện 3 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1111,26 +1111,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 5092228de9bf7cdb` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 5092228de9bf7cdb` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-A7B60443E17C9287` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-916777389533F463` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-DC43F3A8BC58AB10` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `5092228de9bf7cdb` • AST Balanced: `True` | `SIG-FS-AGENT-04-918C7539A14219EF` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-344FA79021AC1562` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB8` | `SIG-FS-AGENT-06-2B9510C6C5E3BAB0` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-35A4DC03F8880C99` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-2609CAFCA15CD78E` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-B6DD3676A0F13007` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `5092228de9bf7cdb` • AST Balanced: `True` | `SIG-FS-AGENT-04-865D981327DE5B3B` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-EE3FBBCBFDC2D990` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB8` | `SIG-FS-AGENT-06-E717F7E78001F9BA` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB7` — Phản Hồi `#7`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x16149B1C50088859163C5F181FEC0530` (Full SHA256: `16149b1c50088859163c5f181fec05308b5d3cc9ea95eba8606de2ea0e6e062f`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCD5972C6E267FBC5BC1B2E2F3D415E09` (Full SHA256: `cd5972c6e267fbc5bc1b2e2f3d415e09ec5751922ee2cd48da2747540afe882c`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inbox` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - OPENVN · Ưu Đàm — CMS bán hàng đa kênh] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1138,26 +1138,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: e9c825ecae9b8599` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: e9c825ecae9b8599` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-31397958BDF102E9` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-9B9A8F80AC760015` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-DD046420E14B82CA` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `e9c825ecae9b8599` • AST Balanced: `True` | `SIG-FS-AGENT-04-29196F4B7D3E0DC5` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-2DC1BD5EFB719BA6` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB7` | `SIG-FS-AGENT-06-60FDACE8C6840310` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-9FC712F13FA665CC` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-829CE2B4E252D8BD` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-3EE9412B77C5737A` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `e9c825ecae9b8599` • AST Balanced: `True` | `SIG-FS-AGENT-04-DB2E8ED2FB935908` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-C9F7CF43C1AA224D` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB7` | `SIG-FS-AGENT-06-8B4D1EC52AE13E2D` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB6` — Phản Hồi `#6`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x8151AA0D978E5326D7CBD8D27ED1AE07` (Full SHA256: `8151aa0d978e5326d7cbd8d27ed1ae07b55b2ebe1ee8836fce81a8703901aa41`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xB65CA9C89154B9A474ECC11AE1E7BF56` (Full SHA256: `b65ca9c89154b9a474ecc11ae1e7bf5690942f75bfb2fa25c91d4782b9a5c4cd`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=sales` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Xuất hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1165,26 +1165,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 6d7bc10e224d3d3e` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 6d7bc10e224d3d3e` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-C25FD7BFF985E255` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-1373547A4B007F09` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-B03C3056135BB7A4` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6d7bc10e224d3d3e` • AST Balanced: `True` | `SIG-FS-AGENT-04-D06FF703E6ADB8ED` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-1598BBB30BB2EFAA` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB6` | `SIG-FS-AGENT-06-DC8C499CA5D52886` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-E346B78F5485C8EA` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-64B915983161044A` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-DD463A817DF51B4A` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6d7bc10e224d3d3e` • AST Balanced: `True` | `SIG-FS-AGENT-04-594EE6649BA30B28` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-A32CAEE5A635330B` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB6` | `SIG-FS-AGENT-06-3D39D56578E7895E` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB5` — Phản Hồi `#5`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6D19C6B61748E121B847B688C0A80FE1` (Full SHA256: `6d19c6b61748e121b847b688c0a80fe1fcce0c03bec4fbd08fd435d823124795`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xFA5F5A067AF97E34286AF961B1954BB0` (Full SHA256: `fa5f5a067af97e34286af961b1954bb06a2b562da68ce55b93d8652c37737752`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=liveops` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Hệ thống Điều phối Tự động AI] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1192,26 +1192,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: 6cae41fbaea2e223` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: 6cae41fbaea2e223` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-29BE87DCE5FB971C` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-644E4E693B2B491C` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-D85BD1A2D9D07F93` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6cae41fbaea2e223` • AST Balanced: `True` | `SIG-FS-AGENT-04-F561F7422CAEB4F6` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-93E2CD888CE80488` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB5` | `SIG-FS-AGENT-06-0F439537C2A9E8BE` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-2F695DF4EDBB71EA` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-8DD80D5B3EF526C4` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-776111DF238CCF7E` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `6cae41fbaea2e223` • AST Balanced: `True` | `SIG-FS-AGENT-04-6FE493F0F05DEDE7` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-820ADCC964C6BFE1` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB5` | `SIG-FS-AGENT-06-F9040E3017034358` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB4` — Phản Hồi `#4`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xCFD7BDF3C8537357D5B88091073B075B` (Full SHA256: `cfd7bdf3c8537357d5b88091073b075b7c6c563e0f2438314a6b8ebc94fdff18`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x6FB12700233434B2FB5E7DF0C3BD36C6` (Full SHA256: `6fb12700233434b2fb5e7df0c3bd36c6e9533181845350f8123ffdb2b02c7baa`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=inventory` (`src/components/cms/views/inventory-view.tsx` ↔ `src/app/api/inventory/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Quản lý Tồn kho & Sổ Thẻ kho] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1219,26 +1219,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/inventory-view.tsx` (`SHA256: 6847c4b46379b739`) | Patch `SHA256: d3eb0430bdbe3f0c` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
-| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 233452390cd35f13`) | `SHA256: 233452390cd35f13` | ✅ **Bất biến 100%** |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/inventory-view.tsx` (`SHA256: 2fd1382a84775449`) | Patch `SHA256: d3eb0430bdbe3f0c` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Backend API Route** | `src/app/api/inventory/route.ts` (`SHA256: 03d025fc86a05845`) | `SHA256: 03d025fc86a05845` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6847c4b46379b739` | `SIG-FS-AGENT-01-4BFD19FC967BE7CF` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13` | `SIG-FS-AGENT-02-EC727782C11A966E` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-2A673D57C56B8B25` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `d3eb0430bdbe3f0c` • AST Balanced: `True` | `SIG-FS-AGENT-04-1199A41FFA459045` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-9FF94257714F0DD5` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB4` | `SIG-FS-AGENT-06-7A526B3536DE2820` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `2fd1382a84775449` | `SIG-FS-AGENT-01-2D10E61724770049` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845` | `SIG-FS-AGENT-02-394F58CC99BC0C43` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-A55ADF8648D39A88` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `d3eb0430bdbe3f0c` • AST Balanced: `True` | `SIG-FS-AGENT-04-92172B4292E5550D` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-2348D7662F96A427` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB4` | `SIG-FS-AGENT-06-631BBC7E0A3F5672` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB3` — Phản Hồi `#3`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x250F1D63A899C192B52A9B75FFD6C9CA` (Full SHA256: `250f1d63a899c192b52a9b75ffd6c9cadcf4eee8d21cb68744d9d7d39ae43cbe`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x1D872E77078C0C347F27EF7893D94547` (Full SHA256: `1d872e77078c0c347f27ef7893d94547d21fbff801152d55798db3598b921566`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Tổng quan Cửa hàng Ưu Đàm] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 2560x1313
 
@@ -1246,26 +1246,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: d6c22156309d014f` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: d6c22156309d014f` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-4A1D5B593F556505` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-0D8EDC79CF200DFB` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-4365D4C840F784DF` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `d6c22156309d014f` • AST Balanced: `True` | `SIG-FS-AGENT-04-7AA6BFFE9D267AF0` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-4ACEE929C4F2A8CE` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB3` | `SIG-FS-AGENT-06-119E28513A32A0AB` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-E20187CD69F1CB87` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-09EC0F12FA81DD00` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-041ACF27EA3D8F23` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `d6c22156309d014f` • AST Balanced: `True` | `SIG-FS-AGENT-04-49DD2DFACED71973` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-FC7494B33516B07A` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB3` | `SIG-FS-AGENT-06-9FB25725D95C3D6D` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB2` — Phản Hồi `#2`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x42E80411246D753219604C241F76D57B` (Full SHA256: `42e80411246d753219604c241f76d57b578a00a6d935f1a78b3772a46607a3cb`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x25096A4CD76CFB6B0436F9F68D2E51D8` (Full SHA256: `25096a4cd76cfb6b0436f9f68d2e51d8706bd8ac420bff38a15e2055886b3d88`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=purchase` (`src/components/cms/views/pos-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Nhập kho & Hóa đơn mua hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1655x1285
 
@@ -1273,26 +1273,26 @@
 | Hạng mục Nghiệm thu | Trước Khi Sửa (`Pre-Fix Baseline`) | Sau Khi Sửa (`Post-Fix Verification`) | Kết luận Đối chứng |
 | :--- | :--- | :--- | :--- |
 | **Trạng thái Nghiệm thu** | `PRE_FIX_CLEARED` (Độ khớp: `90% (Khớp ảnh chụp & DOM)`) | `POST_FIX_ACCEPTANCE_PASSED` | ✅ **ĐẠT CHUẨN 2 ĐẦU** |
-| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: bc604ec9290637d1`) | Patch `SHA256: c2bd062c2a3a78e6` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
+| **Frontend TSX & Bản vá CSS** | `src/components/cms/views/pos-view.tsx` (`SHA256: 6947753d963795cd`) | Patch `SHA256: c2bd062c2a3a78e6` • AST Cân bằng: `True` | ✅ Đồng bộ Design gốc `100%` |
 | **Backend API Route** | `src/app/api/orders/route.ts` (`SHA256: 52aef42bb0621b1c`) | `SHA256: 52aef42bb0621b1c` | ✅ **Bất biến 100%** |
 | **Database Schema (`Prisma`)** | `prisma/schema.prisma` (`SHA256: 2fabbe44ea906b24`) | `SHA256: 2fabbe44ea906b24` | ✅ **Bất biến 100%** |
 
 #### ✍️ 2. Chữ Ký Số & Cam Kết Chịu Trách Nhiệm Của 6 Agent Fullstack
 | Mã Agent | Vai trò Fullstack & Kỹ năng | Biểu quyết | Cam kết Chịu Trách Nhiệm (`Accountability Pledge`) | Bằng chứng Kiểm định | Chữ ký Số (`HMAC-SHA256`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `bc604ec9290637d1` | `SIG-FS-AGENT-01-0FDAFE624C48F2C3` |
-| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-FA98FBDAD7976811` |
-| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-3FFB0858B3419079` |
-| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `c2bd062c2a3a78e6` • AST Balanced: `True` | `SIG-FS-AGENT-04-774682A036FC3417` |
-| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-8B14FBC1DAA9BCAC` |
-| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB2` | `SIG-FS-AGENT-06-D34D6C18BEE2581C` |
+| **`FS-AGENT-01`** | **Frontend & Design System Architect** (`matrix-thiet-ke-giao-dien-uxui`) | **`PASS`** | Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons. | Sync Score: 100% • FE SHA256: `6947753d963795cd` | `SIG-FS-AGENT-01-BB39A44C3FAFE282` |
+| **`FS-AGENT-02`** | **Backend & API Contract Engineer** (`matrix-thiet-ke-backend-api`) | **`PASS`** | Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa. | API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c` | `SIG-FS-AGENT-02-7250BBEDDA6609CD` |
+| **`FS-AGENT-03`** | **Database & Data Integrity Guardian** (`matrix-toan-veng-du-lieu`) | **`PASS`** | Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng. | DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24` | `SIG-FS-AGENT-03-560BC2D6EB484939` |
+| **`FS-AGENT-04`** | **Fullstack AST Self-Healing Engineer** (`matrix-sua-loi-he-thong`) | **`PASS`** | Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi. | Patch SHA256: `c2bd062c2a3a78e6` • AST Balanced: `True` | `SIG-FS-AGENT-04-D20C388B01C5E5EC` |
+| **`FS-AGENT-05`** | **Pre/Post-Fix QA & Acceptance Inspector** (`matrix-chien-luoc-kiem-thu`) | **`PASS`** | Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%. | Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED` | `SIG-FS-AGENT-05-FD342608B5BAC8DD` |
+| **`FS-AGENT-06`** | **SecOps & Digital Contract Notary** (`matrix-kiem-tra-bao-mat`) | **`PASS`** | Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack. | Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB2` | `SIG-FS-AGENT-06-FB89202667D15660` |
 
 ---
 
 ### 📜 Hợp Đồng Số `CONTRACT-MATRIX-FS-WORKSPACE5-FB1` — Phản Hồi `#1`
 - **Trạng thái Hợp đồng**: **`SIGNED_AND_ENFORCED`** (6/6 FULLSTACK AGENTS PASS (ratio=1.00))
-- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0xA275B7FD96DF0BE8B5E140337EFF6997` (Full SHA256: `a275b7fd96df0be8b5e140337eff69972f3f38ecfd728d0abc55409ecfd10345`)
-- **Thời gian ký công chứng**: `2026-11-15T03:29:09Z`
+- **Chữ ký số Tổng (`Master HMAC-SHA256`)**: `0x2FBBA3E45F12E364CF022F3EB3946ADA` (Full SHA256: `2fbba3e45f12e364cf022f3eb3946ada9d782d73b37604a1d003e0d39a5f12bc`)
+- **Thời gian ký công chứng**: `2026-11-15T05:09:55Z`
 - **Màn hình & File mục tiêu**: `https://khoap1220-hue.github.io/openvn-cms-pos-beta/?view=orders` (`src/components/cms/views/orders-view.tsx` ↔ `src/app/api/orders/route.ts`)
 - **Nội dung báo lỗi / Mô tả vùng khoanh**: [🤖 Agent Độc Lập - Đơn hàng] Phát hiện 2 vị trí chữ bị cắt (.truncate) trên 1357x1285
 

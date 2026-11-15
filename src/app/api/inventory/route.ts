@@ -6,6 +6,7 @@ import { dispatchWebhook } from '@/lib/webhook-service'
 import { syncCombosUsingComponents } from '@/lib/combo'
 import { syncProductWarehouseStock } from '@/lib/warehouse-service'
 import { getAllUnitConfigs, getProductUnitConfig, syncLinkedVariantStocks } from '@/lib/unit-conversion'
+import { getInventorySyncPolicy } from '@/lib/inventory-policy'
 import type { PeriodRange } from '@/lib/lineage'
 import { resolvePeriodRange } from '@/lib/lineage'
 
@@ -19,24 +20,47 @@ function isOpeningStockEstablishMove(note?: string | null): boolean {
 function reconcilePendingShortageAttrs(
   rawAttrs: string | null | undefined,
   movementQty: number,
-  afterStock: number
-): string | undefined {
-  if (!rawAttrs || movementQty <= 0) return undefined
+  afterStock: number,
+  syncToMarketplace: boolean
+): { json: string | undefined; shouldTriggerOutbox: boolean } {
+  if (!rawAttrs) return { json: undefined, shouldTriggerOutbox: false }
   try {
     const attrs = JSON.parse(rawAttrs) as Record<string, unknown>
-    const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
-    if (prevShortage <= 0) return undefined
-    const nextShortage = Math.max(0, prevShortage - movementQty)
-    attrs.pendingOrderShortageQty = nextShortage
-    if (typeof attrs.liveShopeeStock === 'number') {
-      attrs.unreconciledShopeeDelta = attrs.liveShopeeStock - afterStock
-      if (nextShortage === 0 && afterStock === attrs.liveShopeeStock) {
-        attrs.reconciliationStatus = 'RECONCILED_OK'
+    let mutated = false
+    const shopeeItemId = String(attrs.shopeeItemId || '').trim()
+    const hasShopeeLink = Boolean(shopeeItemId && shopeeItemId !== '0')
+
+    if (movementQty > 0) {
+      const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
+      if (prevShortage > 0) {
+        const nextShortage = Math.max(0, prevShortage - movementQty)
+        attrs.pendingOrderShortageQty = nextShortage
+        if (typeof attrs.liveShopeeStock === 'number') {
+          attrs.unreconciledShopeeDelta = attrs.liveShopeeStock - afterStock
+          if (nextShortage === 0 && afterStock === attrs.liveShopeeStock) {
+            attrs.reconciliationStatus = 'RECONCILED_OK'
+          }
+        }
+        mutated = true
       }
     }
-    return JSON.stringify(attrs)
+
+    let shouldTriggerOutbox = false
+    if (syncToMarketplace && hasShopeeLink && movementQty !== 0) {
+      attrs.pendingOutboxSync = true
+      attrs.cmsTargetStock = Math.max(0, afterStock)
+      attrs.lastCmsEditAt = new Date().toISOString()
+      delete attrs.outboxSuppressedKey
+      mutated = true
+      shouldTriggerOutbox = true
+    }
+
+    return {
+      json: mutated ? JSON.stringify(attrs) : undefined,
+      shouldTriggerOutbox,
+    }
   } catch {
-    return undefined
+    return { json: undefined, shouldTriggerOutbox: false }
   }
 }
 
@@ -156,7 +180,8 @@ export async function GET(req: NextRequest) {
 // POST: nhập / sản xuất / xuất / điều chỉnh tồn kho (Hỗ trợ cả đơn lẻ và Phiếu Nhập/Sản xuất/Xuất/Kiểm kê Hàng Loạt chuẩn POS)
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const [body, inventoryPolicy] = await Promise.all([req.json(), getInventorySyncPolicy()])
+    const syncToMarketplace = inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE'
 
     // Nếu gọi từ Hộp thoại Thao tác kho đơn lẻ với type = 'PRODUCTION', tự động chuẩn hóa sang luồng Lệnh Sản Xuất (LSX)
     const singleType = String(body.type || body.mode || '').toUpperCase()
@@ -290,7 +315,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: `Không tìm thấy nguyên vật liệu ID ${cid}` }, { status: 404 })
           }
           const matUnit = unitMap[cid]?.baseUnit || mat.unit || 'đv'
-          if (mat.stock < demand.requiredQty) {
+          if (!inventoryPolicy.allowNegativeStock && mat.stock < demand.requiredQty) {
             return NextResponse.json(
               {
                 error: `Thiếu nguyên vật liệu "${mat.name}": Tồn kho hiện có ${mat.stock.toLocaleString('vi-VN')} ${matUnit}, cần ${demand.requiredQty.toLocaleString('vi-VN')} ${matUnit} để sản xuất.`,
@@ -311,20 +336,37 @@ export async function POST(req: NextRequest) {
         }> = []
         const touchedIds: string[] = []
         let totalProducedUnits = 0
+        let anyOutboxTriggered = false
 
         // 1. Trừ tồn kho Nguyên vật liệu tiêu hao
         for (const [cid, demand] of materialDemands.entries()) {
           const mat = matById.get(cid)!
           const matUnit = unitMap[cid]?.baseUnit || mat.unit || 'đv'
           const beforeStock = mat.stock
-          const afterStock = Math.max(0, beforeStock - demand.requiredQty)
+          const afterStock = inventoryPolicy.allowNegativeStock
+            ? beforeStock - demand.requiredQty
+            : Math.max(0, beforeStock - demand.requiredQty)
+          const matAttrRes = reconcilePendingShortageAttrs(
+            mat.attributes,
+            -demand.requiredQty,
+            afterStock,
+            syncToMarketplace
+          )
+          if (matAttrRes.shouldTriggerOutbox) anyOutboxTriggered = true
 
           await db.product.update({
             where: { id: cid },
-            data: { stock: afterStock },
+            data: {
+              stock: afterStock,
+              ...(matAttrRes.json ? { attributes: matAttrRes.json } : {}),
+            },
           })
           mat.stock = afterStock
-          patchProductInApiCache(cid, { stock: afterStock })
+          if (matAttrRes.json) mat.attributes = matAttrRes.json
+          patchProductInApiCache(cid, {
+            stock: afterStock,
+            ...(matAttrRes.json ? { attributes: matAttrRes.json } : {}),
+          })
           await syncProductWarehouseStock(cid, warehouseId)
 
           const matNote = `[${batchCode}] Xuất NVL sản xuất (${demand.usedForLabels.join(', ')})${batchNote ? ` · ${batchNote}` : ''}`
@@ -379,7 +421,14 @@ export async function POST(req: NextRequest) {
           const afterStock = beforeStock + producedQty
 
           const itemCost = Number(rawItem.costPrice)
-          const prodNextAttrs = reconcilePendingShortageAttrs(prod.attributes, producedQty, afterStock)
+          const prodAttrRes = reconcilePendingShortageAttrs(
+            prod.attributes,
+            producedQty,
+            afterStock,
+            syncToMarketplace
+          )
+          if (prodAttrRes.shouldTriggerOutbox) anyOutboxTriggered = true
+          const prodNextAttrs = prodAttrRes.json
           const updateData: { stock: number; costPrice?: number; attributes?: string } = {
             stock: afterStock,
             ...(prodNextAttrs ? { attributes: prodNextAttrs } : {}),
@@ -446,7 +495,15 @@ export async function POST(req: NextRequest) {
           syncLinkedVariantStocks(db, touchedIds),
         ])
         invalidateApiCache('products')
+        invalidateApiCache('channels:product-links')
         broadcast('inventory.updated', { batchCode, touchedIds })
+        if (anyOutboxTriggered) {
+          broadcast('outbox.updated', { batchCode, touchedIds })
+          fetch(
+            `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+            { method: 'POST' }
+          ).catch(() => null)
+        }
 
         return NextResponse.json(
           {
@@ -480,7 +537,7 @@ export async function POST(req: NextRequest) {
         if (batchType !== 'ADJUST' && (!Number.isFinite(qty) || converted <= 0)) {
           return NextResponse.json({ error: `Số lượng của "${prod.name}" phải lớn hơn 0` }, { status: 400 })
         }
-        if (batchType === 'EXPORT' && prod.stock < converted) {
+        if (batchType === 'EXPORT' && !inventoryPolicy.allowNegativeStock && prod.stock < converted) {
           const bUnit = unitMap[pid]?.baseUnit || prod.unit || 'sp'
           return NextResponse.json(
             { error: `"${prod.name}" chỉ còn ${prod.stock} ${bUnit}, không đủ xuất ${converted} ${bUnit}` },
@@ -492,6 +549,7 @@ export async function POST(req: NextRequest) {
       const createdMovements: unknown[] = []
       const touchedIds: string[] = []
       let totalConvertedUnits = 0
+      let batchOutboxTriggered = false
 
       for (const rawItem of body.items) {
         const pid = String(rawItem.productId)
@@ -532,7 +590,9 @@ export async function POST(req: NextRequest) {
             conversionSuffix = ` (Xuất ${absInput} ${inputUnitLabel} × ${effectiveRate} = ${movementQty} ${baseUnitLabel})`
           }
         } else {
-          newStock = Math.max(0, Math.round(rawQty * effectiveRate))
+          newStock = inventoryPolicy.allowNegativeStock
+            ? Math.round(rawQty * effectiveRate)
+            : Math.max(0, Math.round(rawQty * effectiveRate))
           movementQty = newStock - prod.stock
           if (effectiveRate > 1) {
             conversionSuffix = ` (Kiểm kê ${rawQty} ${inputUnitLabel} × ${effectiveRate} = ${newStock} ${baseUnitLabel})`
@@ -540,7 +600,14 @@ export async function POST(req: NextRequest) {
         }
 
         const itemCost = Number(rawItem.costPrice)
-        const nextAttrsJson = reconcilePendingShortageAttrs(prod.attributes, movementQty, newStock)
+        const batchAttrRes = reconcilePendingShortageAttrs(
+          prod.attributes,
+          movementQty,
+          newStock,
+          syncToMarketplace
+        )
+        if (batchAttrRes.shouldTriggerOutbox) batchOutboxTriggered = true
+        const nextAttrsJson = batchAttrRes.json
         const updateData: { stock: number; costPrice?: number; attributes?: string } = {
           stock: newStock,
           ...(nextAttrsJson ? { attributes: nextAttrsJson } : {}),
@@ -604,7 +671,15 @@ export async function POST(req: NextRequest) {
         syncLinkedVariantStocks(db, touchedIds),
       ])
       invalidateApiCache('products')
+      invalidateApiCache('channels:product-links')
       broadcast('inventory.updated', { batchCode, touchedIds })
+      if (batchOutboxTriggered) {
+        broadcast('outbox.updated', { batchCode, touchedIds })
+        fetch(
+          `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+          { method: 'POST' }
+        ).catch(() => null)
+      }
 
       return NextResponse.json(
         {
@@ -672,7 +747,7 @@ export async function POST(req: NextRequest) {
       const absInput = Math.abs(rawQty)
       movementQty = Math.round(absInput * effectiveRate)
       if (movementQty === 0) return NextResponse.json({ error: 'Số lượng phải lớn hơn 0' }, { status: 400 })
-      if (product.stock < movementQty) {
+      if (!inventoryPolicy.allowNegativeStock && product.stock < movementQty) {
         return NextResponse.json(
           { error: `Chỉ còn ${product.stock} ${baseUnitLabel} trong kho, không thể xuất ${movementQty} ${baseUnitLabel}` },
           { status: 400 }
@@ -686,7 +761,9 @@ export async function POST(req: NextRequest) {
     } else {
       // ADJUST: quantity là số lượng tồn mới (tuyệt đối, có thể nhân hệ số quy đổi nếu chọn đơn vị chẵn)
       newStock = Math.round(rawQty * effectiveRate)
-      if (Number.isNaN(newStock) || newStock < 0) return NextResponse.json({ error: 'Số lượng tồn mới không hợp lệ' }, { status: 400 })
+      if (Number.isNaN(newStock) || (!inventoryPolicy.allowNegativeStock && newStock < 0)) {
+        return NextResponse.json({ error: 'Số lượng tồn mới không hợp lệ' }, { status: 400 })
+      }
       movementQty = newStock - product.stock
       if (effectiveRate > 1) {
         conversionNoteSuffix = ` (Kiểm kê ${rawQty} ${inputUnitLabel} × ${effectiveRate} = ${newStock} ${baseUnitLabel})`
@@ -697,7 +774,13 @@ export async function POST(req: NextRequest) {
     const finalNote = `${baseNote}${conversionNoteSuffix}`
     const targetWarehouseId = body.warehouseId ? String(body.warehouseId) : null
 
-    const singleNextAttrs = reconcilePendingShortageAttrs(product.attributes, movementQty, newStock)
+    const singleAttrRes = reconcilePendingShortageAttrs(
+      product.attributes,
+      movementQty,
+      newStock,
+      syncToMarketplace
+    )
+    const singleNextAttrs = singleAttrRes.json
     const [, movement] = await Promise.all([
       db.product.update({
         where: { id: productId },
@@ -750,7 +833,15 @@ export async function POST(req: NextRequest) {
     ]).catch((bgErr) => console.error('Inventory post-update sync error:', bgErr))
 
     invalidateApiCache('inventory:')
+    invalidateApiCache('channels:product-links')
     broadcast('inventory.updated', { productId, sku: product.sku, stockAfter: newStock, inPlacePatched })
+    if (singleAttrRes.shouldTriggerOutbox) {
+      broadcast('outbox.updated', { productId, sku: product.sku })
+      fetch(
+        `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+        { method: 'POST' }
+      ).catch(() => null)
+    }
     dispatchWebhook('stock.movement', { productId, sku: product.sku, type, quantity: movementQty, stockAfter: newStock })
 
     return NextResponse.json({ movement }, { status: 201 })

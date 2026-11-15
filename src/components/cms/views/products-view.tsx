@@ -2885,9 +2885,9 @@ export function ProductsView({
                           >
                             Bản ghi cũ (Chưa gắn Sàn)
                           </p>
-                        ) : shopeeLiveQty !== undefined && p.stock === 0 && shopeeLiveQty > 0 ? (
+                        ) : shopeeLiveQty !== undefined && p.stock <= 0 && shopeeLiveQty > 0 ? (
                           <p className="text-[10px] font-medium text-muted-foreground">
-                            Kho CMS: 0 · Khai trên Sàn: {shopeeLiveQty}
+                            Kho thật CMS: {p.stock} · Khai trên Sàn: {shopeeLiveQty}
                           </p>
                         ) : null
 
@@ -2898,6 +2898,22 @@ export function ProductsView({
                                 {formatNumber(p.comboAvailable ?? p.stock)}
                               </span>
                               <p className="text-xs text-muted-foreground">bộ (tự động)</p>
+                              {originSubLabel}
+                            </div>
+                          )
+                        }
+                        if (p.stock < 0) {
+                          return (
+                            <div className="space-y-0.5">
+                              <Badge
+                                variant="outline"
+                                className="border-purple-300 bg-purple-100 text-purple-800 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-300"
+                              >
+                                Âm kho: {formatNumber(p.stock)} {bUnit}
+                              </Badge>
+                              <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                                Đang bán âm · Chờ nhập bù
+                              </p>
                               {originSubLabel}
                             </div>
                           )

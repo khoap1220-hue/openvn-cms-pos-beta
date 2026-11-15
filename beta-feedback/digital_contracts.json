@@ -4,9 +4,9 @@
     "feedback_id": 48,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x0A7685F0766D66E2284C4DE654CCEF57",
-    "full_hash_sha256": "0a7685f0766d66e2284c4de654ccef57d7b055d90028da750ca546f99dfc51a4",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x3BF032CA5D9D63AC6561AA31623FCF78",
+    "full_hash_sha256": "3bf032ca5d9d63ac6561aa31623fcf7899133759a2f40d7d3cb301e1582d7447",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -15,13 +15,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -46,8 +46,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-17B8C641DB9973F1"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-1AA120F2679FB9B4"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -57,7 +57,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-E6DD49D4D5217738"
+        "digital_signature": "SIG-FS-AGENT-02-3063E6822E3A2CD9"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -67,7 +67,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-C86493F9E3E15CFB"
+        "digital_signature": "SIG-FS-AGENT-03-86902923B8B8FED7"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -77,7 +77,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `5c504e193531f0cb` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-493F770CD9216499"
+        "digital_signature": "SIG-FS-AGENT-04-9FC8529572671B98"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -87,7 +87,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-4AECD6EC66096A81"
+        "digital_signature": "SIG-FS-AGENT-05-C5D18EF6B85F0108"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -97,7 +97,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB48`",
-        "digital_signature": "SIG-FS-AGENT-06-6916984140F04EE5"
+        "digital_signature": "SIG-FS-AGENT-06-63DF370208706943"
       }
     ]
   },
@@ -106,9 +106,9 @@
     "feedback_id": 47,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x3901FFC9C5975F1AAC5C7F85493C286A",
-    "full_hash_sha256": "3901ffc9c5975f1aac5c7f85493c286a66d7ee71b25df43932bd69e291e23053",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xC30B7EE3C9D3EDCE0671CDBBD7702AFD",
+    "full_hash_sha256": "c30b7ee3c9d3edce0671cdbbd7702afdb952454ee940b1bcefcd494333ac1be8",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -208,9 +208,9 @@
     "feedback_id": 46,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xD04A5D06ACB6F90FC52FCADBA8349DAC",
-    "full_hash_sha256": "d04a5d06acb6f90fc52fcadba8349dacdccd2f02679a7146d42f6f7b0223cb93",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xFACC8ED246426C37C85DBD11BD11D904",
+    "full_hash_sha256": "facc8ed246426c37c85dbd11bd11d90421102ddfaeab44e70c721f81ed598946",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -310,9 +310,9 @@
     "feedback_id": 45,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xB5B953602F977F25113389BC394A716A",
-    "full_hash_sha256": "b5b953602f977f25113389bc394a716a51867b660c31a873814ffea8a81c6772",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x97F09007B59273F785D922303D7811B0",
+    "full_hash_sha256": "97f09007b59273f785d922303d7811b0a426ec6b8762ae8cc5cbe79b544b004e",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -412,9 +412,9 @@
     "feedback_id": 44,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x6BB2462BCE6C6F1111C34A2C40F1E09E",
-    "full_hash_sha256": "6bb2462bce6c6f1111c34a2c40f1e09e5840417a92de01d3108e32dc583d5c53",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x84A759099E209C1DCE4BC2A0D4EA0F6B",
+    "full_hash_sha256": "84a759099e209c1dce4bc2a0d4ea0f6bf8b1fdd25471d632434d9be4fc54ea47",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -514,9 +514,9 @@
     "feedback_id": 43,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xEEC028DD9A03B632F3811C8F5CDFC7D2",
-    "full_hash_sha256": "eec028dd9a03b632f3811c8f5cdfc7d275f3df774b45600fd4df93f96ec6c2aa",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xCF539A7F4AD01B396B1E87593688305A",
+    "full_hash_sha256": "cf539a7f4ad01b396b1e87593688305ab61db2fea154e234ac392470c964960d",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -616,9 +616,9 @@
     "feedback_id": 42,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xC210E4979E382AB0307A8D0D3773793A",
-    "full_hash_sha256": "c210e4979e382ab0307a8d0d3773793a898b1128935154636d6d5bb38a6470d0",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x01EC9190B864165B64A4E85FB6EC9893",
+    "full_hash_sha256": "01ec9190b864165b64a4e85fb6ec9893930a89de9adbcf53c176bd3883e0e5fb",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -630,10 +630,10 @@
       "frontend_baseline_sha256": "e3b0c44298fc1c14",
       "backend_target": "src/app/api/inventory/route.ts",
       "backend_exists": true,
-      "backend_baseline_sha256": "233452390cd35f13",
+      "backend_baseline_sha256": "03d025fc86a05845",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `e3b0c44298fc1c14`, API `233452390cd35f13`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `e3b0c44298fc1c14`, API `03d025fc86a05845`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -642,13 +642,13 @@
       "patch_sha256": "23fc284b9df62e58",
       "db_schema_after_sha256": "2fabbe44ea906b24",
       "db_invariance_verified": true,
-      "api_contract_after_sha256": "233452390cd35f13",
+      "api_contract_after_sha256": "03d025fc86a05845",
       "api_invariance_verified": true,
       "ast_css_syntax_balanced": true,
       "design_token_sync_verified": true,
       "zero_secret_leak_verified": true,
       "rollback_policy": "AUTO_ROLLBACK_ARMED (<50ms)",
-      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `23fc284b9df62e58` hợp lệ AST, DB `2fabbe44ea906b24` & API `233452390cd35f13` bất biến 100%, Design Sync 100%."
+      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `23fc284b9df62e58` hợp lệ AST, DB `2fabbe44ea906b24` & API `03d025fc86a05845` bất biến 100%, Design Sync 100%."
     },
     "agents": [
       {
@@ -668,7 +668,7 @@
         "domain": "Next.js API Routes & Router (src/app/api/inventory/route.ts)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
-        "verification_evidence": "API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13`",
+        "verification_evidence": "API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845`",
         "digital_signature": "SIG-FS-AGENT-02-EBD0658D2647BD2F"
       },
       {
@@ -718,9 +718,9 @@
     "feedback_id": 41,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x6B005F7FC7C239E17E54877C65ED01F4",
-    "full_hash_sha256": "6b005f7fc7c239e17e54877c65ed01f4f3ad2e738ae2d99dca550691a6475998",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x84E1BBEFC8A3C316877E9FBE05BFAE83",
+    "full_hash_sha256": "84e1bbefc8a3c316877e9fbe05bfae83d9a5dde3ce9ce7bcdfa2456263dd0b99",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -729,13 +729,13 @@
       "accuracy_score": "60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân",
       "frontend_target": "src/components/cms/views/products-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "cd3dc65fba98184c",
+      "frontend_baseline_sha256": "4df76c1fbe770a49",
       "backend_target": "src/app/api/products/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "8e42037fbe19d4ba",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `cd3dc65fba98184c`, API `8e42037fbe19d4ba`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân)."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `4df76c1fbe770a49`, API `8e42037fbe19d4ba`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân)."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -760,8 +760,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/products-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `cd3dc65fba98184c`",
-        "digital_signature": "SIG-FS-AGENT-01-348AF21065B9D8F8"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `4df76c1fbe770a49`",
+        "digital_signature": "SIG-FS-AGENT-01-7CC7018FC272BC0F"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -771,7 +771,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `8e42037fbe19d4ba` == `8e42037fbe19d4ba`",
-        "digital_signature": "SIG-FS-AGENT-02-1E283962E6BE81D4"
+        "digital_signature": "SIG-FS-AGENT-02-3C037C45501272E9"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -781,7 +781,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-4DF9D330184163A1"
+        "digital_signature": "SIG-FS-AGENT-03-436DB2FD39A5AF2C"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -791,7 +791,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `c9c0a0b1536dceec` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-33903BE455BEB06E"
+        "digital_signature": "SIG-FS-AGENT-04-94DE0454A01616FD"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -801,7 +801,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-EF40FDD6E2972252"
+        "digital_signature": "SIG-FS-AGENT-05-503721417BF46F73"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -811,7 +811,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB41`",
-        "digital_signature": "SIG-FS-AGENT-06-D73A40E0273B8267"
+        "digital_signature": "SIG-FS-AGENT-06-78AF130A68FE7985"
       }
     ]
   },
@@ -820,9 +820,9 @@
     "feedback_id": 40,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x3155E41BB4D106E1B142425419051CEE",
-    "full_hash_sha256": "3155e41bb4d106e1b142425419051ceec5f94b303b59b358357ffc73525fe938",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x3A833A0FAE57BCD6BBE91A0EC955416F",
+    "full_hash_sha256": "3a833a0fae57bcd6bbe91a0ec955416fc9e60f8a9ae402792d9563d87a64eedb",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -922,9 +922,9 @@
     "feedback_id": 39,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x277A3D8BFD9D14E906A9C16A8384B11A",
-    "full_hash_sha256": "277a3d8bfd9d14e906a9c16a8384b11a2d551d814ea0b481b57ce2005082f0da",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x3C358E075EFFF1B0CD7C25BD56818D86",
+    "full_hash_sha256": "3c358e075efff1b0cd7c25bd56818d861e616d6530ffa9dd7f7c3a525f14dccd",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -933,13 +933,13 @@
       "accuracy_score": "60% - Mô tả lỗi cắt chữ, nhưng không rõ vị trí và nguyên nhân gốc rễ",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ, nhưng không rõ vị trí và nguyên nhân gốc rễ)."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ, nhưng không rõ vị trí và nguyên nhân gốc rễ)."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -964,8 +964,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-B620B5B95C0B9662"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-FD87492FF9772435"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -975,7 +975,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-7E7BBD97AF10A9C1"
+        "digital_signature": "SIG-FS-AGENT-02-A0BA0D3CFC37BC08"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -985,7 +985,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-98F43D3E9945138C"
+        "digital_signature": "SIG-FS-AGENT-03-C0D819E244CB3F77"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -995,7 +995,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `a42ec7a46d283531` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-B7BEA03DABDF708F"
+        "digital_signature": "SIG-FS-AGENT-04-858A62E0CAAE67C1"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -1005,7 +1005,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-80D7CB7540FA08D6"
+        "digital_signature": "SIG-FS-AGENT-05-FD9DC278C15D1EBC"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -1015,7 +1015,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB39`",
-        "digital_signature": "SIG-FS-AGENT-06-31F5D9454B8613D6"
+        "digital_signature": "SIG-FS-AGENT-06-AD33F29C6412E95A"
       }
     ]
   },
@@ -1024,9 +1024,9 @@
     "feedback_id": 38,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x1E30C88C2B705E9CA3870219E5A5246C",
-    "full_hash_sha256": "1e30c88c2b705e9ca3870219e5a5246c8a48e3abe8c368bb0bf9e5c1625e2f8a",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x60A4151114F37C1003E000BB09C4FD6F",
+    "full_hash_sha256": "60a4151114f37c1003e000bb09c4fd6fe6f2116053f8042f83d0efdb3c36c898",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1126,9 +1126,9 @@
     "feedback_id": 37,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x50F8005A2D151F923EB1EADBFDB42284",
-    "full_hash_sha256": "50f8005a2d151f923eb1eadbfdb422848d7261c9f29045e906777a981086196a",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xF1431A9D2361135302F6544363B7C270",
+    "full_hash_sha256": "f1431a9d2361135302f6544363b7c270404b802fab3638241ccc08e448549070",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1228,9 +1228,9 @@
     "feedback_id": 36,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xA5F79C0A4F37D10235FD7BB3DA2C73BA",
-    "full_hash_sha256": "a5f79c0a4f37d10235fd7bb3da2c73ba920e7d3a97f59502f432284851712b67",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xE61F5FF96543866C4EEAB0336B0E4829",
+    "full_hash_sha256": "e61f5ff96543866c4eeab0336b0e4829db60bc357401b872216053f720029947",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1239,13 +1239,13 @@
       "accuracy_score": "55% - Hiểu nhầm vị trí và bản chất lỗi",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (55% - Hiểu nhầm vị trí và bản chất lỗi)."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (55% - Hiểu nhầm vị trí và bản chất lỗi)."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -1270,8 +1270,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-3345D61C8740120E"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-1FDBDFD52A1E2EDF"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -1281,7 +1281,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-CDEBEBB8B9B46EFE"
+        "digital_signature": "SIG-FS-AGENT-02-F4402FE8CC44796F"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -1291,7 +1291,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-E898E29530F8678B"
+        "digital_signature": "SIG-FS-AGENT-03-71529267692A713C"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -1301,7 +1301,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `6777b3935edc9508` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-2D23BC629EE5E206"
+        "digital_signature": "SIG-FS-AGENT-04-E12144A7B21AD536"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -1311,7 +1311,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-7B38B4035378F668"
+        "digital_signature": "SIG-FS-AGENT-05-136229E311B99A42"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -1321,7 +1321,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB36`",
-        "digital_signature": "SIG-FS-AGENT-06-BEA6B9C6C3D5B4E8"
+        "digital_signature": "SIG-FS-AGENT-06-FD7C4DBD60480B03"
       }
     ]
   },
@@ -1330,9 +1330,9 @@
     "feedback_id": 35,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xFBB4A5D47EC5C499DD890ED35133BC2E",
-    "full_hash_sha256": "fbb4a5d47ec5c499dd890ed35133bc2e181bdfdcc60b8ba36fe98f797163f526",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x7650D87D2E4FEC1D2E8A27AEF1C0C930",
+    "full_hash_sha256": "7650d87d2e4fec1d2e8a27aef1c0c93007395d16d0f659419acd17c68cb533b8",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1341,13 +1341,13 @@
       "accuracy_score": "60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân gốc",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân gốc)."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân gốc)."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -1372,8 +1372,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-66DE8EEE22F4FB2F"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-E63D95F1BF12D641"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -1383,7 +1383,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-3042703E104E97CF"
+        "digital_signature": "SIG-FS-AGENT-02-8A00193DF2D898A5"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -1393,7 +1393,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-84BA5032AA63FADD"
+        "digital_signature": "SIG-FS-AGENT-03-642D9E2EFC584DD9"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -1403,7 +1403,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `62d8dee6ecf4a2c8` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-58DEEDCD78E0ACD4"
+        "digital_signature": "SIG-FS-AGENT-04-04B2985496491318"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -1413,7 +1413,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-39D84269F1B608CC"
+        "digital_signature": "SIG-FS-AGENT-05-F44B5283F63C0100"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -1423,7 +1423,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB35`",
-        "digital_signature": "SIG-FS-AGENT-06-0DC26A5B7FC1941D"
+        "digital_signature": "SIG-FS-AGENT-06-F55936D8DEAD56E3"
       }
     ]
   },
@@ -1432,9 +1432,9 @@
     "feedback_id": 34,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xAF51956C2A740005843DC0AADB173547",
-    "full_hash_sha256": "af51956c2a740005843dc0aadb173547e866887146379901fe0eb577da7d758c",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x3D47BF0C920B8BA701EF800ADDAA47CA",
+    "full_hash_sha256": "3d47bf0c920b8ba701ef800addaa47ca9ca990045d0dcbfa54d4e7bb89f413fa",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1534,9 +1534,9 @@
     "feedback_id": 33,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xE3AD97DBAF62AEA7E83C1BEF34D699AC",
-    "full_hash_sha256": "e3ad97dbaf62aea7e83c1bef34d699ac0fe25e08dc124ea783b4970f963da39a",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x934F11C5665AF0C8EC8C440E88E3016C",
+    "full_hash_sha256": "934f11c5665af0c8ec8c440e88e3016cef2f71d24b272ee5c741aba3470d7425",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1545,13 +1545,13 @@
       "accuracy_score": "60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân)."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (60% - Mô tả lỗi cắt chữ nhưng không rõ vị trí và nguyên nhân)."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -1576,8 +1576,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-32E2D0382762EB80"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-B9E8E926F276D973"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -1587,7 +1587,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-F0862D0F1BAB49D5"
+        "digital_signature": "SIG-FS-AGENT-02-822A6A4FD596B916"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -1597,7 +1597,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-7771E6FB750DF568"
+        "digital_signature": "SIG-FS-AGENT-03-967D550A7E9AB509"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -1607,7 +1607,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `0479c23897ae6110` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-865185B9D1C41FD9"
+        "digital_signature": "SIG-FS-AGENT-04-1E2BDFB9EEEF8677"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -1617,7 +1617,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-3BD432BDCE98B3E5"
+        "digital_signature": "SIG-FS-AGENT-05-625571163F81338D"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -1627,7 +1627,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB33`",
-        "digital_signature": "SIG-FS-AGENT-06-3F5BD4427D8307D9"
+        "digital_signature": "SIG-FS-AGENT-06-1645711F7A80C53B"
       }
     ]
   },
@@ -1636,9 +1636,9 @@
     "feedback_id": 32,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xD460C41DAEB2538C120461E358E822E5",
-    "full_hash_sha256": "d460c41daeb2538c120461e358e822e5df2c24d3f820f82ce1d9067737927c77",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x5D81B04BB11FAC29062013BE0FA51495",
+    "full_hash_sha256": "5d81b04bb11fac29062013be0fa51495d446f3ac47a17c5dedd16ba6f3a9fff0",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1738,9 +1738,9 @@
     "feedback_id": 31,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x141A62314FF9854E7F544D1694366A39",
-    "full_hash_sha256": "141a62314ff9854e7f544d1694366a391253e1fc4881f92d60c20b159380b15a",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xC75DD31F39890081504EA8C9E1BFC293",
+    "full_hash_sha256": "c75dd31f39890081504ea8c9e1bfc2930aae76ef65049ddb1f8cc65e560400a9",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1749,13 +1749,13 @@
       "accuracy_score": "95% - Xác nhận lỗi tràn chữ tại các thành phần hiển thị danh mục/tên sản phẩm",
       "frontend_target": "src/components/cms/views/inventory-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "6847c4b46379b739",
+      "frontend_baseline_sha256": "2fd1382a84775449",
       "backend_target": "src/app/api/inventory/route.ts",
       "backend_exists": true,
-      "backend_baseline_sha256": "233452390cd35f13",
+      "backend_baseline_sha256": "03d025fc86a05845",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6847c4b46379b739`, API `233452390cd35f13`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (95% - Xác nhận lỗi tràn chữ tại các thành phần hiển thị danh mục/tên sản phẩm)."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `2fd1382a84775449`, API `03d025fc86a05845`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (95% - Xác nhận lỗi tràn chữ tại các thành phần hiển thị danh mục/tên sản phẩm)."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -1764,13 +1764,13 @@
       "patch_sha256": "6066cf7683a55c9c",
       "db_schema_after_sha256": "2fabbe44ea906b24",
       "db_invariance_verified": true,
-      "api_contract_after_sha256": "233452390cd35f13",
+      "api_contract_after_sha256": "03d025fc86a05845",
       "api_invariance_verified": true,
       "ast_css_syntax_balanced": true,
       "design_token_sync_verified": true,
       "zero_secret_leak_verified": true,
       "rollback_policy": "AUTO_ROLLBACK_ARMED (<50ms)",
-      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6066cf7683a55c9c` hợp lệ AST, DB `2fabbe44ea906b24` & API `233452390cd35f13` bất biến 100%, Design Sync 100%."
+      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `6066cf7683a55c9c` hợp lệ AST, DB `2fabbe44ea906b24` & API `03d025fc86a05845` bất biến 100%, Design Sync 100%."
     },
     "agents": [
       {
@@ -1780,8 +1780,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/inventory-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `6847c4b46379b739`",
-        "digital_signature": "SIG-FS-AGENT-01-2F4FD705024E886A"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `2fd1382a84775449`",
+        "digital_signature": "SIG-FS-AGENT-01-AD8DF7DC3C548D1F"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -1790,8 +1790,8 @@
         "domain": "Next.js API Routes & Router (src/app/api/inventory/route.ts)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
-        "verification_evidence": "API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13`",
-        "digital_signature": "SIG-FS-AGENT-02-5B6F35FE57E0D127"
+        "verification_evidence": "API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845`",
+        "digital_signature": "SIG-FS-AGENT-02-0270A79A22FAC587"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -1801,7 +1801,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-EAB4BA2DD83B8237"
+        "digital_signature": "SIG-FS-AGENT-03-92BD1F61FF6BBF32"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -1811,7 +1811,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `6066cf7683a55c9c` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-C40B9E56C1BC77B1"
+        "digital_signature": "SIG-FS-AGENT-04-32023016645E9DED"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -1821,7 +1821,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-9A70ABA65420679F"
+        "digital_signature": "SIG-FS-AGENT-05-B107274FB94FD7F3"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -1831,7 +1831,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB31`",
-        "digital_signature": "SIG-FS-AGENT-06-B0DB719FD7E25A37"
+        "digital_signature": "SIG-FS-AGENT-06-0397C30175EC1DD3"
       }
     ]
   },
@@ -1840,9 +1840,9 @@
     "feedback_id": 30,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xB4D40F53FDD3D8F8DEAEF46FE3D04BE7",
-    "full_hash_sha256": "b4d40f53fdd3d8f8deaef46fe3d04be709be1dd8f606c654c8d1438ccb5845b7",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xDB57740D3E4A01AAE6B26DF3ECE5E92E",
+    "full_hash_sha256": "db57740d3e4a01aae6b26df3ece5e92eb77071d54fac0a479f0e69a54cf422e5",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1851,13 +1851,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -1882,8 +1882,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-AEEDF9EA4584B0FA"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-F33F3FD76E4F2E40"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -1893,7 +1893,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-8046B538AFC240AF"
+        "digital_signature": "SIG-FS-AGENT-02-9A37D14FAFA28C8D"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -1903,7 +1903,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-DC7F2B59EE7FE9DC"
+        "digital_signature": "SIG-FS-AGENT-03-186833D4CF9BF6A3"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -1913,7 +1913,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `b0fe6ec2270ca738` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-F083876E0F6111DD"
+        "digital_signature": "SIG-FS-AGENT-04-FC8CDD694F0F6FDC"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -1923,7 +1923,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-FE39751C9CE60D13"
+        "digital_signature": "SIG-FS-AGENT-05-7790AACB11DF865B"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -1933,7 +1933,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB30`",
-        "digital_signature": "SIG-FS-AGENT-06-5F9808DAEED5CFBA"
+        "digital_signature": "SIG-FS-AGENT-06-2B3D701FC8B8C3F2"
       }
     ]
   },
@@ -1942,9 +1942,9 @@
     "feedback_id": 29,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x2D4B8D59152F2142C7EE724118064E9E",
-    "full_hash_sha256": "2d4b8d59152f2142c7ee724118064e9ee958a157d9414c6f35b7a589b9f83b41",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x4848B8E5BF1D2C669F211DF1DB981849",
+    "full_hash_sha256": "4848b8e5bf1d2c669f211df1db981849a95551ada72b2d4342f50e94a7123c80",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -1953,13 +1953,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -1984,8 +1984,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-9AA0D60C618FC256"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-12713D38E1EE02C6"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -1995,7 +1995,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-03CB5E2B8A99E82B"
+        "digital_signature": "SIG-FS-AGENT-02-BE54A561339D2DBF"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2005,7 +2005,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-99CAE4B314FD80FE"
+        "digital_signature": "SIG-FS-AGENT-03-C480405C700A8EFD"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2015,7 +2015,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `894a5c72a006ef5e` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-CCAB1798BD67304C"
+        "digital_signature": "SIG-FS-AGENT-04-3FEB1B95F830E1FC"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2025,7 +2025,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-35B276C927E55201"
+        "digital_signature": "SIG-FS-AGENT-05-FF2E913415C5161A"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2035,7 +2035,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB29`",
-        "digital_signature": "SIG-FS-AGENT-06-B74EB7FB6B2EDE61"
+        "digital_signature": "SIG-FS-AGENT-06-5D8ED8F40EBBDBAA"
       }
     ]
   },
@@ -2044,9 +2044,9 @@
     "feedback_id": 28,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x1DC56C2C85BFFCCA9A07D3B9E632959E",
-    "full_hash_sha256": "1dc56c2c85bffcca9a07d3b9e632959e9ff0c3f719207f392656b034a50caa1a",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xFE900E3A4E8232CD85F586D1FDCA2923",
+    "full_hash_sha256": "fe900e3a4e8232cd85f586d1fdca292387799a3d03384cccef4e8536bebd7caa",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2055,13 +2055,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2086,8 +2086,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-A11C547E4BD8A630"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-754B38B22EF1A17F"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2097,7 +2097,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-A8DCFEE7144AD8BD"
+        "digital_signature": "SIG-FS-AGENT-02-E5BC773B8D19549C"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2107,7 +2107,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-46E05EB0078EAF22"
+        "digital_signature": "SIG-FS-AGENT-03-00DEAEB70EB586E1"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2117,7 +2117,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `5025a34eb6741d10` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-DAE5D3961A11223D"
+        "digital_signature": "SIG-FS-AGENT-04-9226DE87C1E07F45"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2127,7 +2127,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-C61C445C47AFEDCD"
+        "digital_signature": "SIG-FS-AGENT-05-BEC734EB44289663"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2137,7 +2137,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB28`",
-        "digital_signature": "SIG-FS-AGENT-06-A4AF3D5D0817B858"
+        "digital_signature": "SIG-FS-AGENT-06-5B9D3134252E657A"
       }
     ]
   },
@@ -2146,9 +2146,9 @@
     "feedback_id": 27,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x46EEA8C5F5A47A5B0EC3BE1D2FBB344F",
-    "full_hash_sha256": "46eea8c5f5a47a5b0ec3be1d2fbb344f5a76ed73be57b2dad70029dd928fad87",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xD7CEF48732DDB642373A25F7A1F51263",
+    "full_hash_sha256": "d7cef48732ddb642373a25f7a1f512631d5bcb85ad3f591e3e1d6260c428bde4",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2248,9 +2248,9 @@
     "feedback_id": 26,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x46191E7EA1B4B09837E8F938C87CD7AF",
-    "full_hash_sha256": "46191e7ea1b4b09837e8f938c87cd7af5d33d41550ec84486e826b0d140be0c2",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x3082656E4A44732995196D2C44149030",
+    "full_hash_sha256": "3082656e4a44732995196d2c44149030e0be76bf2d4286119003a4aa72db71ed",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2259,13 +2259,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/products-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "cd3dc65fba98184c",
+      "frontend_baseline_sha256": "4df76c1fbe770a49",
       "backend_target": "src/app/api/products/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "8e42037fbe19d4ba",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `cd3dc65fba98184c`, API `8e42037fbe19d4ba`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `4df76c1fbe770a49`, API `8e42037fbe19d4ba`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2290,8 +2290,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/products-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `cd3dc65fba98184c`",
-        "digital_signature": "SIG-FS-AGENT-01-EAAF09CE3B9D3DF6"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `4df76c1fbe770a49`",
+        "digital_signature": "SIG-FS-AGENT-01-FD58880130783B7E"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2301,7 +2301,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `8e42037fbe19d4ba` == `8e42037fbe19d4ba`",
-        "digital_signature": "SIG-FS-AGENT-02-E5F30B19B1594F16"
+        "digital_signature": "SIG-FS-AGENT-02-29200E7D89E7464A"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2311,7 +2311,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-6E9BB5C773C21C11"
+        "digital_signature": "SIG-FS-AGENT-03-16ADAE031A783ABE"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2321,7 +2321,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `f8a551eaf83c18f6` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-36631CDFCFBDA739"
+        "digital_signature": "SIG-FS-AGENT-04-2DE1F0477766B0A9"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2331,7 +2331,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-7DE0910259EBD38B"
+        "digital_signature": "SIG-FS-AGENT-05-8301790C3D6B1839"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2341,7 +2341,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB26`",
-        "digital_signature": "SIG-FS-AGENT-06-90E97FA9785C3598"
+        "digital_signature": "SIG-FS-AGENT-06-7A1C8F3E6A099EDE"
       }
     ]
   },
@@ -2350,9 +2350,9 @@
     "feedback_id": 25,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xF7D161F32038472C8830B1C144727A08",
-    "full_hash_sha256": "f7d161f32038472c8830b1c144727a08f1f7079d405f1ee436e7ab2b9162a5c8",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x212706529024BA51DBD539B775E1607D",
+    "full_hash_sha256": "212706529024ba51dbd539b775e1607d72683922273af4b8404bc0b091b2942f",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2361,13 +2361,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2392,8 +2392,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-D53FD54DEFCDF5BF"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-EE4EDC2AD4584E2B"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2403,7 +2403,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-F02DBCB0B5688E30"
+        "digital_signature": "SIG-FS-AGENT-02-35F9833E7E3B3FFA"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2413,7 +2413,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-10D633AFB949B4E6"
+        "digital_signature": "SIG-FS-AGENT-03-EE036B4A986F3D01"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2423,7 +2423,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `6a1d8dbda2b993d7` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-A71A10B6B055640C"
+        "digital_signature": "SIG-FS-AGENT-04-1C4F8A34933DD526"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2433,7 +2433,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-3BA49E47C165D6DC"
+        "digital_signature": "SIG-FS-AGENT-05-271F7F17AE41A970"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2443,7 +2443,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB25`",
-        "digital_signature": "SIG-FS-AGENT-06-3298A593CB8C2E56"
+        "digital_signature": "SIG-FS-AGENT-06-A0344FF848D9D91E"
       }
     ]
   },
@@ -2452,9 +2452,9 @@
     "feedback_id": 24,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x3CD58550D26D989F1FAEE0070CC411B9",
-    "full_hash_sha256": "3cd58550d26d989f1faee0070cc411b940b1f3f1b873ec032a2c7abe2dbae1b7",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x605FBF157E5E2D7B916EC363274DBB46",
+    "full_hash_sha256": "605fbf157e5e2d7b916ec363274dbb461a2c390587891c504979e626f263e011",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2463,13 +2463,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2494,8 +2494,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-F892590633B0936B"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-C54A22C7666DBC29"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2505,7 +2505,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-0FD0D967D7D457D0"
+        "digital_signature": "SIG-FS-AGENT-02-973C0DB36ADFA1D9"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2515,7 +2515,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-739BFDC345106976"
+        "digital_signature": "SIG-FS-AGENT-03-3E65BE02A6DD9814"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2525,7 +2525,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `3a8caa051d59ffb0` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-C80784A86AAD9D91"
+        "digital_signature": "SIG-FS-AGENT-04-F58336E8AC740EC3"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2535,7 +2535,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-F39651AE022171F7"
+        "digital_signature": "SIG-FS-AGENT-05-F73B438C4C16D2EC"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2545,7 +2545,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB24`",
-        "digital_signature": "SIG-FS-AGENT-06-D59EB3FE57C8B710"
+        "digital_signature": "SIG-FS-AGENT-06-122ECFD7FA152153"
       }
     ]
   },
@@ -2554,9 +2554,9 @@
     "feedback_id": 23,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xDCF8DBFBE414ED21F0695D9104EA5371",
-    "full_hash_sha256": "dcf8dbfbe414ed21f0695d9104ea53710d051e2e63812c8e8daef0511c60c30b",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xC1040EB2F81E17EB56FC8D8A38EB6342",
+    "full_hash_sha256": "c1040eb2f81e17eb56fc8d8a38eb6342502bb3c1d934d11cc7d09c81e3356290",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2565,13 +2565,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2596,8 +2596,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-DCABB9F79BCCAAC6"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-06DCB5B29A2819E5"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2607,7 +2607,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-C2640BAD52AFEA91"
+        "digital_signature": "SIG-FS-AGENT-02-EC347AF81C7C3674"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2617,7 +2617,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-6A61AE76278690B7"
+        "digital_signature": "SIG-FS-AGENT-03-8EA127E10DFAAB14"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2627,7 +2627,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `08b1b8d7ec68ef7e` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-AED4165B9208A39B"
+        "digital_signature": "SIG-FS-AGENT-04-B06251E997BEC2AE"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2637,7 +2637,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-DB8694B3BDF332FD"
+        "digital_signature": "SIG-FS-AGENT-05-A806514B66D15D7E"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2647,7 +2647,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB23`",
-        "digital_signature": "SIG-FS-AGENT-06-7AA64E8965C11EB0"
+        "digital_signature": "SIG-FS-AGENT-06-EFA910029A538E6E"
       }
     ]
   },
@@ -2656,9 +2656,9 @@
     "feedback_id": 22,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x31AC039889E425F4DF31A4B4F385B17E",
-    "full_hash_sha256": "31ac039889e425f4df31a4b4f385b17e313f3a40208998af4be1af88f8ee5c7d",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x7D17716AB89C392244CD013358A3806C",
+    "full_hash_sha256": "7d17716ab89c392244cd013358a3806c35a3ea3ff23afbe88464fa31e3d3588e",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2667,13 +2667,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2698,8 +2698,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-01CEF4851922DE40"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-9404C4005D16DA3E"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2709,7 +2709,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-978B685EE5B2E78F"
+        "digital_signature": "SIG-FS-AGENT-02-421CB6F87AF580C3"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2719,7 +2719,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-72AB9CA208060E59"
+        "digital_signature": "SIG-FS-AGENT-03-D7675C50487E5840"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2729,7 +2729,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `6a07d221f1df0d2f` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-4D589B3DFA1124DA"
+        "digital_signature": "SIG-FS-AGENT-04-F235439CC241D7F4"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2739,7 +2739,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-7797076D6E86D362"
+        "digital_signature": "SIG-FS-AGENT-05-FDEA5305A3070B83"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2749,7 +2749,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB22`",
-        "digital_signature": "SIG-FS-AGENT-06-2F8C447CE46A2193"
+        "digital_signature": "SIG-FS-AGENT-06-B37E1EA1910686EA"
       }
     ]
   },
@@ -2758,9 +2758,9 @@
     "feedback_id": 21,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xCC74CD1B2A7836B85E212394D96FF78E",
-    "full_hash_sha256": "cc74cd1b2a7836b85e212394d96ff78e0bf67e668a261883db897fd6e9ccf3d3",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xD69DD22F1C8AFA1D0E44FDCD2F738E46",
+    "full_hash_sha256": "d69dd22f1c8afa1d0e44fdcd2f738e46134907b5785c8354251ddd83e3998985",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2769,13 +2769,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2800,8 +2800,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-ED0BD14E92EEEBEA"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-7BCC7933AFB2F576"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2811,7 +2811,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-34489D378555CAC4"
+        "digital_signature": "SIG-FS-AGENT-02-E41FAE0218405CE4"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2821,7 +2821,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-1CD0A85F56C0F15F"
+        "digital_signature": "SIG-FS-AGENT-03-6057AF08759ABC12"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2831,7 +2831,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `f1daf92df118e9e1` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-61C23885064DC1A6"
+        "digital_signature": "SIG-FS-AGENT-04-A40C866A41B807D7"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2841,7 +2841,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-2E435B2A865085E8"
+        "digital_signature": "SIG-FS-AGENT-05-9813389A96C21EDB"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2851,7 +2851,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB21`",
-        "digital_signature": "SIG-FS-AGENT-06-7FE6D8A17352E278"
+        "digital_signature": "SIG-FS-AGENT-06-FE928800ADCE6105"
       }
     ]
   },
@@ -2860,9 +2860,9 @@
     "feedback_id": 20,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xE501C78F5C8A32B9F8F12F55DC67B111",
-    "full_hash_sha256": "e501c78f5c8a32b9f8f12f55dc67b1118dacf5a41060de68191433002ff6a0c8",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xCB0AE5F0B6C00D9FE21668F60D2392D9",
+    "full_hash_sha256": "cb0ae5f0b6c00d9fe21668f60d2392d9970975983bdef6794c6ef8441c7e8073",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2871,13 +2871,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2902,8 +2902,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-4B252E992688FE85"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-019BA58196E82F3D"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -2913,7 +2913,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-A8E07B5E713A455E"
+        "digital_signature": "SIG-FS-AGENT-02-FEB96A7CE1E38660"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -2923,7 +2923,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-F69B58C08812F649"
+        "digital_signature": "SIG-FS-AGENT-03-B3F4828C802B1E08"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -2933,7 +2933,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `23398a3bc3988361` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-B6EE903E9C60B02C"
+        "digital_signature": "SIG-FS-AGENT-04-6877B7EC422EF279"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -2943,7 +2943,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-E42D1D0B1E9DAAC2"
+        "digital_signature": "SIG-FS-AGENT-05-EACD3B72A0E6F2B0"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -2953,7 +2953,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB20`",
-        "digital_signature": "SIG-FS-AGENT-06-FB594FA56CE54DB4"
+        "digital_signature": "SIG-FS-AGENT-06-CFA4977FB8DADE9D"
       }
     ]
   },
@@ -2962,9 +2962,9 @@
     "feedback_id": 19,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x101595D530E218C45ADE54C9340FC9B6",
-    "full_hash_sha256": "101595d530e218c45ade54c9340fc9b68a57d1a2bdcf523d0e4103740bdedac1",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xBC57D26C1DD2FF8094976E0C0603EAD4",
+    "full_hash_sha256": "bc57d26c1dd2ff8094976e0c0603ead4b8eb55f52172e314a99e363d4f9b6443",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -2973,13 +2973,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/inventory-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "6847c4b46379b739",
+      "frontend_baseline_sha256": "2fd1382a84775449",
       "backend_target": "src/app/api/inventory/route.ts",
       "backend_exists": true,
-      "backend_baseline_sha256": "233452390cd35f13",
+      "backend_baseline_sha256": "03d025fc86a05845",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6847c4b46379b739`, API `233452390cd35f13`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `2fd1382a84775449`, API `03d025fc86a05845`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -2988,13 +2988,13 @@
       "patch_sha256": "33fa7c74119a292c",
       "db_schema_after_sha256": "2fabbe44ea906b24",
       "db_invariance_verified": true,
-      "api_contract_after_sha256": "233452390cd35f13",
+      "api_contract_after_sha256": "03d025fc86a05845",
       "api_invariance_verified": true,
       "ast_css_syntax_balanced": true,
       "design_token_sync_verified": true,
       "zero_secret_leak_verified": true,
       "rollback_policy": "AUTO_ROLLBACK_ARMED (<50ms)",
-      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `33fa7c74119a292c` hợp lệ AST, DB `2fabbe44ea906b24` & API `233452390cd35f13` bất biến 100%, Design Sync 100%."
+      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `33fa7c74119a292c` hợp lệ AST, DB `2fabbe44ea906b24` & API `03d025fc86a05845` bất biến 100%, Design Sync 100%."
     },
     "agents": [
       {
@@ -3004,8 +3004,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/inventory-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `6847c4b46379b739`",
-        "digital_signature": "SIG-FS-AGENT-01-30C11262DB45D9E4"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `2fd1382a84775449`",
+        "digital_signature": "SIG-FS-AGENT-01-AABA31B6FBC2A310"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3014,8 +3014,8 @@
         "domain": "Next.js API Routes & Router (src/app/api/inventory/route.ts)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
-        "verification_evidence": "API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13`",
-        "digital_signature": "SIG-FS-AGENT-02-455AD86282D562A7"
+        "verification_evidence": "API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845`",
+        "digital_signature": "SIG-FS-AGENT-02-A95806E248D73180"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3025,7 +3025,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-2EE8B8574E5F554D"
+        "digital_signature": "SIG-FS-AGENT-03-03C5685666772686"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3035,7 +3035,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `33fa7c74119a292c` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-259A8040C5A08C38"
+        "digital_signature": "SIG-FS-AGENT-04-73455F3D425AD9BD"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3045,7 +3045,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-911E405823D25244"
+        "digital_signature": "SIG-FS-AGENT-05-D20C5AA2D8968501"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3055,7 +3055,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB19`",
-        "digital_signature": "SIG-FS-AGENT-06-D501CCBED74B2838"
+        "digital_signature": "SIG-FS-AGENT-06-C646E38EA546878C"
       }
     ]
   },
@@ -3064,9 +3064,9 @@
     "feedback_id": 18,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x77B4EC71B11A56947ED3E9279501A82D",
-    "full_hash_sha256": "77b4ec71b11a56947ed3e9279501a82dc61182c230bf6dcd25af20a6fdb81a8d",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x868AD4C2669B6D8FF90A2E5D01925F03",
+    "full_hash_sha256": "868ad4c2669b6d8ff90a2e5d01925f03eae7fd29bdb60436fe18863994f47008",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3166,9 +3166,9 @@
     "feedback_id": 17,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xAC3AF8D25180380209D5ABDD4F9AA612",
-    "full_hash_sha256": "ac3af8d25180380209d5abdd4f9aa612b799c3ed9cda2ac68b585ea3ea89feb6",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x5AB91A26B0EF06F10AEFECEA34E76B94",
+    "full_hash_sha256": "5ab91a26b0ef06f10aefecea34e76b9421aa80e9e4e8ee82785af7bf03aec9eb",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3177,13 +3177,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3208,8 +3208,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-E4CA4050062F3CF9"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-C37BF6EABF3CAB24"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3219,7 +3219,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-9762E72C1310EB2D"
+        "digital_signature": "SIG-FS-AGENT-02-4FC5A77D38283B73"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3229,7 +3229,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-6C97691697874244"
+        "digital_signature": "SIG-FS-AGENT-03-FF15B41E5A9F772A"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3239,7 +3239,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `2ac8287cb816f1a9` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-DCD8E2AF86408ACE"
+        "digital_signature": "SIG-FS-AGENT-04-A1405D0677342F0E"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3249,7 +3249,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-02E4E01D632E1D18"
+        "digital_signature": "SIG-FS-AGENT-05-EC6B629569888D71"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3259,7 +3259,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB17`",
-        "digital_signature": "SIG-FS-AGENT-06-295A202F16F543F2"
+        "digital_signature": "SIG-FS-AGENT-06-CB18B0DF98FD99FB"
       }
     ]
   },
@@ -3268,9 +3268,9 @@
     "feedback_id": 16,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x0DAB14AC226D218DDAB89C0691348F8B",
-    "full_hash_sha256": "0dab14ac226d218ddab89c0691348f8b839db2460591060a46840584d1e1b311",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xEB45CF24E7912E25C91757E28D93309C",
+    "full_hash_sha256": "eb45cf24e7912e25c91757e28d93309c4f02b2ebc896ef534ec0c3e688e85fe0",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3279,13 +3279,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3310,8 +3310,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-22FF9C83FA8F1C5F"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-1EDE284217B40115"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3321,7 +3321,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-DAFAF9DB777C5C41"
+        "digital_signature": "SIG-FS-AGENT-02-7C5F2FC956CDB98B"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3331,7 +3331,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-C1816571EE822EB2"
+        "digital_signature": "SIG-FS-AGENT-03-FC514F33C74BE29C"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3341,7 +3341,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `aa4f857bbf274fb0` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-0D614391E75CE210"
+        "digital_signature": "SIG-FS-AGENT-04-295F9E30A4C86503"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3351,7 +3351,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-CEF6033FBED8EE3B"
+        "digital_signature": "SIG-FS-AGENT-05-0274EF8C68A5C40D"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3361,7 +3361,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB16`",
-        "digital_signature": "SIG-FS-AGENT-06-F1527743C2F4BEAC"
+        "digital_signature": "SIG-FS-AGENT-06-267113C4488D1F96"
       }
     ]
   },
@@ -3370,9 +3370,9 @@
     "feedback_id": 15,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x2B7739C369033C2F5A794D09341C06D3",
-    "full_hash_sha256": "2b7739c369033c2f5a794d09341c06d35861c6023cf78d51cc2000907f3b13fe",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xCF4DF1771042ADFE5CC1AEC9C7D0E1B6",
+    "full_hash_sha256": "cf4df1771042adfe5cc1aec9c7d0e1b625356a4b423b33daa5e1e99c1d543e7b",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3381,13 +3381,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3412,8 +3412,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-97923332C2943ACD"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-F7D8DDAFB6CD31B1"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3423,7 +3423,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-AA7530019AE5E361"
+        "digital_signature": "SIG-FS-AGENT-02-6203B8C6B1F8F134"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3433,7 +3433,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-3C347EACF3725C4D"
+        "digital_signature": "SIG-FS-AGENT-03-F33CE53C4A4FFA34"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3443,7 +3443,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `deec4ecbef4b5248` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-C79DFE4AE5E1F06C"
+        "digital_signature": "SIG-FS-AGENT-04-9DE108C623D86A9B"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3453,7 +3453,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-2BDEAFEF56136418"
+        "digital_signature": "SIG-FS-AGENT-05-5C7AE4C9E61EA75D"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3463,7 +3463,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB15`",
-        "digital_signature": "SIG-FS-AGENT-06-4D8A0B6AABC07EE8"
+        "digital_signature": "SIG-FS-AGENT-06-0D24BF6E3366EA74"
       }
     ]
   },
@@ -3472,9 +3472,9 @@
     "feedback_id": 14,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xF92CFC296E984A817D17C28FC4C6A113",
-    "full_hash_sha256": "f92cfc296e984a817d17c28fc4c6a1130d6195ef28db368309049abfe88d149f",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x815878BAA9379DE2CB376F43C7BCBF1A",
+    "full_hash_sha256": "815878baa9379de2cb376f43c7bcbf1a2e02f697bbb3cd64dfcfb08cc6942972",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3483,13 +3483,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3514,8 +3514,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-83F3D08AD8733EDE"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-EFD59F3447365A46"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3525,7 +3525,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-7AA61CF3D7401A1C"
+        "digital_signature": "SIG-FS-AGENT-02-311B0A02F77DF518"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3535,7 +3535,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-C126D7A1A92D02B3"
+        "digital_signature": "SIG-FS-AGENT-03-08487DE4F4BAFAAF"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3545,7 +3545,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `094557ed15310bd9` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-C875D0A66BDF8728"
+        "digital_signature": "SIG-FS-AGENT-04-FC30C1CD0F05A887"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3555,7 +3555,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-8BD7319DD8D87DEB"
+        "digital_signature": "SIG-FS-AGENT-05-0CB68A5A94AE0B70"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3565,7 +3565,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB14`",
-        "digital_signature": "SIG-FS-AGENT-06-D7E31BF0470F66E0"
+        "digital_signature": "SIG-FS-AGENT-06-0C9A17BA7D4AF623"
       }
     ]
   },
@@ -3574,9 +3574,9 @@
     "feedback_id": 13,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xBD4BFC49EEDFA34F117B0FAEF2115CB5",
-    "full_hash_sha256": "bd4bfc49eedfa34f117b0faef2115cb52c7d33a64736867d2008585a4318adc7",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x94990F5DDD50D48B74C598ACD4C91325",
+    "full_hash_sha256": "94990f5ddd50d48b74c598acd4c91325ca5da70920d85debd576176f25994030",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3585,13 +3585,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3616,8 +3616,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-A59429E89D60B92A"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-9CFE7DB83C1C43E5"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3627,7 +3627,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-A3A3D9BBFAA69B3D"
+        "digital_signature": "SIG-FS-AGENT-02-53F7FF14C5E6D6BB"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3637,7 +3637,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-C32A683A3128AC42"
+        "digital_signature": "SIG-FS-AGENT-03-6D696A8243CD2564"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3647,7 +3647,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `92c83283b3b4427f` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-EABBB0E015003966"
+        "digital_signature": "SIG-FS-AGENT-04-7ECE4C34226D3A26"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3657,7 +3657,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-A8C55F905C743E03"
+        "digital_signature": "SIG-FS-AGENT-05-345E7DDC2AB196A8"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3667,7 +3667,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB13`",
-        "digital_signature": "SIG-FS-AGENT-06-6921BA0C6104DF7A"
+        "digital_signature": "SIG-FS-AGENT-06-C7C53B9FDF5C89B0"
       }
     ]
   },
@@ -3676,9 +3676,9 @@
     "feedback_id": 12,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x2597B2E821F6F3A97E1366CD70070CE9",
-    "full_hash_sha256": "2597b2e821f6f3a97e1366cd70070ce95c7c867dccd6b620f8032d5d3e0c3e17",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xE8CEF49EB60B55E6F8C7F856506D0490",
+    "full_hash_sha256": "e8cef49eb60b55e6f8c7f856506d0490e1a2e333d5b17fec8a7067d7463376e7",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3687,13 +3687,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3718,8 +3718,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-31878EA9BBC4A91D"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-A07DE6134273A18D"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3729,7 +3729,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-4BAE72E722437F96"
+        "digital_signature": "SIG-FS-AGENT-02-80383221891A6033"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3739,7 +3739,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-327F17D33806E003"
+        "digital_signature": "SIG-FS-AGENT-03-3BD2605453BBEC08"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3749,7 +3749,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `3e9c50ef0bce2fbd` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-F735546A0AB945F3"
+        "digital_signature": "SIG-FS-AGENT-04-A8CF07E20774F930"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3759,7 +3759,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-EE542D5A0B79D355"
+        "digital_signature": "SIG-FS-AGENT-05-1472AC84D1EB6A69"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3769,7 +3769,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB12`",
-        "digital_signature": "SIG-FS-AGENT-06-2B8CD0B3712AB05D"
+        "digital_signature": "SIG-FS-AGENT-06-C242D115E4D60958"
       }
     ]
   },
@@ -3778,9 +3778,9 @@
     "feedback_id": 11,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xBB45E5EF683C27EB6F33202DEA06A5E5",
-    "full_hash_sha256": "bb45e5ef683c27eb6f33202dea06a5e57fff5fd99e9ad9135c9b72586c5fa75c",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x2B47DB69468B82358888AB34FB93535E",
+    "full_hash_sha256": "2b47db69468b82358888ab34fb93535ecef8ecc1897b9943a9f89465dd5e0397",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3789,13 +3789,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3820,8 +3820,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-7F4EF1C69BA69377"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-97B3D86D0772D842"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3831,7 +3831,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-FECFABEB6C4ABBD3"
+        "digital_signature": "SIG-FS-AGENT-02-5119D88E06A12B39"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3841,7 +3841,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-DDCB203FE0790B70"
+        "digital_signature": "SIG-FS-AGENT-03-3EDA3E15BCDF37CF"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3851,7 +3851,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `9f30e7b8d543ccae` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-3D8E20A978039940"
+        "digital_signature": "SIG-FS-AGENT-04-98C22DE0926BB154"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3861,7 +3861,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-450F03D39AF55A25"
+        "digital_signature": "SIG-FS-AGENT-05-01C96D936A7AC17C"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3871,7 +3871,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB11`",
-        "digital_signature": "SIG-FS-AGENT-06-B8345F35C823B4FC"
+        "digital_signature": "SIG-FS-AGENT-06-BA9895E2484C96E5"
       }
     ]
   },
@@ -3880,9 +3880,9 @@
     "feedback_id": 10,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x25C97A33B20F79AEFA6C38D1A2608F74",
-    "full_hash_sha256": "25c97a33b20f79aefa6c38d1a2608f74ca34ce90d31944a28103e5a8f1556f29",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x6D4C96A1D33186A01643E12E7ADCCA68",
+    "full_hash_sha256": "6d4c96a1d33186a01643e12e7adcca686799a76f74e09b7d1d96475344389a05",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -3891,13 +3891,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -3922,8 +3922,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-8E88131C47A98472"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-8882993DF338B345"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -3933,7 +3933,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-280CA4977963CA2C"
+        "digital_signature": "SIG-FS-AGENT-02-BD054EEB7A5E27F4"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -3943,7 +3943,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-4FC40513C77FCAF9"
+        "digital_signature": "SIG-FS-AGENT-03-1366BB3DE101B710"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -3953,7 +3953,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `55b92d79068217d8` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-1391277F30B08B5B"
+        "digital_signature": "SIG-FS-AGENT-04-B28F186EB4D7D5FC"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -3963,7 +3963,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-D87CD823588F9D6C"
+        "digital_signature": "SIG-FS-AGENT-05-DB123731DEBD9AF2"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -3973,7 +3973,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB10`",
-        "digital_signature": "SIG-FS-AGENT-06-5B7980C309E27D85"
+        "digital_signature": "SIG-FS-AGENT-06-387B0049C5EC37E0"
       }
     ]
   },
@@ -3982,9 +3982,9 @@
     "feedback_id": 9,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xF243351653EE60C7A1263DCEF5A04D4F",
-    "full_hash_sha256": "f243351653ee60c7a1263dcef5a04d4fe79b394c456db0aa2dce6c4d64c22126",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x74840FB467B3729315FB3B96752DE943",
+    "full_hash_sha256": "74840fb467b3729315fb3b96752de94371d4545250f2bae73631c40996887a19",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4084,9 +4084,9 @@
     "feedback_id": 8,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xB05D82F1D1AFA94083E075B62D4F2264",
-    "full_hash_sha256": "b05d82f1d1afa94083e075b62d4f22648520900a0745d92d4d64c001b2e07c23",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x115A284C432E23A7288EC042B1DB7970",
+    "full_hash_sha256": "115a284c432e23a7288ec042b1db7970eb9bfcdfea86f8336c40f12cb07a05b6",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4095,13 +4095,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -4126,8 +4126,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-A7B60443E17C9287"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-35A4DC03F8880C99"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -4137,7 +4137,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-916777389533F463"
+        "digital_signature": "SIG-FS-AGENT-02-2609CAFCA15CD78E"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -4147,7 +4147,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-DC43F3A8BC58AB10"
+        "digital_signature": "SIG-FS-AGENT-03-B6DD3676A0F13007"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -4157,7 +4157,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `5092228de9bf7cdb` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-918C7539A14219EF"
+        "digital_signature": "SIG-FS-AGENT-04-865D981327DE5B3B"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -4167,7 +4167,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-344FA79021AC1562"
+        "digital_signature": "SIG-FS-AGENT-05-EE3FBBCBFDC2D990"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -4177,7 +4177,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB8`",
-        "digital_signature": "SIG-FS-AGENT-06-2B9510C6C5E3BAB0"
+        "digital_signature": "SIG-FS-AGENT-06-E717F7E78001F9BA"
       }
     ]
   },
@@ -4186,9 +4186,9 @@
     "feedback_id": 7,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x16149B1C50088859163C5F181FEC0530",
-    "full_hash_sha256": "16149b1c50088859163c5f181fec05308b5d3cc9ea95eba8606de2ea0e6e062f",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xCD5972C6E267FBC5BC1B2E2F3D415E09",
+    "full_hash_sha256": "cd5972c6e267fbc5bc1b2e2f3d415e09ec5751922ee2cd48da2747540afe882c",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4197,13 +4197,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -4228,8 +4228,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-31397958BDF102E9"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-9FC712F13FA665CC"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -4239,7 +4239,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-9B9A8F80AC760015"
+        "digital_signature": "SIG-FS-AGENT-02-829CE2B4E252D8BD"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -4249,7 +4249,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-DD046420E14B82CA"
+        "digital_signature": "SIG-FS-AGENT-03-3EE9412B77C5737A"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -4259,7 +4259,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `e9c825ecae9b8599` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-29196F4B7D3E0DC5"
+        "digital_signature": "SIG-FS-AGENT-04-DB2E8ED2FB935908"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -4269,7 +4269,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-2DC1BD5EFB719BA6"
+        "digital_signature": "SIG-FS-AGENT-05-C9F7CF43C1AA224D"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -4279,7 +4279,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB7`",
-        "digital_signature": "SIG-FS-AGENT-06-60FDACE8C6840310"
+        "digital_signature": "SIG-FS-AGENT-06-8B4D1EC52AE13E2D"
       }
     ]
   },
@@ -4288,9 +4288,9 @@
     "feedback_id": 6,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x8151AA0D978E5326D7CBD8D27ED1AE07",
-    "full_hash_sha256": "8151aa0d978e5326d7cbd8d27ed1ae07b55b2ebe1ee8836fce81a8703901aa41",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xB65CA9C89154B9A474ECC11AE1E7BF56",
+    "full_hash_sha256": "b65ca9c89154b9a474ecc11ae1e7bf5690942f75bfb2fa25c91d4782b9a5c4cd",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4299,13 +4299,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -4330,8 +4330,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-C25FD7BFF985E255"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-E346B78F5485C8EA"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -4341,7 +4341,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-1373547A4B007F09"
+        "digital_signature": "SIG-FS-AGENT-02-64B915983161044A"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -4351,7 +4351,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-B03C3056135BB7A4"
+        "digital_signature": "SIG-FS-AGENT-03-DD463A817DF51B4A"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -4361,7 +4361,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `6d7bc10e224d3d3e` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-D06FF703E6ADB8ED"
+        "digital_signature": "SIG-FS-AGENT-04-594EE6649BA30B28"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -4371,7 +4371,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-1598BBB30BB2EFAA"
+        "digital_signature": "SIG-FS-AGENT-05-A32CAEE5A635330B"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -4381,7 +4381,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB6`",
-        "digital_signature": "SIG-FS-AGENT-06-DC8C499CA5D52886"
+        "digital_signature": "SIG-FS-AGENT-06-3D39D56578E7895E"
       }
     ]
   },
@@ -4390,9 +4390,9 @@
     "feedback_id": 5,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x6D19C6B61748E121B847B688C0A80FE1",
-    "full_hash_sha256": "6d19c6b61748e121b847b688c0a80fe1fcce0c03bec4fbd08fd435d823124795",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0xFA5F5A067AF97E34286AF961B1954BB0",
+    "full_hash_sha256": "fa5f5a067af97e34286af961b1954bb06a2b562da68ce55b93d8652c37737752",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4401,13 +4401,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -4432,8 +4432,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-29BE87DCE5FB971C"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-2F695DF4EDBB71EA"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -4443,7 +4443,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-644E4E693B2B491C"
+        "digital_signature": "SIG-FS-AGENT-02-8DD80D5B3EF526C4"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -4453,7 +4453,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-D85BD1A2D9D07F93"
+        "digital_signature": "SIG-FS-AGENT-03-776111DF238CCF7E"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -4463,7 +4463,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `6cae41fbaea2e223` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-F561F7422CAEB4F6"
+        "digital_signature": "SIG-FS-AGENT-04-6FE493F0F05DEDE7"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -4473,7 +4473,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-93E2CD888CE80488"
+        "digital_signature": "SIG-FS-AGENT-05-820ADCC964C6BFE1"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -4483,7 +4483,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB5`",
-        "digital_signature": "SIG-FS-AGENT-06-0F439537C2A9E8BE"
+        "digital_signature": "SIG-FS-AGENT-06-F9040E3017034358"
       }
     ]
   },
@@ -4492,9 +4492,9 @@
     "feedback_id": 4,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xCFD7BDF3C8537357D5B88091073B075B",
-    "full_hash_sha256": "cfd7bdf3c8537357d5b88091073b075b7c6c563e0f2438314a6b8ebc94fdff18",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x6FB12700233434B2FB5E7DF0C3BD36C6",
+    "full_hash_sha256": "6fb12700233434b2fb5e7df0c3bd36c6e9533181845350f8123ffdb2b02c7baa",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4503,13 +4503,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/inventory-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "6847c4b46379b739",
+      "frontend_baseline_sha256": "2fd1382a84775449",
       "backend_target": "src/app/api/inventory/route.ts",
       "backend_exists": true,
-      "backend_baseline_sha256": "233452390cd35f13",
+      "backend_baseline_sha256": "03d025fc86a05845",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6847c4b46379b739`, API `233452390cd35f13`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `2fd1382a84775449`, API `03d025fc86a05845`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -4518,13 +4518,13 @@
       "patch_sha256": "d3eb0430bdbe3f0c",
       "db_schema_after_sha256": "2fabbe44ea906b24",
       "db_invariance_verified": true,
-      "api_contract_after_sha256": "233452390cd35f13",
+      "api_contract_after_sha256": "03d025fc86a05845",
       "api_invariance_verified": true,
       "ast_css_syntax_balanced": true,
       "design_token_sync_verified": true,
       "zero_secret_leak_verified": true,
       "rollback_policy": "AUTO_ROLLBACK_ARMED (<50ms)",
-      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `d3eb0430bdbe3f0c` hợp lệ AST, DB `2fabbe44ea906b24` & API `233452390cd35f13` bất biến 100%, Design Sync 100%."
+      "summary": "Nghiệm thu Sau khi sửa ĐẠT 5/5 tiêu chí: Patch `d3eb0430bdbe3f0c` hợp lệ AST, DB `2fabbe44ea906b24` & API `03d025fc86a05845` bất biến 100%, Design Sync 100%."
     },
     "agents": [
       {
@@ -4534,8 +4534,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/inventory-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `6847c4b46379b739`",
-        "digital_signature": "SIG-FS-AGENT-01-4BFD19FC967BE7CF"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `2fd1382a84775449`",
+        "digital_signature": "SIG-FS-AGENT-01-2D10E61724770049"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -4544,8 +4544,8 @@
         "domain": "Next.js API Routes & Router (src/app/api/inventory/route.ts)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
-        "verification_evidence": "API SHA256 Invariant: `233452390cd35f13` == `233452390cd35f13`",
-        "digital_signature": "SIG-FS-AGENT-02-EC727782C11A966E"
+        "verification_evidence": "API SHA256 Invariant: `03d025fc86a05845` == `03d025fc86a05845`",
+        "digital_signature": "SIG-FS-AGENT-02-394F58CC99BC0C43"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -4555,7 +4555,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-2A673D57C56B8B25"
+        "digital_signature": "SIG-FS-AGENT-03-A55ADF8648D39A88"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -4565,7 +4565,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `d3eb0430bdbe3f0c` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-1199A41FFA459045"
+        "digital_signature": "SIG-FS-AGENT-04-92172B4292E5550D"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -4575,7 +4575,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-9FF94257714F0DD5"
+        "digital_signature": "SIG-FS-AGENT-05-2348D7662F96A427"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -4585,7 +4585,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB4`",
-        "digital_signature": "SIG-FS-AGENT-06-7A526B3536DE2820"
+        "digital_signature": "SIG-FS-AGENT-06-631BBC7E0A3F5672"
       }
     ]
   },
@@ -4594,9 +4594,9 @@
     "feedback_id": 3,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x250F1D63A899C192B52A9B75FFD6C9CA",
-    "full_hash_sha256": "250f1d63a899c192b52a9b75ffd6c9cadcf4eee8d21cb68744d9d7d39ae43cbe",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x1D872E77078C0C347F27EF7893D94547",
+    "full_hash_sha256": "1d872e77078c0c347f27ef7893d94547d21fbff801152d55798db3598b921566",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4605,13 +4605,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -4636,8 +4636,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-4A1D5B593F556505"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-E20187CD69F1CB87"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -4647,7 +4647,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-0D8EDC79CF200DFB"
+        "digital_signature": "SIG-FS-AGENT-02-09EC0F12FA81DD00"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -4657,7 +4657,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-4365D4C840F784DF"
+        "digital_signature": "SIG-FS-AGENT-03-041ACF27EA3D8F23"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -4667,7 +4667,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `d6c22156309d014f` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-7AA6BFFE9D267AF0"
+        "digital_signature": "SIG-FS-AGENT-04-49DD2DFACED71973"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -4677,7 +4677,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-4ACEE929C4F2A8CE"
+        "digital_signature": "SIG-FS-AGENT-05-FC7494B33516B07A"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -4687,7 +4687,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB3`",
-        "digital_signature": "SIG-FS-AGENT-06-119E28513A32A0AB"
+        "digital_signature": "SIG-FS-AGENT-06-9FB25725D95C3D6D"
       }
     ]
   },
@@ -4696,9 +4696,9 @@
     "feedback_id": 2,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0x42E80411246D753219604C241F76D57B",
-    "full_hash_sha256": "42e80411246d753219604c241f76d57b578a00a6d935f1a78b3772a46607a3cb",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x25096A4CD76CFB6B0436F9F68D2E51D8",
+    "full_hash_sha256": "25096a4cd76cfb6b0436f9f68d2e51d8706bd8ac420bff38a15e2055886b3d88",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",
@@ -4707,13 +4707,13 @@
       "accuracy_score": "90% (Khớp ảnh chụp & DOM)",
       "frontend_target": "src/components/cms/views/pos-view.tsx",
       "frontend_exists": true,
-      "frontend_baseline_sha256": "bc604ec9290637d1",
+      "frontend_baseline_sha256": "6947753d963795cd",
       "backend_target": "src/app/api/orders/route.ts",
       "backend_exists": true,
       "backend_baseline_sha256": "52aef42bb0621b1c",
       "db_schema_baseline_sha256": "2fabbe44ea906b24",
       "globals_css_baseline_sha256": "6f5a55d1ad6ed2e7",
-      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `bc604ec9290637d1`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
+      "summary": "Đã khóa mốc SHA-256 Trước khi sửa (FE `6947753d963795cd`, API `52aef42bb0621b1c`, DB `2fabbe44ea906b24`) & xác nhận triệu chứng hợp lệ (90% (Khớp ảnh chụp & DOM))."
     },
     "post_fix_acceptance": {
       "stage": "POST_FIX_ACCEPTANCE",
@@ -4738,8 +4738,8 @@
         "domain": "UI/UX & Design Tokens (src/components/cms/views/pos-view.tsx)",
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% về đồng bộ Design Tokens gốc (:root --primary, --radius, --card, --border) và chuẩn component shadcn/ui + Lucide icons.",
-        "verification_evidence": "Sync Score: 100% • FE SHA256: `bc604ec9290637d1`",
-        "digital_signature": "SIG-FS-AGENT-01-0FDAFE624C48F2C3"
+        "verification_evidence": "Sync Score: 100% • FE SHA256: `6947753d963795cd`",
+        "digital_signature": "SIG-FS-AGENT-01-BB39A44C3FAFE282"
       },
       {
         "agent_id": "FS-AGENT-02",
@@ -4749,7 +4749,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% bảo toàn hợp đồng API Request/Response, HTTP Status và Next.js App Router không bị gián đoạn trước & sau khi sửa.",
         "verification_evidence": "API SHA256 Invariant: `52aef42bb0621b1c` == `52aef42bb0621b1c`",
-        "digital_signature": "SIG-FS-AGENT-02-FA98FBDAD7976811"
+        "digital_signature": "SIG-FS-AGENT-02-7250BBEDDA6609CD"
       },
       {
         "agent_id": "FS-AGENT-03",
@@ -4759,7 +4759,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm 100% không làm biến đổi cấu trúc bảng/cột Database, không gây mất dữ liệu hoặc lệch liên kết kho/đơn hàng.",
         "verification_evidence": "DB Schema SHA256 Invariant: `2fabbe44ea906b24` == `2fabbe44ea906b24`",
-        "digital_signature": "SIG-FS-AGENT-03-3FFB0858B3419079"
+        "digital_signature": "SIG-FS-AGENT-03-560BC2D6EB484939"
       },
       {
         "agent_id": "FS-AGENT-04",
@@ -4769,7 +4769,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm thực thi bản vá đúng trọng tâm vùng khoanh tròn & mô tả người dùng; cam kết tự động Rollback tức thì (<50ms) nếu phát sinh lỗi.",
         "verification_evidence": "Patch SHA256: `c2bd062c2a3a78e6` • AST Balanced: `True`",
-        "digital_signature": "SIG-FS-AGENT-04-774682A036FC3417"
+        "digital_signature": "SIG-FS-AGENT-04-D20C388B01C5E5EC"
       },
       {
         "agent_id": "FS-AGENT-05",
@@ -4779,7 +4779,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm kiểm định độc lập trạng thái Trước khi sửa (Pre-Fix Baseline) và nghiệm thu Sau khi sửa (Post-Fix Verification) đạt 100%.",
         "verification_evidence": "Pre-Fix: `PRE_FIX_CLEARED` ➔ Post-Fix: `POST_FIX_ACCEPTANCE_PASSED`",
-        "digital_signature": "SIG-FS-AGENT-05-8B14FBC1DAA9BCAC"
+        "digital_signature": "SIG-FS-AGENT-05-FD342608B5BAC8DD"
       },
       {
         "agent_id": "FS-AGENT-06",
@@ -4789,7 +4789,7 @@
         "vote": "PASS",
         "accountability_pledge": "Chịu trách nhiệm rà soát 0% rò rỉ API Key/Secret và công chứng chữ ký số HMAC-SHA256 không thể chối bỏ cho toàn bộ Hội đồng Fullstack.",
         "verification_evidence": "Zero-Secret Verified: `True` • Contract ID: `CONTRACT-MATRIX-FS-WORKSPACE5-FB2`",
-        "digital_signature": "SIG-FS-AGENT-06-D34D6C18BEE2581C"
+        "digital_signature": "SIG-FS-AGENT-06-FB89202667D15660"
       }
     ]
   },
@@ -4798,9 +4798,9 @@
     "feedback_id": 1,
     "status": "SIGNED_AND_ENFORCED",
     "votes_summary": "6/6 FULLSTACK AGENTS PASS (ratio=1.00)",
-    "master_signature_hmac_sha256": "0xA275B7FD96DF0BE8B5E140337EFF6997",
-    "full_hash_sha256": "a275b7fd96df0be8b5e140337eff69972f3f38ecfd728d0abc55409ecfd10345",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "master_signature_hmac_sha256": "0x2FBBA3E45F12E364CF022F3EB3946ADA",
+    "full_hash_sha256": "2fbba3e45f12e364cf022f3eb3946ada9d782d73b37604a1d003e0d39a5f12bc",
+    "signed_at": "2026-11-15T05:09:55Z",
     "accountability_clause": "Hội đồng 6 Agent Fullstack cam kết chịu trách nhiệm kỹ thuật toàn diện đối với bản vá này: Đảm bảo đã nghiệm thu Trước & Sau khi sửa, đồng bộ 100% Design gốc, bảo toàn tuyệt đối Database/API, và tự động Rollback tức thì nếu vi phạm bất kỳ điều khoản hợp đồng số nào.",
     "pre_fix_acceptance": {
       "stage": "PRE_FIX_ACCEPTANCE",

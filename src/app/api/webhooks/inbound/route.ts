@@ -17,6 +17,11 @@ import {
 } from '@/lib/warehouse-service'
 import { PROTECTED_REAL_SKUS } from '@/app/api/ledger/test-guard/route'
 import { enqueueShopeeOrderForLinkedPos } from '@/lib/peripheral-hub'
+import { isSyntheticSku } from '@/lib/synthetic-filter'
+import {
+  getInventorySyncPolicy,
+  resolveMarketplaceTargetStock,
+} from '@/lib/inventory-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -1042,7 +1047,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Nạp song song toàn bộ dữ liệu tham chiếu trong 1 roundtrip duy nhất tới Supabase
-      const [primaryCategory, fallbackCategory, defaultWh, allActiveProducts, channels, pendingOutboxRows] = await Promise.all([
+      const [primaryCategory, fallbackCategory, defaultWh, allActiveProducts, channels, pendingOutboxRows, inventoryPolicy] = await Promise.all([
         db.category.findFirst({ where: { slug: 'an-nhien-thach-thach-cao' } }),
         db.category.findFirst(),
         db.warehouse.findFirst({ where: { isDefault: true } }),
@@ -1052,6 +1057,7 @@ export async function POST(req: NextRequest) {
           where: { scope: 'CHANNEL', action: 'OUTBOX_PENDING' },
           select: { entityId: true, detail: true },
         }),
+        getInventorySyncPolicy(),
       ])
 
       const pendingOutboxProductIds = new Set<string>()
@@ -1080,6 +1086,7 @@ export async function POST(req: NextRequest) {
       const results: Array<Record<string, unknown>> = []
       let hasAnyRealMutation = false
       let hasUnlinkedItem = false
+      let hasVirtualRefillTrigger = false
 
       for (const d of itemsToProcess) {
         const rawSku = (d.sku || '').trim()
@@ -1355,21 +1362,29 @@ export async function POST(req: NextRequest) {
         // Nếu giá trên sàn KHÔNG thay đổi so với lần đồng bộ trước (!shopeePriceChanged), giữ nguyên giá hiện tại của CMS
         const effectivePrice = existing && !shopeePriceChanged ? existing.sellPrice : sellPrice
 
-        let resolvedStock = incomingStock
+        // Bất biến cốt lõi: Tồn kho CMS (Product.stock) BẮT BUỘC 100% là dữ liệu vật lý thật tại kho;
+        // tồn kho Sàn Shopee có thể là tồn ảo (trừ khi người vận hành bấm tường minh forceAdoptOpeningStock).
+        const forceAdoptOpeningStock = Boolean((d as Record<string, unknown>).forceAdoptOpeningStock)
+        let resolvedStock = existing
+          ? forceAdoptOpeningStock
+            ? incomingStock
+            : existing.stock
+          : forceAdoptOpeningStock
+            ? incomingStock
+            : 0
         let conflictDetected = false
         let enqueueOutboxCorrection = false
         let awaitingOrderReconciliation = false
         let awaitingOpeningChoice = false
-        const forceAdoptOpeningStock = Boolean((d as Record<string, unknown>).forceAdoptOpeningStock)
 
         const prevOpeningOrigin = String(
-          prevAttrs.openingStockOrigin || (prevAttrs.shopeeItemId ? 'SHOPEE_MARKETPLACE' : 'CMS_WAREHOUSE')
+          prevAttrs.openingStockOrigin || (forceAdoptOpeningStock ? 'SHOPEE_MARKETPLACE' : 'CMS_WAREHOUSE')
         )
         const prevOpeningLabel = String(
           prevAttrs.openingStockOriginLabel ||
             (prevOpeningOrigin === 'SHOPEE_MARKETPLACE'
               ? `Gốc tồn đầu từ Sàn Shopee (${d.shopUsername || prevAttrs.shopUsername || 'thaimy1605'})`
-              : 'Gốc tồn đầu tại Kho CMS (KHO-TRUNG-TAM)')
+              : 'Gốc tồn đầu tại Kho CMS (Dữ liệu kho thật)')
         )
         const prevOpeningQty =
           typeof prevAttrs.openingStockQty === 'number'
@@ -1378,7 +1393,7 @@ export async function POST(req: NextRequest) {
               ? 16
               : existing
                 ? existing.stock
-                : incomingStock
+                : resolvedStock
 
         let nextReconciliationStatus = String(prevAttrs.reconciliationStatus || 'RECONCILED_OK')
         let unreconciledShopeeDelta = 0
@@ -1394,47 +1409,79 @@ export async function POST(req: NextRequest) {
             resolvedStock = incomingStock
             nextReconciliationStatus = 'RECONCILED_OK'
             unreconciledShopeeDelta = 0
-          } else if (
-            existing.stock === 0 &&
-            incomingStock > 0 &&
-            (shopeeStockChanged ||
-              prevOpeningOrigin === 'CMS_WAREHOUSE' ||
-              prevAttrs.reconciliationStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK')
-          ) {
-            // Kho trống = 0 (chưa nhập kho vật lý vào CMS) nhưng Sàn có tồn > 0: Giữ nguyên Kho CMS = 0 và KHÔNG tự đẩy 0 lên Sàn
-            resolvedStock = 0
-            enqueueOutboxCorrection = false
-            awaitingOpeningChoice = shopeeStockChanged
-            nextReconciliationStatus = 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
-            unreconciledShopeeDelta = incomingStock
-          } else if (!shopeeStockChanged && existing.stock !== incomingStock) {
-            // Sàn không đổi tồn kho, chỉ có CMS vừa đổi tồn kho (ví dụ xuất đơn POS/sàn đã đối chiếu) -> giữ nguyên tồn kho CMS và đẩy Outbox lên sàn
+          } else if (inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE') {
+            // CHẾ ĐỘ 1: Đồng bộ tồn kho thật từ CMS lên Sàn (CMS -> Sàn: max(0, CMS stock))
             resolvedStock = existing.stock
-            enqueueOutboxCorrection = true
-            nextReconciliationStatus = 'RECONCILED_OK'
-            unreconciledShopeeDelta = 0
-          } else if (shopeeStockChanged && incomingStock < existing.stock) {
-            // Từ sau khi chốt tồn đầu kỳ: Khi Sàn giảm tồn (Sàn bán hàng), KHÔNG tự ý ghi đè trừ tồn mù quáng từ Product Sync
-            // Bắt buộc giữ nguyên tồn CMS và chờ/kích hoạt đồng bộ Đơn hàng từ Sàn về CMS (INBOUND_SHOPEE_ORDER_SYNC) để đối chiếu và trừ tồn chính xác
-            resolvedStock = existing.stock
-            awaitingOrderReconciliation = true
-            conflictDetected = true
-            nextReconciliationStatus = 'PENDING_SHOPEE_ORDER'
-            unreconciledShopeeDelta = incomingStock - existing.stock
-          } else if (shopeeStockChanged && incomingStock > existing.stock) {
-            // Sàn tăng tồn trực tiếp trên Shopee so với tồn kho CMS đã chốt -> Giữ tồn CMS và cảnh báo lệch tồn để người vận hành chọn lấy tồn Sàn hoặc đẩy tồn Kho
-            resolvedStock = existing.stock
-            conflictDetected = true
-            nextReconciliationStatus = existing.stock === 0 ? 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK' : 'STOCK_DRIFT'
-            unreconciledShopeeDelta = incomingStock - existing.stock
+            const clampedCmsStock = Math.max(0, resolvedStock)
+            if (!shopeeStockChanged && clampedCmsStock !== incomingStock) {
+              enqueueOutboxCorrection = true
+              nextReconciliationStatus = 'RECONCILED_OK'
+              unreconciledShopeeDelta = 0
+            } else if (shopeeStockChanged && incomingStock < clampedCmsStock) {
+              // Sàn giảm tồn (có đơn phát sinh trên Sàn) -> giữ tồn kho thật CMS và kích hoạt kéo đơn Sàn về đối chiếu trừ tồn
+              awaitingOrderReconciliation = true
+              conflictDetected = true
+              nextReconciliationStatus = 'PENDING_SHOPEE_ORDER'
+              unreconciledShopeeDelta = incomingStock - resolvedStock
+            } else if (clampedCmsStock !== incomingStock) {
+              // Tồn Sàn đang lệch so với kho thật CMS (VD: vừa chuyển sang Mode 1 hoặc Sàn vừa chỉnh tay) -> đẩy kho thật CMS lên Sàn
+              enqueueOutboxCorrection = true
+              conflictDetected = shopeeStockChanged
+              nextReconciliationStatus = 'RECONCILED_OK'
+              unreconciledShopeeDelta = 0
+            } else {
+              nextReconciliationStatus = 'RECONCILED_OK'
+              unreconciledShopeeDelta = incomingStock - resolvedStock
+            }
           } else {
+            // CHẾ ĐỘ 2 (VIRTUAL_ALWAYS_IN_STOCK): Sàn luôn tồn hàng ở mức ảo & Chống ghi đè tồn thật CMS 100%
             resolvedStock = existing.stock
+            enqueueOutboxCorrection = false
+            if (shopeeStockChanged && prevSyncedStock >= 0 && incomingStock < prevSyncedStock) {
+              // Tồn ảo trên Sàn vừa giảm -> có khách đặt hàng trên Sàn -> kéo đơn về CMS ngay để trừ kho thật / in phiếu
+              awaitingOrderReconciliation = true
+            }
+            if (
+              inventoryPolicy.virtualAutoRefill &&
+              !incomingIsUnlisted &&
+              incomingStock <= inventoryPolicy.virtualMinThreshold &&
+              incomingStock !== inventoryPolicy.virtualStockQty
+            ) {
+              hasVirtualRefillTrigger = true
+            }
+            if (incomingStock !== resolvedStock) {
+              awaitingOpeningChoice = false
+              nextReconciliationStatus = 'VIRTUAL_MARKETPLACE_ACTIVE'
+              unreconciledShopeeDelta = incomingStock - resolvedStock
+            } else {
+              nextReconciliationStatus = 'RECONCILED_OK'
+              unreconciledShopeeDelta = 0
+            }
+          }
+        } else {
+          // Sản phẩm mới kéo từ Sàn về CMS: Kho thật CMS khởi tạo = 0 (trừ khi forceAdoptOpeningStock = true)
+          if (
+            inventoryPolicy.syncMode === 'VIRTUAL_ALWAYS_IN_STOCK' &&
+            inventoryPolicy.virtualAutoRefill &&
+            !incomingIsUnlisted &&
+            incomingStock <= inventoryPolicy.virtualMinThreshold &&
+            incomingStock !== inventoryPolicy.virtualStockQty
+          ) {
+            hasVirtualRefillTrigger = true
+          }
+          if (!forceAdoptOpeningStock && incomingStock > 0) {
+            if (inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE') {
+              enqueueOutboxCorrection = true
+              nextReconciliationStatus = 'RECONCILED_OK'
+              unreconciledShopeeDelta = 0
+            } else {
+              nextReconciliationStatus = 'VIRTUAL_MARKETPLACE_ACTIVE'
+              unreconciledShopeeDelta = incomingStock - resolvedStock
+            }
+          } else {
             nextReconciliationStatus = 'RECONCILED_OK'
             unreconciledShopeeDelta = 0
           }
-        } else {
-          nextReconciliationStatus = 'RECONCILED_OK'
-          unreconciledShopeeDelta = 0
         }
 
         const incomingModelName = String(d.modelName || d.attributes?.modelName || '').trim()
@@ -1460,6 +1507,15 @@ export async function POST(req: NextRequest) {
           Number(prevAttrs.shopeeModifyTime || 0) === incomingModifyTime
 
         if (existing && isSameData) {
+          if (
+            inventoryPolicy.syncMode === 'VIRTUAL_ALWAYS_IN_STOCK' &&
+            inventoryPolicy.virtualAutoRefill &&
+            !incomingIsUnlisted &&
+            incomingStock <= inventoryPolicy.virtualMinThreshold &&
+            incomingStock !== inventoryPolicy.virtualStockQty
+          ) {
+            hasVirtualRefillTrigger = true
+          }
           results.push({
             ok: true,
             action: 'SKIPPED_IDEMPOTENT',
@@ -1486,20 +1542,20 @@ export async function POST(req: NextRequest) {
           shopeeModelName: incomingModelName || String(prevAttrs.shopeeModelName || ''),
           parentSku: incomingParentSku || String(prevAttrs.parentSku || ''),
           shopeeModifyTime: incomingModifyTime,
-          openingStockOrigin: existing && !forceAdoptOpeningStock ? prevOpeningOrigin : 'SHOPEE_MARKETPLACE',
+          openingStockOrigin: existing && !forceAdoptOpeningStock ? prevOpeningOrigin : forceAdoptOpeningStock ? 'SHOPEE_MARKETPLACE' : 'CMS_WAREHOUSE',
           openingStockOriginLabel:
             existing && !forceAdoptOpeningStock
               ? prevOpeningLabel
-              : `Gốc tồn đầu từ Sàn Shopee (${d.shopUsername || prevAttrs.shopUsername || 'thaimy1605'} · Item #${d.shopeeItemId || ''})`,
+              : forceAdoptOpeningStock
+                ? `Gốc tồn đầu từ Sàn Shopee (${d.shopUsername || prevAttrs.shopUsername || 'thaimy1605'} · Item #${d.shopeeItemId || ''})`
+                : 'Gốc tồn đầu tại Kho CMS (Dữ liệu kho thật)',
           openingStockQty: existing && !forceAdoptOpeningStock ? prevOpeningQty : resolvedStock,
           openingStockLockedAt: String(prevAttrs.openingStockLockedAt || new Date().toISOString()),
           liveShopeeStock: incomingStock,
           unreconciledShopeeDelta,
           reconciliationStatus: nextReconciliationStatus,
-          lastSyncedShopeeStock:
-            enqueueOutboxCorrection || nextReconciliationStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
-              ? incomingStock
-              : resolvedStock,
+          lastSyncedShopeeStock: incomingStock,
+          ...(enqueueOutboxCorrection ? { pendingOutboxSync: true } : {}),
           lastSyncedShopeePrice: effectivePrice,
           lastSyncedShopeeUnlisted: rawShopeeUnlisted,
           lastIdempotencyKey: d.idempotencyKey || `SYNC_${Date.now()}`,
@@ -1715,14 +1771,15 @@ export async function POST(req: NextRequest) {
           fetch(`${process.env.SHOPEE_SYNC_PORT ? `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT}` : 'http://127.0.0.1:51898'}/shopee/trigger-sync`, { method: 'POST' }).catch(() => null)
         }
 
-        if (enqueueOutboxCorrection) {
+        if (enqueueOutboxCorrection && !pendingOutboxProductIds.has(product.id) && !prevAttrs.pendingOutboxSync) {
+          const clampedTargetStock = Math.max(0, resolvedStock)
           await logLedger({
             scope: 'CHANNEL',
             action: 'OUTBOX_PENDING',
             entityType: 'Product',
             entityId: product.id,
             entityCode: product.sku,
-            title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: Đẩy tồn kho an toàn [${product.sku}] (${resolvedStock}) lên Shopee`,
+            title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: Đồng bộ kho thật CMS [${product.sku}] (${clampedTargetStock}) lên Shopee`,
             detail: {
               direction: 'CMS_TO_SHOPEE',
               source: 'OPENVN_CMS',
@@ -1730,15 +1787,17 @@ export async function POST(req: NextRequest) {
               sku: product.sku,
               shopeeItemId: String(d.shopeeItemId || ''),
               shopeeModelId: String(d.shopeeModelId || ''),
-              targetStock: resolvedStock,
+              targetStock: clampedTargetStock,
+              cmsRealStock: resolvedStock,
               targetPrice: effectivePrice,
               targetUnlisted: incomingIsUnlisted,
               shopeeReportedStock: incomingStock,
-              reason: 'ANTI_OVERSELL_CONFLICT_RESOLUTION',
+              reason: 'SYNC_CMS_TO_MARKETPLACE_POLICY',
             },
             actor: 'SYSTEM',
             originSource: 'SHOPEE_SYNC',
           })
+          pendingOutboxProductIds.add(product.id)
         }
 
         // Ghi nhận biến động giá bán từ Shopee vào Sổ Data (chỉ khi giá sàn thực sự thay đổi so với lần đồng bộ trước)
@@ -1883,6 +1942,16 @@ export async function POST(req: NextRequest) {
       }
       if (hasAnyRealMutation) {
         broadcast('inventory.updated', { batchCount: results.length })
+      }
+      if (
+        hasVirtualRefillTrigger &&
+        !itemsToProcess.every((it) => isSyntheticSku(it.sku || it.modelSku || '', PROTECTED_REAL_SKUS))
+      ) {
+        broadcast('outbox.updated', { reason: 'virtual_auto_refill_triggered' })
+        fetch(
+          `${process.env.SHOPEE_SYNC_PORT ? `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT}` : 'http://127.0.0.1:51898'}/shopee/trigger-sync`,
+          { method: 'POST' }
+        ).catch(() => null)
       }
 
       if (!isBatch) {
@@ -2601,18 +2670,21 @@ export async function POST(req: NextRequest) {
 
     // ===== 13. OUTBOX_FETCH_PENDING: Worker kéo hàng đợi Outbox (CMS -> Sàn Shopee) bất đồng bộ =====
     if (event === 'OUTBOX_FETCH_PENDING') {
-      const allProducts = await db.product.findMany({
-        where: { status: { not: 'INACTIVE' } },
-        include: { listings: { include: { channel: true } } },
-      })
-      const pendingLedgerEntries = await db.ledgerEntry.findMany({
-        where: {
-          scope: 'CHANNEL',
-          action: 'OUTBOX_PENDING',
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 50,
-      })
+      const [allProducts, pendingLedgerEntries, inventoryPolicy] = await Promise.all([
+        db.product.findMany({
+          where: { status: { not: 'INACTIVE' } },
+          include: { listings: { include: { channel: true } } },
+        }),
+        db.ledgerEntry.findMany({
+          where: {
+            scope: 'CHANNEL',
+            action: 'OUTBOX_PENDING',
+          },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+        }),
+        getInventorySyncPolicy(),
+      ])
 
       const explicitByProductId = new Map<string, string>()
       for (const le of pendingLedgerEntries) {
@@ -2641,7 +2713,16 @@ export async function POST(req: NextRequest) {
         idempotencyKey: string
       }> = []
 
+      const outboxReq = (data ?? {}) as {
+        includeSyntheticTest?: boolean
+        onlySyntheticTest?: boolean
+      }
+
       for (const p of allProducts) {
+        const isSynth = isSyntheticSku(p.sku, PROTECTED_REAL_SKUS)
+        if (outboxReq.onlySyntheticTest && !isSynth) continue
+        if (!outboxReq.includeSyntheticTest && !outboxReq.onlySyntheticTest && isSynth) continue
+
         let attrs: Record<string, unknown> = {}
         if (p.attributes) {
           try {
@@ -2675,8 +2756,8 @@ export async function POST(req: NextRequest) {
               shopeeItemId: '',
               shopeeModelId: '',
               locationId: 'VNZ',
-              targetStock: p.stock,
-              lastSyncedStock: p.stock,
+              targetStock: Math.max(0, p.stock),
+              lastSyncedStock: Math.max(0, p.stock),
               targetPrice: p.sellPrice,
               lastSyncedPrice: p.sellPrice,
               targetUnlisted: false,
@@ -2699,33 +2780,17 @@ export async function POST(req: NextRequest) {
 
         const shopeeListing = p.listings.find((l) => l.channel.key === 'SHOPEE')
         const lastSyncedStock =
-          typeof attrs.lastSyncedShopeeStock === 'number' ? attrs.lastSyncedShopeeStock : -1
+          typeof attrs.lastSyncedShopeeStock === 'number'
+            ? attrs.lastSyncedShopeeStock
+            : typeof attrs.liveShopeeStock === 'number'
+              ? attrs.liveShopeeStock
+              : -1
         const lastSyncedPrice =
           typeof attrs.lastSyncedShopeePrice === 'number' ? attrs.lastSyncedShopeePrice : -1
         const lastSyncedUnlisted =
           typeof attrs.lastSyncedShopeeUnlisted === 'boolean' ? attrs.lastSyncedShopeeUnlisted : null
 
         const hasExplicitOutbox = explicitByProductId.has(p.id) || Boolean(attrs.pendingOutboxSync)
-        const reconStatus = String(attrs.reconciliationStatus || '')
-        const hasShortagePending = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0) > 0
-        // Bảo vệ tuyệt đối tồn kho trên Sàn Shopee lúc đang Live khi Kho CMS = 0 (chưa nhập kho đầu kỳ hoặc chờ đối soát lệch kho):
-        // TUYỆT ĐỐI KHÔNG tự động ép đẩy tồn = 0 lên Shopee trừ khi có lệnh Outbox tường minh từ người vận hành!
-        const isMarketplaceStockProtected =
-          !hasExplicitOutbox &&
-          typeof attrs.cmsTargetStock !== 'number' &&
-          (reconStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK' ||
-            reconStatus === 'PENDING_SHOPEE_ORDER' ||
-            reconStatus === 'STOCK_DRIFT' ||
-            reconStatus === 'SHOPEE_DIRECT_ADJUSTED' ||
-            hasShortagePending ||
-            (p.stock === 0 && attrs.openingStockOrigin === 'CMS_WAREHOUSE' && lastSyncedStock > 0))
-
-        const targetStock =
-          typeof attrs.cmsTargetStock === 'number'
-            ? attrs.cmsTargetStock
-            : isMarketplaceStockProtected && lastSyncedStock >= 0
-              ? lastSyncedStock
-              : p.stock
         const targetPrice =
           typeof attrs.cmsTargetPrice === 'number'
             ? attrs.cmsTargetPrice
@@ -2735,6 +2800,17 @@ export async function POST(req: NextRequest) {
             ? attrs.cmsTargetUnlisted
             : Boolean(attrs.isUnlistedOnShopee)
 
+        const stockRes = resolveMarketplaceTargetStock({
+          policy: inventoryPolicy,
+          cmsRealStock: p.stock,
+          lastSyncedStock,
+          cmsExplicitTargetStock:
+            typeof attrs.cmsTargetStock === 'number' ? attrs.cmsTargetStock : undefined,
+          hasExplicitOutbox,
+          isUnlistedOnShopee: targetUnlisted,
+        })
+        const targetStock = stockRes.targetStock
+
         if (
           !hasExplicitOutbox &&
           typeof attrs.outboxSuppressedKey === 'string' &&
@@ -2742,10 +2818,7 @@ export async function POST(req: NextRequest) {
         ) {
           continue
         }
-        const stockDrifted =
-          !isMarketplaceStockProtected &&
-          (hasExplicitOutbox || typeof attrs.cmsTargetStock === 'number' || lastSyncedStock >= 0) &&
-          lastSyncedStock !== targetStock
+        const stockDrifted = stockRes.stockDrifted
         const priceDrifted = lastSyncedPrice > 0 && lastSyncedPrice !== targetPrice
         const unlistedDrifted =
           typeof attrs.cmsTargetUnlisted === 'boolean' ||
@@ -2823,7 +2896,8 @@ export async function POST(req: NextRequest) {
         const itemIdStr = String(d.shopeeItemId || attrs.shopeeItemId || '').trim()
         const isLinkedShopee = Boolean(itemIdStr && itemIdStr !== '0')
 
-        const syncedStock = typeof d.syncedStock === 'number' ? d.syncedStock : product.stock
+        const syncedStock =
+          typeof d.syncedStock === 'number' ? Math.max(0, d.syncedStock) : Math.max(0, product.stock)
         const syncedPrice = typeof d.syncedPrice === 'number' ? d.syncedPrice : product.sellPrice
         const syncedUnlisted =
           typeof d.syncedUnlisted === 'boolean'
@@ -2832,6 +2906,7 @@ export async function POST(req: NextRequest) {
 
         if (isLinkedShopee) {
           attrs.lastSyncedShopeeStock = syncedStock
+          attrs.liveShopeeStock = syncedStock
           attrs.lastSyncedShopeePrice = syncedPrice
           attrs.lastSyncedShopeeUnlisted = syncedUnlisted
           attrs.isUnlistedOnShopee = syncedUnlisted

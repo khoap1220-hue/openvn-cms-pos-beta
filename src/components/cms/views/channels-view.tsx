@@ -16,6 +16,8 @@ import {
   ShopeeAsyncQueueDialog,
   type AsyncQueueSnapshot,
 } from '@/components/cms/shopee-async-queue-dialog'
+import { InventoryPolicyCard } from '@/components/cms/inventory-policy-card'
+import type { InventorySyncPolicy } from '@/lib/inventory-policy-shared'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -129,6 +131,7 @@ interface LinkedMarketplaceItem {
   lastShortageOrderSn?: string
   reconciliationStatus?:
     | 'RECONCILED_OK'
+    | 'VIRTUAL_MARKETPLACE_ACTIVE'
     | 'PENDING_SHOPEE_ORDER'
     | 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
     | 'SHOPEE_DIRECT_ADJUSTED'
@@ -179,7 +182,9 @@ interface ProductLinksResponse {
     pendingOutboxCount?: number
     brokenLinkCount?: number
     failedOutboxCount?: number
+    negativeStockCount?: number
   }
+  inventoryPolicy?: InventorySyncPolicy
   linkedItems: LinkedMarketplaceItem[]
   unlinkedItems: UnlinkedMarketplaceItem[]
   cmsProducts: CmsProductOption[]
@@ -221,7 +226,7 @@ export function ChannelsView({
   const [createModalItem, setCreateModalItem] = useState<UnlinkedMarketplaceItem | null>(null)
   const [customSkuDraft, setCustomSkuDraft] = useState<string>('')
   const [createStockInitMode, setCreateStockInitMode] = useState<'TAKE_FROM_MARKETPLACE' | 'KEEP_WAREHOUSE_STOCK'>(
-    'TAKE_FROM_MARKETPLACE'
+    'KEEP_WAREHOUSE_STOCK'
   )
 
   // Dialog Ghi chú Lý do khi Xác nhận Tồn Sàn hoặc Giữ Tồn Kho CMS
@@ -339,6 +344,7 @@ export function ChannelsView({
         'inventory.updated',
         'product.updated',
         'order.created',
+        'settings.updated',
         'marketplace.unlisted_alert',
       ].includes(e.type)
     ) {
@@ -435,13 +441,8 @@ export function ChannelsView({
     const targetId = preselectId || highConfidenceMatch?.id || ''
     setSelectedCmsProductId(targetId)
     setCmsModalSearch('')
-    const matchedProd = linkData?.cmsProducts.find((cp) => cp.id === targetId)
-    // Nếu Kho trống = 0 mà Sàn có tồn > 0, gợi ý mặc định lấy số tồn từ Sàn làm Tồn đầu kỳ
-    if (matchedProd && matchedProd.stock === 0 && item.stock > 0) {
-      setSyncDirection('SHOPEE_TO_CMS')
-    } else {
-      setSyncDirection('CMS_TO_SHOPEE')
-    }
+    // Chuẩn bất biến: CMS = 100% Dữ liệu thật, mặc định giữ nguyên tồn Kho thật CMS (trừ khi chủ shop chủ động bấm xác nhận lấy tồn Sàn làm tồn đầu kỳ)
+    setSyncDirection('CMS_TO_SHOPEE')
   }
 
   const openCreateModal = (item: UnlinkedMarketplaceItem) => {
@@ -490,6 +491,7 @@ export function ChannelsView({
           shopUsername: item.shopUsername,
           syncDirection: direction,
           stockInitMode,
+          confirmRealPhysicalStock: direction === 'SHOPEE_TO_CMS',
         }
       )
       const fallbackProd = linkData?.cmsProducts.find((cp) => cp.id === targetCmsId)
@@ -547,6 +549,7 @@ export function ChannelsView({
           shopUsername: item.shopUsername,
           stockInitMode: createStockInitMode,
           syncDirection: createStockInitMode === 'TAKE_FROM_MARKETPLACE' ? 'SHOPEE_TO_CMS' : 'CMS_TO_SHOPEE',
+          confirmRealPhysicalStock: createStockInitMode === 'TAKE_FROM_MARKETPLACE',
         }
       )
       const createdSku = res.product?.sku || draftSku
@@ -988,6 +991,17 @@ export function ChannelsView({
         />
       ) : (
         <>
+          <div className="mb-5">
+            <InventoryPolicyCard
+              compact
+              defaultExpanded={false}
+              onPolicySaved={() => {
+                void loadLinks(true)
+                void loadAsyncQueue()
+              }}
+            />
+          </div>
+
           {/* ===== TRUNG TÂM LIÊN KẾT SẢN PHẨM SÀN TMĐT <-> HÀNG HÓA CMS (ƯU TIÊN SỐ 1) ===== */}
           <Card id="sku-linking-hub" className="mb-6 border-border/70 shadow-sm">
             <CardHeader className="pb-3">
@@ -1080,17 +1094,25 @@ export function ChannelsView({
               <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 <div
                   className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
-                    (linkData?.stats?.oversellRiskCount ?? 0) > 0
-                      ? 'border-red-300 bg-red-50/70 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
-                      : 'border-emerald-200 bg-emerald-50/50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300'
+                    linkData?.inventoryPolicy?.syncMode === 'VIRTUAL_ALWAYS_IN_STOCK'
+                      ? 'border-orange-300 bg-orange-50/70 text-orange-900 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300'
+                      : (linkData?.stats?.oversellRiskCount ?? 0) > 0
+                        ? 'border-red-300 bg-red-50/70 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
+                        : 'border-emerald-200 bg-emerald-50/50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300'
                   }`}
                 >
                   <div>
-                    <div className="font-semibold">Chống bán lố (Oversell)</div>
+                    <div className="font-semibold">
+                      {linkData?.inventoryPolicy?.syncMode === 'VIRTUAL_ALWAYS_IN_STOCK'
+                        ? 'Sàn Tồn ảo · CMS Tồn thật'
+                        : 'Chống bán lố (Oversell)'}
+                    </div>
                     <div className="text-[11px] opacity-80">
-                      {(linkData?.stats?.oversellRiskCount ?? 0) > 0
-                        ? `${linkData?.stats.oversellRiskCount} SP hết hàng đang mở bán!`
-                        : 'An toàn 100% (0 SP bán lố)'}
+                      {linkData?.inventoryPolicy?.syncMode === 'VIRTUAL_ALWAYS_IN_STOCK'
+                        ? `Bảo vệ 100% Kho thật CMS${(linkData?.stats?.negativeStockCount ?? 0) > 0 ? ` (${linkData?.stats.negativeStockCount} mã âm kho)` : ''}`
+                        : (linkData?.stats?.oversellRiskCount ?? 0) > 0
+                          ? `${linkData?.stats.oversellRiskCount} SP hết hàng đang mở bán!`
+                          : 'An toàn 100% (0 SP bán lố)'}
                     </div>
                   </div>
                   <CheckCircle2 className="h-4 w-4 shrink-0 opacity-80" />
@@ -1774,11 +1796,20 @@ export function ChannelsView({
                               <TableCell className="text-right tabular-nums">
                                 <div className="flex flex-col items-end gap-1">
                                   <div className="inline-flex items-center justify-end gap-1 text-xs">
-                                    <span className="font-semibold text-foreground">{item.cmsStock}</span>
+                                    <span
+                                      className={
+                                        item.cmsStock < 0
+                                          ? 'font-bold text-purple-700 dark:text-purple-300'
+                                          : 'font-semibold text-foreground'
+                                      }
+                                    >
+                                      {item.cmsStock}
+                                    </span>
                                     <span className="text-muted-foreground">/</span>
                                     <span
                                       className={
-                                        item.cmsStock === (item.liveShopeeStock ?? item.lastSyncedShopeeStock)
+                                        item.cmsStock === (item.liveShopeeStock ?? item.lastSyncedShopeeStock) ||
+                                        item.reconciliationStatus === 'VIRTUAL_MARKETPLACE_ACTIVE'
                                           ? 'font-medium text-emerald-600 dark:text-emerald-400'
                                           : 'font-semibold text-amber-600 dark:text-amber-400'
                                       }
@@ -1786,6 +1817,24 @@ export function ChannelsView({
                                       {item.liveShopeeStock ?? item.lastSyncedShopeeStock}
                                     </span>
                                   </div>
+                                  {item.cmsStock < 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-purple-400 bg-purple-50 px-1 py-0 text-[9px] font-semibold text-purple-800 dark:bg-purple-950/60 dark:text-purple-300"
+                                      title="Tồn kho thật CMS đang âm do bật chế độ Cho phép bán âm kho thật — Sẽ tự bù trừ khi nhập kho mới"
+                                    >
+                                      Kho thật âm ({item.cmsStock})
+                                    </Badge>
+                                  )}
+                                  {item.reconciliationStatus === 'VIRTUAL_MARKETPLACE_ACTIVE' && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-orange-300 bg-orange-50 px-1 py-0 text-[9px] text-orange-800 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
+                                      title="Sàn đang mở mức tồn ảo chống ghi đè Kho thật CMS"
+                                    >
+                                      Tồn ảo Sàn · Bảo vệ Kho thật
+                                    </Badge>
+                                  )}
                                   {item.reconciliationStatus === 'PENDING_SHOPEE_ORDER' && (
                                     <Badge
                                       variant="outline"
@@ -1813,44 +1862,19 @@ export function ChannelsView({
                                       Chờ đối soát đơn Live (-{item.pendingOrderShortageQty})
                                     </Badge>
                                   )}
-                                  {item.cmsStock === 0 && (item.liveShopeeStock ?? item.lastSyncedShopeeStock) > 0 ? (
-                                    <div className="flex flex-wrap justify-end gap-1 pt-0.5">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-6 border-orange-300 bg-orange-50 px-1.5 text-[10px] text-orange-800 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
-                                        disabled={isBusy}
-                                        onClick={() => openReconcileReasonModal(item, 'TAKE_OPENING_FROM_MARKETPLACE')}
-                                        title="Kho trống = 0 nhưng Sàn có tồn: Lấy số tồn từ Sàn làm Tồn đầu kỳ (có ghi chú rõ lý do & gốc tồn đầu)"
-                                      >
-                                        Lấy tồn Sàn ({item.liveShopeeStock ?? item.lastSyncedShopeeStock}) làm Tồn đầu
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-6 border-violet-300 bg-violet-50 px-1.5 text-[10px] text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-300"
-                                        disabled={isBusy}
-                                        onClick={() =>
-                                          openReconcileReasonModal(item, 'ACCEPT_SHOPEE_DIRECT_ADJUSTMENT')
-                                        }
-                                        title="Nếu số tồn trên Sàn là chính xác do điều chỉnh trực tiếp: Ghi lý do & lập phiếu cân bằng kho"
-                                      >
-                                        Nhận ĐC Sàn ({item.liveShopeeStock ?? item.lastSyncedShopeeStock})
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-6 px-1.5 text-[10px]"
-                                        disabled={isBusy}
-                                        onClick={() => openReconcileReasonModal(item, 'KEEP_WAREHOUSE_AND_PUSH')}
-                                        title="Ghi lý do giữ nguyên Kho trống = 0 tại Kho CMS và đồng bộ lên Sàn"
-                                      >
-                                        Giữ Kho = 0
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    item.cmsStock !== (item.liveShopeeStock ?? item.lastSyncedShopeeStock) && (
+                                  {item.reconciliationStatus !== 'VIRTUAL_MARKETPLACE_ACTIVE' &&
+                                    (item.cmsStock === 0 && (item.liveShopeeStock ?? item.lastSyncedShopeeStock) > 0 ? (
                                       <div className="flex flex-wrap justify-end gap-1 pt-0.5">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-6 border-orange-300 bg-orange-50 px-1.5 text-[10px] text-orange-800 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
+                                          disabled={isBusy}
+                                          onClick={() => openReconcileReasonModal(item, 'TAKE_OPENING_FROM_MARKETPLACE')}
+                                          title="Kho trống = 0 nhưng Sàn có tồn: Lấy số tồn từ Sàn làm Tồn đầu kỳ (có ghi chú rõ lý do & gốc tồn đầu)"
+                                        >
+                                          Lấy tồn Sàn ({item.liveShopeeStock ?? item.lastSyncedShopeeStock}) làm Tồn đầu
+                                        </Button>
                                         <Button
                                           variant="outline"
                                           size="sm"
@@ -1859,9 +1883,9 @@ export function ChannelsView({
                                           onClick={() =>
                                             openReconcileReasonModal(item, 'ACCEPT_SHOPEE_DIRECT_ADJUSTMENT')
                                           }
-                                          title="Xác nhận số tồn điều chỉnh trên Sàn là chính xác: Mở hộp thoại ghi lý do & lập phiếu cân bằng kho CMS"
+                                          title="Nếu số tồn trên Sàn là chính xác do điều chỉnh trực tiếp: Ghi lý do & lập phiếu cân bằng kho"
                                         >
-                                          Nhận ĐC Sàn ({item.liveShopeeStock ?? item.lastSyncedShopeeStock}) là đúng
+                                          Nhận ĐC Sàn ({item.liveShopeeStock ?? item.lastSyncedShopeeStock})
                                         </Button>
                                         <Button
                                           variant="outline"
@@ -1869,13 +1893,39 @@ export function ChannelsView({
                                           className="h-6 px-1.5 text-[10px]"
                                           disabled={isBusy}
                                           onClick={() => openReconcileReasonModal(item, 'KEEP_WAREHOUSE_AND_PUSH')}
-                                          title="Nếu bấm nhầm trên Sàn: Mở hộp thoại ghi lý do giữ tồn Kho CMS và đẩy đè lên Sàn"
+                                          title="Ghi lý do giữ nguyên Kho trống = 0 tại Kho CMS và đồng bộ lên Sàn"
                                         >
-                                          Giữ Kho ({item.cmsStock})
+                                          Giữ Kho = 0
                                         </Button>
                                       </div>
-                                    )
-                                  )}
+                                    ) : (
+                                      item.cmsStock !== (item.liveShopeeStock ?? item.lastSyncedShopeeStock) && (
+                                        <div className="flex flex-wrap justify-end gap-1 pt-0.5">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-6 border-violet-300 bg-violet-50 px-1.5 text-[10px] text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-300"
+                                            disabled={isBusy}
+                                            onClick={() =>
+                                              openReconcileReasonModal(item, 'ACCEPT_SHOPEE_DIRECT_ADJUSTMENT')
+                                            }
+                                            title="Xác nhận số tồn điều chỉnh trên Sàn là chính xác: Mở hộp thoại ghi lý do & lập phiếu cân bằng kho CMS"
+                                          >
+                                            Nhận ĐC Sàn ({item.liveShopeeStock ?? item.lastSyncedShopeeStock}) là đúng
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-6 px-1.5 text-[10px]"
+                                            disabled={isBusy}
+                                            onClick={() => openReconcileReasonModal(item, 'KEEP_WAREHOUSE_AND_PUSH')}
+                                            title="Nếu bấm nhầm trên Sàn: Mở hộp thoại ghi lý do giữ tồn Kho CMS và đẩy đè lên Sàn"
+                                          >
+                                            Giữ Kho ({item.cmsStock})
+                                          </Button>
+                                        </div>
+                                      )
+                                    ))}
                                 </div>
                               </TableCell>
 
@@ -2312,23 +2362,6 @@ export function ChannelsView({
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <button
                     type="button"
-                    onClick={() => setSyncDirection('SHOPEE_TO_CMS')}
-                    className={`rounded-md border p-2.5 text-left text-xs transition-colors ${
-                      syncDirection === 'SHOPEE_TO_CMS'
-                        ? 'border-orange-500 bg-orange-500/10 font-medium'
-                        : 'hover:bg-muted/60'
-                    }`}
-                  >
-                    <p className="font-semibold text-orange-700 dark:text-orange-300">
-                      Lấy số tồn từ Sàn ({linkModalItem.stock} bộ) làm Tồn đầu kỳ
-                    </p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      Chốt tồn đầu kỳ = {linkModalItem.stock} bộ tại Kho CMS và ghi chú rõ{' '}
-                      <strong>[GỐC TỒN ĐẦU TỪ SÀN SHOPEE]</strong>. Khi Sàn bán sẽ đối chiếu đơn về CMS để trừ tồn.
-                    </p>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setSyncDirection('CMS_TO_SHOPEE')}
                     className={`rounded-md border p-2.5 text-left text-xs transition-colors ${
                       syncDirection === 'CMS_TO_SHOPEE'
@@ -2337,11 +2370,28 @@ export function ChannelsView({
                     }`}
                   >
                     <p className="font-semibold">
-                      Liên kết sản phẩm tại Kho CMS (Giữ tồn Kho ={' '}
-                      {linkData?.cmsProducts.find((cp) => cp.id === selectedCmsProductId)?.stock ?? 0} bộ)
+                      Giữ tồn Kho thật CMS ={' '}
+                      {linkData?.cmsProducts.find((cp) => cp.id === selectedCmsProductId)?.stock ?? 0} bộ (Khuyên dùng)
                     </p>
                     <p className="mt-0.5 text-muted-foreground">
-                      Giữ nguyên số tồn thực tế tại Kho CMS làm gốc và đẩy lên Sàn Shopee qua hàng đợi Outbox.
+                      Bảo vệ 100% tồn vật lý tại Kho CMS (chống tồn ảo Sàn ghi đè) và đồng bộ theo chế độ Tồn kho đã cài đặt.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncDirection('SHOPEE_TO_CMS')}
+                    className={`rounded-md border p-2.5 text-left text-xs transition-colors ${
+                      syncDirection === 'SHOPEE_TO_CMS'
+                        ? 'border-orange-500 bg-orange-500/10 font-medium'
+                        : 'hover:bg-muted/60'
+                    }`}
+                  >
+                    <p className="font-semibold text-orange-700 dark:text-orange-300">
+                      Xác nhận lấy số tồn từ Sàn ({linkModalItem.stock} bộ) làm Tồn đầu kỳ
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      Chỉ chọn khi hàng vật lý thật sự có {linkModalItem.stock} bộ trong kho. Hệ thống sẽ ghi chú{' '}
+                      <strong>[GỐC TỒN ĐẦU TỪ SÀN SHOPEE]</strong>.
                     </p>
                   </button>
                 </div>
@@ -2415,6 +2465,22 @@ export function ChannelsView({
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
+                    onClick={() => setCreateStockInitMode('KEEP_WAREHOUSE_STOCK')}
+                    className={`rounded-md border p-2.5 text-left text-xs transition-colors ${
+                      createStockInitMode === 'KEEP_WAREHOUSE_STOCK'
+                        ? 'border-primary bg-primary/10 font-medium'
+                        : 'hover:bg-muted/60'
+                    }`}
+                  >
+                    <p className="font-semibold">
+                      Khởi tạo Kho thật CMS = 0 bộ (Khuyên dùng — Chống tồn ảo Sàn ghi đè)
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      Khởi tạo hàng hóa CMS với tồn kho thật = 0 bộ (nhập kho thực tế sau bằng Phiếu nhập), Sàn vẫn giữ mức tồn theo chế độ đã chọn.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setCreateStockInitMode('TAKE_FROM_MARKETPLACE')}
                     className={`rounded-md border p-2.5 text-left text-xs transition-colors ${
                       createStockInitMode === 'TAKE_FROM_MARKETPLACE'
@@ -2423,25 +2489,11 @@ export function ChannelsView({
                     }`}
                   >
                     <p className="font-semibold text-orange-700 dark:text-orange-300">
-                      Lấy số tồn từ Sàn ({createModalItem.stock} bộ) làm Tồn đầu kỳ (Khuyên dùng)
+                      Xác nhận lấy số tồn từ Sàn ({createModalItem.stock} bộ) làm Tồn đầu kỳ vật lý
                     </p>
                     <p className="mt-0.5 text-muted-foreground">
-                      Ghi nhận rõ <strong>[GỐC TỒN ĐẦU TỪ SÀN SHOPEE]</strong> vào Sổ Kho &amp; Sổ Data. Khi Sàn bán sẽ
-                      đối chiếu các đơn trên Sàn về CMS để theo dõi và trừ tồn chính xác.
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreateStockInitMode('KEEP_WAREHOUSE_STOCK')}
-                    className={`rounded-md border p-2.5 text-left text-xs transition-colors ${
-                      createStockInitMode === 'KEEP_WAREHOUSE_STOCK'
-                        ? 'border-primary bg-primary/10 font-medium'
-                        : 'hover:bg-muted/60'
-                    }`}
-                  >
-                    <p className="font-semibold">Liên kết sản phẩm tại Kho trống (= 0 bộ)</p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      Khởi tạo tồn tại Kho CMS = 0 bộ làm gốc và đẩy đồng bộ lên Sàn Shopee.
+                      Chỉ chọn nếu kho thực tế đang có sẵn đúng {createModalItem.stock} bộ. Ghi nhận{' '}
+                      <strong>[GỐC TỒN ĐẦU TỪ SÀN SHOPEE]</strong> vào Sổ Kho.
                     </p>
                   </button>
                 </div>

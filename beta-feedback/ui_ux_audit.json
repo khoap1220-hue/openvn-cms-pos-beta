@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-15T03:29:09Z",
+  "updated_at": "2026-11-15T05:09:55Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,8 +13,8 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-3CF1386798BBED18B7A5",
-    "signed_at": "2026-11-15T03:29:09Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-66DE4F30DAD16D2A90EE",
+    "signed_at": "2026-11-15T05:09:55Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
@@ -183,11 +183,11 @@
     {
       "view_key": "products",
       "tsx_file": "src/components/cms/views/products-view.tsx",
-      "sha256_before": "cd3dc65fba98184c",
+      "sha256_before": "4df76c1fbe770a49",
       "metrics": {
         "cards": 0,
         "tables": 4,
-        "badges": 19,
+        "badges": 20,
         "truncate_nodes": 6,
         "nowrap_nodes": 7,
         "accessible_labels": 46
@@ -223,11 +223,11 @@
     {
       "view_key": "inventory",
       "tsx_file": "src/components/cms/views/inventory-view.tsx",
-      "sha256_before": "6847c4b46379b739",
+      "sha256_before": "2fd1382a84775449",
       "metrics": {
         "cards": 11,
         "tables": 4,
-        "badges": 16,
+        "badges": 17,
         "truncate_nodes": 10,
         "nowrap_nodes": 13,
         "accessible_labels": 23
@@ -256,8 +256,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/inventory/route.ts",
-      "backend_sha256_before": "233452390cd35f13",
-      "backend_sha256_after": "233452390cd35f13",
+      "backend_sha256_before": "03d025fc86a05845",
+      "backend_sha256_after": "03d025fc86a05845",
       "api_invariant_verified": true
     },
     {
@@ -303,7 +303,7 @@
     {
       "view_key": "pos",
       "tsx_file": "src/components/cms/views/pos-view.tsx",
-      "sha256_before": "bc604ec9290637d1",
+      "sha256_before": "6947753d963795cd",
       "metrics": {
         "cards": 3,
         "tables": 0,
@@ -667,7 +667,7 @@
     {
       "view_key": "system",
       "tsx_file": "src/components/cms/views/system-view.tsx",
-      "sha256_before": "8ec14df23f57dce3",
+      "sha256_before": "b6ba0296231c800f",
       "metrics": {
         "cards": 9,
         "tables": 1,
@@ -702,8 +702,8 @@
         "G5_QA_Verified": "PASS"
       },
       "backend_api": "src/app/api/settings/route.ts",
-      "backend_sha256_before": "8970f85ebce7fdc5",
-      "backend_sha256_after": "8970f85ebce7fdc5",
+      "backend_sha256_before": "d8a7c0351533063c",
+      "backend_sha256_after": "d8a7c0351533063c",
       "api_invariant_verified": true
     }
   ]

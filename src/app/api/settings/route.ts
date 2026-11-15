@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logLedger } from '@/lib/ledger'
 import {
+  broadcast,
   getApiCache,
   invalidateApiCache,
   setApiCache,
@@ -12,6 +13,10 @@ import {
   setSettingsBatch,
   writeMaintenanceStateFile,
 } from '@/lib/settings'
+import {
+  INVENTORY_POLICY_DEFAULTS_MAP,
+  INVENTORY_POLICY_SETTING_KEYS,
+} from '@/lib/inventory-policy-shared'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,6 +49,8 @@ const PUBLIC_KEYS = [
   'shop_workshop_presets',
   'shop_default_warehouse_label',
   'shop_storefront_url',
+  // CHÍNH SÁCH TỒN KHO THẬT CMS & ĐỒNG BỘ TỒN ẢO SÀN TMĐT
+  ...INVENTORY_POLICY_SETTING_KEYS,
 ] as const
 
 const DEFAULTS: Record<string, string> = {
@@ -64,6 +71,7 @@ const DEFAULTS: Record<string, string> = {
   shop_workshop_presets: 'Xưởng đúc thủ công, Tổ đổ nến bơ tự nhiên, Tổ hoàn thiện & đóng gói',
   shop_default_warehouse_label: 'Kho Trung Tâm',
   shop_storefront_url: '/store',
+  ...INVENTORY_POLICY_DEFAULTS_MAP,
 }
 
 /** giới hạn độ dài từng trường để chống nhồi dữ liệu */
@@ -221,6 +229,69 @@ export async function PATCH(req: NextRequest) {
       updates.push({ key: 'invoice_logo', value })
     }
 
+    // CHÍNH SÁCH TỒN KHO THẬT CMS & ĐỒNG BỘ TỒN ẢO SÀN TMĐT
+    let inventoryPolicyChanged = false
+    if (body.inventory_sync_mode !== undefined) {
+      const mode = String(body.inventory_sync_mode).trim().toUpperCase()
+      if (mode !== 'SYNC_CMS_TO_MARKETPLACE' && mode !== 'VIRTUAL_ALWAYS_IN_STOCK') {
+        return NextResponse.json(
+          { error: 'Chế độ đồng bộ tồn kho sàn không hợp lệ' },
+          { status: 400 }
+        )
+      }
+      updates.push({ key: 'inventory_sync_mode', value: mode })
+      inventoryPolicyChanged = true
+    }
+    if (body.inventory_virtual_stock_qty !== undefined) {
+      const qty = Math.round(Number(body.inventory_virtual_stock_qty))
+      if (!Number.isFinite(qty) || qty < 1 || qty > 999_999) {
+        return NextResponse.json(
+          { error: 'Mức tồn kho ảo trên sàn phải từ 1 đến 999.999' },
+          { status: 400 }
+        )
+      }
+      updates.push({ key: 'inventory_virtual_stock_qty', value: String(qty) })
+      inventoryPolicyChanged = true
+    }
+    if (body.inventory_virtual_min_threshold !== undefined) {
+      const th = Math.round(Number(body.inventory_virtual_min_threshold))
+      if (!Number.isFinite(th) || th < 0 || th > 999_998) {
+        return NextResponse.json(
+          { error: 'Ngưỡng tự bù tồn ảo phải từ 0 đến 999.998' },
+          { status: 400 }
+        )
+      }
+      updates.push({ key: 'inventory_virtual_min_threshold', value: String(th) })
+      inventoryPolicyChanged = true
+    }
+    if (body.inventory_virtual_auto_refill !== undefined) {
+      const enabled =
+        body.inventory_virtual_auto_refill === true ||
+        String(body.inventory_virtual_auto_refill).trim().toLowerCase() === 'true' ||
+        String(body.inventory_virtual_auto_refill).trim() === '1'
+      updates.push({ key: 'inventory_virtual_auto_refill', value: String(enabled) })
+      inventoryPolicyChanged = true
+    }
+    if (body.inventory_allow_negative_stock !== undefined) {
+      const enabled =
+        body.inventory_allow_negative_stock === true ||
+        String(body.inventory_allow_negative_stock).trim().toLowerCase() === 'true' ||
+        String(body.inventory_allow_negative_stock).trim() === '1'
+      updates.push({ key: 'inventory_allow_negative_stock', value: String(enabled) })
+      inventoryPolicyChanged = true
+    }
+    if (body.inventory_negative_stock_scope !== undefined) {
+      const scope = String(body.inventory_negative_stock_scope).trim().toUpperCase()
+      if (scope !== 'ALL_CHANNELS' && scope !== 'MARKETPLACE_ONLY') {
+        return NextResponse.json(
+          { error: 'Phạm vi cho phép bán âm kho thật không hợp lệ' },
+          { status: 400 }
+        )
+      }
+      updates.push({ key: 'inventory_negative_stock_scope', value: scope })
+      inventoryPolicyChanged = true
+    }
+
     if (updates.length === 0 && maintenanceToggled === null) {
       return NextResponse.json({ error: 'Không có gì để cập nhật' }, { status: 400 })
     }
@@ -261,6 +332,22 @@ export async function PATCH(req: NextRequest) {
       fresh = await buildPublicSettings()
     }
     setApiCache('settings:public', fresh, 60_000)
+    broadcast('settings.updated', { keys: updates.map((u) => u.key) })
+    if (inventoryPolicyChanged) {
+      invalidateApiCache('channels:product-links')
+      broadcast('channel.updated', { reason: 'inventory_policy_changed' })
+      broadcast('outbox.updated', { reason: 'inventory_policy_changed' })
+      if (
+        req.headers.get('x-test-suppress-daemon-trigger') !== '1' &&
+        (fresh.inventory_sync_mode === 'SYNC_CMS_TO_MARKETPLACE' ||
+          fresh.inventory_virtual_auto_refill === 'true')
+      ) {
+        fetch(
+          `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+          { method: 'POST' }
+        ).catch(() => null)
+      }
+    }
     return NextResponse.json(fresh)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Không thể lưu cấu hình'

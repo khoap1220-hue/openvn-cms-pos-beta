@@ -45,6 +45,12 @@ import {
 import { apiGet, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import {
+  DEFAULT_INVENTORY_SYNC_POLICY,
+  canChannelSellNegative,
+  parseInventorySyncPolicy,
+  type InventorySyncPolicy,
+} from '@/lib/inventory-policy-shared'
+import {
   isHeadlessQaCrawler,
   loadPrinterConfig,
   type PeripheralPrinterConfig,
@@ -229,6 +235,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const [autoIssueInvoice, setAutoIssueInvoice] = useState(true)
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [inventoryPolicy, setInventoryPolicy] = useState<InventorySyncPolicy>(DEFAULT_INVENTORY_SYNC_POLICY)
+  const allowPosNegative = useMemo(() => canChannelSellNegative(inventoryPolicy, 'POS'), [inventoryPolicy])
 
   // ===== Tìm & tạo nhanh khách hàng tại quầy =====
   const [customerSearch, setCustomerSearch] = useState('')
@@ -355,7 +363,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      const [prodRes, catRes, chRes, custRes, whRes, vchRes, polRes, campRes] = await Promise.all([
+      const [prodRes, catRes, chRes, custRes, whRes, vchRes, polRes, campRes, settingsRes] = await Promise.all([
         apiGet<{ products: Product[] }>('/api/products?status=ACTIVE'),
         apiGet<{ categories: Category[] }>('/api/categories'),
         apiGet<{ channels: Channel[] }>('/api/channels'),
@@ -368,7 +376,11 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         apiGet<{ campaigns: typeof runningCampaigns }>('/api/campaigns?status=RUNNING').catch(() => ({
           campaigns: [],
         })),
+        apiGet<Record<string, unknown>>('/api/settings').catch(() => null),
       ])
+      if (settingsRes) {
+        setInventoryPolicy(parseInventorySyncPolicy(settingsRes))
+      }
       const validChannels = (chRes.channels ?? []).filter((c) => c && typeof c.key === 'string')
       setProducts(prodRes.products)
       if (!silent && !autoAdjustedEmptyFilterRef.current && prodRes.products.length > 0) {
@@ -422,10 +434,10 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const addProductToCart = useCallback(
     (product: Product, addQty = 1) => {
       const maxStock = getAvailableStock(product)
-      if (maxStock <= 0) {
+      if (!allowPosNegative && maxStock <= 0) {
         toast({
           title: `Sản phẩm "${product.name}" đã hết hàng trong kho`,
-          description: `Mã SKU: ${product.sku} · Tồn kho: 0`,
+          description: `Mã SKU: ${product.sku} · Tồn kho thật: ${maxStock}`,
           variant: 'destructive',
         })
         return false
@@ -448,7 +460,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         const existing = tab.items.find((it) => it.productId === product.id)
         const currentQty = existing?.quantity ?? 0
         const mult = existing?.unitMultiplier ?? defaultSellRate
-        if ((currentQty + addQty) * mult > maxStock) {
+        if (!allowPosNegative && (currentQty + addQty) * mult > maxStock) {
           exceeded = true
           return tab
         }
@@ -491,7 +503,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       }
       return true
     },
-    [getAvailableStock, getPosPrice, toast, updateActiveTab]
+    [allowPosNegative, getAvailableStock, getPosPrice, toast, updateActiveTab]
   )
 
   // ===== Quét mã vạch hoặc nhập SKU nhanh (F2) =====
@@ -538,7 +550,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         items: tab.items.map((it) => {
           if (it.productId !== productId) return it
           const mult = it.unitMultiplier || 1
-          if (nextQty * mult > it.maxStock) {
+          if (!allowPosNegative && nextQty * mult > it.maxStock) {
             toast({
               title: `Tồn kho chỉ còn ${formatNumber(it.maxStock)} ${it.baseUnit || 'SP'}`,
               description: it.name,
@@ -607,7 +619,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     return products.filter((p) => {
       if (selectedCategory !== 'ALL' && p.categoryId !== selectedCategory) return false
       const avail = getAvailableStock(p)
-      if (stockFilter === 'IN_STOCK' && avail <= 0) return false
+      if (stockFilter === 'IN_STOCK' && !allowPosNegative && avail <= 0) return false
       if (stockFilter === 'COMBO' && p.type !== 'COMBO') return false
       if (stockFilter === 'LOW_STOCK' && avail > p.lowStockThreshold) return false
       if (!q) return true
@@ -617,7 +629,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         (p.barcode ?? '').toLowerCase().includes(q)
       )
     })
-  }, [products, searchQuery, selectedCategory, stockFilter, getAvailableStock])
+  }, [products, searchQuery, selectedCategory, stockFilter, allowPosNegative, getAvailableStock])
 
   // Bản đồ số lượng đang nằm trong giỏ của từng SP
   const cartQtyByProduct = useMemo(() => {
@@ -1816,6 +1828,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
 
   // Nhận sự kiện Realtime < 10ms từ Điện thoại & Webhook Đơn Shopee
   useRealtime((ev) => {
+    if (ev.type === 'settings.updated' || ev.type === 'inventory.updated' || ev.type === 'product.updated') {
+      void loadData(true)
+    }
     if (
       ev.type === 'peripheral.event' ||
       ev.type === 'order.created' ||
@@ -2306,25 +2321,26 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                     const price = getPosPrice(p)
                     const inCartQty = cartQtyByProduct.get(p.id) ?? 0
                     const outOfStock = avail <= 0
+                    const blockedByStock = !allowPosNegative && outOfStock
                     const isLow = avail > 0 && avail <= p.lowStockThreshold
 
                     return (
                       <div
                         key={p.id}
                         role="button"
-                        tabIndex={outOfStock ? -1 : 0}
+                        tabIndex={blockedByStock ? -1 : 0}
                         onClick={() => {
-                          if (!outOfStock) addProductToCart(p, 1)
+                          if (!blockedByStock) addProductToCart(p, 1)
                         }}
                         onKeyDown={(e) => {
-                          if (!outOfStock && (e.key === 'Enter' || e.key === ' ')) {
+                          if (!blockedByStock && (e.key === 'Enter' || e.key === ' ')) {
                             e.preventDefault()
                             addProductToCart(p, 1)
                           }
                         }}
                         className={cn(
                           'group relative flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none sm:p-3',
-                          outOfStock
+                          blockedByStock
                             ? 'cursor-not-allowed border-border/50 bg-muted/40 opacity-60'
                             : inCartQty > 0
                               ? 'cursor-pointer border-[#0066CC] bg-[#0066CC]/[0.04] shadow-xs ring-1 ring-[#0066CC]/35 active:scale-[0.99]'
@@ -2392,13 +2408,23 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                               className={cn(
                                 'rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
                                 outOfStock
-                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                  ? allowPosNegative
+                                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
                                   : isLow
                                     ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                                     : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
                               )}
                             >
-                              {outOfStock ? 'Hết hàng' : `Tồn: ${avail}`}
+                              {outOfStock
+                                ? allowPosNegative
+                                  ? avail < 0
+                                    ? `Âm kho: ${avail} · Bán âm`
+                                    : 'Kho: 0 · Bán âm'
+                                  : avail < 0
+                                    ? `Âm kho (${avail})`
+                                    : 'Hết hàng'
+                                : `Tồn: ${avail}`}
                             </span>
                           </div>
 
@@ -2460,7 +2486,12 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                             <td className="px-2.5 py-2 font-mono text-[11px] text-muted-foreground">
                               {p.barcode ?? '—'}
                             </td>
-                            <td className="px-2.5 py-2 text-right font-semibold tabular-nums">
+                            <td
+                              className={cn(
+                                'px-2.5 py-2 text-right font-semibold tabular-nums',
+                                avail < 0 && 'text-purple-700 dark:text-purple-300'
+                              )}
+                            >
                               {avail}
                             </td>
                             <td className="px-2.5 py-2 text-right font-bold tabular-nums text-[#0066CC] dark:text-sky-400">
@@ -2469,7 +2500,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                             <td className="px-2.5 py-2 text-right">
                               <Button
                                 size="sm"
-                                disabled={avail <= 0}
+                                disabled={!allowPosNegative && avail <= 0}
                                 onClick={() => addProductToCart(p, 1)}
                                 className="h-7 bg-[#0066CC] px-2.5 text-[11px] text-white hover:bg-[#0055B3]"
                               >
@@ -2766,7 +2797,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                                 type="number"
                                 min={1}
                                 step={1}
-                                max={Math.max(1, Math.floor(item.maxStock / mult))}
+                                max={allowPosNegative ? undefined : Math.max(1, Math.floor(item.maxStock / mult))}
                                 value={item.quantity}
                                 onChange={(e) => updateItemQty(item.productId, Number(e.target.value) || 1)}
                                 aria-label={`Số lượng ${item.name}`}

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
 import { broadcast, invalidateApiCache, patchProductInApiCache } from '@/lib/realtime'
 import { DEFAULT_SHOPEE_SHOP_BINDING } from '@/lib/shopee-extension-bundle'
+import { getInventorySyncPolicy, resolveMarketplaceTargetStock } from '@/lib/inventory-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +77,7 @@ async function fetchBridgeStatus(bridgePort: string): Promise<DaemonBridgeStatus
 
 async function buildAsyncQueueSnapshot() {
   const bridgePort = process.env.SHOPEE_SYNC_PORT || '51898'
-  const [shopeeChannel, shopeeCred, daemon, activeProducts, ledgerRows] = await Promise.all([
+  const [shopeeChannel, shopeeCred, daemon, activeProducts, ledgerRows, inventoryPolicy] = await Promise.all([
     db.channel.findUnique({ where: { key: 'SHOPEE' } }),
     db.integrationCredential.findUnique({ where: { provider: 'SHOPEE' } }),
     fetchBridgeStatus(bridgePort),
@@ -100,6 +101,7 @@ async function buildAsyncQueueSnapshot() {
       orderBy: { createdAt: 'desc' },
       take: 250,
     }),
+    getInventorySyncPolicy(),
   ])
 
   let configuredShopId: string = DEFAULT_SHOPEE_SHOP_BINDING.shopId
@@ -188,7 +190,11 @@ async function buildAsyncQueueSnapshot() {
         : Boolean(attrs.isUnlistedOnShopee)
 
     const lastSyncedStock =
-      typeof attrs.lastSyncedShopeeStock === 'number' ? attrs.lastSyncedShopeeStock : p.stock
+      typeof attrs.lastSyncedShopeeStock === 'number'
+        ? attrs.lastSyncedShopeeStock
+        : typeof attrs.liveShopeeStock === 'number'
+          ? attrs.liveShopeeStock
+          : -1
     const lastSyncedPrice =
       typeof attrs.lastSyncedShopeePrice === 'number' ? attrs.lastSyncedShopeePrice : targetPrice
     const lastSyncedUnlisted =
@@ -200,24 +206,16 @@ async function buildAsyncQueueSnapshot() {
     const brokenFlag = Boolean(attrs.brokenMarketplaceLink) || hasBrokenLinkLedger
 
     const hasExplicitOutbox = hasPendingLedger || Boolean(attrs.pendingOutboxSync)
-    const reconStatus = String(attrs.reconciliationStatus || '')
-    const hasShortagePending = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0) > 0
-    const isMarketplaceStockProtected =
-      !hasExplicitOutbox &&
-      typeof attrs.cmsTargetStock !== 'number' &&
-      (reconStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK' ||
-        reconStatus === 'PENDING_SHOPEE_ORDER' ||
-        reconStatus === 'STOCK_DRIFT' ||
-        reconStatus === 'SHOPEE_DIRECT_ADJUSTED' ||
-        hasShortagePending ||
-        (p.stock === 0 && attrs.openingStockOrigin === 'CMS_WAREHOUSE' && lastSyncedStock > 0))
-
-    const targetStock =
-      typeof attrs.cmsTargetStock === 'number'
-        ? attrs.cmsTargetStock
-        : isMarketplaceStockProtected && lastSyncedStock >= 0
-          ? lastSyncedStock
-          : p.stock
+    const stockRes = resolveMarketplaceTargetStock({
+      policy: inventoryPolicy,
+      cmsRealStock: p.stock,
+      lastSyncedStock,
+      cmsExplicitTargetStock:
+        typeof attrs.cmsTargetStock === 'number' ? attrs.cmsTargetStock : undefined,
+      hasExplicitOutbox,
+      isUnlistedOnShopee: targetUnlisted,
+    })
+    const targetStock = stockRes.targetStock
 
     const suppressedKey = `${targetStock}_${targetPrice}_${targetUnlisted ? 1 : 0}`
     const isSuppressed =
@@ -225,7 +223,7 @@ async function buildAsyncQueueSnapshot() {
       typeof attrs.outboxSuppressedKey === 'string' &&
       attrs.outboxSuppressedKey === suppressedKey
 
-    const stockDrifted = isLinked && !isMarketplaceStockProtected && lastSyncedStock !== targetStock
+    const stockDrifted = isLinked && stockRes.stockDrifted
     const priceDrifted = isLinked && lastSyncedPrice > 0 && lastSyncedPrice !== targetPrice
     const unlistedDrifted =
       isLinked &&
@@ -262,9 +260,12 @@ async function buildAsyncQueueSnapshot() {
       status = 'PENDING'
     }
 
+    const displaySyncedStock = lastSyncedStock >= 0 ? lastSyncedStock : Math.max(0, p.stock)
     const changes: string[] = []
-    if (stockDrifted || typeof attrs.cmsTargetStock === 'number') {
-      changes.push(`Tồn: ${lastSyncedStock} ➔ ${targetStock}`)
+    if (stockRes.isVirtualRefillJob) {
+      changes.push(`Tự bù tồn ảo Sàn: ${displaySyncedStock} ➔ ${targetStock}`)
+    } else if (stockDrifted || typeof attrs.cmsTargetStock === 'number') {
+      changes.push(`Tồn Sàn: ${displaySyncedStock} ➔ ${targetStock}`)
     }
     if (priceDrifted || typeof attrs.cmsTargetPrice === 'number') {
       changes.push(
@@ -304,7 +305,7 @@ async function buildAsyncQueueSnapshot() {
       shopeeModelName,
       cmsStock: p.stock,
       targetStock,
-      lastSyncedStock,
+      lastSyncedStock: displaySyncedStock,
       cmsSellPrice: p.sellPrice,
       targetPrice,
       lastSyncedPrice,
@@ -391,6 +392,7 @@ async function buildAsyncQueueSnapshot() {
       inboundSpoolPending,
       unlinkedMarketplaceCount,
     },
+    inventoryPolicy,
     alerts,
     items,
   }
@@ -516,7 +518,7 @@ export async function POST(req: NextRequest) {
             detail: {
               direction: 'CMS_TO_SHOPEE',
               sku: prod.sku,
-              targetStock: prod.stock,
+              targetStock: Math.max(0, prod.stock),
               targetPrice: prod.sellPrice,
               reason: 'MANUAL_RETRY_FROM_ASYNC_QUEUE',
             },
@@ -569,11 +571,16 @@ export async function POST(req: NextRequest) {
         attrs = {}
       }
 
+      const inventoryPolicy = await getInventorySyncPolicy()
       const shopeeListing = prod.listings.find((l) => l.channel.key === 'SHOPEE')
       const effPrice = shopeeListing?.price ?? prod.sellPrice
       const effUnlisted = Boolean(attrs.isUnlistedOnShopee)
       const lastSyncedStock =
-        typeof attrs.lastSyncedShopeeStock === 'number' ? attrs.lastSyncedShopeeStock : prod.stock
+        typeof attrs.lastSyncedShopeeStock === 'number'
+          ? attrs.lastSyncedShopeeStock
+          : typeof attrs.liveShopeeStock === 'number'
+            ? attrs.liveShopeeStock
+            : -1
       const lastSyncedPrice =
         typeof attrs.lastSyncedShopeePrice === 'number' ? attrs.lastSyncedShopeePrice : effPrice
 
@@ -589,8 +596,16 @@ export async function POST(req: NextRequest) {
       delete attrs.brokenLinkReason
       delete attrs.brokenLinkDetectedAt
 
-      if (lastSyncedStock !== prod.stock || lastSyncedPrice !== effPrice) {
-        attrs.outboxSuppressedKey = `${prod.stock}_${effPrice}_${effUnlisted ? 1 : 0}`
+      const resolvedAfterCancel = resolveMarketplaceTargetStock({
+        policy: inventoryPolicy,
+        cmsRealStock: prod.stock,
+        lastSyncedStock,
+        hasExplicitOutbox: false,
+        isUnlistedOnShopee: effUnlisted,
+      })
+
+      if (resolvedAfterCancel.stockDrifted || lastSyncedPrice !== effPrice) {
+        attrs.outboxSuppressedKey = `${resolvedAfterCancel.targetStock}_${effPrice}_${effUnlisted ? 1 : 0}`
       } else {
         delete attrs.outboxSuppressedKey
       }

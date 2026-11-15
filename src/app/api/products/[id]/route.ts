@@ -9,6 +9,7 @@ import {
   saveProductUnitConfig,
   syncLinkedVariantStocks,
 } from '@/lib/unit-conversion'
+import { getInventorySyncPolicy } from '@/lib/inventory-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -206,9 +207,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    const inventoryPolicy = await getInventorySyncPolicy()
     const effectiveType = nextType ?? existing.type
     const hasStockInput = body.stock !== undefined && effectiveType !== 'COMBO' && Number.isFinite(Number(body.stock))
-    const nextStockVal = hasStockInput ? Math.max(0, Math.round(Number(body.stock))) : undefined
+    const rawStockRounded = hasStockInput ? Math.round(Number(body.stock)) : undefined
+    // Bảo toàn tồn kho âm nếu SP đang bán âm trong CMS hoặc khi cấu hình cửa hàng cho phép bán âm kho thật CMS
+    const nextStockVal =
+      rawStockRounded === undefined
+        ? undefined
+        : rawStockRounded === existing.stock || inventoryPolicy.allowNegativeStock
+          ? rawStockRounded
+          : Math.max(0, rawStockRounded)
     const parsedThreshold =
       lowStockThreshold !== undefined && Number.isFinite(Number(lowStockThreshold)) && Number(lowStockThreshold) >= 0
         ? Math.round(Number(lowStockThreshold))
@@ -287,27 +296,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             hasExplicitShopeeTrack && explicitShopeePrice != null
               ? explicitShopeePrice
               : nextSellPrice
-          const targetShopeeStock = nextStockEffective
+          const targetShopeeStock = Math.max(0, nextStockEffective)
           const stockChanged = existing.stock !== nextStockEffective
+          const shouldSyncStockToShopee =
+            stockChanged && inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE'
           const priceChanged = existing.sellPrice !== nextSellPrice || hasExplicitShopeeTrack
           const shouldPushImage = imageChanged && Boolean(imageInput) && syncImageToShopee
 
-          if (stockChanged || priceChanged || shouldPushImage) {
+          if (shouldSyncStockToShopee || priceChanged || shouldPushImage) {
             latestAttrs.pendingOutboxSync = true
-            latestAttrs.cmsTargetStock = targetShopeeStock
+            if (shouldSyncStockToShopee) {
+              latestAttrs.cmsTargetStock = targetShopeeStock
+            }
             latestAttrs.cmsTargetPrice = targetShopeePrice
             if (shouldPushImage && imageInput) {
               latestAttrs.cmsTargetImage = imageInput
             }
             latestAttrs.lastCmsEditAt = new Date().toISOString()
             attrsMutated = true
+            const preservedShopeeStock =
+              typeof latestAttrs.lastSyncedShopeeStock === 'number'
+                ? latestAttrs.lastSyncedShopeeStock
+                : targetShopeeStock
+            const effectiveOutboxStock = shouldSyncStockToShopee ? targetShopeeStock : preservedShopeeStock
             outboxLogInput = {
               scope: 'CHANNEL',
               action: 'OUTBOX_PENDING',
               entityType: 'Product',
               entityId: targetId,
               entityCode: sku ? sku.trim() : existing.sku,
-              title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: Đẩy cập nhật [${sku ? sku.trim() : existing.sku}] (Tồn: ${targetShopeeStock}, Giá: ${targetShopeePrice.toLocaleString('vi-VN')}đ${shouldPushImage ? ', Ảnh mới' : ''}) lên Shopee`,
+              title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: Đẩy cập nhật [${sku ? sku.trim() : existing.sku}] (${shouldSyncStockToShopee ? `Tồn: ${effectiveOutboxStock}, ` : ''}Giá: ${targetShopeePrice.toLocaleString('vi-VN')}đ${shouldPushImage ? ', Ảnh mới' : ''}) lên Shopee`,
               detail: {
                 direction: 'CMS_TO_SHOPEE',
                 source: 'OPENVN_CMS',
@@ -315,7 +333,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
                 sku: sku ? sku.trim() : existing.sku,
                 shopeeItemId,
                 shopeeModelId,
-                targetStock: targetShopeeStock,
+                ...(shouldSyncStockToShopee ? { targetStock: targetShopeeStock } : {}),
                 targetPrice: targetShopeePrice,
                 targetImage: shouldPushImage ? imageInput : undefined,
                 targetUnlisted: Boolean(latestAttrs.isUnlistedOnShopee),

@@ -16,12 +16,15 @@ export function comboCostFromRows(
   return Math.round(rows.reduce((s, r) => s + r.quantity * r.componentProduct.costPrice, 0))
 }
 
-/** Số combo có thể đóng được = min(floor(stock thành phần / định mức)) — 0 nếu chưa khai báo */
+/** Số combo có thể đóng được = min(floor(stock thành phần / định mức)) — 0 nếu chưa khai báo hoặc thành phần <= 0 */
 export function comboAvailableFromRows(
   rows: Array<{ quantity: number; componentProduct: { stock: number } }>
 ): number {
   if (rows.length === 0) return 0
-  return Math.min(...rows.map((r) => Math.floor(r.componentProduct.stock / Math.max(r.quantity, 0.0001))))
+  return Math.max(
+    0,
+    Math.min(...rows.map((r) => Math.floor(r.componentProduct.stock / Math.max(r.quantity, 0.0001))))
+  )
 }
 
 /** Nạp thành phần combo (kèm thông tin SP thành phần) */
@@ -75,29 +78,53 @@ export async function syncCombosUsingComponents(tx: DbClient, componentProductId
 export async function issueComboComponents(
   tx: Prisma.TransactionClient,
   demands: Map<string, number>,
-  noteOf: (componentName: string, qty: number) => string
-): Promise<Array<{ componentProductId: string; componentName: string; required: number; deducted: number; warning?: string }>> {
-  const results: Array<{ componentProductId: string; componentName: string; required: number; deducted: number; warning?: string }> = []
+  noteOf: (componentName: string, qty: number) => string,
+  options?: { allowNegative?: boolean; warehouseId?: string | null }
+): Promise<Array<{ componentProductId: string; componentName: string; required: number; deducted: number; stockAfter: number; warning?: string }>> {
+  const allowNegative = Boolean(options?.allowNegative)
+  const warehouseId = options?.warehouseId ?? null
+  const results: Array<{ componentProductId: string; componentName: string; required: number; deducted: number; stockAfter: number; warning?: string }> = []
   for (const [componentProductId, required] of demands) {
     if (required <= 0) continue
     const component = await tx.product.findUnique({ where: { id: componentProductId } })
     if (!component) continue
-    const after = Math.max(0, component.stock - required)
-    const actualDelta = after - component.stock
-    if (actualDelta === 0) {
-      results.push({ componentProductId, componentName: component.name, required, deducted: 0, warning: `Kho "${component.name}" đã hết` })
+
+    const available = Math.max(0, component.stock)
+    const deducted = allowNegative ? required : Math.min(available, required)
+    const after = component.stock - deducted
+    const actualDelta = -deducted
+
+    if (deducted === 0) {
+      results.push({
+        componentProductId,
+        componentName: component.name,
+        required,
+        deducted: 0,
+        stockAfter: component.stock,
+        warning: `Kho "${component.name}" đã hết (${component.stock})`,
+      })
       continue
     }
     await tx.product.update({ where: { id: componentProductId }, data: { stock: after } })
     await tx.stockMovement.create({
-      data: { productId: componentProductId, type: 'COMBO_ISSUE', quantity: actualDelta, stockAfter: after, note: noteOf(component.name, Math.abs(actualDelta)) },
+      data: {
+        productId: componentProductId,
+        warehouseId,
+        type: 'COMBO_ISSUE',
+        quantity: actualDelta,
+        stockAfter: after,
+        note:
+          after < 0
+            ? `${noteOf(component.name, deducted)} [Bán âm kho thật CMS: ${component.stock} ➔ ${after}]`
+            : noteOf(component.name, deducted),
+      },
     })
-    const deducted = Math.abs(actualDelta)
     results.push({
       componentProductId,
       componentName: component.name,
       required,
       deducted,
+      stockAfter: after,
       ...(deducted < required ? { warning: `Kho "${component.name}" không đủ — chỉ trừ được ${deducted}/${required}` } : {}),
     })
   }

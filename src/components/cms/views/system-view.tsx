@@ -72,6 +72,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SystemCatalogSettings, type CatalogSettingsSubTab } from '@/components/cms/views/system-catalog-settings'
+import { InventoryPolicyCard } from '@/components/cms/inventory-policy-card'
 import {
   DEFAULT_SHOP_PROFILE,
   SHOP_PROFILE_PRESETS,
@@ -79,7 +80,12 @@ import {
   writeShopProfileCache,
 } from '@/lib/shop-profile'
 
-export type SystemSectionTab = 'CATALOG_MASTER' | 'COMPANY_INVOICE' | 'SECURITY_AI_DATA' | 'ALL'
+export type SystemSectionTab =
+  | 'INVENTORY_POLICY'
+  | 'CATALOG_MASTER'
+  | 'COMPANY_INVOICE'
+  | 'SECURITY_AI_DATA'
+  | 'ALL'
 
 interface SettingsData {
   company_name: string
@@ -698,6 +704,12 @@ export function SystemView({
           {(
             [
               {
+                id: 'INVENTORY_POLICY' as const,
+                label: 'Tồn kho Thật CMS & Sàn Ảo',
+                sub: '1.CMS➔Sàn · 2.Tồn ảo Sàn · 3.Bán âm CMS',
+                icon: Database,
+              },
+              {
                 id: 'CATALOG_MASTER' as const,
                 label: 'Danh mục, Loại SP & Quy đổi ĐVT',
                 sub: 'Danh mục · Kg⇄Gr · Đơn vị tính · Đặc tính',
@@ -784,6 +796,16 @@ export function SystemView({
             Tùy biến Thương hiệu &amp; Thiết lập Shop
           </Button>
         </div>
+      )}
+
+      {/* Chính sách Tồn kho Thật CMS & Tồn kho Ảo trên Sàn (3 Tùy chọn theo nhu cầu Cửa hàng) */}
+      {(activeSection === 'INVENTORY_POLICY' ||
+        activeSection === 'CATALOG_MASTER' ||
+        activeSection === 'ALL') && (
+        <InventoryPolicyCard
+          compact={activeSection === 'CATALOG_MASTER'}
+          defaultExpanded={true}
+        />
       )}
 
       {/* Nhóm 1: Cấu hình Danh mục, Loại sản phẩm, Quy đổi Định lượng & Đặc tính */}
