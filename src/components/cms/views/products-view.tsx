@@ -264,6 +264,7 @@ export function ProductsView({
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
+  const [typeFilter, setTypeFilter] = useState<string>('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [quickTab, setQuickTab] = useState<
     'ALL' | 'ACTIVE' | 'LOW_STOCK' | 'COMBO' | 'INACTIVE' | 'UNLISTED' | 'CATEGORIES' | 'UNIT_CONVERSION'
@@ -960,21 +961,42 @@ export function ProductsView({
   }
 
   const filteredProducts = useMemo(() => {
-    switch (quickTab) {
-      case 'ACTIVE':
-        return products.filter((p) => p.status === 'ACTIVE')
-      case 'LOW_STOCK':
-        return products.filter((p) => p.stock <= p.lowStockThreshold)
-      case 'COMBO':
-        return products.filter((p) => p.type === 'COMBO')
-      case 'INACTIVE':
-        return products.filter((p) => p.status === 'INACTIVE')
-      case 'UNLISTED':
-        return products.filter(isProductUnlistedOnMarketplace)
-      default:
-        return products
-    }
-  }, [products, quickTab])
+    const qLower = search.trim().toLowerCase()
+    return products.filter((p) => {
+      if (categoryFilter === 'UNCATEGORIZED') {
+        if (p.categoryId) return false
+      } else if (categoryFilter !== 'ALL' && p.categoryId !== categoryFilter) {
+        return false
+      }
+      if (statusFilter !== 'ALL' && p.status !== statusFilter) {
+        return false
+      }
+      if (typeFilter !== 'ALL' && (p.type ?? 'SIMPLE') !== typeFilter) {
+        return false
+      }
+      if (qLower) {
+        const matchQ =
+          p.name.toLowerCase().includes(qLower) ||
+          p.sku.toLowerCase().includes(qLower) ||
+          (p.barcode ?? '').toLowerCase().includes(qLower)
+        if (!matchQ) return false
+      }
+      switch (quickTab) {
+        case 'ACTIVE':
+          return p.status === 'ACTIVE'
+        case 'LOW_STOCK':
+          return p.stock <= p.lowStockThreshold
+        case 'COMBO':
+          return p.type === 'COMBO'
+        case 'INACTIVE':
+          return p.status === 'INACTIVE'
+        case 'UNLISTED':
+          return isProductUnlistedOnMarketplace(p)
+        default:
+          return true
+      }
+    })
+  }, [products, categoryFilter, statusFilter, typeFilter, search, quickTab])
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
@@ -983,7 +1005,11 @@ export function ProductsView({
     [filteredProducts, currentPage]
   )
   const hasFilter =
-    search !== '' || categoryFilter !== 'ALL' || statusFilter !== 'ALL' || quickTab !== 'ALL'
+    search !== '' ||
+    categoryFilter !== 'ALL' ||
+    typeFilter !== 'ALL' ||
+    statusFilter !== 'ALL' ||
+    quickTab !== 'ALL'
 
   // ===== Dialog handlers =====
   const openCreate = () => {
@@ -1601,8 +1627,8 @@ export function ProductsView({
       </PageHeader>
 
       {/* OPENVN Horizontal Quick-Filter Tabs (thuần bộ lọc vận hành Sản phẩm; phần Thiết lập đã đưa về Cấu hình Hệ thống) */}
-      <div className="no-scrollbar mb-4 overflow-x-auto rounded-t-xl border border-b-0 bg-card px-2 pt-1.5 shadow-xs">
-        <div className="flex min-w-max items-center gap-1 border-b border-border/60">
+      <div className="no-scrollbar mb-4 overflow-x-auto rounded-t-xl border border-b-0 bg-card px-2.5 pt-1.5 shadow-xs">
+        <div className="flex min-w-max items-center gap-2 border-b border-border/60">
           {(
             [
               { key: 'ALL', label: 'Tất cả sản phẩm', count: tabCounts.ALL },
@@ -1675,7 +1701,7 @@ export function ProductsView({
           <Button
             size="sm"
             variant="outline"
-            className="h-6 border-amber-400 px-2.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900"
+            className="h-8 border-amber-400 px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900"
             onClick={() => {
               setQuickTab('UNLISTED')
               setPage(1)
@@ -2470,9 +2496,143 @@ export function ProductsView({
       ) : (
         <>
 
+      {/* Khu vực Bộ lọc trực quan Danh mục & Phân loại Sản phẩm (Nổi bật trên mọi khung nhìn kể cả 2560x1279) */}
+      <div
+        data-category-filter-bar="true"
+        className="mb-3 space-y-2 rounded-xl border border-border/80 bg-card p-3 shadow-2xs"
+      >
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible">
+          <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Danh mục sản phẩm:
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('ALL')
+              setPage(1)
+            }}
+            className={cn(
+              'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              categoryFilter === 'ALL'
+                ? 'border-[#0066CC] bg-[#0066CC] font-semibold text-white shadow-2xs'
+                : 'border-border bg-muted/35 text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <span>Tất cả danh mục</span>
+            <span
+              className={cn(
+                'rounded-full px-1.5 py-0.2 font-mono text-[10px]',
+                categoryFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-background text-muted-foreground'
+              )}
+            >
+              {products.length}
+            </span>
+          </button>
+          {categories.map((cat) => {
+            const cCount = categoryStatsMap.get(cat.id)?.count ?? 0
+            const activeCat = categoryFilter === cat.id
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  setCategoryFilter(activeCat ? 'ALL' : cat.id)
+                  setPage(1)
+                }}
+                className={cn(
+                  'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                  activeCat
+                    ? 'border-[#0066CC] bg-[#0066CC] font-semibold text-white shadow-2xs'
+                    : 'border-border bg-muted/35 text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <span>{cat.name}</span>
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 py-0.2 font-mono text-[10px]',
+                    activeCat ? 'bg-white/20 text-white' : 'bg-background text-muted-foreground'
+                  )}
+                >
+                  {cCount}
+                </span>
+              </button>
+            )
+          })}
+          {uncategorizedProducts.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setCategoryFilter(categoryFilter === 'UNCATEGORIZED' ? 'ALL' : 'UNCATEGORIZED')
+                setPage(1)
+              }}
+              className={cn(
+                'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                categoryFilter === 'UNCATEGORIZED'
+                  ? 'border-[#0066CC] bg-[#0066CC] font-semibold text-white shadow-2xs'
+                  : 'border-dashed border-border bg-muted/20 text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              <span>Chưa gắn danh mục ({uncategorizedProducts.length})</span>
+            </button>
+          )}
+        </div>
+
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto border-t border-border/50 pt-2 sm:flex-wrap sm:overflow-visible">
+          <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Phân loại hàng hóa:
+          </span>
+          {[
+            { code: 'ALL', label: 'Mọi phân loại' },
+            { code: 'SIMPLE', label: 'Hàng đơn lẻ' },
+            { code: 'COMBO', label: 'Combo / Bộ quà' },
+            { code: 'MATERIAL', label: 'Nguyên vật liệu' },
+            { code: 'WEIGHT_BULK', label: 'Hàng xá (Kg ⇄ Gr)' },
+          ].map((tp) => {
+            const activeType = typeFilter === tp.code
+            return (
+              <button
+                key={tp.code}
+                type="button"
+                onClick={() => {
+                  setTypeFilter(activeType && tp.code !== 'ALL' ? 'ALL' : tp.code)
+                  setPage(1)
+                }}
+                className={cn(
+                  'inline-flex min-h-8 shrink-0 items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                  activeType
+                    ? 'border-[#0066CC] bg-[#0066CC]/12 font-semibold text-[#0066CC] dark:text-sky-300'
+                    : 'border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                )}
+              >
+                {tp.label}
+              </button>
+            )
+          })}
+          {(categoryFilter !== 'ALL' || typeFilter !== 'ALL' || statusFilter !== 'ALL' || searchInput) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setCategoryFilter('ALL')
+                setTypeFilter('ALL')
+                setStatusFilter('ALL')
+                setQuickTab('ALL')
+                setSearchInput('')
+                setSearch('')
+                setPage(1)
+              }}
+            >
+              Đặt lại bộ lọc
+            </Button>
+          )}
+        </div>
+      </div>
+
       {/* Toolbar */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative w-full sm:w-72">
+      <div className="mb-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative w-full sm:w-80 2xl:w-96">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchInput}
@@ -2550,10 +2710,10 @@ export function ProductsView({
                 <CheckSquare className="h-4 w-4" />
                 <span>Đã chọn {selectedProductIds.length} sản phẩm</span>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  className="h-7 bg-amber-600 px-2.5 text-xs text-white hover:bg-amber-700"
+                  className="h-8 bg-amber-600 px-3 text-xs text-white hover:bg-amber-700"
                   disabled={bulkActionBusy}
                   onClick={() => void handleExecuteBulkProductsAction('PUSH_STOCK_AND_PRICE')}
                   title="Đẩy đồng loạt tồn kho & giá bán hiện tại của các sản phẩm đã chọn lên sàn Shopee"
@@ -2568,7 +2728,7 @@ export function ProductsView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 border-emerald-500/50 bg-emerald-500/10 px-2.5 text-xs text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+                  className="h-8 border-emerald-500/50 bg-emerald-500/10 px-3 text-xs text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
                   disabled={bulkActionBusy}
                   onClick={() => void handleExecuteBulkProductsAction('SET_ACTIVE')}
                   title="Mở bán lại trên sàn Shopee cho tất cả sản phẩm đã chọn"
@@ -2579,7 +2739,7 @@ export function ProductsView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 border-amber-500/50 bg-amber-500/10 px-2.5 text-xs text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
+                  className="h-8 border-amber-500/50 bg-amber-500/10 px-3 text-xs text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
                   disabled={bulkActionBusy}
                   onClick={() => void handleExecuteBulkProductsAction('SET_UNLISTED')}
                   title="Tạm ẩn trên sàn Shopee cho tất cả sản phẩm đã chọn"
@@ -2590,7 +2750,7 @@ export function ProductsView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2.5 text-xs"
+                  className="h-8 px-3 text-xs"
                   disabled={bulkActionBusy}
                   onClick={() => {
                     setBulkPriceMode('NONE')
@@ -2607,7 +2767,7 @@ export function ProductsView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2.5 text-xs"
+                  className="h-8 px-3 text-xs"
                   disabled={bulkActionBusy}
                   onClick={() =>
                     void handleExecuteBulkProductsAction('SET_CMS_STATUS', { cmsStatus: 'ACTIVE' })
@@ -2619,7 +2779,7 @@ export function ProductsView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2.5 text-xs"
+                  className="h-8 px-3 text-xs"
                   disabled={bulkActionBusy}
                   onClick={() =>
                     void handleExecuteBulkProductsAction('SET_CMS_STATUS', { cmsStatus: 'INACTIVE' })
@@ -2631,7 +2791,7 @@ export function ProductsView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2.5 text-xs"
+                  className="h-8 px-3 text-xs"
                   disabled={bulkActionBusy}
                   onClick={() =>
                     openPrintDialog(products.filter((p) => selectedProductIds.includes(p.id)))
@@ -2643,7 +2803,7 @@ export function ProductsView({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs"
+                  className="h-8 px-2.5 text-xs"
                   disabled={bulkActionBusy}
                   onClick={() => setSelectedProductIds([])}
                 >
@@ -2725,8 +2885,10 @@ export function ProductsView({
                       <div className="flex items-center gap-3">
                         <ProductAvatar name={p.name} image={p.image} />
                         <div className="min-w-0">
-                          <div className="flex max-w-[220px] flex-wrap items-center gap-1.5 font-medium">
-                            <span className="truncate">{p.name}</span>
+                          <div className="flex max-w-[230px] flex-wrap items-center gap-1.5 font-medium xl:max-w-[360px] 2xl:max-w-[540px]">
+                            <span className="truncate 2xl:whitespace-normal" title={p.name}>
+                              {p.name}
+                            </span>
                             {p.type === 'COMBO' ? (
                               <ComboBadge />
                             ) : typeBadge && p.type !== 'SIMPLE' ? (
@@ -2784,7 +2946,7 @@ export function ProductsView({
                                     {lastReason && (
                                       <span
                                         title={`Lý do đối soát / chốt tồn gần nhất: ${lastReason}`}
-                                        className="inline-flex max-w-[220px] truncate items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950/60 dark:text-violet-300"
+                                        className="inline-flex max-w-[240px] xl:max-w-[360px] 2xl:max-w-[560px] truncate items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950/60 dark:text-violet-300"
                                       >
                                         Lý do: {lastReason}
                                       </span>
@@ -2815,7 +2977,7 @@ export function ProductsView({
                     <TableCell>
                       <div className="flex items-center gap-1.5">
                         {p.barcode ? (
-                          <span className="max-w-[140px] truncate font-mono text-xs" title={p.barcode}>
+                          <span className="max-w-[140px] truncate font-mono text-xs xl:max-w-[200px] 2xl:max-w-none" title={p.barcode}>
                             {p.barcode}
                           </span>
                         ) : (
@@ -2824,7 +2986,7 @@ export function ProductsView({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
                           title="In nhãn mã vạch"
                           aria-label={`In nhãn mã vạch cho ${p.sku}`}
                           onClick={() => openPrintDialog([p])}

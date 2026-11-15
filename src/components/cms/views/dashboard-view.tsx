@@ -243,13 +243,68 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
                       {formatNumber(item.count)}
                     </p>
                   )}
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.hint}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground 2xl:whitespace-normal" title={item.hint}>
+                    {item.hint}
+                  </p>
                 </div>
               </button>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      {/* ===== Thanh Bộ lọc & Điều hướng nhanh Danh mục / Phân loại Sản phẩm trên Tổng quan ===== */}
+      <div
+        data-category-filter-bar="true"
+        className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card px-4 py-2.5 shadow-2xs"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Danh mục &amp; Phân loại sản phẩm:
+          </span>
+          {(
+            [
+              { label: `Tất cả hàng hóa (${d ? formatNumber(d.stats.totalProducts) : '—'})`, view: 'products' as ViewId },
+              { label: 'Nến & Đồ đựng nến (Thạch cao)', view: 'products' as ViewId },
+              { label: 'Combo / Bộ quà tặng', view: 'products' as ViewId },
+              { label: 'Nguyên vật liệu & BOM', view: 'bom' as ViewId },
+              { label: `Sắp hết / Hết kho (${d ? formatNumber(d.stats.lowStockCount) : 0})`, view: 'inventory' as ViewId },
+              { label: 'Đồng bộ Sàn Shopee', view: 'channels' as ViewId },
+            ]
+          ).map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              onClick={() => onNavigate?.(chip.view)}
+              className="inline-flex min-h-8 items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[#0066CC]/50 hover:bg-[#0066CC]/10 hover:text-[#0066CC] dark:hover:text-sky-300"
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 px-3 text-xs font-semibold"
+            onClick={() => onNavigate?.('pos')}
+          >
+            <Store className="mr-1.5 h-3.5 w-3.5 text-[#0066CC]" />
+            Mở Quầy POS
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 px-3 text-xs font-semibold"
+            onClick={() => onNavigate?.('orders')}
+          >
+            <ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
+            Tra cứu Đơn hàng
+          </Button>
+        </div>
+      </div>
 
       {/* ===== 4 Thẻ KPI Doanh thu & Đơn hàng chuẩn OPENVN ===== */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -432,8 +487,10 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
                     className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors hover:bg-muted/60"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-sm font-semibold text-[#0066CC] dark:text-sky-400">{o.code}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="truncate font-mono text-sm font-semibold text-[#0066CC] dark:text-sky-400" title={o.code}>
+                        {o.code}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground 2xl:whitespace-normal">
                         {o.customer?.name ?? 'Khách lẻ'} · {formatDateTime(o.createdAt)}
                       </p>
                     </div>
@@ -485,7 +542,9 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
                         {i + 1}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{p.name}</p>
+                        <p className="truncate text-sm font-medium 2xl:whitespace-normal" title={p.name}>
+                          {p.name}
+                        </p>
                         <p className="text-xs text-muted-foreground">{formatNumber(p.sold)} đã bán</p>
                       </div>
                       <span className="shrink-0 text-sm font-semibold tabular-nums">{formatCompactVND(p.revenue)}</span>
@@ -523,7 +582,9 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
                       className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/60"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{p.name}</p>
+                        <p className="truncate text-sm font-medium 2xl:whitespace-normal" title={p.name}>
+                          {p.name}
+                        </p>
                         <p className="font-mono text-xs text-muted-foreground">{p.sku}</p>
                       </div>
                       <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-400">

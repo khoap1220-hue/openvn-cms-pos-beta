@@ -145,13 +145,37 @@ export function PosPeripheralsDialog({
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const { toast } = useToast()
 
+  const safeWindowsPrinters = useMemo(
+    () =>
+      (Array.isArray(windowsPrinters) ? windowsPrinters : []).filter(
+        (p): p is WindowsPrinterClientItem => Boolean(p && typeof p.name === 'string' && p.name.trim())
+      ),
+    [windowsPrinters]
+  )
+
+  const safeQueue = useMemo(
+    () =>
+      (Array.isArray(station?.shopeePrintQueue) ? station.shopeePrintQueue : []).filter((j) =>
+        Boolean(j && typeof j.orderCode === 'string' && j.orderCode.trim())
+      ),
+    [station]
+  )
+
+  const safeRecentShopeeOrders = useMemo(
+    () =>
+      (Array.isArray(recentShopeeOrders) ? recentShopeeOrders : []).filter((o) =>
+        Boolean(o && typeof o.code === 'string' && o.code.trim())
+      ),
+    [recentShopeeOrders]
+  )
+
   const defaultPhysicalPrinter = useMemo(() => {
     return (
-      windowsPrinters.find((p) => p.isPhysical && p.isDefault) ??
-      windowsPrinters.find((p) => p.isPhysical) ??
+      safeWindowsPrinters.find((p) => p.isPhysical && p.isDefault) ??
+      safeWindowsPrinters.find((p) => p.isPhysical) ??
       null
     )
-  }, [windowsPrinters])
+  }, [safeWindowsPrinters])
 
   const activeSilentWindowsPrinterName = useMemo(() => {
     if (printerConfig.windowsPrinterName) return printerConfig.windowsPrinterName
@@ -510,7 +534,7 @@ export function PosPeripheralsDialog({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-8 px-2.5 text-xs"
                       onClick={() => void onRefreshStation()}
                     >
                       <RefreshCw className="mr-1 h-3 w-3" />
@@ -653,8 +677,8 @@ export function PosPeripheralsDialog({
                         variant={printerConfig.paperSize === sz ? 'default' : 'outline'}
                         className={
                           printerConfig.paperSize === sz
-                            ? 'h-7 bg-[#0066CC] px-2.5 text-xs text-white hover:bg-[#0055B3]'
-                            : 'h-7 px-2.5 text-xs'
+                            ? 'h-8 bg-[#0066CC] px-3 text-xs text-white hover:bg-[#0055B3]'
+                            : 'h-8 px-3 text-xs'
                         }
                         onClick={() => onUpdatePrinterConfig({ paperSize: sz })}
                       >
@@ -677,7 +701,7 @@ export function PosPeripheralsDialog({
                       {
                         id: 'windows_spooler',
                         label: 'Máy in Windows (In ngầm 100%)',
-                        sub: `${windowsPrinters.length} máy in cài trên Windows · 0 hộp thoại`,
+                        sub: `${safeWindowsPrinters.length} máy in cài trên Windows · 0 hộp thoại`,
                       },
                       { id: 'lan_tcp', label: 'Mạng LAN :9100', sub: 'In thẳng IP Wi-Fi/Ethernet' },
                       {
@@ -732,7 +756,7 @@ export function PosPeripheralsDialog({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-7 bg-card px-2.5 text-xs"
+                          className="h-8 bg-card px-2.5 text-xs"
                           disabled={busyAction === 'refresh-win-printers'}
                           onClick={async () => {
                             setBusyAction('refresh-win-printers')
@@ -746,7 +770,7 @@ export function PosPeripheralsDialog({
                       )}
                     </div>
 
-                    {windowsPrinters.length > 0 ? (
+                    {safeWindowsPrinters.length > 0 ? (
                       <div className="grid gap-2.5 sm:grid-cols-[1fr_auto]">
                         <select
                           aria-label="Chọn máy in Windows in tự động ngầm"
@@ -758,9 +782,9 @@ export function PosPeripheralsDialog({
                         >
                           <option value="">
                             Tự động dùng máy in vật lý mặc định (
-                            {defaultPhysicalPrinter?.name || windowsPrinters[0]?.name})
+                            {defaultPhysicalPrinter?.name || safeWindowsPrinters[0]?.name})
                           </option>
-                          {windowsPrinters.map((p) => (
+                          {safeWindowsPrinters.map((p) => (
                             <option key={p.name} value={p.name}>
                               {p.name}
                               {p.isDefault ? ' — [Mặc định Windows]' : ''}
@@ -936,7 +960,7 @@ export function PosPeripheralsDialog({
               </div>
 
               <div className="space-y-3 rounded-xl border bg-card p-3.5">
-                {windowsPrinters.length > 0 && (
+                {safeWindowsPrinters.length > 0 && (
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                     <div className="text-xs">
                       <span className="font-bold text-foreground">
@@ -959,9 +983,9 @@ export function PosPeripheralsDialog({
                       }}
                     >
                       <option value="">
-                        Tự động ({defaultPhysicalPrinter?.name || windowsPrinters[0]?.name})
+                        Tự động ({defaultPhysicalPrinter?.name || safeWindowsPrinters[0]?.name})
                       </option>
-                      {windowsPrinters.map((p) => (
+                      {safeWindowsPrinters.map((p) => (
                         <option key={p.name} value={p.name}>
                           {p.name}
                           {p.isDefault ? ' [Mặc định]' : ''}
@@ -998,13 +1022,13 @@ export function PosPeripheralsDialog({
               <div className="rounded-xl border bg-card p-3.5">
                 <div className="mb-2 flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Hàng Đợi Tự Động In Đơn Shopee ({station?.shopeePrintQueue?.length || 0}) &amp; Đơn Sàn Gần Đây ({recentShopeeOrders.length})
+                    Hàng Đợi Tự Động In Đơn Shopee ({safeQueue.length}) &amp; Đơn Sàn Gần Đây ({safeRecentShopeeOrders.length})
                   </h4>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="h-8 px-2.5 text-xs"
                     onClick={() => void onRefreshStation()}
                   >
                     <RefreshCw className="mr-1 h-3 w-3" />
@@ -1012,13 +1036,13 @@ export function PosPeripheralsDialog({
                   </Button>
                 </div>
 
-                {!station?.shopeePrintQueue?.length && !recentShopeeOrders.length ? (
+                {!safeQueue.length && !safeRecentShopeeOrders.length ? (
                   <p className="rounded-lg border border-dashed bg-muted/20 py-5 text-center text-xs text-muted-foreground">
                     Hiện chưa có đơn Shopee mới chờ in. Ngay khi Shop <code>thaimy1605</code> phát sinh đơn hàng mới, máy POS này sẽ tự động in nếu công tắc phía trên đang BẬT.
                   </p>
                 ) : (
                   <div className="max-h-52 space-y-2 overflow-y-auto">
-                    {(station?.shopeePrintQueue || []).map((job) => (
+                    {safeQueue.map((job) => (
                       <div
                         key={job.id}
                         className="flex items-center justify-between gap-2 rounded-lg border bg-orange-50/30 px-3 py-2 text-xs dark:bg-slate-900"
@@ -1036,15 +1060,16 @@ export function PosPeripheralsDialog({
                             </Badge>
                           </div>
                           <div className="truncate text-[11px] text-muted-foreground">
-                            Shopee #{job.shopeeOrderSn} · {job.customerName} · {job.carrier} (
-                            {job.trackingCode}) · {job.total.toLocaleString('vi-VN')}đ
+                            Shopee #{job.shopeeOrderSn || job.orderCode} · {job.customerName || 'Khách Shopee'} ·{' '}
+                            {job.carrier || 'SPX'} ({job.trackingCode || 'Đang cấp mã'}) ·{' '}
+                            {(Number(job.total) || 0).toLocaleString('vi-VN')}đ
                           </div>
                         </div>
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="h-7 shrink-0 text-xs"
+                          className="h-8 shrink-0 text-xs"
                           onClick={() => void onPrintShopeeOrderById(job.orderId)}
                         >
                           <Printer className="mr-1 h-3.5 w-3.5" />
@@ -1053,10 +1078,8 @@ export function PosPeripheralsDialog({
                       </div>
                     ))}
 
-                    {recentShopeeOrders
-                      .filter(
-                        (o) => !(station?.shopeePrintQueue || []).some((j) => j.orderId === o.id)
-                      )
+                    {safeRecentShopeeOrders
+                      .filter((o) => !safeQueue.some((j) => j.orderId === o.id))
                       .map((ord) => (
                         <div
                           key={ord.id}
@@ -1065,15 +1088,16 @@ export function PosPeripheralsDialog({
                           <div className="min-w-0">
                             <div className="font-mono font-semibold">{ord.code}</div>
                             <div className="truncate text-[11px] text-muted-foreground">
-                              {ord.customerName} · {ord.carrier} ({ord.trackingCode}) ·{' '}
-                              {ord.itemCount} SP · {ord.total.toLocaleString('vi-VN')}đ
+                              {ord.customerName || 'Khách Shopee'} · {ord.carrier || 'SPX'} (
+                              {ord.trackingCode || 'Đang cấp mã'}) · {Number(ord.itemCount) || 1} SP ·{' '}
+                              {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
                             </div>
                           </div>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="h-7 shrink-0 text-xs"
+                            className="h-8 shrink-0 text-xs"
                             onClick={() => void onPrintShopeeOrderById(ord.id)}
                           >
                             <Printer className="mr-1 h-3.5 w-3.5" />

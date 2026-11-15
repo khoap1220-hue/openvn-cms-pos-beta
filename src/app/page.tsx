@@ -763,27 +763,29 @@ export default function Home() {
         currentUser={currentUser}
       />
       <SidebarInset className="flex min-h-svh min-w-0 flex-1 flex-col overflow-x-clip">
-        {/* OPENVN Omni Top Action Bar — Luôn giữ 1 dòng cố định (flex-nowrap), tinh gọn cụm nút bên phải */}
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 flex-nowrap items-center gap-2 overflow-hidden border-b bg-card px-3 shadow-2xs sm:px-4">
-          <SidebarTrigger aria-label="Mở/đóng thanh điều hướng" />
-          <Separator orientation="vertical" className="h-5" />
+        {/* OPENVN Omni Top Action Bar — Hỗ trợ tự động xuống dòng gọn gàng (flex-wrap) và mở rộng 2560px */}
+        <header className="sticky top-0 z-30 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b bg-card px-3 py-2 shadow-2xs sm:px-4 2xl:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <SidebarTrigger aria-label="Mở/đóng thanh điều hướng" />
+            <Separator orientation="vertical" className="h-5" />
 
-          {/* Định vị phân hệ hiện tại */}
-          <nav aria-label="Định vị" className="flex min-w-0 shrink items-center gap-1.5 text-sm">
-            <span className="hidden shrink-0 font-bold text-[#0066CC] xl:inline dark:text-sky-400">
-              {shopProfile.brandShortName}
-            </span>
-            <span className="hidden text-muted-foreground xl:inline">/</span>
-            <span className="max-w-[150px] truncate font-semibold text-foreground sm:max-w-[230px] lg:max-w-[280px]">
-              {VIEW_LABELS[activeView]}
-            </span>
-          </nav>
+            {/* Định vị phân hệ hiện tại */}
+            <nav aria-label="Định vị" className="flex min-w-0 shrink items-center gap-1.5 text-sm">
+              <span className="hidden shrink-0 font-bold text-[#0066CC] xl:inline dark:text-sky-400">
+                {shopProfile.brandShortName}
+              </span>
+              <span className="hidden text-muted-foreground xl:inline">/</span>
+              <h2 className="max-w-[170px] truncate text-sm font-semibold text-foreground sm:max-w-[260px] lg:max-w-[380px] 2xl:max-w-none">
+                {VIEW_LABELS[activeView]}
+              </h2>
+            </nav>
+          </div>
 
           {/* Thanh Tìm kiếm nhanh toàn hệ thống chuẩn OPENVN (Ctrl+K) */}
           <button
             type="button"
             onClick={() => setQuickSearchOpen(true)}
-            className="mx-auto hidden h-10 min-w-[220px] max-w-md flex-1 items-center gap-2 rounded-lg border border-border/80 bg-muted/50 px-3.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted md:flex xl:max-w-lg"
+            className="mx-auto hidden h-10 min-w-[220px] max-w-md flex-1 items-center gap-2 rounded-lg border border-border/80 bg-muted/50 px-3.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted md:flex xl:max-w-lg 2xl:max-w-xl"
           >
             <Search className="h-4 w-4 shrink-0 text-[#0066CC] dark:text-sky-400" />
             <span className="truncate">Tìm đơn hàng (DH...), SKU, SĐT khách...</span>
@@ -792,7 +794,7 @@ export default function Home() {
             </kbd>
           </button>
 
-          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2 sm:gap-2.5">
             {/* Nút tìm kiếm cho màn hình nhỏ */}
             <Button
               variant="outline"
@@ -1075,8 +1077,8 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 overflow-x-hidden px-2.5 py-3 sm:px-4 sm:py-5 md:px-6">
-          <div className="mx-auto w-full max-w-[1440px]">
+        <main className="min-w-0 flex-1 overflow-x-hidden px-2.5 py-3 sm:px-4 sm:py-5 md:px-6 2xl:px-8">
+          <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-[2360px]">
             {showGlobalChannelAlert && activeView !== 'channels' && primaryChannelAlert && channelHealth && (
               <div
                 role="alert"
@@ -1117,12 +1119,12 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {!channelHealth.connection.sessionAlive && (
                     <>
                       <Button
                         size="sm"
-                        className="h-7 bg-orange-600 px-2.5 text-xs text-white hover:bg-orange-700"
+                        className="h-8 bg-orange-600 px-3 text-xs text-white hover:bg-orange-700"
                         onClick={() => openChannelsAction('cookie-curl')}
                       >
                         <KeyRound className="mr-1 h-3 w-3" />
@@ -1131,7 +1133,7 @@ export default function Home() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 bg-background px-2.5 text-xs"
+                        className="h-8 bg-background px-3 text-xs"
                         onClick={() => openChannelsAction('cookie-extension')}
                       >
                         <Puzzle className="mr-1 h-3 w-3 text-orange-600" />
@@ -1142,7 +1144,7 @@ export default function Home() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 bg-background px-2.5 text-xs font-medium"
+                    className="h-8 bg-background px-3 text-xs font-medium"
                     onClick={() => openChannelsAction('async-queue')}
                   >
                     <Layers className="mr-1 h-3 w-3 text-sky-600" />
@@ -1152,7 +1154,7 @@ export default function Home() {
                     type="button"
                     aria-label="Ẩn tạm cảnh báo mất liên kết"
                     onClick={() => setChannelBannerDismissedSig(channelAlertSignature)}
-                    className="ml-0.5 rounded p-1 opacity-70 transition-opacity hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+                    className="ml-0.5 flex h-8 w-8 items-center justify-center rounded opacity-70 transition-opacity hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
                     title="Ẩn tạm cảnh báo này"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -1254,8 +1256,8 @@ export default function Home() {
           </div>
         </main>
 
-        <footer className="mt-auto shrink-0 border-t bg-card px-4 py-3 pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:px-6 md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center justify-between gap-1 text-center text-xs text-muted-foreground sm:flex-row sm:text-left">
+        <footer className="mt-auto shrink-0 border-t bg-card px-4 py-3 pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:px-6 md:pb-[max(0.75rem,env(safe-area-inset-bottom))] 2xl:px-8">
+          <div className="mx-auto flex w-full max-w-[1920px] flex-col items-center justify-between gap-1 text-center text-xs text-muted-foreground sm:flex-row sm:text-left 2xl:max-w-[2360px]">
             <p suppressHydrationWarning>
               © {new Date().getFullYear()}{' '}
               <span className="font-semibold text-foreground">{shopProfile.brandName}</span>

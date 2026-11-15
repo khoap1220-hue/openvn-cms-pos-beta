@@ -25,8 +25,12 @@ def load_config() -> dict:
     return {'project_name': 'openvn-cms-pos-beta', 'mcp_engine_dir': r'E:/MCP SKILL DELOY FREE BETA', 'local_port': 3010}
 
 def sync_cloud_feedback(cfg: dict, reg) -> int:
-    topic = cfg.get('feedback_topic') or 'openvn_feedback_v1'
-    url = f'https://ntfy.envs.net/{topic}/json?poll=1&since=all'
+    primary_topic = cfg.get('feedback_topic') or 'openvn_feedback_v1'
+    slug_topic = f"openvn_fb_{str(cfg.get('project_name') or 'openvn_cms_pos_beta').replace('-', '_')}_v1"
+    topics = []
+    for _t in (primary_topic, slug_topic):
+        if _t and _t not in topics:
+            topics.append(_t)
     dep_id = f"beta-{cfg.get('project_name', 'app')}-auto"
     reg.register_deployment(
         deployment_id=dep_id,
@@ -48,54 +52,56 @@ def sync_cloud_feedback(cfg: dict, reg) -> int:
         except Exception:
             pass
     added = 0
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            lines = resp.read().decode('utf-8', errors='replace').splitlines()
-        for ln in lines:
-            if not ln.strip():
-                continue
-            try:
-                evt = json.loads(ln)
-                if evt.get('event') == 'message':
-                    fobj = None
-                    att = evt.get('attachment')
-                    if isinstance(att, dict) and att.get('url'):
-                        try:
-                            with urllib.request.urlopen(urllib.request.Request(str(att['url']), headers={'User-Agent': 'Mozilla/5.0'}), timeout=8) as ar:
-                                fobj = json.loads(ar.read().decode('utf-8', errors='replace'))
-                        except Exception:
-                            fobj = None
-                    if not isinstance(fobj, dict) and isinstance(evt.get('message'), str) and evt['message'].strip().startswith('{'):
-                        fobj = json.loads(evt['message'])
-                    if not isinstance(fobj, dict):
-                        continue
-                    msg = str(fobj.get('message') or '').strip()
-                    cuid = str(fobj.get('client_uid') or '').strip()
-                    act = str(fobj.get('action') or 'create').strip()
-                    if msg and (act == 'update' or (msg not in existing_msgs and (not cuid or cuid not in existing_uids))):
-                        existing_msgs.add(msg)
-                        if cuid: existing_uids.add(cuid)
-                        reg.add_feedback(
-                            deployment_id=dep_id,
-                            project_name=cfg.get('project_name', PROJECT_ROOT.name),
-                            category=str(fobj.get('category') or 'bug'),
-                            message=msg,
-                            page_url=str(fobj.get('page_url') or ''),
-                            viewport=str(fobj.get('viewport') or ''),
-                            screenshot_data_url=str(fobj.get('screenshot_data_url') or ''),
-                            ai_analysis=fobj.get('ai_analysis') if isinstance(fobj.get('ai_analysis'), dict) else None,
-                            client_uid=str(fobj.get('client_uid') or ''),
-                            triage_mode=str(fobj.get('triage_mode') or 'advisory'),
-                            action=act,
-                            target_id=int(fobj.get('target_id') or 0),
-                            forward_telegram=False,
-                        )
-                        added += 1
-            except Exception:
-                continue
-    except Exception as exc:
-        print(f'[Feedback Sync Warning] {exc}')
+    for topic in topics:
+        url = f'https://ntfy.envs.net/{topic}/json?poll=1&since=all'
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                lines = resp.read().decode('utf-8', errors='replace').splitlines()
+            for ln in lines:
+                if not ln.strip():
+                    continue
+                try:
+                    evt = json.loads(ln)
+                    if evt.get('event') == 'message':
+                        fobj = None
+                        att = evt.get('attachment')
+                        if isinstance(att, dict) and att.get('url'):
+                            try:
+                                with urllib.request.urlopen(urllib.request.Request(str(att['url']), headers={'User-Agent': 'Mozilla/5.0'}), timeout=8) as ar:
+                                    fobj = json.loads(ar.read().decode('utf-8', errors='replace'))
+                            except Exception:
+                                fobj = None
+                        if not isinstance(fobj, dict) and isinstance(evt.get('message'), str) and evt['message'].strip().startswith('{'):
+                            fobj = json.loads(evt['message'])
+                        if not isinstance(fobj, dict):
+                            continue
+                        msg = str(fobj.get('message') or '').strip()
+                        cuid = str(fobj.get('client_uid') or '').strip()
+                        act = str(fobj.get('action') or 'create').strip()
+                        if msg and (act == 'update' or (msg not in existing_msgs and (not cuid or cuid not in existing_uids))):
+                            existing_msgs.add(msg)
+                            if cuid: existing_uids.add(cuid)
+                            reg.add_feedback(
+                                deployment_id=dep_id,
+                                project_name=cfg.get('project_name', PROJECT_ROOT.name),
+                                category=str(fobj.get('category') or 'bug'),
+                                message=msg,
+                                page_url=str(fobj.get('page_url') or ''),
+                                viewport=str(fobj.get('viewport') or ''),
+                                screenshot_data_url=str(fobj.get('screenshot_data_url') or ''),
+                                ai_analysis=fobj.get('ai_analysis') if isinstance(fobj.get('ai_analysis'), dict) else None,
+                                client_uid=str(fobj.get('client_uid') or ''),
+                                triage_mode=str(fobj.get('triage_mode') or 'advisory'),
+                                action=act,
+                                target_id=int(fobj.get('target_id') or 0),
+                                forward_telegram=False,
+                            )
+                            added += 1
+                except Exception:
+                    continue
+        except Exception as exc:
+            print(f'[Feedback Sync Warning:{topic}] {exc}')
     return added
 
 def main() -> int:

@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-15T10:11:31Z",
+  "updated_at": "2026-11-15T15:11:39Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,8 +13,8 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-0B402C6B4AA3A2DFB0DA",
-    "signed_at": "2026-11-15T10:11:31Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-49E5C384EB4ED0FB5E5B",
+    "signed_at": "2026-11-15T15:11:39Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
@@ -105,14 +105,14 @@
     {
       "view_key": "dashboard",
       "tsx_file": "src/components/cms/views/dashboard-view.tsx",
-      "sha256_before": "7e7c76c66e4f71b3",
+      "sha256_before": "1d9c79e7ef236557",
       "metrics": {
         "cards": 7,
         "tables": 0,
         "badges": 2,
         "truncate_nodes": 6,
         "nowrap_nodes": 0,
-        "accessible_labels": 5
+        "accessible_labels": 9
       },
       "findings": [
         "Phát hiện `6` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU."
@@ -143,14 +143,14 @@
     {
       "view_key": "orders",
       "tsx_file": "src/components/cms/views/orders-view.tsx",
-      "sha256_before": "819097e35084d5e2",
+      "sha256_before": "c7810ebbf840a3dd",
       "metrics": {
         "cards": 1,
         "tables": 3,
         "badges": 9,
         "truncate_nodes": 7,
         "nowrap_nodes": 8,
-        "accessible_labels": 18
+        "accessible_labels": 19
       },
       "findings": [
         "Phát hiện `7` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
@@ -183,14 +183,14 @@
     {
       "view_key": "products",
       "tsx_file": "src/components/cms/views/products-view.tsx",
-      "sha256_before": "c11054318039eff6",
+      "sha256_before": "65257a518e746177",
       "metrics": {
         "cards": 0,
         "tables": 4,
         "badges": 20,
         "truncate_nodes": 6,
         "nowrap_nodes": 7,
-        "accessible_labels": 47
+        "accessible_labels": 48
       },
       "findings": [
         "Phát hiện `6` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
@@ -223,14 +223,14 @@
     {
       "view_key": "inventory",
       "tsx_file": "src/components/cms/views/inventory-view.tsx",
-      "sha256_before": "8c4247a7ab23413b",
+      "sha256_before": "0827c3057a89f791",
       "metrics": {
         "cards": 11,
         "tables": 4,
         "badges": 17,
         "truncate_nodes": 10,
         "nowrap_nodes": 13,
-        "accessible_labels": 28
+        "accessible_labels": 29
       },
       "findings": [
         "Phát hiện `10` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
@@ -303,7 +303,7 @@
     {
       "view_key": "pos",
       "tsx_file": "src/components/cms/views/pos-view.tsx",
-      "sha256_before": "1ed934a3a86f4815",
+      "sha256_before": "e46089cc7140b923",
       "metrics": {
         "cards": 3,
         "tables": 0,
@@ -585,7 +585,7 @@
     {
       "view_key": "ledger",
       "tsx_file": "src/components/cms/views/ledger-view.tsx",
-      "sha256_before": "4e5315536f39aa9b",
+      "sha256_before": "af361b4a5536d516",
       "metrics": {
         "cards": 2,
         "tables": 3,

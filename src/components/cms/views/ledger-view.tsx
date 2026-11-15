@@ -711,15 +711,15 @@ export function LedgerView() {
           </div>
 
           {/* Thanh nút lọc nhanh nghiệp vụ: Đổi giá bán · Chương trình · Chiều đồng bộ */}
-          <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border bg-muted/40 p-1.5">
-            <span className="mr-1 text-xs font-semibold text-muted-foreground flex items-center gap-1 pl-1">
-              <Filter className="h-3 w-3" /> Lọc nhanh:
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 p-2">
+            <span className="mr-1 text-xs font-semibold text-muted-foreground flex items-center gap-1.5 pl-1">
+              <Filter className="h-3.5 w-3.5" /> Lọc nhanh:
             </span>
             <Button
               type="button"
               size="sm"
               variant={categoryFilter === 'ALL' && scopeFilter !== 'CAMPAIGN' && !searchInput ? 'secondary' : 'ghost'}
-              className="h-7 px-2.5 text-xs font-medium"
+              className="h-8 px-3 text-xs font-medium"
               onClick={() => {
                 setCategoryFilter('ALL')
                 setSearchInput('')
@@ -734,7 +734,7 @@ export function LedgerView() {
               size="sm"
               variant={categoryFilter === 'PRICE' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-amber-300 dark:border-amber-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-amber-300 dark:border-amber-800 font-medium',
                 categoryFilter === 'PRICE'
                   ? 'bg-amber-600 hover:bg-amber-700 text-white'
                   : 'text-amber-700 bg-background hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40'
@@ -754,7 +754,7 @@ export function LedgerView() {
               size="sm"
               variant={categoryFilter === 'CAMPAIGN' || scopeFilter === 'CAMPAIGN' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-fuchsia-300 dark:border-fuchsia-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-fuchsia-300 dark:border-fuchsia-800 font-medium',
                 categoryFilter === 'CAMPAIGN' || scopeFilter === 'CAMPAIGN'
                   ? 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'
                   : 'text-fuchsia-700 bg-background hover:bg-fuchsia-50 dark:text-fuchsia-300 dark:hover:bg-fuchsia-950/40'
@@ -774,7 +774,7 @@ export function LedgerView() {
               size="sm"
               variant={categoryFilter === 'SAN_TO_SAN' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-orange-300 dark:border-orange-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-orange-300 dark:border-orange-800 font-medium',
                 categoryFilter === 'SAN_TO_SAN'
                   ? 'bg-orange-600 hover:bg-orange-700 text-white'
                   : 'text-orange-700 bg-background hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-950/40'
@@ -794,7 +794,7 @@ export function LedgerView() {
               size="sm"
               variant={categoryFilter === 'CMS_TO_CMS' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-teal-300 dark:border-teal-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-teal-300 dark:border-teal-800 font-medium',
                 categoryFilter === 'CMS_TO_CMS'
                   ? 'bg-teal-600 hover:bg-teal-700 text-white'
                   : 'text-teal-700 bg-background hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/40'
@@ -814,7 +814,7 @@ export function LedgerView() {
               size="sm"
               variant={categoryFilter === 'INBOUND' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-sky-300 dark:border-sky-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-sky-300 dark:border-sky-800 font-medium',
                 categoryFilter === 'INBOUND'
                   ? 'bg-sky-600 hover:bg-sky-700 text-white'
                   : 'text-sky-700 bg-background hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/40'
@@ -834,7 +834,7 @@ export function LedgerView() {
               size="sm"
               variant={categoryFilter === 'OUTBOUND' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-indigo-300 dark:border-indigo-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-indigo-300 dark:border-indigo-800 font-medium',
                 categoryFilter === 'OUTBOUND'
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                   : 'text-indigo-700 bg-background hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40'
@@ -854,7 +854,7 @@ export function LedgerView() {
               size="sm"
               variant={searchInput === 'TẠM ẨN' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-amber-300 dark:border-amber-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-amber-300 dark:border-amber-800 font-medium',
                 searchInput === 'TẠM ẨN'
                   ? 'bg-amber-600 hover:bg-amber-700 text-white'
                   : 'text-amber-700 bg-background hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40'
@@ -874,7 +874,7 @@ export function LedgerView() {
               size="sm"
               variant={searchInput === 'LIÊN KẾT' ? 'default' : 'outline'}
               className={cn(
-                'h-7 px-2.5 text-xs gap-1 border-emerald-300 dark:border-emerald-800 font-medium',
+                'h-8 px-3 text-xs gap-1.5 border-emerald-300 dark:border-emerald-800 font-medium',
                 searchInput === 'LIÊN KẾT'
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                   : 'text-emerald-700 bg-background hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40'
@@ -994,7 +994,7 @@ export function LedgerView() {
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap font-mono text-xs">{entry.action}</TableCell>
-                        <TableCell className="max-w-[420px]">
+                        <TableCell className="max-w-[420px] xl:max-w-[580px] 2xl:max-w-[860px]">
                           <div className="mb-1 flex flex-wrap items-center gap-1">
                             {badges.direction && (
                               <Badge
@@ -1073,19 +1073,19 @@ export function LedgerView() {
                               </Badge>
                             )}
                           </div>
-                          <p className="truncate text-sm font-medium" title={entry.title}>
+                          <p className="truncate text-sm font-medium 2xl:whitespace-normal" title={entry.title}>
                             {entry.title}
                           </p>
                           {badges.reconcileReason && (
                             <p
-                              className="mt-0.5 truncate rounded bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
+                              className="mt-0.5 truncate rounded bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-800 2xl:whitespace-normal dark:bg-violet-950/40 dark:text-violet-300"
                               title={`Lý do đối soát / chốt tồn: ${badges.reconcileReason}`}
                             >
                               Lý do: &ldquo;{badges.reconcileReason}&rdquo;
                             </p>
                           )}
                           {entry.entityCode && (
-                            <p className="truncate font-mono text-xs text-muted-foreground">
+                            <p className="truncate font-mono text-xs text-muted-foreground 2xl:whitespace-normal">
                               {entry.entityCode}
                             </p>
                           )}

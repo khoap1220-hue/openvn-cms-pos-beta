@@ -214,6 +214,7 @@ export function InventoryView({
   // Bộ lọc cho Bảng Tồn kho chi tiết
   const [stockSearch, setStockSearch] = useState('')
   const [stockFilterType, setStockFilterType] = useState<'ALL' | 'RAW' | 'FINISHED' | 'COMBO' | 'LOW'>('ALL')
+  const [stockCategoryFilter, setStockCategoryFilter] = useState<string>('ALL')
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'ALL' | 'IMPORT' | 'PRODUCTION' | 'EXPORT' | 'ADJUST'>('ALL')
 
   // Bảng Kiểm kê & Cân bằng kho nhanh (Quick Reconciliation Sheet)
@@ -807,12 +808,27 @@ export function InventoryView({
     }
   }, [products, selectedWarehouseId, getProductStockInSelectedWh])
 
+  const stockCategories = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>()
+    for (const p of products ?? []) {
+      const catId = p.category?.id
+      const catName = p.category?.name
+      if (catId && catName) {
+        const cur = map.get(catId)
+        if (cur) cur.count += 1
+        else map.set(catId, { id: catId, name: catName, count: 1 })
+      }
+    }
+    return Array.from(map.values())
+  }, [products])
+
   const filteredStockProducts = useMemo(() => {
     const all = products ?? []
     const q = stockSearch.trim().toLowerCase()
     return all.filter((p) => {
       const whQty = getProductStockInSelectedWh(p)
       if (selectedWarehouseId !== 'ALL' && p.type !== 'COMBO' && whQty === 0 && !q) return false
+      if (stockCategoryFilter !== 'ALL' && p.category?.id !== stockCategoryFilter) return false
       if (stockFilterType === 'RAW' && !isRawMaterialProduct(p)) return false
       if (stockFilterType === 'FINISHED' && (p.type === 'COMBO' || isRawMaterialProduct(p))) return false
       if (stockFilterType === 'COMBO' && p.type !== 'COMBO') return false
@@ -824,7 +840,7 @@ export function InventoryView({
         (p.category?.name ?? '').toLowerCase().includes(q)
       )
     })
-  }, [products, stockSearch, stockFilterType, selectedWarehouseId, getProductStockInSelectedWh])
+  }, [products, stockSearch, stockCategoryFilter, stockFilterType, selectedWarehouseId, getProductStockInSelectedWh])
 
   // Bảng Kiểm kê & Cân bằng kho nhanh (Quick Reconciliation Sheet)
   const physicalProducts = useMemo(
@@ -1242,12 +1258,12 @@ export function InventoryView({
             </div>
           </div>
 
-          <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto border-t pt-2">
+          <div className="no-scrollbar flex items-center gap-2 overflow-x-auto border-t pt-2.5 sm:flex-wrap sm:overflow-visible">
             <button
               type="button"
               onClick={() => setSelectedWarehouseId('ALL')}
               className={cn(
-                'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
                 selectedWarehouseId === 'ALL'
                   ? 'border-[#0066CC] bg-[#0066CC] text-white'
                   : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -1275,14 +1291,14 @@ export function InventoryView({
                   type="button"
                   onClick={() => setSelectedWarehouseId(active ? 'ALL' : wh.id)}
                   className={cn(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                    'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
                     active
                       ? 'border-[#0066CC] bg-[#0066CC] text-white'
                       : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
                   <WhIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="max-w-[180px] truncate">{wh.name}</span>
+                  <span className="max-w-[180px] truncate 2xl:max-w-[320px]">{wh.name}</span>
                   {wh.isDefault && (
                     <Star
                       className={cn(
@@ -2026,41 +2042,86 @@ export function InventoryView({
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="relative w-full sm:max-w-xs">
-                    <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={stockSearch}
-                      onChange={(e) => setStockSearch(e.target.value)}
-                      placeholder="Tìm theo SKU, tên mặt hàng, danh mục..."
-                      className="h-9 pl-8 text-xs"
-                    />
+                <div
+                  data-category-filter-bar="true"
+                  className="mt-3 space-y-2.5 rounded-xl border border-border/70 bg-muted/20 p-2.5"
+                >
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="relative w-full sm:max-w-xs 2xl:max-w-md">
+                      <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={stockSearch}
+                        onChange={(e) => setStockSearch(e.target.value)}
+                        placeholder="Tìm theo SKU, tên mặt hàng, danh mục..."
+                        className="h-9 bg-background pl-8 text-xs"
+                      />
+                    </div>
+                    <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:pb-0">
+                      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                        Phân loại:
+                      </span>
+                      {(
+                        [
+                          { id: 'ALL', label: `Tất cả (${stockStats.totalCount})` },
+                          { id: 'RAW', label: `NVL (${stockStats.rawCount})` },
+                          { id: 'FINISHED', label: `Thành phẩm (${stockStats.finishedCount})` },
+                          { id: 'COMBO', label: `Combo (${stockStats.comboCount})` },
+                          { id: 'LOW', label: `Sắp hết (${lowStock?.length ?? 0})` },
+                        ] as const
+                      ).map((chip) => (
+                        <button
+                          key={chip.id}
+                          type="button"
+                          onClick={() => setStockFilterType(chip.id)}
+                          className={cn(
+                            'inline-flex min-h-8 shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                            stockFilterType === chip.id
+                              ? 'border-[#0066CC] bg-[#0066CC] text-white'
+                              : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                          )}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:pb-0">
-                    {(
-                      [
-                        { id: 'ALL', label: `Tất cả (${stockStats.totalCount})` },
-                        { id: 'RAW', label: `NVL (${stockStats.rawCount})` },
-                        { id: 'FINISHED', label: `Thành phẩm (${stockStats.finishedCount})` },
-                        { id: 'COMBO', label: `Combo (${stockStats.comboCount})` },
-                        { id: 'LOW', label: `Sắp hết (${lowStock?.length ?? 0})` },
-                      ] as const
-                    ).map((chip) => (
+
+                  {stockCategories.length > 0 && (
+                    <div className="no-scrollbar flex items-center gap-2 overflow-x-auto border-t border-border/50 pt-2 sm:flex-wrap sm:overflow-visible">
+                      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                        Danh mục sản phẩm:
+                      </span>
                       <button
-                        key={chip.id}
                         type="button"
-                        onClick={() => setStockFilterType(chip.id)}
+                        onClick={() => setStockCategoryFilter('ALL')}
                         className={cn(
-                          'shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors',
-                          stockFilterType === chip.id
-                            ? 'border-[#0066CC] bg-[#0066CC] text-white'
-                            : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground'
+                          'inline-flex min-h-8 shrink-0 items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                          stockCategoryFilter === 'ALL'
+                            ? 'border-[#0066CC] bg-[#0066CC]/12 font-semibold text-[#0066CC] dark:text-sky-300'
+                            : 'border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                         )}
                       >
-                        {chip.label}
+                        Mọi danh mục ({(products ?? []).length})
                       </button>
-                    ))}
-                  </div>
+                      {stockCategories.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() =>
+                            setStockCategoryFilter(stockCategoryFilter === cat.id ? 'ALL' : cat.id)
+                          }
+                          className={cn(
+                            'inline-flex min-h-8 shrink-0 items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                            stockCategoryFilter === cat.id
+                              ? 'border-[#0066CC] bg-[#0066CC]/12 font-semibold text-[#0066CC] dark:text-sky-300'
+                              : 'border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                          )}
+                        >
+                          {cat.name} ({cat.count})
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardHeader>
 
@@ -2143,7 +2204,9 @@ export function InventoryView({
                                 <div className="flex items-center gap-2.5">
                                   <ProductAvatar name={p.name} image={p.image} className="h-8 w-8 shrink-0" />
                                   <div className="min-w-0">
-                                    <p className="max-w-[250px] truncate text-xs font-semibold">{p.name}</p>
+                                    <p className="max-w-[250px] truncate text-xs font-semibold xl:max-w-[380px] 2xl:max-w-[540px] 2xl:whitespace-normal" title={p.name}>
+                                      {p.name}
+                                    </p>
                                     <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                                       <span className="font-mono text-[11px] font-semibold text-foreground/85">{p.sku}</span>
                                       <span>·</span>
@@ -2165,14 +2228,14 @@ export function InventoryView({
                                     </div>
                                     {lastReconcileReason && (
                                       <p
-                                        className="mt-0.5 max-w-[300px] truncate text-[10px] font-medium text-violet-700 dark:text-violet-300"
+                                        className="mt-0.5 max-w-[300px] truncate text-[10px] font-medium text-violet-700 xl:max-w-[420px] 2xl:max-w-[600px] 2xl:whitespace-normal dark:text-violet-300"
                                         title={`${lastReconcileDecisionLabel || 'Lý do đối soát'}: ${lastReconcileReason}`}
                                       >
                                         {lastReconcileDecisionLabel || 'Lý do đối soát'}: “{lastReconcileReason}”
                                       </p>
                                     )}
                                     {!isCombo && shownWhList.length > 0 && (
-                                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                         {shownWhList.map((wh) => {
                                           const q = perWhMap[wh.id] ?? 0
                                           const isSel = selectedWarehouseId === wh.id
@@ -2189,7 +2252,9 @@ export function InventoryView({
                                                   : 'border-border/80 bg-muted/50 text-muted-foreground hover:border-sky-400 hover:text-foreground'
                                               )}
                                             >
-                                              <span className="max-w-[110px] truncate">{wh.name.replace('Shop Liên kết: ', 'Shop ')}:</span>
+                                              <span className="max-w-[120px] truncate 2xl:max-w-[240px]">
+                                                {wh.name.replace('Shop Liên kết: ', 'Shop ')}:
+                                              </span>
                                               <strong className={cn('font-mono', isSel ? 'text-white' : 'text-foreground')}>
                                                 {formatNumber(q)}
                                               </strong>
@@ -2272,13 +2337,13 @@ export function InventoryView({
                                 {isCombo ? '—' : formatVND(totalVal)}
                               </TableCell>
                               <TableCell className="text-right">
-                                <div className="inline-flex items-center gap-1">
+                                <div className="inline-flex items-center gap-2">
                                   {isCombo ? (
                                     <Button
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      className="h-7 px-2 text-xs"
+                                      className="h-8 px-2.5 text-xs"
                                       onClick={() => openProductLineage(p)}
                                     >
                                       Thẻ kho
@@ -2290,11 +2355,11 @@ export function InventoryView({
                                           type="button"
                                           variant="outline"
                                           size="sm"
-                                          className="h-7 border-sky-300 bg-sky-50/70 px-2 text-xs font-semibold text-[#0066CC] hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
+                                          className="h-8 border-sky-300 bg-sky-50/70 px-2.5 text-xs font-semibold text-[#0066CC] hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
                                           onClick={() => openDialog({ productId: p.id, type: 'PRODUCTION' })}
                                           title="Lập lệnh sản xuất thành phẩm tại xưởng (Trừ NVL ➔ Cộng Thành phẩm)"
                                         >
-                                          <Boxes className="mr-1 h-3 w-3" />
+                                          <Boxes className="mr-1 h-3.5 w-3.5" />
                                           Sản xuất
                                         </Button>
                                       )}
@@ -2302,7 +2367,7 @@ export function InventoryView({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        className="h-7 px-2 text-xs"
+                                        className="h-8 px-2.5 text-xs"
                                         onClick={() => openDialog({ productId: p.id, type: 'IMPORT' })}
                                       >
                                         + Nhập
@@ -2313,7 +2378,7 @@ export function InventoryView({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            className="h-7 w-7 p-0"
+                                            className="h-8 w-8 p-0"
                                             aria-label={`Thêm thao tác cho ${p.name}`}
                                           >
                                             <MoreHorizontal className="h-4 w-4" />

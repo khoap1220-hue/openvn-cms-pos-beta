@@ -1624,7 +1624,14 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       if (!json?.ok || !json.station) return
 
       setStationView(json.station)
-      if (json.recentShopeeOrders) setRecentShopeeOrders(json.recentShopeeOrders)
+      if (Array.isArray(json.recentShopeeOrders)) {
+        setRecentShopeeOrders(
+          json.recentShopeeOrders.filter(
+            (o): o is RecentShopeeOrderSummary =>
+              Boolean(o && typeof o.code === 'string' && o.code.trim() && Number.isFinite(Number(o.total)))
+          )
+        )
+      }
       if (Array.isArray(json.windowsPrinters)) setWindowsPrinters(json.windowsPrinters)
 
       // 1. Tiêu thụ sự kiện quét mã từ Điện thoại
@@ -1998,7 +2005,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   return (
     <div className="space-y-2.5">
       {/* ===== THANH ĐIỀU KHIỂN ĐẦU TRANG OPENVN POS (ĐA HÓA ĐƠN CHỜ + KHO XUẤT) ===== */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-[#182537] px-3 py-2 text-white shadow-sm lg:flex-nowrap lg:py-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-border/80 bg-[#182537] px-3 py-2 text-white shadow-sm">
         {/* Cụm 1: Chọn Kho xuất bán */}
         <div className="order-1 flex min-w-0 shrink items-center gap-2 lg:border-r lg:border-white/15 lg:pr-3">
           {!standalone && (
@@ -2018,8 +2025,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 onChange={(e) => setSelectedWarehouseId(e.target.value)}
                 aria-label="Chọn kho xuất bán"
                 className={cn(
-                  'max-w-[155px] truncate rounded bg-white/10 px-2 py-1 text-[11px] font-medium text-sky-200 outline-none hover:bg-white/20 sm:max-w-[210px]',
-                  !standalone && 'xl:mt-0.5 xl:px-1.5 xl:py-0.5 xl:text-[10px]'
+                  'max-w-[165px] truncate rounded bg-white/10 px-2 py-1 text-[11px] font-medium text-sky-200 outline-none hover:bg-white/20 sm:max-w-[230px] 2xl:max-w-[340px]',
+                  !standalone && 'xl:mt-0.5 xl:px-2 xl:py-0.5 xl:text-[11px]'
                 )}
               >
                 {warehouses.map((wh) => (
@@ -2034,8 +2041,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           </div>
         </div>
 
-        {/* Cụm 2: Các Tab đơn hàng đang mở song song (Tự xuống dòng rộng rãi trên Mobile, 1 dòng mượt không thanh cuộn thô trên Desktop) */}
-        <div className="no-scrollbar order-3 flex w-full min-w-0 items-center gap-1.5 overflow-x-auto border-t border-white/10 pt-1.5 lg:order-2 lg:w-auto lg:flex-1 lg:border-t-0 lg:pt-0">
+        {/* Cụm 2: Các Tab đơn hàng đang mở song song (Tự xuống dòng gọn gàng khi mở nhiều đơn chờ) */}
+        <div className="no-scrollbar order-3 flex w-full min-w-0 flex-wrap items-center gap-2 border-t border-white/10 pt-1.5 lg:order-2 lg:w-auto lg:flex-1 lg:border-t-0 lg:pt-0">
           {tabs.map((tab) => {
             const isCurrent = tab.id === activeTab.id
             const itemCount = tab.items.reduce((s, i) => s + i.quantity, 0)
@@ -2092,7 +2099,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         </div>
 
         {/* Cụm 3: Kết nối Thiết bị Ngoại vi & Lịch sử đơn POS trong ca */}
-        <div className="order-2 ml-auto flex shrink-0 items-center gap-1.5 lg:order-3 lg:ml-0">
+        <div className="order-2 ml-auto flex flex-wrap items-center gap-2 lg:order-3 lg:ml-0">
           <Button
             size="sm"
             variant="ghost"
@@ -2184,8 +2191,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           <Card className="border-border/80 shadow-xs">
             <CardContent className="space-y-3 p-3.5">
               {/* Hàng 1: Quét mã vạch (F2) + Camera Mobile + Tìm tên/SKU (F3) + Chuyển kiểu hiển thị */}
-              <div className="flex flex-col gap-2 2xl:flex-row">
-                <div className="flex flex-1 items-center gap-1.5">
+              <div className="flex flex-col gap-2.5 2xl:flex-row">
+                <div className="flex flex-1 items-center gap-2">
                   <form
                     className="relative flex-1"
                     onSubmit={(e) => {
@@ -2200,15 +2207,15 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       onChange={(e) => setBarcodeInput(e.target.value)}
                       placeholder="Quét mã / SKU..."
                       aria-label="Quét mã vạch hoặc nhập SKU"
-                      className="h-10 border-[#0066CC]/40 bg-sky-50/40 pl-9 pr-16 text-base font-medium focus-visible:ring-[#0066CC] sm:h-9 sm:text-xs lg:pr-24 dark:bg-sky-950/20"
+                      className="h-10 border-[#0066CC]/40 bg-sky-50/40 pl-9 pr-18 text-base font-medium focus-visible:ring-[#0066CC] sm:text-xs lg:pr-26 dark:bg-sky-950/20"
                     />
-                    <kbd className="pointer-events-none absolute right-15.5 top-1/2 hidden -translate-y-1/2 rounded border border-sky-300/70 bg-background/85 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0066CC] lg:inline-block dark:border-sky-800 dark:text-sky-300">
+                    <kbd className="pointer-events-none absolute right-17 top-1/2 hidden -translate-y-1/2 rounded border border-sky-300/70 bg-background/85 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0066CC] lg:inline-block dark:border-sky-800 dark:text-sky-300">
                       F2
                     </kbd>
                     <Button
                       type="submit"
                       size="sm"
-                      className="absolute right-1.5 top-1/2 h-7 -translate-y-1/2 bg-[#0066CC] px-2.5 text-xs font-semibold text-white hover:bg-[#0055B3] sm:text-[11px]"
+                      className="absolute right-1 top-1/2 h-8 -translate-y-1/2 bg-[#0066CC] px-3 text-xs font-semibold text-white hover:bg-[#0055B3]"
                     >
                       Thêm
                     </Button>
@@ -2217,7 +2224,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                     type="button"
                     variant="outline"
                     onClick={() => setCameraOpen(true)}
-                    className="h-10 shrink-0 gap-1.5 border-[#0066CC]/50 bg-[#0066CC]/10 px-3 text-xs font-bold text-[#0066CC] hover:bg-[#0066CC] hover:text-white sm:h-9 dark:text-sky-300"
+                    className="h-10 shrink-0 gap-1.5 border-[#0066CC]/50 bg-[#0066CC]/10 px-3 text-xs font-bold text-[#0066CC] hover:bg-[#0066CC] hover:text-white dark:text-sky-300"
                     title="Quét mã vạch / QR bằng Camera điện thoại"
                   >
                     <Camera className="h-4 w-4 shrink-0" />
@@ -2234,14 +2241,14 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Tìm theo tên hàng hóa, mã SKU..."
                       aria-label="Tìm theo tên hàng hóa hoặc mã SKU"
-                      className="h-10 pl-9 pr-10 text-base sm:h-9 sm:text-xs"
+                      className="h-10 pl-9 pr-10 text-base sm:text-xs"
                     />
                     {searchQuery ? (
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
                         aria-label="Xóa từ khóa tìm kiếm"
-                        className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -2252,14 +2259,14 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                     )}
                   </div>
 
-                  <div className="flex h-10 shrink-0 items-center rounded-lg border bg-muted/40 p-0.5 sm:h-9">
+                  <div className="flex h-10 shrink-0 items-center rounded-lg border bg-muted/40 p-0.5">
                     <button
                       type="button"
                       data-compact-btn="true"
                       onClick={() => setLayoutMode('grid')}
                       aria-label="Hiển thị dạng lưới thẻ"
                       className={cn(
-                        'flex h-full items-center justify-center rounded-md px-2.5 transition-colors md:px-2',
+                        'flex h-full min-w-8 items-center justify-center rounded-md px-2.5 transition-colors',
                         layoutMode === 'grid'
                           ? 'bg-card text-[#0066CC] shadow-2xs'
                           : 'text-muted-foreground hover:text-foreground'
@@ -2273,7 +2280,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       onClick={() => setLayoutMode('table')}
                       aria-label="Hiển thị dạng bảng tồn kho"
                       className={cn(
-                        'flex h-full items-center justify-center rounded-md px-2.5 transition-colors md:px-2',
+                        'flex h-full min-w-8 items-center justify-center rounded-md px-2.5 transition-colors',
                         layoutMode === 'table'
                           ? 'bg-card text-[#0066CC] shadow-2xs'
                           : 'text-muted-foreground hover:text-foreground'
@@ -2285,60 +2292,71 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 </div>
               </div>
 
-              {/* Hàng 2: Bộ lọc nhanh Tồn kho & Danh mục sản phẩm (Cuộn ngang mượt không thanh cuộn thô) */}
-              <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
-                {(
-                  [
-                    { key: 'IN_STOCK', label: 'Còn tồn kho' },
-                    { key: 'ALL', label: 'Tất cả hàng' },
-                    { key: 'COMBO', label: 'Combo / Bộ quà' },
-                    { key: 'LOW_STOCK', label: 'Sắp hết hàng' },
-                  ] as const
-                ).map((f) => (
+              {/* Hàng 2: Khu vực Bộ lọc Phân loại Tồn & Danh mục Sản phẩm nổi bật, tách nhãn rõ ràng */}
+              <div
+                data-category-filter-bar="true"
+                className="space-y-2 rounded-xl border border-border/70 bg-muted/25 p-2.5"
+              >
+                <div className="no-scrollbar flex items-center gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible">
+                  <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                    Phân loại tồn:
+                  </span>
+                  {(
+                    [
+                      { key: 'IN_STOCK', label: 'Còn tồn kho' },
+                      { key: 'ALL', label: 'Tất cả hàng' },
+                      { key: 'COMBO', label: 'Combo / Bộ quà' },
+                      { key: 'LOW_STOCK', label: 'Sắp hết hàng' },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setStockFilter(f.key)}
+                      className={cn(
+                        'inline-flex min-h-8 shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                        stockFilter === f.key
+                          ? 'bg-[#0066CC] font-semibold text-white shadow-2xs'
+                          : 'border border-border/70 bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="no-scrollbar flex items-center gap-2 overflow-x-auto border-t border-border/50 pt-2 sm:flex-wrap sm:overflow-visible">
+                  <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                    Danh mục sản phẩm:
+                  </span>
                   <button
-                    key={f.key}
                     type="button"
-                    onClick={() => setStockFilter(f.key)}
+                    onClick={() => setSelectedCategory('ALL')}
                     className={cn(
-                      'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1 sm:text-[11px]',
-                      stockFilter === f.key
-                        ? 'bg-[#0066CC] font-semibold text-white'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                      'inline-flex min-h-8 shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      selectedCategory === 'ALL'
+                        ? 'border-[#0066CC] bg-[#0066CC]/12 font-semibold text-[#0066CC] dark:text-sky-300'
+                        : 'border-border bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                     )}
                   >
-                    {f.label}
+                    Tất cả danh mục ({products.length})
                   </button>
-                ))}
-
-                <Separator orientation="vertical" className="mx-1 h-4 shrink-0" />
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategory('ALL')}
-                  className={cn(
-                    'shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1 sm:text-[11px]',
-                    selectedCategory === 'ALL'
-                      ? 'border-[#0066CC] bg-[#0066CC]/10 font-semibold text-[#0066CC] dark:text-sky-300'
-                      : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Mọi danh mục ({products.length})
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={cn(
-                      'shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1 sm:text-[11px]',
-                      selectedCategory === cat.id
-                        ? 'border-[#0066CC] bg-[#0066CC]/10 font-semibold text-[#0066CC] dark:text-sky-300'
-                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={cn(
+                        'inline-flex min-h-8 shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                        selectedCategory === cat.id
+                          ? 'border-[#0066CC] bg-[#0066CC]/12 font-semibold text-[#0066CC] dark:text-sky-300'
+                          : 'border-border bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                      )}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -2384,7 +2402,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   )}
                 </div>
               ) : layoutMode === 'grid' ? (
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:max-h-[620px] lg:overflow-y-auto lg:pr-1">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4 lg:max-h-[680px] lg:overflow-y-auto lg:pr-1">
                   {filteredProducts.map((p) => {
                     const avail = getAvailableStock(p)
                     const price = getPosPrice(p)
@@ -2576,7 +2594,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                                 size="sm"
                                 disabled={!allowPosNegative && avail <= 0}
                                 onClick={() => addProductToCart(p, 1)}
-                                className="h-7 bg-[#0066CC] px-2.5 text-[11px] text-white hover:bg-[#0055B3]"
+                                className="h-8 bg-[#0066CC] px-3 text-xs text-white hover:bg-[#0055B3]"
                               >
                                 <Plus className="mr-1 h-3 w-3" />
                                 {inCartQty > 0 ? `Thêm (${inCartQty})` : 'Chọn'}
@@ -2628,9 +2646,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                     variant="ghost"
                     size="sm"
                     onClick={() => setNewCustomerOpen(true)}
-                    className="h-6 gap-1 px-2 text-[11px] font-semibold text-[#0066CC] hover:bg-[#0066CC]/10 dark:text-sky-400"
+                    className="h-8 gap-1.5 px-2.5 text-xs font-semibold text-[#0066CC] hover:bg-[#0066CC]/10 dark:text-sky-400"
                   >
-                    <UserPlus className="h-3 w-3" /> + Thêm khách / Hội viên mới
+                    <UserPlus className="h-3.5 w-3.5" /> + Thêm khách / Hội viên mới
                   </Button>
                 </div>
 

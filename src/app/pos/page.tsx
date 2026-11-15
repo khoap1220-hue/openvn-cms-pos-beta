@@ -52,6 +52,7 @@ export default function StandalonePosPage() {
         if (res.permissions) setPermissions(res.permissions as PermissionMap)
       })
       .catch(() => null)
+    document.title = 'POS Bán hàng tại kho — OPENVN · Ưu Đàm'
   }, [router])
 
   const handleSwitchShift = async () => {
@@ -68,28 +69,28 @@ export default function StandalonePosPage() {
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
-      <header className="sticky top-0 z-20 flex h-13 shrink-0 items-center justify-between gap-2 border-b bg-[#0F1E36] px-3 text-white shadow-xs sm:px-4">
+      <header className="sticky top-0 z-20 flex min-h-13 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b bg-[#0F1E36] px-3 py-1.5 text-white shadow-xs sm:px-4 2xl:px-6">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0066CC] text-white">
             <ShoppingBag className="h-4 w-4" />
           </div>
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-bold tracking-tight whitespace-nowrap">
+            <h1 className="truncate text-sm font-bold tracking-tight whitespace-nowrap">
               OPENVN POS · Ưu Đàm
-            </span>
+            </h1>
             <span className="hidden shrink-0 rounded bg-[#0066CC] px-1.5 py-0.5 text-[10px] font-semibold text-white sm:inline-block">
               QUẦY BÁN TẠI KHO
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           {staff && (
             <div className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs md:flex">
               <span
                 className="inline-block h-2 w-2 rounded-full"
                 style={{ backgroundColor: staff.avatarColor || '#38BDF8' }}
               />
-              <span className="max-w-[140px] truncate font-medium text-white">
+              <span className="max-w-[160px] truncate font-medium text-white 2xl:max-w-[260px]">
                 {staff.displayName}
               </span>
               <span className="text-slate-300">· {staff.roleLabel}</span>
@@ -121,7 +122,7 @@ export default function StandalonePosPage() {
           <ThemeToggle />
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[1600px] flex-1 p-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3">
+      <main className="mx-auto w-full max-w-[1920px] flex-1 p-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3 2xl:max-w-[2400px] 2xl:px-6">
         {allowedPos ? (
           <PosView standalone />
         ) : (

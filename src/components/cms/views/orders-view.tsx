@@ -931,7 +931,7 @@ export function OrdersView() {
       </PageHeader>
 
       {/* Thanh Tab trạng thái đơn hàng ngang chuẩn OPENVN */}
-      <div className="no-scrollbar mb-3 flex items-center gap-1 overflow-x-auto rounded-xl border border-border/80 bg-card p-1.5 shadow-2xs">
+      <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto rounded-xl border border-border/80 bg-card p-2 shadow-2xs sm:flex-wrap sm:overflow-visible">
         {[
           { key: 'ALL', label: 'Tất cả đơn hàng' },
           { key: 'PENDING', label: 'Chờ xác nhận' },
@@ -950,7 +950,7 @@ export function OrdersView() {
                 setStatusFilter(tab.key)
                 setPage(1)
               }}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`inline-flex min-h-8 shrink-0 items-center rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
                 active
                   ? 'bg-[#0066CC] font-semibold text-white shadow-xs'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -1156,7 +1156,9 @@ export function OrdersView() {
                       />
                     </TableCell>
                     <TableCell>
-                      <p className="max-w-[140px] truncate text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
+                      <p className="max-w-[150px] truncate text-sm font-medium xl:max-w-[230px] 2xl:max-w-[340px]" title={o.customer?.name ?? 'Khách lẻ'}>
+                        {o.customer?.name ?? 'Khách lẻ'}
+                      </p>
                       {o.customer?.phone && (
                         <p className="font-mono text-xs text-muted-foreground">{o.customer.phone}</p>
                       )}
@@ -1164,7 +1166,10 @@ export function OrdersView() {
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {o.customer?.phone ?? '—'}
                     </TableCell>
-                    <TableCell className="max-w-[160px] truncate text-xs sm:text-sm" title={itemsSummary(o)}>
+                    <TableCell
+                      className="max-w-[170px] truncate text-xs sm:text-sm xl:max-w-[300px] 2xl:max-w-[500px] 2xl:whitespace-normal"
+                      title={itemsSummary(o)}
+                    >
                       {itemsSummary(o)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">
@@ -1186,14 +1191,17 @@ export function OrdersView() {
                     <TableCell>
                       <OrderStatusBadge status={o.status} />
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground" title={o.address || o.note || undefined}>
+                    <TableCell
+                      className="max-w-[200px] truncate text-xs text-muted-foreground xl:max-w-[320px] 2xl:max-w-[460px] 2xl:whitespace-normal"
+                      title={o.address || o.note || undefined}
+                    >
                       {o.address || o.note || '—'}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                       {formatDateTime(o.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-2">
                         {o.status === 'PENDING' && (
                           <Button
                             size="sm"
