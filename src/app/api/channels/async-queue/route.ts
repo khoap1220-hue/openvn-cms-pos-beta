@@ -178,7 +178,6 @@ async function buildAsyncQueueSnapshot() {
     if (!isLinked && !ledgerState) continue
 
     const shopeeListing = p.listings.find((l) => l.channel.key === 'SHOPEE')
-    const targetStock = typeof attrs.cmsTargetStock === 'number' ? attrs.cmsTargetStock : p.stock
     const targetPrice =
       typeof attrs.cmsTargetPrice === 'number'
         ? attrs.cmsTargetPrice
@@ -200,13 +199,33 @@ async function buildAsyncQueueSnapshot() {
     const hasBrokenLinkLedger = ledgerState?.action === 'OUTBOX_BROKEN_LINK'
     const brokenFlag = Boolean(attrs.brokenMarketplaceLink) || hasBrokenLinkLedger
 
+    const hasExplicitOutbox = hasPendingLedger || Boolean(attrs.pendingOutboxSync)
+    const reconStatus = String(attrs.reconciliationStatus || '')
+    const hasShortagePending = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0) > 0
+    const isMarketplaceStockProtected =
+      !hasExplicitOutbox &&
+      typeof attrs.cmsTargetStock !== 'number' &&
+      (reconStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK' ||
+        reconStatus === 'PENDING_SHOPEE_ORDER' ||
+        reconStatus === 'STOCK_DRIFT' ||
+        reconStatus === 'SHOPEE_DIRECT_ADJUSTED' ||
+        hasShortagePending ||
+        (p.stock === 0 && attrs.openingStockOrigin === 'CMS_WAREHOUSE' && lastSyncedStock > 0))
+
+    const targetStock =
+      typeof attrs.cmsTargetStock === 'number'
+        ? attrs.cmsTargetStock
+        : isMarketplaceStockProtected && lastSyncedStock >= 0
+          ? lastSyncedStock
+          : p.stock
+
     const suppressedKey = `${targetStock}_${targetPrice}_${targetUnlisted ? 1 : 0}`
     const isSuppressed =
       !hasPendingLedger &&
       typeof attrs.outboxSuppressedKey === 'string' &&
       attrs.outboxSuppressedKey === suppressedKey
 
-    const stockDrifted = isLinked && lastSyncedStock !== targetStock
+    const stockDrifted = isLinked && !isMarketplaceStockProtected && lastSyncedStock !== targetStock
     const priceDrifted = isLinked && lastSyncedPrice > 0 && lastSyncedPrice !== targetPrice
     const unlistedDrifted =
       isLinked &&

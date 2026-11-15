@@ -394,3 +394,24 @@ export function removeShopeePrintJobForTest(orderIdOrJobId: string): boolean {
   if (removed) store.enqueuedShopeeOrderIds.delete(removed.orderId)
   return true
 }
+
+export function cancelPendingShopeePrintJob(
+  orderId: string,
+  reason = 'ORDER_CANCELLED'
+): ShopeeAutoPrintJob | null {
+  const store = getStore()
+  const found = store.shopeePrintQueue.find(
+    (j) => j.orderId === orderId && j.status === 'PENDING'
+  )
+  if (!found) return null
+  found.status = 'SKIPPED'
+  found.printedByStationId = 'SHOPEE_SYNC'
+  found.printedMethod = reason
+  found.printedAt = new Date().toISOString()
+
+  broadcast('peripheral.event', {
+    subType: 'SHOPEE_ORDER_PRINTED',
+    job: found,
+  })
+  return found
+}

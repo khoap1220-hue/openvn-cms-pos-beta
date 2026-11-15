@@ -20,7 +20,10 @@ import {
   getAllUnitConfigs,
   syncLinkedVariantStocks,
 } from '@/lib/unit-conversion'
-import { enqueueShopeeOrderForLinkedPos } from '@/lib/peripheral-hub'
+import {
+  cancelPendingShopeePrintJob,
+  enqueueShopeeOrderForLinkedPos,
+} from '@/lib/peripheral-hub'
 
 export function isMaskedOrDummyPhone(phone: unknown): boolean {
   if (!phone || typeof phone !== 'string') return true
@@ -58,6 +61,17 @@ export function isMaskedOrDummyPhone(phone: unknown): boolean {
   return false
 }
 
+export interface StockShortageWarningItem {
+  productId: string
+  sku: string
+  name: string
+  available: number
+  required: number
+  deducted: number
+  shortage: number
+  unit: string
+}
+
 export interface CreateOrderInput {
   channelId: string
   items: Array<{
@@ -89,6 +103,15 @@ export interface CreateOrderInput {
   redeemPoints?: number
   /** POS bán tại kho nhận hàng ngay: tự động hoàn tất đơn (COMPLETED + PAID) & cộng điểm */
   instantComplete?: boolean
+  /**
+   * Cho phép tiếp nhận & in đơn từ Sàn Shopee ngay cả khi tồn kho CMS = 0 hoặc thiếu tồn,
+   * ghi nhận cảnh báo lệch kho để đối soát sau (không làm gián đoạn phiên Live).
+   */
+  allowStockShortage?: boolean
+  /** Trì hoãn đẩy hàng đợi in POS đến sau khi đồng bộ xong mã vận đơn Shipment */
+  deferPosPrintEnqueue?: boolean
+  /** Giá bán thực tế từng sản phẩm từ đơn Sàn (nếu có Flash Sale / Live Voucher) */
+  itemPriceOverrides?: Record<string, number>
 }
 
 export async function createOrder(input: CreateOrderInput) {
@@ -99,6 +122,9 @@ export async function createOrder(input: CreateOrderInput) {
 
   const channel = await db.channel.findUnique({ where: { id: input.channelId } })
   if (!channel) throw new Error('Kênh bán không tồn tại')
+
+  const allowShortage = Boolean(input.allowStockShortage)
+  const stockShortageWarnings: StockShortageWarningItem[] = []
 
   await ensureUnitConversionsSeeded()
   const unitConfigs = await getAllUnitConfigs()
@@ -115,14 +141,20 @@ export async function createOrder(input: CreateOrderInput) {
   let subtotal = 0
   // (COMBO) gộp nhu cầu thành phần của toàn bộ combo trong đơn + nhu cầu trực tiếp để kiểm tra kho tổng thể 1 lần
   const comboDemands = new Map<string, { required: number; comboNames: Set<string> }>()
-  const directDemands = new Map<string, { required: number; name: string; stock: number; baseUnit: string }>()
-  const componentStockMap = new Map<string, { name: string; stock: number }>()
+  const directDemands = new Map<
+    string,
+    { required: number; sku: string; name: string; stock: number; baseUnit: string }
+  >()
+  const componentStockMap = new Map<
+    string,
+    { sku: string; name: string; stock: number; unit: string }
+  >()
 
   for (const it of input.items) {
     const qty = Math.max(1, Math.floor(Number(it.quantity) || 1))
     const product = await db.product.findUnique({ where: { id: it.productId } })
     if (!product) throw new Error('Sản phẩm không tồn tại')
-    if (product.status === 'INACTIVE') {
+    if (product.status === 'INACTIVE' && !allowShortage) {
       throw new Error(`Sản phẩm "${product.name}" đã ngừng kinh doanh`)
     }
     const unitCfg = unitConfigs[product.id] ?? null
@@ -143,9 +175,13 @@ export async function createOrder(input: CreateOrderInput) {
     if (isCombo) {
       const rows = await db.bomComponent.findMany({
         where: { productId: product.id },
-        include: { componentProduct: { select: { id: true, name: true, stock: true } } },
+        include: {
+          componentProduct: { select: { id: true, sku: true, name: true, stock: true, unit: true } },
+        },
       })
-      if (rows.length === 0) throw new Error(`Combo "${product.name}" chưa khai báo thành phần ở Định mức`)
+      if (rows.length === 0 && !allowShortage) {
+        throw new Error(`Combo "${product.name}" chưa khai báo thành phần ở Định mức`)
+      }
       for (const row of rows) {
         const required = Math.round(row.quantity * qty)
         const entry = comboDemands.get(row.componentProductId) ?? { required: 0, comboNames: new Set<string>() }
@@ -153,10 +189,12 @@ export async function createOrder(input: CreateOrderInput) {
         entry.comboNames.add(product.name)
         comboDemands.set(row.componentProductId, entry)
         componentStockMap.set(row.componentProductId, {
+          sku: row.componentProduct.sku,
           name: row.componentProduct.name,
           stock: row.componentProduct.stock,
+          unit: row.componentProduct.unit || 'bộ',
         })
-        if (row.componentProduct.stock < entry.required) {
+        if (row.componentProduct.stock < entry.required && !allowShortage) {
           throw new Error(`Combo "${product.name}" không thể đóng — "${row.componentProduct.name}" chỉ còn ${row.componentProduct.stock} (cần ${entry.required})`)
         }
       }
@@ -166,11 +204,12 @@ export async function createOrder(input: CreateOrderInput) {
       const nextDirect = prevDirect + deductBaseQty
       directDemands.set(targetStockProduct.id, {
         required: nextDirect,
+        sku: targetStockProduct.sku,
         name: targetStockProduct.name,
         stock: targetStockProduct.stock,
         baseUnit: baseUnitLabel,
       })
-      if (targetStockProduct.stock < nextDirect) {
+      if (targetStockProduct.stock < nextDirect && !allowShortage) {
         throw new Error(
           `Kho "${targetStockProduct.name}" chỉ còn ${targetStockProduct.stock.toLocaleString('vi-VN')} ${baseUnitLabel} (cần ${nextDirect.toLocaleString('vi-VN')} ${baseUnitLabel})`
         )
@@ -179,7 +218,11 @@ export async function createOrder(input: CreateOrderInput) {
     const listing = await db.channelListing.findUnique({
       where: { productId_channelId: { productId: product.id, channelId: channel.id } },
     })
-    const basePrice = listing?.price ?? product.sellPrice
+    const overridePrice = input.itemPriceOverrides?.[product.id]
+    const basePrice =
+      typeof overridePrice === 'number' && Number.isFinite(overridePrice) && overridePrice > 0
+        ? Math.round(overridePrice)
+        : (listing?.price ?? product.sellPrice)
     const price =
       effectiveSellRate !== defaultSellRate
         ? Math.round((basePrice * effectiveSellRate) / defaultSellRate)
@@ -208,10 +251,34 @@ export async function createOrder(input: CreateOrderInput) {
     const directEntry = directDemands.get(compId)
     if (directEntry) {
       const totalNeeded = directEntry.required + comboEntry.required
-      if (directEntry.stock < totalNeeded) {
+      if (directEntry.stock < totalNeeded && !allowShortage) {
         throw new Error(
           `Sản phẩm "${directEntry.name}" chỉ còn ${directEntry.stock} trong kho (đơn cần ${directEntry.required} lẻ + ${comboEntry.required} trong Combo = ${totalNeeded})`
         )
+      }
+    }
+  }
+
+  if (allowShortage) {
+    const allProductIds = new Set<string>([...directDemands.keys(), ...comboDemands.keys()])
+    for (const pid of allProductIds) {
+      const dEntry = directDemands.get(pid)
+      const cEntry = comboDemands.get(pid)
+      const cMeta = componentStockMap.get(pid)
+      const required = (dEntry?.required ?? 0) + (cEntry?.required ?? 0)
+      const available = Math.max(0, dEntry?.stock ?? cMeta?.stock ?? 0)
+      if (available < required) {
+        const deducted = Math.min(available, required)
+        stockShortageWarnings.push({
+          productId: pid,
+          sku: dEntry?.sku || cMeta?.sku || '—',
+          name: dEntry?.name || cMeta?.name || 'Sản phẩm',
+          available,
+          required,
+          deducted,
+          shortage: required - deducted,
+          unit: dEntry?.baseUnit || cMeta?.unit || 'bộ',
+        })
       }
     }
   }
@@ -401,8 +468,11 @@ export async function createOrder(input: CreateOrderInput) {
     if (it.isCombo) continue // COMBO: trừ kho thành phần (dưới), không trừ kho gộp
     const targetProduct = await db.product.findUnique({ where: { id: it.targetStockProductId } })
     if (targetProduct) {
+      const availableBefore = Math.max(0, targetProduct.stock)
       const deductAmt = Math.max(1, it.deductBaseQty)
-      const after = Math.max(0, targetProduct.stock - deductAmt)
+      const actualDeducted = allowShortage ? Math.min(availableBefore, deductAmt) : deductAmt
+      const shortageQty = Math.max(0, deductAmt - actualDeducted)
+      const after = Math.max(0, availableBefore - actualDeducted)
       let prodAttrs: Record<string, unknown> = {}
       try {
         if (targetProduct.attributes) {
@@ -417,13 +487,33 @@ export async function createOrder(input: CreateOrderInput) {
         openingOrigin === 'CMS_WAREHOUSE' ? 'Gốc tồn Kho CMS' : 'Gốc tồn đầu từ Sàn Shopee'
 
       if (channel.key === 'SHOPEE') {
-        prodAttrs.lastSyncedShopeeStock = after
-        prodAttrs.liveShopeeStock = after
-        prodAttrs.unreconciledShopeeDelta = 0
-        prodAttrs.reconciliationStatus = 'RECONCILED_OK'
-        prodAttrs.lastReconciledOrderSn = extractedShopeeOrderSn || code
-        prodAttrs.lastReconciledOrderCode = code
-        prodAttrs.lastReconciledAt = new Date().toISOString()
+        if (shortageQty > 0) {
+          // Kho CMS thiếu tồn / bằng 0 khi nhận đơn Live: Bảo vệ tồn Sàn hiện có, KHÔNG ép đẩy 0 ngược lên Shopee
+          const prevLiveShopee =
+            typeof prodAttrs.liveShopeeStock === 'number' ? prodAttrs.liveShopeeStock : 0
+          const estimatedNextShopee =
+            prevLiveShopee >= deductAmt ? prevLiveShopee - deductAmt : prevLiveShopee
+          const prevShortage = Math.max(0, Number(prodAttrs.pendingOrderShortageQty) || 0)
+          prodAttrs.liveShopeeStock = estimatedNextShopee
+          prodAttrs.lastSyncedShopeeStock = estimatedNextShopee
+          prodAttrs.pendingOrderShortageQty = prevShortage + shortageQty
+          prodAttrs.unreconciledShopeeDelta = estimatedNextShopee - after
+          prodAttrs.reconciliationStatus =
+            after === 0 && estimatedNextShopee > 0
+              ? 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
+              : 'STOCK_DRIFT'
+          prodAttrs.lastShortageOrderSn = extractedShopeeOrderSn || code
+          prodAttrs.lastShortageOrderCode = code
+          prodAttrs.lastShortageAt = new Date().toISOString()
+        } else {
+          prodAttrs.lastSyncedShopeeStock = after
+          prodAttrs.liveShopeeStock = after
+          prodAttrs.unreconciledShopeeDelta = 0
+          prodAttrs.reconciliationStatus = 'RECONCILED_OK'
+          prodAttrs.lastReconciledOrderSn = extractedShopeeOrderSn || code
+          prodAttrs.lastReconciledOrderCode = code
+          prodAttrs.lastReconciledAt = new Date().toISOString()
+        }
       }
 
       await db.product.update({
@@ -434,21 +524,27 @@ export async function createOrder(input: CreateOrderInput) {
         },
       })
       await syncProductWarehouseStock(targetProduct.id, targetWarehouseId)
+      const shortageNoteSuffix =
+        shortageQty > 0
+          ? ` [CẢNH BÁO LỆCH KHO CHỜ ĐỐI SOÁT: thiếu ${shortageQty} ${targetProduct.unit || 'bộ'} tại CMS — đã trừ ${actualDeducted}/${deductAmt}, nhận & in đơn không gián đoạn Live]`
+          : ''
       const movementNote =
         channel.key === 'SHOPEE'
-          ? `Xuất kho cho đơn ${code} (Đối chiếu Đơn Sàn Shopee ${extractedShopeeOrderSn ? `#${extractedShopeeOrderSn}` : ''} · Trừ trên ${openingOriginShort})${it.unitSummaryNote || ''}`
-          : `Xuất kho cho đơn ${code}${it.unitSummaryNote || ''}`
+          ? `Xuất kho cho đơn ${code} (Đối chiếu Đơn Sàn Shopee ${extractedShopeeOrderSn ? `#${extractedShopeeOrderSn}` : ''} · Trừ trên ${openingOriginShort})${it.unitSummaryNote || ''}${shortageNoteSuffix}`
+          : `Xuất kho cho đơn ${code}${it.unitSummaryNote || ''}${shortageNoteSuffix}`
       await db.stockMovement.create({
         data: {
           productId: targetProduct.id,
           warehouseId: targetWarehouseId,
           type: 'EXPORT',
-          quantity: -deductAmt,
+          quantity: -actualDeducted,
           stockAfter: after,
           note: movementNote,
         },
       })
-      deductedSimpleIds.push(targetProduct.id)
+      if (actualDeducted > 0) {
+        deductedSimpleIds.push(targetProduct.id)
+      }
       // Tự động đẩy vào Transactional Outbox (CMS -> Sàn Shopee) khi trừ kho tại POS / kênh khác
       if (channel.key !== 'SHOPEE' && targetProduct.attributes) {
         try {
@@ -494,6 +590,21 @@ export async function createOrder(input: CreateOrderInput) {
         new Map([...comboDemands.entries()].map(([pid, e]) => [pid, e.required])),
         (componentName, qty) => `Trừ thành phần combo ${qty} ${componentName} cho đơn ${code}`
       )
+      // Ghi nhận bút toán 0 cho thành phần combo có tồn = 0 (khi allowShortage = true) để cancelOrder bảo toàn kho = 0
+      for (const r of issued) {
+        if (r.deducted === 0 && r.required > 0) {
+          await tx.stockMovement.create({
+            data: {
+              productId: r.componentProductId,
+              warehouseId: targetWarehouseId,
+              type: 'COMBO_ISSUE',
+              quantity: 0,
+              stockAfter: 0,
+              note: `Trừ thành phần combo 0/${r.required} ${r.componentName} cho đơn ${code} [CẢNH BÁO LỆCH KHO CHỜ ĐỐI SOÁT]`,
+            },
+          })
+        }
+      }
       const comboIds = [...new Set(orderItems.filter((it) => it.isCombo).map((it) => it.productId))]
       for (const comboId of comboIds) await syncComboStock(tx, comboId)
       await syncCombosUsingComponents(tx, [...comboDemands.keys()])
@@ -539,16 +650,19 @@ export async function createOrder(input: CreateOrderInput) {
   await logActivity({
     agent: 'SYSTEM',
     action: 'ORDER_RECEIVED',
-    level: 'info',
+    level: stockShortageWarnings.length > 0 ? 'warning' : 'info',
     targetType: 'ORDER',
     targetId: order.id,
     targetLabel: order.code,
-    message: `Tiếp nhận đơn hàng mới ${order.code} (${itemsSummary}) từ ${order.customer?.name ?? 'khách lẻ'} qua kênh ${channel.name} — tổng giá trị ${(order.total).toLocaleString('vi-VN')}đ`,
+    message:
+      stockShortageWarnings.length > 0
+        ? `Tiếp nhận đơn ${order.code} (${itemsSummary}) qua ${channel.name} — [Chờ đối soát kho CMS: thiếu ${stockShortageWarnings.map((w) => `${w.sku} -${w.shortage}`).join(', ')}]`
+        : `Tiếp nhận đơn hàng mới ${order.code} (${itemsSummary}) từ ${order.customer?.name ?? 'khách lẻ'} qua kênh ${channel.name} — tổng giá trị ${(order.total).toLocaleString('vi-VN')}đ`,
   })
   broadcast('order.created', order)
 
   // Tự động đẩy đơn Shopee mới vào hàng đợi in tự động cho Máy POS đang liên kết
-  if (channel.key === 'SHOPEE' && !input.instantComplete) {
+  if (channel.key === 'SHOPEE' && !input.instantComplete && !input.deferPosPrintEnqueue) {
     enqueueShopeeOrderForLinkedPos({
       orderId: order.id,
       orderCode: order.code,
@@ -633,7 +747,7 @@ export async function createOrder(input: CreateOrderInput) {
     }
   })()
 
-  return order
+  return Object.assign(order, { stockShortageWarnings })
 }
 
 export interface CancelOrderInput {
@@ -689,6 +803,14 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
       return { alreadyCancelled: true, restockedIds: [] }
     }
 
+    // Đối chiếu chính xác số lượng thực tế đã trừ kho của đơn này (bảo toàn 100% khi đơn Live nhận lúc kho CMS = 0)
+    const priorMovements = await tx.stockMovement.findMany({
+      where: {
+        type: { in: ['EXPORT', 'COMBO_ISSUE'] },
+        note: { contains: targetOrder.code },
+      },
+    })
+
     const restockedProductIds: string[] = []
     const comboIdsToSync = new Set<string>()
     const targetWhId = targetOrder.warehouseId
@@ -711,66 +833,138 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
           const comp = await tx.product.findUnique({ where: { id: row.componentProductId } })
           if (!comp) continue
 
-          const updatedComp = await tx.product.update({
-            where: { id: comp.id },
+          const compMovs = priorMovements.filter(
+            (m) => m.type === 'COMBO_ISSUE' && m.productId === comp.id
+          )
+          const actualCompRestock =
+            compMovs.length > 0
+              ? compMovs.reduce((s, m) => s + Math.max(0, -m.quantity), 0)
+              : compQty
+
+          if (actualCompRestock > 0) {
+            const updatedComp = await tx.product.update({
+              where: { id: comp.id },
+              data: {
+                stock: { increment: actualCompRestock },
+                status: 'ACTIVE',
+              },
+            })
+            const afterStock = updatedComp.stock
+
+            const effectiveWhId = targetWhId || comp.ownerWarehouseId
+            if (effectiveWhId) {
+              await tx.warehouseStock.updateMany({
+                where: { warehouseId: effectiveWhId, productId: comp.id },
+                data: { quantity: { increment: actualCompRestock } },
+              })
+            }
+
+            await tx.stockMovement.create({
+              data: {
+                productId: comp.id,
+                warehouseId: effectiveWhId ?? null,
+                type: 'RETURN',
+                quantity: actualCompRestock,
+                stockAfter: afterStock,
+                note: `Hoàn thành phần combo "${product.name}" × ${item.quantity} do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
+              },
+            })
+            restockedProductIds.push(comp.id)
+          } else {
+            const effectiveWhId = targetWhId || comp.ownerWarehouseId
+            await tx.stockMovement.create({
+              data: {
+                productId: comp.id,
+                warehouseId: effectiveWhId ?? null,
+                type: 'RETURN',
+                quantity: 0,
+                stockAfter: comp.stock,
+                note: `Hủy đơn combo "${product.name}" (${targetOrder.code}) — giữ nguyên kho thành phần = ${comp.stock} (đơn trước đó nhận khi kho CMS = 0, chưa trừ tồn vật lý)`,
+              },
+            })
+          }
+        }
+        comboIdsToSync.add(product.id)
+      } else {
+        // Restock simple product according to exact previously deducted quantity
+        const prodMovs = priorMovements.filter(
+          (m) => m.type === 'EXPORT' && m.productId === product.id
+        )
+        const actualRestockQty =
+          prodMovs.length > 0
+            ? prodMovs.reduce((s, m) => s + Math.max(0, -m.quantity), 0)
+            : item.quantity
+        const cancelledShortage = Math.max(0, item.quantity - actualRestockQty)
+
+        let nextAttrJson: string | undefined
+        if (cancelledShortage > 0 && product.attributes) {
+          try {
+            const attrs = JSON.parse(product.attributes) as Record<string, unknown>
+            const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
+            const nextShortage = Math.max(0, prevShortage - cancelledShortage)
+            attrs.pendingOrderShortageQty = nextShortage
+            const afterCandidate = product.stock + actualRestockQty
+            const liveSp =
+              typeof attrs.liveShopeeStock === 'number' ? attrs.liveShopeeStock : afterCandidate
+            if (nextShortage === 0 && afterCandidate === liveSp) {
+              attrs.reconciliationStatus = 'RECONCILED_OK'
+              attrs.unreconciledShopeeDelta = 0
+            }
+            nextAttrJson = JSON.stringify(attrs)
+          } catch {
+            nextAttrJson = undefined
+          }
+        }
+
+        if (actualRestockQty > 0) {
+          const updatedProduct = await tx.product.update({
+            where: { id: product.id },
             data: {
-              stock: { increment: compQty },
+              stock: { increment: actualRestockQty },
               status: 'ACTIVE',
+              ...(nextAttrJson ? { attributes: nextAttrJson } : {}),
             },
           })
-          const afterStock = updatedComp.stock
+          const afterStock = updatedProduct.stock
 
-          const effectiveWhId = targetWhId || comp.ownerWarehouseId
+          const effectiveWhId = targetWhId || product.ownerWarehouseId
           if (effectiveWhId) {
             await tx.warehouseStock.updateMany({
-              where: { warehouseId: effectiveWhId, productId: comp.id },
-              data: { quantity: { increment: compQty } },
+              where: { warehouseId: effectiveWhId, productId: product.id },
+              data: { quantity: { increment: actualRestockQty } },
             })
           }
 
           await tx.stockMovement.create({
             data: {
-              productId: comp.id,
+              productId: product.id,
               warehouseId: effectiveWhId ?? null,
               type: 'RETURN',
-              quantity: compQty,
+              quantity: actualRestockQty,
               stockAfter: afterStock,
-              note: `Hoàn thành phần combo "${product.name}" × ${item.quantity} do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
+              note: `Hoàn kho do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
             },
           })
-          restockedProductIds.push(comp.id)
-        }
-        comboIdsToSync.add(product.id)
-      } else {
-        // Restock simple product
-        const updatedProduct = await tx.product.update({
-          where: { id: product.id },
-          data: {
-            stock: { increment: item.quantity },
-            status: 'ACTIVE',
-          },
-        })
-        const afterStock = updatedProduct.stock
-
-        const effectiveWhId = targetWhId || product.ownerWarehouseId
-        if (effectiveWhId) {
-          await tx.warehouseStock.updateMany({
-            where: { warehouseId: effectiveWhId, productId: product.id },
-            data: { quantity: { increment: item.quantity } },
+          restockedProductIds.push(product.id)
+        } else {
+          if (nextAttrJson) {
+            await tx.product.update({
+              where: { id: product.id },
+              data: { attributes: nextAttrJson },
+            })
+          }
+          const effectiveWhId = targetWhId || product.ownerWarehouseId
+          await tx.stockMovement.create({
+            data: {
+              productId: product.id,
+              warehouseId: effectiveWhId ?? null,
+              type: 'RETURN',
+              quantity: 0,
+              stockAfter: product.stock,
+              note: `Hủy đơn ${targetOrder.code} — giữ nguyên kho CMS = ${product.stock} (đơn Live trước đó nhận khi kho CMS = 0, chưa trừ tồn vật lý)${reason ? ` · ${reason}` : ''}`,
+            },
           })
         }
-
-        await tx.stockMovement.create({
-          data: {
-            productId: product.id,
-            warehouseId: effectiveWhId ?? null,
-            type: 'RETURN',
-            quantity: item.quantity,
-            stockAfter: afterStock,
-            note: `Hoàn kho do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
-          },
-        })
-        restockedProductIds.push(product.id)
       }
     }
 
@@ -837,6 +1031,8 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
     originSource,
     detail: { restockedCount: result.restockedIds.length, reason: reason || null },
   })
+
+  cancelPendingShopeePrintJob(targetOrder.id, 'ORDER_CANCELLED')
 
   broadcast('order.updated', { id: targetOrder.id, status: 'CANCELLED', code: targetOrder.code })
   if (result.restockedIds.length > 0) {

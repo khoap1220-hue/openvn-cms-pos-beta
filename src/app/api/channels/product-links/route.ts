@@ -60,6 +60,8 @@ export interface LinkedMarketplaceItem {
   manualDelta: number
   expectedStockByFormula: number
   unreconciledShopeeDelta: number
+  pendingOrderShortageQty?: number
+  lastShortageOrderSn?: string
   reconciliationStatus:
     | 'RECONCILED_OK'
     | 'PENDING_SHOPEE_ORDER'
@@ -439,6 +441,8 @@ export async function GET() {
         manualDelta: movStats.manualDelta,
         expectedStockByFormula,
         unreconciledShopeeDelta: liveShopeeStock - p.stock,
+        pendingOrderShortageQty: Math.max(0, Number(attrs.pendingOrderShortageQty) || 0),
+        lastShortageOrderSn: attrs.lastShortageOrderSn ? String(attrs.lastShortageOrderSn) : undefined,
         reconciliationStatus,
         lastReconcileDecision: attrs.lastReconcileDecision ? String(attrs.lastReconcileDecision) : undefined,
         lastReconcileDecisionLabel: attrs.lastReconcileDecisionLabel
@@ -2348,6 +2352,7 @@ export async function POST(req: NextRequest) {
           liveShopeeStock: nextStock,
           lastSyncedShopeeStock: nextStock,
           unreconciledShopeeDelta: 0,
+          pendingOrderShortageQty: 0,
           reconciliationStatus: 'RECONCILED_OK',
           lastReconcileDecision: 'TAKE_OPENING_FROM_MARKETPLACE',
           lastReconcileDecisionLabel: 'Lấy tồn Sàn làm Tồn đầu kỳ',
@@ -2436,6 +2441,7 @@ export async function POST(req: NextRequest) {
           lastSyncedShopeeStock: product.stock,
           liveShopeeStock: product.stock,
           unreconciledShopeeDelta: 0,
+          pendingOrderShortageQty: 0,
           reconciliationStatus: 'RECONCILED_OK',
           lastReconcileDecision: 'KEEP_WAREHOUSE_AND_PUSH',
           lastReconcileDecisionLabel: 'Giữ tồn Kho CMS & đẩy Sàn',
@@ -2516,6 +2522,7 @@ export async function POST(req: NextRequest) {
           liveShopeeStock: nextStock,
           lastSyncedShopeeStock: nextStock,
           unreconciledShopeeDelta: 0,
+          pendingOrderShortageQty: 0,
           reconciliationStatus: 'RECONCILED_OK',
           lastShopeeAdjustDelta: delta,
           lastShopeeAdjustedAt: nowIso,

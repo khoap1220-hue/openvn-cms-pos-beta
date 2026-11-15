@@ -53,13 +53,24 @@ export async function POST(req: NextRequest) {
       .map((order) => {
         const hasFragile = order.items.some((it) => it.product?.fragile === true)
         const activeShipment = order.shipments?.[0]
-        const carrier = activeShipment ? carrierName(activeShipment.carrier) : 'Giao Hàng Nhanh (GHN)'
+        const isShopeeOrder =
+          order.channel?.key === 'SHOPEE' || Boolean(order.note && /Shopee Order #/i.test(order.note))
+        const shopeeSnMatch = order.note
+          ? order.note.match(/(?:Shopee Order #|order_sn[:\s]*)([A-Za-z0-9_-]{6,})/i)
+          : null
+        const shopeeOrderSn = shopeeSnMatch ? shopeeSnMatch[1] : undefined
+        const carrier = activeShipment
+          ? carrierName(activeShipment.carrier)
+          : isShopeeOrder
+            ? 'SPX Express'
+            : 'Giao Hàng Nhanh (GHN)'
         const trackingCode = activeShipment?.trackingCode ?? order.code
         const codAmount = order.paymentMethod === 'COD' && order.paymentStatus !== 'PAID' ? order.total : 0
 
         return {
           orderId: order.id,
           orderCode: order.code,
+          shopeeOrderSn,
           createdAt: order.createdAt,
           hasFragile,
           sender: {

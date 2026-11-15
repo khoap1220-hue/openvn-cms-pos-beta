@@ -16,6 +16,30 @@ function isOpeningStockEstablishMove(note?: string | null): boolean {
   return n.includes('[GỐC TỒN ĐẦU')
 }
 
+function reconcilePendingShortageAttrs(
+  rawAttrs: string | null | undefined,
+  movementQty: number,
+  afterStock: number
+): string | undefined {
+  if (!rawAttrs || movementQty <= 0) return undefined
+  try {
+    const attrs = JSON.parse(rawAttrs) as Record<string, unknown>
+    const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
+    if (prevShortage <= 0) return undefined
+    const nextShortage = Math.max(0, prevShortage - movementQty)
+    attrs.pendingOrderShortageQty = nextShortage
+    if (typeof attrs.liveShopeeStock === 'number') {
+      attrs.unreconciledShopeeDelta = attrs.liveShopeeStock - afterStock
+      if (nextShortage === 0 && afterStock === attrs.liveShopeeStock) {
+        attrs.reconciliationStatus = 'RECONCILED_OK'
+      }
+    }
+    return JSON.stringify(attrs)
+  } catch {
+    return undefined
+  }
+}
+
 function originFromNote(note?: string | null): string {
   const n = (note ?? '').toLowerCase()
   if (n.includes('gốc tồn đầu từ sàn')) return 'SHOPEE_OPENING_STOCK'
@@ -355,14 +379,23 @@ export async function POST(req: NextRequest) {
           const afterStock = beforeStock + producedQty
 
           const itemCost = Number(rawItem.costPrice)
-          const updateData: { stock: number; costPrice?: number } = { stock: afterStock }
+          const prodNextAttrs = reconcilePendingShortageAttrs(prod.attributes, producedQty, afterStock)
+          const updateData: { stock: number; costPrice?: number; attributes?: string } = {
+            stock: afterStock,
+            ...(prodNextAttrs ? { attributes: prodNextAttrs } : {}),
+          }
           if (Number.isFinite(itemCost) && itemCost > 0) {
             updateData.costPrice = Math.round(itemCost)
           }
 
           await db.product.update({ where: { id: pid }, data: updateData })
           prod.stock = afterStock
-          patchProductInApiCache(pid, { stock: afterStock, ...(updateData.costPrice ? { costPrice: updateData.costPrice } : {}) })
+          if (prodNextAttrs) prod.attributes = prodNextAttrs
+          patchProductInApiCache(pid, {
+            stock: afterStock,
+            ...(updateData.costPrice ? { costPrice: updateData.costPrice } : {}),
+            ...(prodNextAttrs ? { attributes: prodNextAttrs } : {}),
+          })
           await syncProductWarehouseStock(pid, warehouseId)
 
           const prodBoms = bomByProduct.get(pid) ?? []
@@ -507,14 +540,23 @@ export async function POST(req: NextRequest) {
         }
 
         const itemCost = Number(rawItem.costPrice)
-        const updateData: { stock: number; costPrice?: number } = { stock: newStock }
+        const nextAttrsJson = reconcilePendingShortageAttrs(prod.attributes, movementQty, newStock)
+        const updateData: { stock: number; costPrice?: number; attributes?: string } = {
+          stock: newStock,
+          ...(nextAttrsJson ? { attributes: nextAttrsJson } : {}),
+        }
         if (batchType === 'IMPORT' && Number.isFinite(itemCost) && itemCost > 0) {
           updateData.costPrice = Math.round(itemCost)
         }
 
         await db.product.update({ where: { id: pid }, data: updateData })
         prod.stock = newStock
-        patchProductInApiCache(pid, { stock: newStock, ...(updateData.costPrice ? { costPrice: updateData.costPrice } : {}) })
+        if (nextAttrsJson) prod.attributes = nextAttrsJson
+        patchProductInApiCache(pid, {
+          stock: newStock,
+          ...(updateData.costPrice ? { costPrice: updateData.costPrice } : {}),
+          ...(nextAttrsJson ? { attributes: nextAttrsJson } : {}),
+        })
         await syncProductWarehouseStock(pid, warehouseId)
 
         const headerParts = [`[${batchCode}]`]
@@ -655,8 +697,15 @@ export async function POST(req: NextRequest) {
     const finalNote = `${baseNote}${conversionNoteSuffix}`
     const targetWarehouseId = body.warehouseId ? String(body.warehouseId) : null
 
+    const singleNextAttrs = reconcilePendingShortageAttrs(product.attributes, movementQty, newStock)
     const [, movement] = await Promise.all([
-      db.product.update({ where: { id: productId }, data: { stock: newStock } }),
+      db.product.update({
+        where: { id: productId },
+        data: {
+          stock: newStock,
+          ...(singleNextAttrs ? { attributes: singleNextAttrs } : {}),
+        },
+      }),
       db.stockMovement.create({
         data: {
           productId,
@@ -670,7 +719,10 @@ export async function POST(req: NextRequest) {
       }),
     ])
 
-    const inPlacePatched = patchProductInApiCache(productId, { stock: newStock })
+    const inPlacePatched = patchProductInApiCache(productId, {
+      stock: newStock,
+      ...(singleNextAttrs ? { attributes: singleNextAttrs } : {}),
+    })
 
     // Thực thi đồng bộ hậu kỳ trước khi trả HTTP 201 để đảm bảo read-your-own-writes (Combo/Warehouse/LinkedVariant)
     const action = type === 'IMPORT' ? 'STOCK_IMPORT' : type === 'EXPORT' ? 'STOCK_EXPORT' : 'STOCK_ADJUST'

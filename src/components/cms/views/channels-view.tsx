@@ -125,6 +125,8 @@ interface LinkedMarketplaceItem {
   manualDelta?: number
   expectedStockByFormula?: number
   unreconciledShopeeDelta?: number
+  pendingOrderShortageQty?: number
+  lastShortageOrderSn?: string
   reconciliationStatus?:
     | 'RECONCILED_OK'
     | 'PENDING_SHOPEE_ORDER'
@@ -1800,6 +1802,15 @@ export function ChannelsView({
                                       title="Số tồn trên Sàn thay đổi trực tiếp không qua đơn hàng — Chờ xác nhận đối soát"
                                     >
                                       ĐC trực tiếp trên Sàn ({(item.unreconciledShopeeDelta ?? 0) > 0 ? `+${item.unreconciledShopeeDelta}` : item.unreconciledShopeeDelta})
+                                    </Badge>
+                                  )}
+                                  {(item.pendingOrderShortageQty ?? 0) > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-rose-400 bg-rose-50 px-1 py-0 text-[9px] font-semibold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                                      title={`Đơn Shopee đã tự động nhận & in khi kho CMS = 0${item.lastShortageOrderSn ? ` (gần nhất #${item.lastShortageOrderSn})` : ''} — Vui lòng nhập kho thực tế hoặc chốt đối soát tồn đầu kỳ`}
+                                    >
+                                      Chờ đối soát đơn Live (-{item.pendingOrderShortageQty})
                                     </Badge>
                                   )}
                                   {item.cmsStock === 0 && (item.liveShopeeStock ?? item.lastSyncedShopeeStock) > 0 ? (

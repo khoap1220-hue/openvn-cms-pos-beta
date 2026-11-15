@@ -1912,10 +1912,17 @@ export async function POST(req: NextRequest) {
         shippingFee?: number
         trackingNumber?: string
         shippingCarrier?: string
+        orderTotal?: number
+        autoCreateUnlinkedSku?: boolean
+        allowSyntheticPrintQueue?: boolean
         items?: Array<{
           sku?: string
           modelSku?: string
+          shopeeItemId?: string | number
           shopeeModelId?: string | number
+          name?: string
+          modelName?: string
+          price?: number
           quantity?: number
         }>
       }
@@ -2001,7 +2008,7 @@ export async function POST(req: NextRequest) {
             })
           }
 
-          // Thực thi hủy đơn và hoàn kho an toàn qua cancelOrder()
+          // Thực thi hủy đơn và hoàn kho an toàn qua cancelOrder() (bảo toàn 100% tồn = 0 nếu đơn nhận lúc kho trống)
           const cancelRes = await cancelOrder({
             orderId: existingOrder.id,
             reason: `Shopee Inbound Sync: Đơn hàng bị hủy trên sàn (#${orderSn})`,
@@ -2044,7 +2051,7 @@ export async function POST(req: NextRequest) {
           })
         }
 
-        // Chuyển trạng thái thông thường (CONFIRMED -> SHIPPING -> COMPLETED)
+        // Chuyển trạng thái thông thường (PENDING -> CONFIRMED -> SHIPPING -> COMPLETED)
         if (existingOrder.status !== nextStatus) {
           const updated = await db.order.update({
             where: { id: existingOrder.id },
@@ -2055,7 +2062,7 @@ export async function POST(req: NextRequest) {
           })
 
           if (nextStatus === 'COMPLETED' && existingOrder.status !== 'COMPLETED') {
-            awardPointsForCompletedOrder(existingOrder.id).catch(() => null)
+            awardPointsForCompletedOrder(updated.id).catch(() => null)
           }
 
           await logEvent(
@@ -2066,7 +2073,7 @@ export async function POST(req: NextRequest) {
           )
           broadcast('order.updated', { id: updated.id, code: updated.code, status: updated.status })
 
-          await syncOrderShipment({
+          const syncedShip = await syncOrderShipment({
             order: updated,
             trackingNumber: d.trackingNumber,
             shippingCarrier: d.shippingCarrier,
@@ -2082,9 +2089,12 @@ export async function POST(req: NextRequest) {
               customerName: d.customerName ?? null,
               note: updated.note,
               total: updated.total,
-              trackingCode: d.trackingNumber ?? null,
-              carrier: d.shippingCarrier ?? null,
-              itemCount: Array.isArray(d.items) ? d.items.reduce((s, it) => s + (Number(it.quantity) || 1), 0) : 1,
+              trackingCode: syncedShip?.trackingCode ?? d.trackingNumber ?? null,
+              carrier: syncedShip?.carrier ? carrierName(syncedShip.carrier) : (d.shippingCarrier ?? 'SPX Express'),
+              itemCount: Array.isArray(d.items)
+                ? d.items.reduce((s, it) => s + (Number(it.quantity) || 1), 0)
+                : existingOrder.items.reduce((s, it) => s + it.quantity, 0) || 1,
+              allowSynthetic: Boolean(d.allowSyntheticPrintQueue),
             })
           }
 
@@ -2096,13 +2106,27 @@ export async function POST(req: NextRequest) {
         }
 
         // Trạng thái giữ nguyên -> cập nhật vận đơn (nếu có bổ sung tracking/carrier) và trả về SKIPPED_IDEMPOTENT
-        await syncOrderShipment({
+        const syncedSame = await syncOrderShipment({
           order: existingOrder,
           trackingNumber: d.trackingNumber,
           shippingCarrier: d.shippingCarrier,
           shopeeOrderStatus: d.shopeeOrderStatus,
           orderSn,
         })
+        if (syncedSame && (existingOrder.status === 'CONFIRMED' || existingOrder.status === 'SHIPPING')) {
+          enqueueShopeeOrderForLinkedPos({
+            orderId: existingOrder.id,
+            orderCode: existingOrder.code,
+            shopeeOrderSn: orderSn,
+            customerName: d.customerName ?? null,
+            note: existingOrder.note,
+            total: existingOrder.total,
+            trackingCode: syncedSame.trackingCode,
+            carrier: carrierName(syncedSame.carrier),
+            itemCount: existingOrder.items.reduce((s, it) => s + it.quantity, 0) || 1,
+            allowSynthetic: Boolean(d.allowSyntheticPrintQueue),
+          })
+        }
 
         return NextResponse.json({
           ok: true,
@@ -2119,29 +2143,183 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Không tìm thấy kênh SHOPEE' }, { status: 400 })
       }
 
-      const allProducts = await db.product.findMany()
+      const [allProducts, fallbackCat, defaultWh] = await Promise.all([
+        db.product.findMany(),
+        db.category.findFirst({ orderBy: { createdAt: 'asc' } }),
+        db.warehouse.findFirst({ where: { isDefault: true } }),
+      ])
+
       const resolvedItems: Array<{ productId: string; quantity: number }> = []
+      const itemPriceOverrides: Record<string, number> = {}
+      const autoLinkedSkus: string[] = []
+
       for (const it of d.items || []) {
         const qty = Math.max(1, Number(it.quantity) || 1)
-        const targetSku = String(it.modelSku || it.sku || '').trim()
+        const rawItemSku = String(it.sku || '').trim()
+        const rawModelSku = String(it.modelSku || '').trim()
+        const targetSku = rawModelSku || rawItemSku
+        const targetItemId = String(it.shopeeItemId || '').trim()
         const targetModelId = String(it.shopeeModelId || '').trim()
-        let matched = allProducts.find((p) => p.sku === targetSku || p.sku === String(it.sku || '').trim())
-        if (!matched) {
-          matched = allProducts.find((p) => {
+        const rawItemName = String(it.name || '').trim()
+        const rawModelName = String(it.modelName || '').trim()
+        const itemUnitPrice = Math.max(0, Math.round(Number(it.price) || 0))
+
+        // Ưu tiên 1: Khớp chính xác theo shopeeModelId (khóa bất biến của phân loại trên Sàn)
+        let matched =
+          targetModelId && targetModelId !== '0'
+            ? allProducts.find((p) => {
+                if (!p.attributes) return false
+                try {
+                  const a = JSON.parse(p.attributes) as Record<string, unknown>
+                  return String(a.shopeeModelId || '') === targetModelId
+                } catch {
+                  return false
+                }
+              })
+            : undefined
+
+        // Ưu tiên 2: Khớp theo mã SKU / modelSku (CHỈ khi có chuỗi SKU khác rỗng)
+        if (!matched && (targetSku.length > 0 || rawItemSku.length > 0)) {
+          matched = allProducts.find(
+            (p) =>
+              (targetSku.length > 0 && p.sku === targetSku) ||
+              (rawItemSku.length > 0 && p.sku === rawItemSku)
+          )
+          if (!matched && targetSku.length > 0) {
+            matched = allProducts.find((p) => {
+              if (!p.attributes) return false
+              try {
+                const a = JSON.parse(p.attributes) as Record<string, unknown>
+                return String(a.shopeeModelSku || '') === targetSku
+              } catch {
+                return false
+              }
+            })
+          }
+        }
+
+        // Ưu tiên 3: Khớp theo shopeeItemId cho sản phẩm đơn (không chia phân loại hoặc duy nhất 1 SKU gắn Item ID)
+        if (!matched && targetItemId && targetItemId !== '0' && (!targetModelId || targetModelId === '0')) {
+          const byItemId = allProducts.filter((p) => {
             if (!p.attributes) return false
             try {
               const a = JSON.parse(p.attributes) as Record<string, unknown>
-              return (
-                (targetModelId && String(a.shopeeModelId || '') === targetModelId) ||
-                (targetSku && String(a.shopeeModelSku || '') === targetSku)
-              )
+              return String(a.shopeeItemId || '') === targetItemId
             } catch {
               return false
             }
           })
+          if (byItemId.length === 1) {
+            matched = byItemId[0]
+          }
         }
+
+        // Ưu tiên 4 (Bảo vệ vận hành Live không gián đoạn): Nếu đơn Shopee Live phát sinh mã mới chưa kịp liên kết CMS
+        // (có shopeeItemId hoặc tên sản phẩm thật từ Sàn), tự động tạo & liên kết Product tồn = 0 để đơn và phiếu in vẫn chạy thông suốt!
+        if (!matched && d.autoCreateUnlinkedSku !== false && (targetItemId.length > 0 || rawItemName.length > 0)) {
+          const existingSkuSet = new Set(allProducts.map((p) => p.sku.toUpperCase()))
+          let autoSku =
+            targetSku && !existingSkuSet.has(targetSku.toUpperCase())
+              ? targetSku
+              : `SP-LIVE-${targetModelId && targetModelId !== '0' ? targetModelId : targetItemId || Date.now().toString().slice(-8)}`
+          if (existingSkuSet.has(autoSku.toUpperCase())) {
+            autoSku = `${autoSku}-${Math.floor(100 + Math.random() * 900)}`
+          }
+          const autoName = rawItemName
+            ? rawModelName && !rawItemName.includes(rawModelName)
+              ? `${rawItemName} — ${rawModelName}`
+              : rawItemName
+            : `Sản phẩm Shopee Live (${autoSku})`
+          const nowIso = new Date().toISOString()
+          const autoAttrs = {
+            shopeeItemId: targetItemId || '0',
+            shopeeModelId: targetModelId || '0',
+            shopeeModelSku: targetSku,
+            shopeeModelName: rawModelName,
+            linkMode: 'AUTO_CREATED_FROM_LIVE_ORDER',
+            openingStockOrigin: 'CMS_WAREHOUSE',
+            openingStockOriginLabel: 'Khởi tạo tự động tồn = 0 khi nhận đơn Shopee Live (chờ nhập kho & đối soát)',
+            openingStockQty: 0,
+            liveShopeeStock: 0,
+            lastSyncedShopeeStock: 0,
+            lastSyncedShopeePrice: itemUnitPrice,
+            reconciliationStatus: 'STOCK_DRIFT',
+            autoCreatedFromOrderSn: orderSn,
+            lastInboundSyncAt: nowIso,
+          }
+          const createdProd = await db.product.create({
+            data: {
+              sku: autoSku,
+              name: autoName,
+              categoryId: fallbackCat?.id ?? null,
+              costPrice: 0,
+              sellPrice: itemUnitPrice,
+              stock: 0,
+              lowStockThreshold: 5,
+              status: 'ACTIVE',
+              type: 'SIMPLE',
+              unit: 'bộ',
+              fragile: false,
+              ownerWarehouseId: defaultWh?.id ?? null,
+              attributes: JSON.stringify(autoAttrs),
+            },
+          })
+          if (defaultWh) {
+            await db.warehouseStock
+              .upsert({
+                where: {
+                  warehouseId_productId: { warehouseId: defaultWh.id, productId: createdProd.id },
+                },
+                update: { quantity: 0 },
+                create: { warehouseId: defaultWh.id, productId: createdProd.id, quantity: 0 },
+              })
+              .catch(() => null)
+          }
+          await db.channelListing
+            .upsert({
+              where: {
+                productId_channelId: { productId: createdProd.id, channelId: shopeeChannel.id },
+              },
+              update: { price: itemUnitPrice, status: 'ACTIVE', description: autoName },
+              create: {
+                productId: createdProd.id,
+                channelId: shopeeChannel.id,
+                price: itemUnitPrice,
+                status: 'ACTIVE',
+                description: autoName,
+              },
+            })
+            .catch(() => null)
+
+          allProducts.push(createdProd)
+          matched = createdProd
+          autoLinkedSkus.push(createdProd.sku)
+
+          await logLedger({
+            scope: 'CHANNEL',
+            action: 'SHOPEE_ORDER_AUTO_LINKED_SKU',
+            entityType: 'Product',
+            entityId: createdProd.id,
+            entityCode: createdProd.sku,
+            title: `[BẢO VỆ LIVE KHÔNG GIÁN ĐOẠN] Tự động tạo & liên kết SKU [${createdProd.sku}] (tồn CMS = 0) cho đơn Shopee #${orderSn} — chờ đối soát sau`,
+            detail: {
+              shopeeOrderSn: orderSn,
+              sku: createdProd.sku,
+              name: createdProd.name,
+              shopeeItemId: targetItemId,
+              shopeeModelId: targetModelId,
+              price: itemUnitPrice,
+            },
+            actor: 'API',
+            originSource: 'SHOPEE_SYNC',
+          })
+        }
+
         if (matched) {
           resolvedItems.push({ productId: matched.id, quantity: qty })
+          if (itemUnitPrice > 0) {
+            itemPriceOverrides[matched.id] = itemUnitPrice
+          }
         }
       }
 
@@ -2209,7 +2387,7 @@ export async function POST(req: NextRequest) {
         const orderItemsData: Array<{ productId: string; quantity: number; price: number }> = []
         for (const item of resolvedItems) {
           const prod = allProducts.find((p) => p.id === item.productId)
-          const price = prod?.sellPrice ?? 0
+          const price = itemPriceOverrides[item.productId] ?? prod?.sellPrice ?? 0
           subtotal += price * item.quantity
           orderItemsData.push({
             productId: item.productId,
@@ -2219,7 +2397,6 @@ export async function POST(req: NextRequest) {
         }
         const shippingFee = typeof d.shippingFee === 'number' ? d.shippingFee : 0
         const total = subtotal + shippingFee
-        const defaultWh = await db.warehouse.findFirst({ where: { isDefault: true } })
 
         const cancelledOrder = await db.order.create({
           data: {
@@ -2230,6 +2407,7 @@ export async function POST(req: NextRequest) {
             status: 'CANCELLED',
             paymentStatus: 'UNPAID',
             paymentMethod: d.paymentMethod || 'SHOPEE_WALLET',
+            subtotal,
             shippingFee,
             total,
             note: `Shopee Order #${orderSn} (Đơn đã hủy trước khi đồng bộ)`,
@@ -2268,7 +2446,8 @@ export async function POST(req: NextRequest) {
         })
       }
 
-      // Đơn hàng mới thông thường: Tạo đơn qua createOrder (trừ kho, kiểm tra tồn, áp dụng BOM/Combo)
+      // Đơn hàng mới từ Sàn Shopee: Cho phép tiếp nhận & in tự động ngay cả khi kho CMS = 0 (allowStockShortage: true),
+      // ghi nhận đầy đủ cảnh báo lệch kho chờ đối soát để KHÔNG làm gián đoạn phiên Live!
       let created
       try {
         const channelRef = d.buyerUsername ? `shopee:${d.buyerUsername.toLowerCase()}` : undefined
@@ -2284,15 +2463,18 @@ export async function POST(req: NextRequest) {
           note: `Shopee Order #${orderSn}`,
           paymentMethod: d.paymentMethod || 'SHOPEE_WALLET',
           shippingFee: typeof d.shippingFee === 'number' ? d.shippingFee : 0,
+          allowStockShortage: true,
+          deferPosPrintEnqueue: true,
+          itemPriceOverrides: Object.keys(itemPriceOverrides).length > 0 ? itemPriceOverrides : undefined,
         })
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : 'Không đủ tồn kho để tạo đơn Shopee'
+        const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định khi tạo đơn Shopee'
         await logLedger({
           scope: 'CHANNEL',
-          action: 'SHOPEE_ORDER_STOCK_SHORTAGE',
+          action: 'SHOPEE_ORDER_CREATE_ERROR',
           entityType: 'Order',
           entityCode: orderSn,
-          title: `[SÀN SHOPEE ➔ CMS] CẢNH BÁO THIẾU TỒN KHO: Đơn Shopee #${orderSn} (${errMsg})`,
+          title: `[SÀN SHOPEE ➔ CMS] LỖI TẠO ĐƠN #${orderSn}: ${errMsg}`,
           detail: { shopeeOrderSn: orderSn, error: errMsg, items: d.items || [] },
           actor: 'API',
           originSource: 'SHOPEE_SYNC',
@@ -2300,7 +2482,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            action: 'ORDER_STOCK_SHORTAGE',
+            action: 'ORDER_CREATE_ERROR',
             error: errMsg,
             shopeeOrderSn: orderSn,
           },
@@ -2308,42 +2490,112 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      // Nếu đơn mới có trạng thái ban đầu khác PENDING (VD: CONFIRMED hoặc SHIPPING) -> cập nhật trạng thái
+      const shortageWarnings = created.stockShortageWarnings || []
+      const shortageNoteSuffix =
+        shortageWarnings.length > 0
+          ? ` [Chờ đối soát kho CMS: thiếu ${shortageWarnings.map((w) => `${w.sku} (-${w.shortage})`).join(', ')}]`
+          : ''
+
+      // Nếu đơn mới có trạng thái ban đầu khác PENDING (VD: CONFIRMED hoặc SHIPPING) hoặc có ghi chú lệch kho -> cập nhật 1 lần
       const initialStatus = mapShopeeStatusToCms(d.shopeeOrderStatus)
-      if (initialStatus !== 'PENDING' && created.status !== initialStatus) {
-        created = await db.order.update({
+      let persistedOrder = created as {
+        id: string
+        code: string
+        status: string
+        paymentStatus: string
+        paymentMethod: string
+        shippingFee: number
+        total: number
+        note: string | null
+      }
+      if ((initialStatus !== 'PENDING' && created.status !== initialStatus) || shortageNoteSuffix) {
+        persistedOrder = await db.order.update({
           where: { id: created.id },
           data: {
-            status: initialStatus,
+            status: initialStatus !== 'PENDING' ? initialStatus : created.status,
             paymentStatus: initialStatus === 'COMPLETED' ? 'PAID' : created.paymentStatus,
+            ...(shortageNoteSuffix
+              ? { note: `${created.note || `Shopee Order #${orderSn}`}${shortageNoteSuffix}` }
+              : {}),
           },
         })
       }
 
-      await syncOrderShipment({
-        order: created,
+      if (shortageWarnings.length > 0) {
+        await logLedger({
+          scope: 'INVENTORY',
+          action: 'SHOPEE_ORDER_ACCEPTED_WITH_STOCK_SHORTAGE',
+          entityType: 'Order',
+          entityId: persistedOrder.id,
+          entityCode: persistedOrder.code,
+          title: `[NHẬN & IN ĐƠN LIVE KHI KHO CMS = 0] Đơn ${persistedOrder.code} (#${orderSn}): tiếp nhận không gián đoạn, ghi cảnh báo thiếu kho [${shortageWarnings.map((w) => `${w.sku}: thiếu ${w.shortage}`).join(', ')}] để đối soát sau`,
+          detail: {
+            shopeeOrderSn: orderSn,
+            orderCode: persistedOrder.code,
+            warnings: shortageWarnings,
+            autoLinkedSkus,
+          },
+          actor: 'API',
+          originSource: 'SHOPEE_SYNC',
+        })
+        await logEvent(
+          persistedOrder.id,
+          'STATUS_CHANGED',
+          'SYSTEM',
+          `Cảnh báo lệch kho khi nhận đơn Shopee #${orderSn}: thiếu ${shortageWarnings
+            .map((w) => `${w.sku} (kho CMS có ${w.available}, đơn cần ${w.required} ${w.unit})`)
+            .join(', ')} — Đã cho phép tiếp nhận & đẩy in tự động để không gián đoạn phiên Live, chờ đối soát nhập kho sau.`
+        )
+        invalidateApiCache('products')
+        broadcast('channel.updated', {
+          orderCode: persistedOrder.code,
+          shopeeOrderSn: orderSn,
+          stockShortageWarnings: shortageWarnings,
+        })
+      }
+
+      // Khởi tạo / đồng bộ vận đơn TRƯỚC KHI đẩy vào hàng đợi in tự động của máy POS để phiếu in luôn có đủ Mã vận đơn & ĐVVC (SPX)!
+      const syncedShip = await syncOrderShipment({
+        order: persistedOrder,
         trackingNumber: d.trackingNumber,
         shippingCarrier: d.shippingCarrier,
         shopeeOrderStatus: d.shopeeOrderStatus,
         orderSn,
       })
 
-      enqueueShopeeOrderForLinkedPos({
-        orderId: created.id,
-        orderCode: created.code,
-        shopeeOrderSn: orderSn,
-        customerName: d.customerName ?? null,
-        note: created.note,
-        total: created.total,
-        trackingCode: d.trackingNumber ?? null,
-        carrier: d.shippingCarrier ?? null,
-        itemCount: resolvedItems.reduce((s, it) => s + it.quantity, 0),
-      })
+      if (initialStatus === 'CONFIRMED' || initialStatus === 'SHIPPING') {
+        enqueueShopeeOrderForLinkedPos({
+          orderId: persistedOrder.id,
+          orderCode: persistedOrder.code,
+          shopeeOrderSn: orderSn,
+          customerName: d.customerName ?? null,
+          note: persistedOrder.note,
+          total: persistedOrder.total,
+          trackingCode: syncedShip?.trackingCode ?? d.trackingNumber ?? null,
+          carrier: syncedShip?.carrier
+            ? carrierName(syncedShip.carrier)
+            : (d.shippingCarrier ?? 'SPX Express'),
+          itemCount: resolvedItems.reduce((s, it) => s + it.quantity, 0),
+          allowSynthetic: Boolean(d.allowSyntheticPrintQueue),
+        })
+      }
 
       return NextResponse.json({
         ok: true,
-        action: 'ORDER_CREATED',
-        order: { id: created.id, code: created.code, status: created.status, total: created.total, shopeeOrderSn: orderSn },
+        action:
+          shortageWarnings.length > 0
+            ? 'ORDER_CREATED_WITH_STOCK_SHORTAGE_WARNING'
+            : 'ORDER_CREATED',
+        stockShortageWarnings: shortageWarnings,
+        autoLinkedSkus: autoLinkedSkus.length > 0 ? autoLinkedSkus : undefined,
+        order: {
+          id: persistedOrder.id,
+          code: persistedOrder.code,
+          status: persistedOrder.status,
+          total: persistedOrder.total,
+          shopeeOrderSn: orderSn,
+          trackingCode: syncedShip?.trackingCode ?? d.trackingNumber ?? null,
+        },
       })
     }
 
@@ -2446,8 +2698,34 @@ export async function POST(req: NextRequest) {
         }
 
         const shopeeListing = p.listings.find((l) => l.channel.key === 'SHOPEE')
+        const lastSyncedStock =
+          typeof attrs.lastSyncedShopeeStock === 'number' ? attrs.lastSyncedShopeeStock : -1
+        const lastSyncedPrice =
+          typeof attrs.lastSyncedShopeePrice === 'number' ? attrs.lastSyncedShopeePrice : -1
+        const lastSyncedUnlisted =
+          typeof attrs.lastSyncedShopeeUnlisted === 'boolean' ? attrs.lastSyncedShopeeUnlisted : null
+
+        const hasExplicitOutbox = explicitByProductId.has(p.id) || Boolean(attrs.pendingOutboxSync)
+        const reconStatus = String(attrs.reconciliationStatus || '')
+        const hasShortagePending = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0) > 0
+        // Bảo vệ tuyệt đối tồn kho trên Sàn Shopee lúc đang Live khi Kho CMS = 0 (chưa nhập kho đầu kỳ hoặc chờ đối soát lệch kho):
+        // TUYỆT ĐỐI KHÔNG tự động ép đẩy tồn = 0 lên Shopee trừ khi có lệnh Outbox tường minh từ người vận hành!
+        const isMarketplaceStockProtected =
+          !hasExplicitOutbox &&
+          typeof attrs.cmsTargetStock !== 'number' &&
+          (reconStatus === 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK' ||
+            reconStatus === 'PENDING_SHOPEE_ORDER' ||
+            reconStatus === 'STOCK_DRIFT' ||
+            reconStatus === 'SHOPEE_DIRECT_ADJUSTED' ||
+            hasShortagePending ||
+            (p.stock === 0 && attrs.openingStockOrigin === 'CMS_WAREHOUSE' && lastSyncedStock > 0))
+
         const targetStock =
-          typeof attrs.cmsTargetStock === 'number' ? attrs.cmsTargetStock : p.stock
+          typeof attrs.cmsTargetStock === 'number'
+            ? attrs.cmsTargetStock
+            : isMarketplaceStockProtected && lastSyncedStock >= 0
+              ? lastSyncedStock
+              : p.stock
         const targetPrice =
           typeof attrs.cmsTargetPrice === 'number'
             ? attrs.cmsTargetPrice
@@ -2457,14 +2735,6 @@ export async function POST(req: NextRequest) {
             ? attrs.cmsTargetUnlisted
             : Boolean(attrs.isUnlistedOnShopee)
 
-        const lastSyncedStock =
-          typeof attrs.lastSyncedShopeeStock === 'number' ? attrs.lastSyncedShopeeStock : -1
-        const lastSyncedPrice =
-          typeof attrs.lastSyncedShopeePrice === 'number' ? attrs.lastSyncedShopeePrice : -1
-        const lastSyncedUnlisted =
-          typeof attrs.lastSyncedShopeeUnlisted === 'boolean' ? attrs.lastSyncedShopeeUnlisted : null
-
-        const hasExplicitOutbox = explicitByProductId.has(p.id) || Boolean(attrs.pendingOutboxSync)
         if (
           !hasExplicitOutbox &&
           typeof attrs.outboxSuppressedKey === 'string' &&
@@ -2472,7 +2742,10 @@ export async function POST(req: NextRequest) {
         ) {
           continue
         }
-        const stockDrifted = lastSyncedStock !== targetStock
+        const stockDrifted =
+          !isMarketplaceStockProtected &&
+          (hasExplicitOutbox || typeof attrs.cmsTargetStock === 'number' || lastSyncedStock >= 0) &&
+          lastSyncedStock !== targetStock
         const priceDrifted = lastSyncedPrice > 0 && lastSyncedPrice !== targetPrice
         const unlistedDrifted =
           typeof attrs.cmsTargetUnlisted === 'boolean' ||
@@ -2596,7 +2869,7 @@ export async function POST(req: NextRequest) {
         })
         patchProductInApiCache(product.id, {
           ...(syncedImageUrl ? { image: syncedImageUrl } : {}),
-          ...(isLinkedShopee ? { stock: syncedStock, sellPrice: syncedPrice } : {}),
+          ...(isLinkedShopee ? { stock: product.stock, sellPrice: product.sellPrice } : {}),
           attributes: JSON.stringify(attrs),
         })
         invalidateApiCache('products')

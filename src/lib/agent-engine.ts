@@ -732,10 +732,15 @@ async function runTick() {
         : Promise.resolve([]),
     ])
 
-  const pendingOrders = rawPendingOrders.filter((o) => !isSyntheticOrder(o)).slice(0, 3)
-  const confirmedOrders = rawConfirmedOrders.filter((o) => !isSyntheticOrder(o)).slice(0, 3)
-  const carrierOrders = rawCarrierOrders.filter((o) => !isSyntheticOrder(o)).slice(0, 3)
-  const simShipments = rawSimShipments.filter((s) => !isSyntheticOrder(s.order)).slice(0, 5)
+  const isMarketplaceSyncedOrder = (o: { note?: string | null } | null | undefined) =>
+    Boolean(o?.note && /Shopee Order #/i.test(o.note))
+
+  const pendingOrders = rawPendingOrders.filter((o) => !isSyntheticOrder(o) && !isMarketplaceSyncedOrder(o)).slice(0, 3)
+  const confirmedOrders = rawConfirmedOrders.filter((o) => !isSyntheticOrder(o) && !isMarketplaceSyncedOrder(o)).slice(0, 3)
+  const carrierOrders = rawCarrierOrders.filter((o) => !isSyntheticOrder(o) && !isMarketplaceSyncedOrder(o)).slice(0, 3)
+  const simShipments = rawSimShipments
+    .filter((s) => !isSyntheticOrder(s.order) && !isMarketplaceSyncedOrder(s.order))
+    .slice(0, 5)
   const afterSale = rawAfterSale.filter((o) => !isSyntheticOrder(o)).slice(0, 6)
 
   // 1. Xác nhận đơn

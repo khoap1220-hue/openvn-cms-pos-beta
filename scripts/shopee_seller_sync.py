@@ -1324,12 +1324,32 @@ def detect_and_enqueue_inbound_orders(cookies, spc_cds, csrf_token):
             items = []
             item_list = card.get("item_list", []) or card.get("order_items", [])
             for it in item_list:
+                raw_price = it.get("item_price") or it.get("order_price") or it.get("model_discounted_price") or it.get("price") or 0
+                try:
+                    unit_price = int(round(float(raw_price)))
+                except (ValueError, TypeError):
+                    unit_price = 0
                 items.append({
-                    "sku": it.get("item_sku") or it.get("sku") or "BM-SEN-01",
-                    "modelSku": it.get("model_sku") or "",
-                    "shopeeModelId": it.get("model_id") or "",
-                    "quantity": int(it.get("amount") or it.get("quantity") or 1)
+                    "sku": str(it.get("item_sku") or it.get("sku") or "").strip(),
+                    "modelSku": str(it.get("model_sku") or "").strip(),
+                    "shopeeItemId": str(it.get("item_id") or it.get("shopee_item_id") or "").strip(),
+                    "shopeeModelId": str(it.get("model_id") or it.get("shopee_model_id") or "").strip(),
+                    "name": str(it.get("item_name") or it.get("name") or "").strip(),
+                    "modelName": str(it.get("model_name") or it.get("variation_name") or "").strip(),
+                    "price": unit_price,
+                    "quantity": int(it.get("amount") or it.get("quantity") or 1),
                 })
+
+            pay_method_str = str(card.get("payment_method_name") or card.get("payment_method_label") or "").lower()
+            raw_pay_code = card.get("payment_method")
+            is_cod_order = (
+                bool(card.get("cod"))
+                or bool(card.get("is_cod"))
+                or str(raw_pay_code) == "6"
+                or "cod" in pay_method_str
+                or "nhận hàng" in pay_method_str
+                or "nhan hang" in pay_method_str
+            )
 
             payload_data = {
                 "idempotencyKey": idem_key,
@@ -1341,7 +1361,7 @@ def detect_and_enqueue_inbound_orders(cookies, spc_cds, csrf_token):
                 "buyerUsername": buyer_username,
                 "address": recipient_address.get("full_address") or "Shopee Delivery",
                 "items": items,
-                "paymentMethod": "SHOPEE_WALLET",
+                "paymentMethod": "COD" if is_cod_order else "SHOPEE_WALLET",
                 "trackingNumber": tracking_no or None,
                 "shippingCarrier": carrier or None,
                 "shippingFee": shipping_fee,
@@ -1545,9 +1565,10 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
         errors = []
 
         has_shopee_link = bool(item_id and str(item_id) not in ("0", ""))
+        pushed_stock = bool(has_shopee_link and (stock_drifted or (not price_drifted and not unlisted_drifted and not image_drifted)))
 
         # 1. Đẩy tồn kho nếu có thay đổi (hoặc đẩy thủ công)
-        if has_shopee_link and (stock_drifted or (not price_drifted and not unlisted_drifted and not image_drifted)):
+        if pushed_stock:
             print(f"[OUTBOUND CMS -> SHOPEE] Đang đẩy tồn kho [{sku}] (Item: {item_id}, Model: {model_id}) -> Tồn mới = {target_stock}...")
             s_ok, s_res = update_shopee_product_stock(
                 cookies, spc_cds, csrf_token,
@@ -1612,6 +1633,11 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                 GLOBAL_STATE["outboundProcessed"] += 1
                 GLOBAL_STATE["lastOutboundFlush"] = int(time.time())
 
+            effective_synced_stock = (
+                target_stock
+                if pushed_stock
+                else int(job.get("lastSyncedStock", target_stock))
+            )
             # Gửi ACK COMPLETED về CMS
             call_cms_webhook("OUTBOX_ACK_RESULT", {
                 "outboxId": outbox_id,
@@ -1619,7 +1645,7 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                 "sku": sku,
                 "shopeeItemId": item_id,
                 "shopeeModelId": model_id,
-                "syncedStock": target_stock,
+                "syncedStock": effective_synced_stock,
                 "syncedPrice": target_price,
                 "syncedUnlisted": target_unlisted,
                 "syncedImage": synced_cdn_image or None,
@@ -1633,7 +1659,8 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
             model_state_key = f"MODEL_{item_id}_{model_id}"
             for k in (sku, model_state_key):
                 if k in prod_map:
-                    prod_map[k]["stock"] = target_stock
+                    if pushed_stock:
+                        prod_map[k]["stock"] = target_stock
                     prod_map[k]["sellPrice"] = target_price
                     prod_map[k]["isUnlisted"] = target_unlisted
                     prod_map[k]["syncedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
