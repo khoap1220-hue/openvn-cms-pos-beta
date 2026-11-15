@@ -1816,25 +1816,48 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', '0')
             self.end_headers()
 
-    def do_POST(self):
-        if self.path == '/shopee/session':
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            try:
-                body = json.loads(post_data.decode('utf-8'))
-                incoming_cookies = body.get("cookies", {})
-                if (
-                    not isinstance(incoming_cookies, dict)
-                    or len(incoming_cookies) == 0
-                    or str(incoming_cookies.get("SPC_U", "")) == "3813970"
-                    or incoming_cookies.get("SPC_ST") == "test_token"
-                ):
+    def _handle_post_session(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length)
+        try:
+            body = json.loads(post_data.decode('utf-8'))
+            incoming_cookies = body.get("cookies", {})
+            if (
+                not isinstance(incoming_cookies, dict)
+                or len(incoming_cookies) == 0
+                or str(incoming_cookies.get("SPC_U", "")) == "3813970"
+                or incoming_cookies.get("SPC_ST") == "test_token"
+            ):
+                payload = json.dumps({
+                    "ok": False,
+                    "verifiedLive": False,
+                    "error": "Dữ liệu Cookie trống hoặc là Cookie mẫu thử nghiệm không hợp lệ."
+                }).encode('utf-8')
+                self.send_response(400)
+                self._send_cors()
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+
+            source = str(body.get("source") or "CHROME_EXTENSION_BRIDGE")
+            expected_shop_id = str(body.get("expectedShopId") or "").strip()
+            spc_cds = body.get("spc_cds") or incoming_cookies.get("SPC_CDS", GLOBAL_STATE["spc_cds"])
+            csrf_token = body.get("csrf_token") or incoming_cookies.get("csrftoken", GLOBAL_STATE["csrf_token"])
+            alive, shopid, uname = keep_alive_ping(incoming_cookies, spc_cds, csrf_token)
+            if alive:
+                if expected_shop_id and str(shopid) != expected_shop_id:
                     payload = json.dumps({
                         "ok": False,
                         "verifiedLive": False,
-                        "error": "Dữ liệu Cookie trống hoặc là Cookie mẫu thử nghiệm không hợp lệ."
+                        "code": "SHOP_MISMATCH",
+                        "shopId": str(shopid),
+                        "username": str(uname),
+                        "expectedShopId": expected_shop_id,
+                        "error": f"Tài khoản Shopee đang đăng nhập ({uname} · #{shopid}) không khớp với shop liên kết (#{expected_shop_id})."
                     }).encode('utf-8')
-                    self.send_response(400)
+                    self.send_response(409)
                     self._send_cors()
                     self.send_header('Content-Type', 'application/json')
                     self.send_header('Content-Length', str(len(payload)))
@@ -1842,95 +1865,154 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                     self.wfile.write(payload)
                     return
 
-                source = str(body.get("source") or "CHROME_EXTENSION_BRIDGE")
-                expected_shop_id = str(body.get("expectedShopId") or "").strip()
-                spc_cds = body.get("spc_cds") or incoming_cookies.get("SPC_CDS", GLOBAL_STATE["spc_cds"])
-                csrf_token = body.get("csrf_token") or incoming_cookies.get("csrftoken", GLOBAL_STATE["csrf_token"])
-                alive, shopid, uname = keep_alive_ping(incoming_cookies, spc_cds, csrf_token)
-                if alive:
-                    if expected_shop_id and str(shopid) != expected_shop_id:
-                        payload = json.dumps({
-                            "ok": False,
-                            "verifiedLive": False,
-                            "code": "SHOP_MISMATCH",
-                            "shopId": str(shopid),
-                            "username": str(uname),
-                            "expectedShopId": expected_shop_id,
-                            "error": f"Tài khoản Shopee đang đăng nhập ({uname} · #{shopid}) không khớp với shop liên kết (#{expected_shop_id})."
-                        }).encode('utf-8')
-                        self.send_response(409)
-                        self._send_cors()
-                        self.send_header('Content-Type', 'application/json')
-                        self.send_header('Content-Length', str(len(payload)))
-                        self.end_headers()
-                        self.wfile.write(payload)
-                        return
+                with GLOBAL_STATE["lock"]:
+                    GLOBAL_STATE["cookies"] = incoming_cookies
+                    GLOBAL_STATE["spc_cds"] = spc_cds
+                    GLOBAL_STATE["csrf_token"] = csrf_token
+                    GLOBAL_STATE["shopId"] = str(shopid)
+                    GLOBAL_STATE["username"] = str(uname)
+                    GLOBAL_STATE["alive"] = True
+                    GLOBAL_STATE["lastAlertedLost"] = False
+                    GLOBAL_STATE["lastAlertReason"] = ""
+                    GLOBAL_STATE["outboundRetries"].clear()
+                save_session(incoming_cookies, spc_cds, csrf_token, source=source)
+                requeued_dlq = requeue_dlq_to_inbound()
 
-                    with GLOBAL_STATE["lock"]:
-                        GLOBAL_STATE["cookies"] = incoming_cookies
-                        GLOBAL_STATE["spc_cds"] = spc_cds
-                        GLOBAL_STATE["csrf_token"] = csrf_token
-                        GLOBAL_STATE["shopId"] = str(shopid)
-                        GLOBAL_STATE["username"] = str(uname)
-                        GLOBAL_STATE["alive"] = True
-                        GLOBAL_STATE["lastAlertedLost"] = False
-                        GLOBAL_STATE["lastAlertReason"] = ""
-                        GLOBAL_STATE["outboundRetries"].clear()
-                    save_session(incoming_cookies, spc_cds, csrf_token, source=source)
-                    requeued_dlq = requeue_dlq_to_inbound()
+                def _bg_replay_on_session_restore():
+                    try:
+                        notify_session_alert("SESSION_RESTORED", f"Đã nạp lại Cookie qua {source}")
+                        time.sleep(0.2)
+                        with PIPELINE_LOCK:
+                            # Xả toàn bộ hàng đợi Outbox bất đồng bộ từ CMS lên Shopee TRƯỚC khi quét Inbound
+                            process_outbound_outbox_from_cms(incoming_cookies, spc_cds, csrf_token)
+                            if not is_inbound_product_sync_disabled():
+                                detect_and_enqueue_inbound_products(incoming_cookies, spc_cds, csrf_token, str(shopid), str(uname), force=False)
+                            detect_and_enqueue_inbound_orders(incoming_cookies, spc_cds, csrf_token)
+                            flush_inbound_queue_to_cms()
+                    except Exception as e_rep:
+                        print(f"[SESSION-RESTORE REPLAY ERR] {e_rep}")
 
-                    def _bg_replay_on_session_restore():
-                        try:
-                            notify_session_alert("SESSION_RESTORED", f"Đã nạp lại Cookie qua {source}")
-                            time.sleep(0.2)
-                            with PIPELINE_LOCK:
-                                # Xả toàn bộ hàng đợi Outbox bất đồng bộ từ CMS lên Shopee TRƯỚC khi quét Inbound
-                                process_outbound_outbox_from_cms(incoming_cookies, spc_cds, csrf_token)
-                                if not is_inbound_product_sync_disabled():
-                                    detect_and_enqueue_inbound_products(incoming_cookies, spc_cds, csrf_token, str(shopid), str(uname), force=False)
-                                detect_and_enqueue_inbound_orders(incoming_cookies, spc_cds, csrf_token)
-                                flush_inbound_queue_to_cms()
-                        except Exception as e_rep:
-                            print(f"[SESSION-RESTORE REPLAY ERR] {e_rep}")
-
-                    threading.Thread(target=_bg_replay_on_session_restore, daemon=True).start()
-                    payload = json.dumps({
-                        "ok": True,
-                        "verifiedLive": True,
-                        "shopId": str(shopid),
-                        "username": str(uname),
-                        "cookieCount": len(incoming_cookies),
-                        "source": source,
-                        "autoReplayScheduled": True,
-                        "requeuedDlqCount": requeued_dlq,
-                        "message": "Xác thực & cập nhật phiên Cookie Shopee thành công! Hàng đợi bất đồng bộ đang tự động xả."
-                    }).encode('utf-8')
-                    self.send_response(200)
-                    self._send_cors()
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Content-Length', str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
-                else:
-                    payload = json.dumps({
-                        "ok": False,
-                        "verifiedLive": False,
-                        "error": "Cookie đã hết hạn hoặc không hợp lệ đối với Kênh Người Bán Shopee."
-                    }).encode('utf-8')
-                    self.send_response(400)
-                    self._send_cors()
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Content-Length', str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
-            except Exception as e:
-                payload = json.dumps({"ok": False, "error": str(e)}).encode('utf-8')
-                self.send_response(500)
+                threading.Thread(target=_bg_replay_on_session_restore, daemon=True).start()
+                payload = json.dumps({
+                    "ok": True,
+                    "verifiedLive": True,
+                    "shopId": str(shopid),
+                    "username": str(uname),
+                    "cookieCount": len(incoming_cookies),
+                    "source": source,
+                    "autoReplayScheduled": True,
+                    "requeuedDlqCount": requeued_dlq,
+                    "message": "Xác thực & cập nhật phiên Cookie Shopee thành công! Hàng đợi bất đồng bộ đang tự động xả."
+                }).encode('utf-8')
+                self.send_response(200)
                 self._send_cors()
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
+            else:
+                payload = json.dumps({
+                    "ok": False,
+                    "verifiedLive": False,
+                    "error": "Cookie đã hết hạn hoặc không hợp lệ đối với Kênh Người Bán Shopee."
+                }).encode('utf-8')
+                self.send_response(400)
+                self._send_cors()
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+        except Exception as e:
+            payload = json.dumps({"ok": False, "error": str(e)}).encode('utf-8')
+            self.send_response(500)
+            self._send_cors()
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    def _handle_post_upload_image(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length)
+        try:
+            body = json.loads(post_data.decode('utf-8'))
+            data_url_or_http = body.get("dataUrl") or body.get("imageUrl") or ""
+            filename = body.get("filename") or "cms_product.webp"
+            shopee_item_id = str(body.get("shopeeItemId") or "").strip()
+            shopee_model_id = str(body.get("shopeeModelId") or "").strip()
+            sync_to_shopee = bool(body.get("syncToShopee", False))
+
+            with GLOBAL_STATE["lock"]:
+                curr_cookies = dict(GLOBAL_STATE["cookies"])
+                curr_spc_cds = GLOBAL_STATE["spc_cds"]
+                curr_csrf = GLOBAL_STATE["csrf_token"]
+            if not curr_cookies:
+                curr_cookies, curr_spc_cds, curr_csrf = load_session()
+
+            raw_bytes, mime_type, dec_err = decode_image_source_to_bytes(data_url_or_http)
+            if dec_err or not raw_bytes:
+                self.send_response(400)
+                self._send_cors()
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "ok": False,
+                    "error": f"Không thể giải mã dữ liệu ảnh: {dec_err}"
+                }).encode('utf-8'))
+                return
+
+            up_ok, cdn_url, img_id, up_msg = upload_image_to_shopee_cdn(
+                curr_cookies, curr_spc_cds, curr_csrf, raw_bytes, filename=filename, mime_type=mime_type
+            )
+            if not up_ok or not cdn_url:
+                self.send_response(502)
+                self._send_cors()
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "ok": False,
+                    "error": f"Shopee Media CDN từ chối tải lên: {up_msg}"
+                }).encode('utf-8'))
+                return
+
+            synced_to_shopee = False
+            if sync_to_shopee and shopee_item_id:
+                def _bg_sync_img():
+                    try:
+                        update_shopee_product_image(
+                            curr_cookies, curr_spc_cds, curr_csrf,
+                            item_id=shopee_item_id,
+                            model_id=shopee_model_id,
+                            target_image=cdn_url
+                        )
+                    except Exception as e_img:
+                        print(f"[BG IMAGE SYNC ERR] {e_img}")
+                threading.Thread(target=_bg_sync_img, daemon=True).start()
+                synced_to_shopee = True
+
+            self.send_response(200)
+            self._send_cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "ok": True,
+                "url": cdn_url,
+                "imageId": img_id,
+                "storageMode": "SHOPEE_CDN",
+                "bytesInDb": len(cdn_url),
+                "syncedToShopee": synced_to_shopee,
+                "unlinkedProductSupported": not bool(shopee_item_id),
+            }).encode('utf-8'))
+        except Exception as e:
+            self.send_response(500)
+            self._send_cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode('utf-8'))
+
+    def do_POST(self):
+        if self.path == '/shopee/session':
+            return self._handle_post_session()
         elif self.path == '/shopee/check-session':
             try:
                 disk_cookies, disk_cds, disk_csrf = load_session()
@@ -2067,83 +2149,7 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
         elif self.path == '/shopee/upload-image':
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            try:
-                body = json.loads(post_data.decode('utf-8'))
-                data_url_or_http = body.get("dataUrl") or body.get("imageUrl") or ""
-                filename = body.get("filename") or "cms_product.webp"
-                shopee_item_id = str(body.get("shopeeItemId") or "").strip()
-                shopee_model_id = str(body.get("shopeeModelId") or "").strip()
-                sync_to_shopee = bool(body.get("syncToShopee", False))
-
-                with GLOBAL_STATE["lock"]:
-                    curr_cookies = dict(GLOBAL_STATE["cookies"])
-                    curr_spc_cds = GLOBAL_STATE["spc_cds"]
-                    curr_csrf = GLOBAL_STATE["csrf_token"]
-                if not curr_cookies:
-                    curr_cookies, curr_spc_cds, curr_csrf = load_session()
-
-                raw_bytes, mime_type, dec_err = decode_image_source_to_bytes(data_url_or_http)
-                if dec_err or not raw_bytes:
-                    self.send_response(400)
-                    self._send_cors()
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({
-                        "ok": False,
-                        "error": f"Không thể giải mã dữ liệu ảnh: {dec_err}"
-                    }).encode('utf-8'))
-                    return
-
-                up_ok, cdn_url, img_id, up_msg = upload_image_to_shopee_cdn(
-                    curr_cookies, curr_spc_cds, curr_csrf, raw_bytes, filename=filename, mime_type=mime_type
-                )
-                if not up_ok or not cdn_url:
-                    self.send_response(502)
-                    self._send_cors()
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({
-                        "ok": False,
-                        "error": f"Shopee Media CDN từ chối tải lên: {up_msg}"
-                    }).encode('utf-8'))
-                    return
-
-                synced_to_shopee = False
-                if sync_to_shopee and shopee_item_id:
-                    def _bg_sync_img():
-                        try:
-                            update_shopee_product_image(
-                                curr_cookies, curr_spc_cds, curr_csrf,
-                                item_id=shopee_item_id,
-                                model_id=shopee_model_id,
-                                target_image=cdn_url
-                            )
-                        except Exception as e_img:
-                            print(f"[BG IMAGE SYNC ERR] {e_img}")
-                    threading.Thread(target=_bg_sync_img, daemon=True).start()
-                    synced_to_shopee = True
-
-                self.send_response(200)
-                self._send_cors()
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "ok": True,
-                    "url": cdn_url,
-                    "imageId": img_id,
-                    "storageMode": "SHOPEE_CDN",
-                    "bytesInDb": len(cdn_url),
-                    "syncedToShopee": synced_to_shopee,
-                    "unlinkedProductSupported": not bool(shopee_item_id),
-                }).encode('utf-8'))
-            except Exception as e:
-                self.send_response(500)
-                self._send_cors()
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode('utf-8'))
+            return self._handle_post_upload_image()
         else:
             self.send_response(404)
             self.end_headers()

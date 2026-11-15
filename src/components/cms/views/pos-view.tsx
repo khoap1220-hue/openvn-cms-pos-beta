@@ -4224,16 +4224,19 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 </div>
               </div>
               <div className="my-2 flex flex-col items-center border-b border-dashed border-black pb-2">
-                <div
-                  className="w-full max-w-[88mm] overflow-hidden"
-                  dangerouslySetInnerHTML={{
-                    __html: barcodeSvg(shopeeA6Slip.trackingCode || shopeeA6Slip.orderCode, {
-                      height: 44,
-                      moduleWidth: 2,
-                      showText: true,
-                    }),
-                  }}
-                />
+                <div className="w-full max-w-[88mm] overflow-hidden">
+                  <img
+                    src={`data:image/svg+xml;utf8,${encodeURIComponent(
+                      barcodeSvg(shopeeA6Slip.trackingCode || shopeeA6Slip.orderCode, {
+                        height: 44,
+                        moduleWidth: 2,
+                        showText: true,
+                      })
+                    )}`}
+                    alt={`Mã vạch ${shopeeA6Slip.trackingCode || shopeeA6Slip.orderCode}`}
+                    className="mx-auto block h-auto w-full max-w-[88mm]"
+                  />
+                </div>
                 <div className="mt-0.5 font-mono text-[10px]">
                   Đơn CMS: <strong>{shopeeA6Slip.orderCode}</strong>
                   {shopeeA6Slip.shopeeOrderSn ? ` · Shopee #${shopeeA6Slip.shopeeOrderSn}` : ''}

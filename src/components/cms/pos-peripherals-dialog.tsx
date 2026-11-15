@@ -393,10 +393,15 @@ export function PosPeripheralsDialog({
                   <span>Quét QR bằng Điện thoại</span>
                 </div>
                 {qrSvgMarkup ? (
-                  <div
-                    className="overflow-hidden rounded-xl border bg-white p-2 shadow-2xs"
-                    dangerouslySetInnerHTML={{ __html: qrSvgMarkup }}
-                  />
+                  <div className="overflow-hidden rounded-xl border bg-white p-2 shadow-2xs">
+                    <img
+                      src={`data:image/svg+xml;utf8,${encodeURIComponent(qrSvgMarkup)}`}
+                      alt="Mã QR ghép nối điện thoại quét mã với trạm POS"
+                      width={188}
+                      height={188}
+                      className="block h-[188px] w-[188px] select-none"
+                    />
+                  </div>
                 ) : (
                   <div className="flex h-[188px] w-[188px] items-center justify-center rounded-xl border bg-white text-xs text-muted-foreground">
                     Đang tạo mã QR...

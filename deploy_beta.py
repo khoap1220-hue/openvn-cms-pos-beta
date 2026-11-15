@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -144,6 +145,8 @@ def main() -> int:
     if not res.get('ok'):
         print('[ERROR] Deploy that bai:', json.dumps(res, ensure_ascii=False, indent=2))
         return 1
+    if not args.dry_run:
+        shutil.rmtree(PROJECT_ROOT / '.beta_stage', ignore_errors=True)
     print('[3/3] HOAN TAT DEPLOY 24/7!')
     print('  -> Live URL      :', res.get('live_url') or cfg.get('live_url'))
     print('  -> Feedback List :', PROJECT_ROOT / 'beta-feedback' / 'FEEDBACK_LIST.md')
