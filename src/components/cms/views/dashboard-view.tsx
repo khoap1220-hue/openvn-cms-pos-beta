@@ -175,7 +175,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
           <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
-              className="bg-[#0066CC] font-semibold text-white shadow-xs hover:bg-[#0055B3]"
+              className="h-10 bg-[#0066CC] px-3.5 font-semibold text-white shadow-xs hover:bg-[#0055B3]"
               onClick={() => onNavigate?.('pos')}
             >
               <Store className="mr-1.5 h-4 w-4" /> Bán tại kho (POS)
@@ -183,23 +183,24 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
             <Button
               size="sm"
               variant="outline"
+              className="h-10 px-3"
               onClick={() => onNavigate?.('orders')}
             >
               <Plus className="mr-1.5 h-4 w-4 text-[#0066CC]" /> Tạo đơn hàng
             </Button>
-            <Button size="sm" variant="outline" onClick={() => onNavigate?.('purchase')}>
+            <Button size="sm" variant="outline" className="h-10 px-3" onClick={() => onNavigate?.('purchase')}>
               <PackagePlus className="mr-1.5 h-4 w-4 text-emerald-600" /> Nhập kho NCC
             </Button>
-            <Button size="sm" variant="outline" onClick={() => onNavigate?.('sales')}>
+            <Button size="sm" variant="outline" className="h-10 px-3" onClick={() => onNavigate?.('sales')}>
               <PackageMinus className="mr-1.5 h-4 w-4 text-[#0088FF]" /> Xuất hóa đơn VAT
             </Button>
-            <Button size="sm" variant="outline" onClick={() => onNavigate?.('products')}>
+            <Button size="sm" variant="outline" className="h-10 px-3" onClick={() => onNavigate?.('products')}>
               <Package className="mr-1.5 h-4 w-4 text-violet-600" /> Sản phẩm
             </Button>
-            <Button size="sm" variant="outline" onClick={() => onNavigate?.('liveops')}>
+            <Button size="sm" variant="outline" className="h-10 px-3" onClick={() => onNavigate?.('liveops')}>
               <Rocket className="mr-1.5 h-4 w-4 text-amber-600" /> Điều hành AI
             </Button>
-            <Button size="sm" variant="ghost" asChild className="text-primary">
+            <Button size="sm" variant="ghost" asChild className="h-10 px-3 text-primary">
               <a href="/store" target="_blank" rel="noreferrer">
                 <Store className="mr-1.5 h-4 w-4" /> Cửa hàng <ExternalLink className="ml-1 h-3 w-3" />
               </a>
@@ -251,7 +252,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
       </Card>
 
       {/* ===== 4 Thẻ KPI Doanh thu & Đơn hàng chuẩn OPENVN ===== */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard
           loading={loading}
           title="Doanh thu hôm nay"
@@ -307,7 +308,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
                       void load(false, d)
                     }}
                     className={cn(
-                      'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                      'inline-flex min-h-10 items-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
                       days === d
                         ? 'bg-background font-semibold text-[#0066CC] shadow-xs dark:text-sky-400'
                         : 'text-muted-foreground hover:text-foreground'
@@ -317,7 +318,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
                   </button>
                 ))}
               </div>
-              <Button variant="ghost" size="sm" className="text-xs font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('reports')}>
+              <Button variant="ghost" size="sm" className="h-10 px-3 text-xs font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('reports')}>
                 Báo cáo chi tiết <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>
@@ -352,7 +353,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
         <Card className="border-border/80 shadow-xs">
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Tỷ trọng đơn theo kênh (30 ngày)</CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('channels')}>
+            <Button variant="ghost" size="sm" className="h-10 px-3 text-xs font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('channels')}>
               Kênh bán
             </Button>
           </CardHeader>
@@ -409,7 +410,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
               <CardTitle className="text-base">Đơn hàng mới nhất</CardTitle>
               <p className="text-xs text-muted-foreground">Nhấn vào đơn hàng để chuyển tới màn hình xử lý</p>
             </div>
-            <Button variant="ghost" size="sm" className="font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('orders')}>
+            <Button variant="ghost" size="sm" className="h-10 px-3 font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('orders')}>
               Xem tất cả <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </CardHeader>
@@ -500,7 +501,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
               <CardTitle className="flex items-center gap-1.5 text-base">
                 <Package className="h-4 w-4 text-rose-500" /> Cảnh báo sắp hết hàng
               </CardTitle>
-              <Button variant="ghost" size="sm" className="font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('inventory')}>
+              <Button variant="ghost" size="sm" className="h-10 px-3 font-semibold text-[#0066CC] dark:text-sky-400" onClick={() => onNavigate?.('inventory')}>
                 Nhập kho
               </Button>
             </CardHeader>

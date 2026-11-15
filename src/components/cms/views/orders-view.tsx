@@ -931,7 +931,7 @@ export function OrdersView() {
       </PageHeader>
 
       {/* Thanh Tab trạng thái đơn hàng ngang chuẩn OPENVN */}
-      <div className="mb-3 flex items-center gap-1 overflow-x-auto rounded-xl border border-border/80 bg-card p-1.5 shadow-2xs">
+      <div className="no-scrollbar mb-3 flex items-center gap-1 overflow-x-auto rounded-xl border border-border/80 bg-card p-1.5 shadow-2xs">
         {[
           { key: 'ALL', label: 'Tất cả đơn hàng' },
           { key: 'PENDING', label: 'Chờ xác nhận' },
@@ -962,39 +962,19 @@ export function OrdersView() {
         })}
       </div>
 
-      {/* Toolbar */}
-      <div className="mb-4 flex flex-col gap-2">
+      {/* Toolbar gộp 1 hàng tinh gọn trên Desktop (không lặp bộ lọc Trạng thái đã có ở thanh Tab phía trên) */}
+      <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tìm mã đơn, tên hoặc SĐT khách..."
-            className="pl-8"
-            aria-label="Tìm kiếm đơn hàng"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => {
-              setStatusFilter(v)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo trạng thái">
-              <SelectValue placeholder="Tất cả trạng thái" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
-              {ORDER_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {ORDER_STATUS_LABELS[s] ?? s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Tìm mã đơn, tên hoặc SĐT khách..."
+              className="pl-8"
+              aria-label="Tìm kiếm đơn hàng"
+            />
+          </div>
           <Select
             value={channelFilter}
             onValueChange={(v) => {
@@ -1002,7 +982,7 @@ export function OrdersView() {
               setPage(1)
             }}
           >
-            <SelectTrigger className="w-full sm:w-[170px]" aria-label="Lọc theo kênh bán">
+            <SelectTrigger className="w-full sm:w-[175px]" aria-label="Lọc theo kênh bán">
               <SelectValue placeholder="Tất cả kênh" />
             </SelectTrigger>
             <SelectContent>
@@ -1014,7 +994,6 @@ export function OrdersView() {
               ))}
             </SelectContent>
           </Select>
-        </div>
         </div>
 
         {/* Bộ lọc Kỳ kế toán + Nguồn gốc dữ liệu + Trạng thái thay đổi */}
@@ -1114,10 +1093,10 @@ export function OrdersView() {
           )}
 
           <div className="overflow-x-auto rounded-lg border">
-            <Table tableId="orders-main" className="min-w-[1120px]">
+            <Table tableId="orders-main">
               <TableHeader>
                 <TableRow>
-                  <TableHead locked className="w-12 text-center">
+                  <TableHead locked className="w-10 text-center">
                     <Checkbox
                       checked={isAllSelected}
                       onCheckedChange={handleToggleSelectAll}
@@ -1126,7 +1105,7 @@ export function OrdersView() {
                   </TableHead>
                   <TableHead locked>Mã đơn</TableHead>
                   <TableHead>Kênh</TableHead>
-                  <TableHead>Nguồn gốc & Lịch sử</TableHead>
+                  <TableHead defaultHidden>Nguồn gốc & Lịch sử</TableHead>
                   <TableHead>Khách hàng</TableHead>
                   <TableHead defaultHidden>SĐT Khách</TableHead>
                   <TableHead>Sản phẩm</TableHead>
@@ -1147,14 +1126,24 @@ export function OrdersView() {
                     key={o.id}
                     className={selectedOrderIds.includes(o.id) ? 'bg-blue-50/40 dark:bg-blue-950/20' : undefined}
                   >
-                    <TableCell className="w-12 text-center">
+                    <TableCell className="w-10 text-center">
                       <Checkbox
                         checked={selectedOrderIds.includes(o.id)}
                         onCheckedChange={() => handleToggleSelectOrder(o.id)}
                         aria-label={`Chọn đơn hàng ${o.code}`}
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-sm font-medium">{o.code}</TableCell>
+                    <TableCell>
+                      <div className="space-y-0.5">
+                        <p className="font-mono text-xs font-semibold sm:text-sm">{o.code}</p>
+                        <DataLineageBadge
+                          compact
+                          originSource={o.originSource}
+                          changeCount={o.changeCount}
+                          onInspect={() => openLineage(o)}
+                        />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <ChannelBadge channel={o.channel} className="text-xs" />
                     </TableCell>
@@ -1167,15 +1156,17 @@ export function OrdersView() {
                       />
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
+                      <p className="max-w-[140px] truncate text-sm font-medium">{o.customer?.name ?? 'Khách lẻ'}</p>
                       {o.customer?.phone && (
-                        <p className="text-xs text-muted-foreground">{o.customer.phone}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{o.customer.phone}</p>
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {o.customer?.phone ?? '—'}
                     </TableCell>
-                    <TableCell className="max-w-[180px] truncate text-sm">{itemsSummary(o)}</TableCell>
+                    <TableCell className="max-w-[160px] truncate text-xs sm:text-sm" title={itemsSummary(o)}>
+                      {itemsSummary(o)}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">
                       {formatVND(o.subtotal ?? o.total)}
                     </TableCell>

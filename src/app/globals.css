@@ -210,6 +210,17 @@ nextjs-portal,
   pointer-events: none !important;
 }
 
+/* Ẩn thanh cuộn thô cho các dải Tab / Filter Chip cuộn ngang mượt */
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* === BEGIN BETA AGENT SAFE UI HEAL === */
 /* Đồng bộ 100% Design Tokens gốc của dự án (:root --primary, --card, --border, --muted, --radius trong globals.css) */
 /* Không ép !important lên chiều cao Button/Tab/Header của shadcn/ui để giữ nguyên thiết kế gốc */

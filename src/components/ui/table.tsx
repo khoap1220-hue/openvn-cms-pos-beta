@@ -130,8 +130,8 @@ function extractColumnsFromTableChildren(children: React.ReactNode): ColumnMeta[
         const isAction =
           isLast &&
           (!label ||
-            lower === "hành động" ||
-            lower === "thao tác" ||
+            lower.startsWith("hành động") ||
+            lower.startsWith("thao tác") ||
             lower === "chi tiết" ||
             lower === "tác vụ")
 
@@ -1136,13 +1136,20 @@ function TableRow({ className, children, ...props }: React.ComponentProps<"tr">)
                 : "max-md:flex max-md:min-w-0 max-md:max-w-none max-md:flex-col max-md:items-start max-md:overflow-hidden max-md:p-0 max-md:!text-left max-md:whitespace-normal max-md:[&>*]:flex-wrap max-md:before:mb-0.5 max-md:before:block max-md:before:text-[10px] max-md:before:font-semibold max-md:before:tracking-wide max-md:before:text-muted-foreground max-md:before:uppercase max-md:before:content-[attr(data-label)]"
         : undefined
 
+      const stickyActionClasses =
+        isActionCell && !isMobileBodyCard
+          ? section === "header"
+            ? "md:sticky md:right-0 md:z-20 md:bg-card md:shadow-[-1px_0_0_0_var(--border)]"
+            : "md:sticky md:right-0 md:z-10 md:bg-card md:group-hover/row:bg-muted md:shadow-[-1px_0_0_0_var(--border)]"
+          : undefined
+
       renderedCells.push(
         React.cloneElement(
           cellNode as React.ReactElement<{ className?: string; key?: React.Key; "data-label"?: string }>,
           {
             key: `col_${colIdx}`,
             "data-label": isMobileBodyCard && colMeta ? colMeta.label : undefined,
-            className: cn(cleanedClassName, mobileCellClasses),
+            className: cn(cleanedClassName, stickyActionClasses, mobileCellClasses),
           }
         )
       )
@@ -1159,7 +1166,7 @@ function TableRow({ className, children, ...props }: React.ComponentProps<"tr">)
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        "group/row hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
         densityClass,
         isMobileBodyCard &&
           "max-md:grid max-md:grid-cols-2 max-md:items-start max-md:gap-x-3 max-md:gap-y-2.5 max-md:rounded-xl max-md:!border max-md:border-border/90 max-md:bg-card max-md:p-3.5 max-md:shadow-2xs",

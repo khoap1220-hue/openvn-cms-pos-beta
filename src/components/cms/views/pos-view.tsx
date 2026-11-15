@@ -1997,43 +1997,44 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   return (
     <div className="space-y-2.5">
       {/* ===== THANH ĐIỀU KHIỂN ĐẦU TRANG OPENVN POS (ĐA HÓA ĐƠN CHỜ + KHO XUẤT) ===== */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-[#182537] px-3 py-1.5 text-white shadow-sm">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
-          <div className="mr-1.5 flex shrink-0 items-center gap-2 border-r border-white/15 pr-3">
-            {!standalone && (
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0066CC] text-white shadow-xs">
-                <Store className="h-4 w-4" />
-              </div>
-            )}
-            <div className={cn(standalone && 'flex items-center gap-1.5')}>
-              {!standalone ? (
-                <p className="text-xs font-bold leading-tight">OPENVN POS · Bán Tại Kho</p>
-              ) : (
-                <Warehouse className="h-3.5 w-3.5 shrink-0 text-sky-300" />
-              )}
-              {warehouses.length > 0 ? (
-                <select
-                  value={selectedWarehouseId}
-                  onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                  aria-label="Chọn kho xuất bán"
-                  className={cn(
-                    'rounded bg-white/10 px-2 py-1 text-[11px] font-medium text-sky-200 outline-none hover:bg-white/20',
-                    !standalone && 'mt-0.5 px-1.5 py-0.5 text-[10px]'
-                  )}
-                >
-                  {warehouses.map((wh) => (
-                    <option key={wh.id} value={wh.id} className="bg-slate-900 text-white">
-                      {wh.name} {wh.type === 'PARTNER_SHOP' ? `(Liên kết · HH ${wh.commissionPct}%)` : ''}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-[11px] font-medium text-slate-200">Kho Trung Tâm Ưu Đàm</p>
-              )}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-[#182537] px-3 py-2 text-white shadow-sm lg:flex-nowrap lg:py-1.5">
+        {/* Cụm 1: Chọn Kho xuất bán */}
+        <div className="order-1 flex min-w-0 shrink items-center gap-2 lg:border-r lg:border-white/15 lg:pr-3">
+          {!standalone && (
+            <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0066CC] text-white shadow-xs sm:flex">
+              <Store className="h-4 w-4" />
             </div>
+          )}
+          <div className={cn('min-w-0', standalone && 'flex items-center gap-1.5')}>
+            {!standalone ? (
+              <p className="hidden text-xs font-bold leading-tight xl:block">OPENVN POS · Bán Tại Kho</p>
+            ) : (
+              <Warehouse className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+            )}
+            {warehouses.length > 0 ? (
+              <select
+                value={selectedWarehouseId}
+                onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                aria-label="Chọn kho xuất bán"
+                className={cn(
+                  'max-w-[155px] truncate rounded bg-white/10 px-2 py-1 text-[11px] font-medium text-sky-200 outline-none hover:bg-white/20 sm:max-w-[210px]',
+                  !standalone && 'xl:mt-0.5 xl:px-1.5 xl:py-0.5 xl:text-[10px]'
+                )}
+              >
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id} className="bg-slate-900 text-white">
+                    {wh.name} {wh.type === 'PARTNER_SHOP' ? `(Liên kết · HH ${wh.commissionPct}%)` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="truncate text-[11px] font-medium text-slate-200">Kho Trung Tâm Ưu Đàm</p>
+            )}
           </div>
+        </div>
 
-          {/* Các Tab đơn hàng đang mở song song */}
+        {/* Cụm 2: Các Tab đơn hàng đang mở song song (Tự xuống dòng rộng rãi trên Mobile, 1 dòng mượt không thanh cuộn thô trên Desktop) */}
+        <div className="no-scrollbar order-3 flex w-full min-w-0 items-center gap-1.5 overflow-x-auto border-t border-white/10 pt-1.5 lg:order-2 lg:w-auto lg:flex-1 lg:border-t-0 lg:pt-0">
           {tabs.map((tab) => {
             const isCurrent = tab.id === activeTab.id
             const itemCount = tab.items.reduce((s, i) => s + i.quantity, 0)
@@ -2041,7 +2042,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
               <div
                 key={tab.id}
                 className={cn(
-                  'group flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
+                  'group flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
                   isCurrent
                     ? 'bg-[#0066CC] font-semibold text-white shadow-xs'
                     : 'bg-white/10 text-slate-200 hover:bg-white/15'
@@ -2067,6 +2068,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 </button>
                 <button
                   type="button"
+                  data-compact-btn="true"
                   onClick={() => closeOrderTab(tab.id)}
                   title="Đóng hoặc làm mới đơn này"
                   aria-label={`Đóng ${tab.label}`}
@@ -2082,19 +2084,14 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
             size="sm"
             variant="ghost"
             onClick={addNewOrderTab}
-            className="h-8 shrink-0 gap-1 border border-dashed border-white/25 px-2.5 text-xs text-slate-200 hover:bg-white/10 hover:text-white"
+            className="h-9 shrink-0 gap-1 border border-dashed border-white/25 px-2.5 text-xs text-slate-200 hover:bg-white/10 hover:text-white"
           >
             <Plus className="h-3.5 w-3.5" /> Thêm đơn chờ
           </Button>
         </div>
 
-        {/* Cụm phím tắt & Lịch sử đơn POS trong ca */}
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 text-[11px] text-slate-300 xl:flex">
-            <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono">F2: Mã vạch</span>
-            <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono">F3: Tìm hàng</span>
-            <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono">F9: Thanh toán</span>
-          </div>
+        {/* Cụm 3: Kết nối Thiết bị Ngoại vi & Lịch sử đơn POS trong ca */}
+        <div className="order-2 ml-auto flex shrink-0 items-center gap-1.5 lg:order-3 lg:ml-0">
           <Button
             size="sm"
             variant="ghost"
@@ -2102,18 +2099,19 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
               void pullStationHub()
               setPeripheralsOpen(true)
             }}
-            className="h-8 gap-1.5 border border-emerald-400/40 bg-emerald-500/20 px-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30 hover:text-white"
+            className="h-9 gap-1.5 border border-emerald-400/40 bg-emerald-500/20 px-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30 hover:text-white"
             title="Kết nối Điện thoại quét mã, Súng mã vạch, Máy in Bill K80 & Tự động in đơn Shopee"
           >
-            <Smartphone className="h-3.5 w-3.5 text-emerald-300" />
-            <span>Thiết bị &amp; Quét ĐT</span>
+            <Smartphone className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+            <span className="hidden sm:inline">Thiết bị &amp; Quét ĐT</span>
+            <span className="sm:hidden">Thiết bị</span>
             {(stationView?.connectedPhones?.length || 0) > 0 && (
               <span className="rounded-full bg-emerald-400 px-1.5 py-0.2 text-[10px] font-extrabold text-slate-950">
                 {stationView?.connectedPhones?.length}
               </span>
             )}
             {printerConfig.autoPrintShopeeOrder && (
-              <span className="hidden rounded bg-orange-500 px-1 py-0.2 text-[9px] font-bold text-white sm:inline">
+              <span className="hidden rounded bg-orange-500 px-1 py-0.2 text-[9px] font-bold text-white xl:inline">
                 Auto Shopee
               </span>
             )}
@@ -2122,16 +2120,17 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
             size="sm"
             variant="ghost"
             onClick={() => setHistoryOpen(true)}
-            className="h-8 gap-1.5 bg-white/10 px-2.5 text-xs text-white hover:bg-white/20"
+            className="h-9 gap-1.5 bg-white/10 px-2.5 text-xs text-white hover:bg-white/20"
           >
-            <History className="h-3.5 w-3.5" />
-            <span>Đơn tại kho ({recentPosOrders.length})</span>
+            <History className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">Đơn tại kho ({recentPosOrders.length})</span>
+            <span className="sm:hidden">Đơn ({recentPosOrders.length})</span>
           </Button>
           <Button
             size="sm"
             variant="ghost"
             onClick={() => void loadData()}
-            className="h-8 w-8 p-0 text-slate-200 hover:bg-white/10 hover:text-white"
+            className="h-9 w-9 p-0 text-slate-200 hover:bg-white/10 hover:text-white"
             title="Làm mới tồn kho"
             aria-label="Làm mới tồn kho"
           >
@@ -2200,8 +2199,11 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       onChange={(e) => setBarcodeInput(e.target.value)}
                       placeholder="Quét mã / SKU..."
                       aria-label="Quét mã vạch hoặc nhập SKU"
-                      className="h-10 border-[#0066CC]/40 bg-sky-50/40 pl-9 pr-16 text-base font-medium focus-visible:ring-[#0066CC] sm:h-9 sm:text-xs dark:bg-sky-950/20"
+                      className="h-10 border-[#0066CC]/40 bg-sky-50/40 pl-9 pr-16 text-base font-medium focus-visible:ring-[#0066CC] sm:h-9 sm:text-xs lg:pr-24 dark:bg-sky-950/20"
                     />
+                    <kbd className="pointer-events-none absolute right-15.5 top-1/2 hidden -translate-y-1/2 rounded border border-sky-300/70 bg-background/85 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0066CC] lg:inline-block dark:border-sky-800 dark:text-sky-300">
+                      F2
+                    </kbd>
                     <Button
                       type="submit"
                       size="sm"
@@ -2231,9 +2233,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Tìm theo tên hàng hóa, mã SKU..."
                       aria-label="Tìm theo tên hàng hóa hoặc mã SKU"
-                      className="h-10 pl-9 pr-8 text-base sm:h-9 sm:text-xs"
+                      className="h-10 pl-9 pr-10 text-base sm:h-9 sm:text-xs"
                     />
-                    {searchQuery && (
+                    {searchQuery ? (
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
@@ -2242,6 +2244,10 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
+                    ) : (
+                      <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground lg:inline-block">
+                        F3
+                      </kbd>
                     )}
                   </div>
 
@@ -2278,8 +2284,8 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 </div>
               </div>
 
-              {/* Hàng 2: Bộ lọc nhanh Tồn kho & Danh mục sản phẩm (Cuộn ngang mượt trên điện thoại) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+              {/* Hàng 2: Bộ lọc nhanh Tồn kho & Danh mục sản phẩm (Cuộn ngang mượt không thanh cuộn thô) */}
+              <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
                 {(
                   [
                     { key: 'IN_STOCK', label: 'Còn tồn kho' },
@@ -2340,9 +2346,22 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           <Card className="flex-1 border-border/80 shadow-xs">
             <CardContent className="p-3 sm:p-3.5">
               {loading ? (
-                <div className="flex h-72 items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin text-[#0066CC]" />
-                  Đang tải danh mục hàng trong kho...
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {Array.from({ length: 6 }).map((_, idx) => (
+                    <div key={idx} className="space-y-3 rounded-xl border border-border/60 bg-card p-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-muted" />
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="h-3.5 w-full animate-pulse rounded bg-muted" />
+                          <div className="h-3 w-2/3 animate-pulse rounded bg-muted/70" />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-border/50 pt-2">
+                        <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                        <div className="h-4 w-12 animate-pulse rounded bg-muted/70" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : filteredProducts.length === 0 ? (
                 <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
@@ -2402,14 +2421,19 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                           </span>
                         )}
 
-                        <div className="flex items-start gap-2.5">
-                          <ProductAvatar name={p.name} image={p.image} className="h-10 w-10 shrink-0 rounded-lg" />
-                          <div className="min-w-0 flex-1 pr-6">
+                        <div className="flex items-start gap-2">
+                          <ProductAvatar name={p.name} image={p.image} className="h-9 w-9 shrink-0 rounded-lg sm:h-10 sm:w-10" />
+                          <div className={cn('min-w-0 flex-1', inCartQty > 0 && 'pr-14')}>
                             <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">
                               {p.name}
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-1">
-                              <span className="font-mono text-[10px] text-muted-foreground">{p.sku}</span>
+                              <span
+                                className="inline-block max-w-full truncate rounded bg-muted/60 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground"
+                                title={p.sku}
+                              >
+                                {p.sku}
+                              </span>
                               {p.type === 'COMBO' && (
                                 <Badge
                                   variant="outline"
@@ -3616,6 +3640,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                       ? `THANH TOÁN & XUẤT KHO NGAY (${formatVND(grandTotal)})`
                       : `TẠO ĐƠN & CHUYỂN ĐÓNG GÓI (${formatVND(grandTotal)})`}
                   </span>
+                  <kbd className="hidden shrink-0 rounded bg-white/20 px-1.5 py-0.5 font-mono text-[11px] font-bold text-white lg:inline-block">
+                    F9
+                  </kbd>
                 </Button>
               </div>
             </CardContent>

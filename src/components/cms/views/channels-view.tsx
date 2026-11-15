@@ -955,9 +955,9 @@ export function ChannelsView({
     <div>
       <PageHeader title="Kênh bán" description="Kết nối, đồng bộ tồn kho bất đồng bộ và liên kết mã SKU sản phẩm giữa Sàn TMĐT ↔ Kho CMS" />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3.5">
         <StatCard
-          title="Kênh đang kết nối"
+          title="Kênh kết nối"
           value={loading ? '' : `${connectedCount}/${channels?.length ?? 0}`}
           icon={Store}
           loading={loading}
@@ -1620,8 +1620,8 @@ export function ChannelsView({
                                     aria-label={`Chọn ${item.cmsSku}`}
                                   />
                                 </TableCell>
-                                <TableCell className="max-w-[230px] whitespace-normal">
-                                <div className="flex items-center gap-2.5">
+                                <TableCell className="max-w-[180px] whitespace-normal">
+                                <div className="flex items-center gap-2">
                                   {item.cmsImage ? (
                                     <img
                                       src={item.cmsImage}
@@ -1633,17 +1633,17 @@ export function ChannelsView({
                                       SP
                                     </div>
                                   )}
-                                  <div className="min-w-0">
+                                  <div className="min-w-0 max-w-[125px]">
                                     <div className="flex flex-wrap items-center gap-1">
-                                      <Badge variant="outline" className="max-w-[140px] truncate text-[11px]">
+                                      <Badge variant="outline" className="max-w-[110px] truncate text-[11px]">
                                         {item.shopeeModelName || 'Mặc định'}
                                       </Badge>
                                       <span className="font-mono text-[10px] text-muted-foreground">
                                         #{item.shopeeModelId.slice(-6)}
                                       </span>
                                     </div>
-                                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                                      SKU Sàn:{' '}
+                                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={item.shopeeModelSku || 'Theo Model ID'}>
+                                      SKU:{' '}
                                       <span className="font-mono font-medium text-foreground">
                                         {item.shopeeModelSku || 'Theo Model ID'}
                                       </span>
@@ -1717,16 +1717,16 @@ export function ChannelsView({
                                 </div>
                               </TableCell>
 
-                              <TableCell className="max-w-[260px] whitespace-normal">
+                              <TableCell className="max-w-[200px] whitespace-normal">
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex flex-wrap items-center gap-1">
-                                    <Badge variant="outline" className="font-mono text-[11px] font-semibold">
+                                    <Badge variant="outline" className="whitespace-nowrap font-mono text-[11px] font-semibold">
                                       {item.cmsSku}
                                     </Badge>
                                     {item.openingStockOrigin === 'CMS_WAREHOUSE' ? (
                                       <Badge
                                         variant="secondary"
-                                        className="bg-blue-500/10 px-1.5 py-0 text-[10px] text-blue-700 dark:text-blue-300"
+                                        className="whitespace-nowrap bg-blue-500/10 px-1.5 py-0 text-[10px] text-blue-700 dark:text-blue-300"
                                         title={item.openingStockOriginLabel || 'Gốc tồn đầu tại Kho CMS'}
                                       >
                                         Gốc Kho: {item.openingStockQty ?? item.cmsStock}
@@ -1734,7 +1734,7 @@ export function ChannelsView({
                                     ) : (
                                       <Badge
                                         variant="secondary"
-                                        className="bg-orange-500/15 px-1.5 py-0 text-[10px] text-orange-700 dark:text-orange-300"
+                                        className="whitespace-nowrap bg-orange-500/15 px-1.5 py-0 text-[10px] text-orange-700 dark:text-orange-300"
                                         title={
                                           item.openingStockOriginLabel ||
                                           'Gốc tồn đầu từ Sàn Shopee (thaimy1605) — Mọi biến động bán hàng đối chiếu đơn Sàn về CMS'
@@ -1832,9 +1832,9 @@ export function ChannelsView({
                                     <Badge
                                       variant="outline"
                                       className="border-orange-300 bg-orange-50 px-1 py-0 text-[9px] text-orange-800 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
-                                      title="Sàn đang mở mức tồn ảo chống ghi đè Kho thật CMS"
+                                      title="Tồn ảo Sàn · Bảo vệ Kho thật — Sàn đang mở mức tồn ảo chống ghi đè Kho thật CMS"
                                     >
-                                      Tồn ảo Sàn · Bảo vệ Kho thật
+                                      Tồn ảo · Giữ kho thật
                                     </Badge>
                                   )}
                                   {item.reconciliationStatus === 'MODE1_HOLD_UNTIL_NEXT_CHANGE' && (
@@ -1961,7 +1961,7 @@ export function ChannelsView({
                                     title="Mở bảng đối soát Sàn ↔ Kho CMS và ghi lý do xác nhận tồn Sàn hoặc giữ tồn Kho"
                                   >
                                     <ClipboardCheck className="mr-1 h-3.5 w-3.5 text-violet-600" />
-                                    Đối soát &amp; Ghi lý do
+                                    Đối soát
                                   </Button>
                                   <Button
                                     variant={item.syncStatus === 'IN_SYNC' ? 'outline' : 'default'}

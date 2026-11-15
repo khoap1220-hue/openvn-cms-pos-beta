@@ -698,33 +698,33 @@ export function SystemView({
         description="Quản lý tập trung Thương hiệu & Tùy biến theo từng Shop (Sidebar, Topbar, Xưởng SX), Danh mục hàng hóa, Quy đổi định lượng (Kg ⇄ Gr), Hóa đơn VAT, AI & Bảo mật"
       />
 
-      {/* Thanh phân nhóm Cấu hình Hệ thống mở rộng (Modular Settings Hub) */}
-      <div className="overflow-x-auto rounded-xl border bg-card p-1.5 shadow-xs">
-        <div className="flex min-w-max items-center gap-1.5">
+      {/* Thanh phân nhóm Cấu hình Hệ thống mở rộng (Modular Settings Hub — Hiển thị trọn vẹn 5 phân hệ không thanh cuộn ngang) */}
+      <div className="rounded-xl border bg-card p-1.5 shadow-xs">
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-5">
           {(
             [
               {
                 id: 'INVENTORY_POLICY' as const,
                 label: 'Tồn kho Thật CMS & Sàn Ảo',
-                sub: '1.CMS➔Sàn · 2.Tồn ảo Sàn · 3.Bán âm CMS',
+                sub: '1.CMS➔Sàn · 2.Tồn ảo · 3.Bán âm',
                 icon: Database,
               },
               {
                 id: 'CATALOG_MASTER' as const,
-                label: 'Danh mục, Loại SP & Quy đổi ĐVT',
-                sub: 'Danh mục · Kg⇄Gr · Đơn vị tính · Đặc tính',
+                label: 'Danh mục & Quy đổi ĐVT',
+                sub: 'Danh mục · Kg⇄Gr · Đặc tính',
                 icon: Scale,
               },
               {
                 id: 'COMPANY_INVOICE' as const,
-                label: 'Thương hiệu Shop, Đơn vị & Hóa đơn',
-                sub: 'Tên Shop Sidebar · Xưởng SX · Mẫu HĐ VietQR · Chốt sổ',
+                label: 'Thương hiệu & Hóa đơn',
+                sub: 'Shop · Xưởng SX · HĐ VietQR',
                 icon: Store,
               },
               {
                 id: 'SECURITY_AI_DATA' as const,
-                label: 'Bảo mật, AI & Dữ liệu Go-Live',
-                sub: 'Gemini AI · Mật khẩu · Nhân sự RBAC · Sao lưu .db',
+                label: 'Bảo mật, AI & Go-Live',
+                sub: 'Gemini AI · RBAC · Sao lưu .db',
                 icon: ShieldCheck,
               },
               {
@@ -734,7 +734,7 @@ export function SystemView({
                 icon: Layers,
               },
             ]
-          ).map((tab) => {
+          ).map((tab, idx) => {
             const Icon = tab.icon
             const active = activeSection === tab.id
             return (
@@ -743,16 +743,17 @@ export function SystemView({
                 type="button"
                 onClick={() => setActiveSection(tab.id)}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-lg px-3.5 py-2 text-left transition-all',
+                  'flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left transition-all',
+                  idx === 4 && 'col-span-2 sm:col-span-1',
                   active
-                    ? 'bg-[#0066CC] text-white shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                    ? 'bg-[#0066CC] text-white shadow-xs'
+                    : 'bg-muted/25 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
                 )}
               >
                 <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-white' : 'text-[#0066CC] dark:text-sky-400')} />
-                <div>
-                  <p className="text-xs font-bold leading-tight">{tab.label}</p>
-                  <p className={cn('text-[10px] leading-tight', active ? 'text-sky-100' : 'text-muted-foreground')}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold leading-tight">{tab.label}</p>
+                  <p className={cn('truncate text-[10px] leading-tight', active ? 'text-sky-100' : 'text-muted-foreground')}>
                     {tab.sub}
                   </p>
                 </div>

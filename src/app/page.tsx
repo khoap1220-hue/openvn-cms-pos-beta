@@ -757,7 +757,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setQuickSearchOpen(true)}
-            className="mx-auto hidden h-9 min-w-[220px] max-w-md flex-1 items-center gap-2 rounded-lg border border-border/80 bg-muted/50 px-3.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted md:flex xl:max-w-lg"
+            className="mx-auto hidden h-10 min-w-[220px] max-w-md flex-1 items-center gap-2 rounded-lg border border-border/80 bg-muted/50 px-3.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted md:flex xl:max-w-lg"
           >
             <Search className="h-4 w-4 shrink-0 text-[#0066CC] dark:text-sky-400" />
             <span className="truncate">Tìm đơn hàng (DH...), SKU, SĐT khách...</span>
@@ -771,7 +771,7 @@ export default function Home() {
             <Button
               variant="outline"
               size="icon"
-              className="h-9 w-9 md:hidden"
+              className="h-10 w-10 md:hidden"
               onClick={() => setQuickSearchOpen(true)}
               aria-label="Tìm kiếm nhanh"
             >
@@ -793,7 +793,7 @@ export default function Home() {
                     )
                   }
                   className={cn(
-                    'hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors lg:inline-flex',
+                    'hidden h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-semibold transition-colors lg:inline-flex',
                     channelHealth.summary.brokenLinkCount > 0 ||
                       channelHealth.summary.waitingSessionCount > 0
                       ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300'
@@ -819,7 +819,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setActiveView('inventory')}
-                className="hidden shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100 2xl:inline-flex dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"
+                className="hidden h-10 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100 2xl:inline-flex dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"
                 title="Sản phẩm chạm ngưỡng sắp hết hàng"
               >
                 <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -831,7 +831,7 @@ export default function Home() {
             {canViewPos && (
               <Button
                 size="sm"
-                className="hidden h-8 shrink-0 gap-1.5 whitespace-nowrap bg-[#0066CC] px-3 text-xs font-semibold text-white shadow-xs hover:bg-[#0055B3] sm:inline-flex"
+                className="hidden h-10 shrink-0 gap-1.5 whitespace-nowrap bg-[#0066CC] px-3.5 text-xs font-semibold text-white shadow-xs hover:bg-[#0055B3] sm:inline-flex"
                 onClick={() => setActiveView('pos')}
               >
                 <Store className="h-3.5 w-3.5" />
@@ -847,7 +847,7 @@ export default function Home() {
                 <button
                   type="button"
                   aria-label="Tài khoản ca trực, Trạng thái hệ thống & Tác vụ nhanh"
-                  className="relative flex h-9 items-center gap-1.5 rounded-full border border-border/80 bg-muted/40 p-1 text-left transition-colors hover:border-primary/40 hover:bg-muted lg:rounded-xl lg:px-2"
+                  className="relative flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-full border border-border/80 bg-muted/40 p-1 text-left transition-colors hover:border-primary/40 hover:bg-muted lg:rounded-xl lg:px-2.5"
                 >
                   <div className="relative">
                     <Avatar className="h-7 w-7 shrink-0">
@@ -1241,7 +1241,7 @@ export default function Home() {
                 href={shopProfile.storefrontUrl || '/store'}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                className="inline-flex min-h-11 items-center gap-1 px-2 font-medium text-primary hover:underline"
               >
                 Cửa hàng <ExternalLink className="h-3 w-3" />
               </a>

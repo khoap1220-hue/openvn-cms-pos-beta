@@ -2652,7 +2652,7 @@ export function ProductsView({
           )}
 
           <div className="overflow-x-auto rounded-lg border">
-            <Table tableId="products-main" className="min-w-[900px]">
+            <Table tableId="products-main">
               <TableHeader>
                 <TableRow>
                   <TableHead locked className="w-9 pr-0">
@@ -2677,7 +2677,7 @@ export function ProductsView({
                   <TableHead locked>Sản phẩm</TableHead>
                   <TableHead defaultHidden>Mã SKU</TableHead>
                   <TableHead>Danh mục</TableHead>
-                  <TableHead>Mã vạch</TableHead>
+                  <TableHead defaultHidden>Mã vạch</TableHead>
                   <TableHead defaultHidden className="text-right">Giá vốn</TableHead>
                   <TableHead className="text-right">Giá bán</TableHead>
                   <TableHead defaultHidden className="text-right">Lợi nhuận gộp</TableHead>
@@ -2723,7 +2723,7 @@ export function ProductsView({
                       <div className="flex items-center gap-3">
                         <ProductAvatar name={p.name} image={p.image} />
                         <div className="min-w-0">
-                          <div className="flex max-w-[260px] flex-wrap items-center gap-1.5 font-medium">
+                          <div className="flex max-w-[220px] flex-wrap items-center gap-1.5 font-medium">
                             <span className="truncate">{p.name}</span>
                             {p.type === 'COMBO' ? (
                               <ComboBadge />
@@ -2734,7 +2734,17 @@ export function ProductsView({
                             ) : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                            <span>{p.sku}</span>
+                            <span className="font-mono text-[11px] font-medium text-foreground/80">{p.sku}</span>
+                            <button
+                              type="button"
+                              data-compact-btn="true"
+                              onClick={() => openPrintDialog([p])}
+                              title={p.barcode ? `In nhãn mã vạch (${p.barcode})` : `In nhãn mã vạch cho ${p.sku}`}
+                              aria-label={`In nhãn mã vạch cho ${p.sku}`}
+                              className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            >
+                              <Barcode className="h-3 w-3" />
+                            </button>
                             {(() => {
                               if (!p.attributes) return null
                               try {
@@ -2783,15 +2793,6 @@ export function ProductsView({
                                 return null
                               }
                             })()}
-                            {isProductUnlistedOnMarketplace(p) && (
-                              <span
-                                title="Sản phẩm đang bị tạm ẩn hoặc khóa bán trên sàn Shopee"
-                                className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-300"
-                              >
-                                <EyeOff className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
-                                Sàn đang ẩn
-                              </span>
-                            )}
                             {pRate > 1 && (
                               <span className="rounded bg-emerald-100 px-1 py-0.2 font-mono text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                                 1 {pUnit} = {formatNumber(pRate)} {bUnit}
@@ -2957,7 +2958,7 @@ export function ProductsView({
                       {formatNumber(p.lowStockThreshold)} {bUnit}
                     </TableCell>
                     <TableCell>
-                      <div className="flex max-w-[260px] flex-wrap gap-x-2.5 gap-y-1.5">
+                      <div className="flex max-w-[195px] flex-wrap gap-x-2 gap-y-1">
                         {p.status === 'INACTIVE' ? (
                           <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
                             <CircleOff className="h-3 w-3" />

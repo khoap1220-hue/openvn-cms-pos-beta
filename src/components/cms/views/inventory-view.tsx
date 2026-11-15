@@ -1891,7 +1891,7 @@ export function InventoryView({
             title="Quản lý Tồn kho & Sổ Thẻ kho"
             description="Tra cứu số lượng tồn thực tế theo từng mặt hàng, định lượng quy đổi (Kg ⇄ Gr, Lít ⇄ ml), giá trị vốn tồn kho và cảnh báo tồn tối thiểu"
           >
-            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-muted/50 p-1">
+            <div className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-muted/50 p-1">
               <button
                 type="button"
                 onClick={() => setStockSubTab('STOCK_TABLE')}
@@ -1947,7 +1947,7 @@ export function InventoryView({
             </div>
           </PageHeader>
 
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
               title="Danh mục Hàng lưu kho"
               value={loading ? '' : `${formatNumber(stockStats.totalCount)} mã`}
@@ -1996,7 +1996,7 @@ export function InventoryView({
                       Hiển thị số lượng tồn theo đơn vị gốc, tự động quy đổi ra đơn vị mua lớn (Kg, Lít) và tính giá trị vốn tồn kho
                     </CardDescription>
                   </div>
-                  <div className="hidden items-center gap-2 xl:flex">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -2014,26 +2014,10 @@ export function InventoryView({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onNavigate?.('bom')}
-                    >
-                      <Layers className="h-4 w-4 text-sky-600" />
-                      Sản xuất &amp; Định mức
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onNavigate?.('purchase')}
+                      onClick={() => openDialog({ productId: '', type: 'IMPORT' })}
                     >
                       <PackagePlus className="h-4 w-4 text-emerald-600" />
-                      Đi tới Nhập kho
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onNavigate?.('stock-balance')}
-                    >
-                      <ClipboardCheck className="h-4 w-4 text-violet-600" />
-                      Đi tới Cân bằng kho
+                      + Phiếu nhập nhanh
                     </Button>
                   </div>
                 </div>
@@ -2048,7 +2032,7 @@ export function InventoryView({
                       className="h-9 pl-8 text-xs"
                     />
                   </div>
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:pb-0">
+                  <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:pb-0">
                     {(
                       [
                         { id: 'ALL', label: `Tất cả (${stockStats.totalCount})` },
@@ -2083,20 +2067,20 @@ export function InventoryView({
                   </div>
                 ) : (
                   <div className="max-h-[540px] overflow-auto">
-                    <Table tableId="inventory-stock-balance" className="min-w-[820px]">
+                    <Table tableId="inventory-stock-balance">
                       <TableHeader className="sticky top-0 z-10 bg-background">
                         <TableRow>
-                          <TableHead>Mã SKU</TableHead>
+                          <TableHead defaultHidden>Mã SKU</TableHead>
                           <TableHead locked>Mặt hàng &amp; Phân bổ Đa Kho</TableHead>
                           <TableHead>Phân loại</TableHead>
                           <TableHead className="text-right">
                             {selectedWarehouseObj ? `Tồn tại ${selectedWarehouseObj.name}` : 'Tồn kho hiện tại'}
                           </TableHead>
-                          <TableHead className="text-right">Ngưỡng tối thiểu</TableHead>
+                          <TableHead defaultHidden className="text-right">Ngưỡng tối thiểu</TableHead>
                           <TableHead>Trạng thái</TableHead>
                           <TableHead className="text-right">Đơn giá vốn</TableHead>
                           <TableHead className="text-right">Giá trị tồn kho</TableHead>
-                          <TableHead className="text-right">Thao tác nhanh</TableHead>
+                          <TableHead locked className="text-right">Thao tác nhanh</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2155,8 +2139,10 @@ export function InventoryView({
                                 <div className="flex items-center gap-2.5">
                                   <ProductAvatar name={p.name} image={p.image} className="h-8 w-8 shrink-0" />
                                   <div className="min-w-0">
-                                    <p className="max-w-[260px] truncate text-xs font-semibold">{p.name}</p>
+                                    <p className="max-w-[250px] truncate text-xs font-semibold">{p.name}</p>
                                     <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                                      <span className="font-mono text-[11px] font-semibold text-foreground/85">{p.sku}</span>
+                                      <span>·</span>
                                       <span>{p.category?.name ?? 'Chưa phân nhóm'}</span>
                                       <span>·</span>
                                       <span

@@ -271,7 +271,7 @@ export type PeriodPreset =
   | 'CUSTOM'
 
 export const PERIOD_PRESET_LABELS: Record<PeriodPreset, string> = {
-  ALL: 'Tất cả',
+  ALL: 'Toàn thời gian',
   TODAY: 'Hôm nay',
   YESTERDAY: 'Hôm qua',
   LAST7: '7 ngày qua',
@@ -336,7 +336,7 @@ export function resolvePeriodRange(range: PeriodRange): { fromDate: Date | null;
 /** Nhãn tình trạng thay đổi cho bộ lọc & badge */
 export type ChangedFilter = 'ALL' | 'CHANGED' | 'ORIGINAL'
 export const CHANGED_FILTER_LABELS: Record<ChangedFilter, string> = {
-  ALL: 'Tất cả',
+  ALL: 'Mọi biến động',
   CHANGED: 'Đã thay đổi',
   ORIGINAL: 'Nguyên bản',
 }
