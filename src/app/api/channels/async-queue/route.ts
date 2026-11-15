@@ -212,6 +212,12 @@ async function buildAsyncQueueSnapshot() {
       lastSyncedStock,
       cmsExplicitTargetStock:
         typeof attrs.cmsTargetStock === 'number' ? attrs.cmsTargetStock : undefined,
+      cmsTargetStockOrigin:
+        typeof attrs.cmsTargetStockOrigin === 'string' ? attrs.cmsTargetStockOrigin : undefined,
+      mode1HoldBaselineStock:
+        typeof attrs.mode1HoldBaselineStock === 'number'
+          ? attrs.mode1HoldBaselineStock
+          : undefined,
       hasExplicitOutbox,
       isUnlistedOnShopee: targetUnlisted,
     })
@@ -233,11 +239,16 @@ async function buildAsyncQueueSnapshot() {
       (typeof attrs.cmsTargetImage === 'string' && attrs.cmsTargetImage.trim()) ||
         attrs.pendingCdnOffload
     )
+    const hasActionableExplicit =
+      (hasPendingLedger || Boolean(attrs.pendingOutboxSync)) &&
+      (!stockRes.isMarketplaceStockProtected ||
+        typeof attrs.cmsTargetPrice === 'number' ||
+        typeof attrs.cmsTargetUnlisted === 'boolean' ||
+        imageDrifted)
 
     const needsOutbox =
       !isSuppressed &&
-      (hasPendingLedger ||
-        Boolean(attrs.pendingOutboxSync) ||
+      (hasActionableExplicit ||
         stockDrifted ||
         priceDrifted ||
         unlistedDrifted ||

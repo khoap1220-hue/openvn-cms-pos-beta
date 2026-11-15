@@ -573,11 +573,18 @@ export async function createOrder(input: CreateOrderInput) {
         }
       }
 
+      let prodAttrsMutated = channel.key === 'SHOPEE'
+      if (actualDeducted > 0 && typeof prodAttrs.mode1HoldBaselineStock === 'number') {
+        delete prodAttrs.mode1HoldBaselineStock
+        delete prodAttrs.mode1HoldSetAt
+        prodAttrsMutated = true
+      }
+
       await db.product.update({
         where: { id: targetProduct.id },
         data: {
           stock: after,
-          ...(channel.key === 'SHOPEE' ? { attributes: JSON.stringify(prodAttrs) } : {}),
+          ...(prodAttrsMutated ? { attributes: JSON.stringify(prodAttrs) } : {}),
         },
       })
       await syncProductWarehouseStock(targetProduct.id, targetWarehouseId)
@@ -972,20 +979,31 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
         const cancelledShortage = Math.max(0, item.quantity - actualRestockQty)
 
         let nextAttrJson: string | undefined
-        if (cancelledShortage > 0 && product.attributes) {
+        if (product.attributes && (cancelledShortage > 0 || actualRestockQty > 0)) {
           try {
             const attrs = JSON.parse(product.attributes) as Record<string, unknown>
-            const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
-            const nextShortage = Math.max(0, prevShortage - cancelledShortage)
-            attrs.pendingOrderShortageQty = nextShortage
-            const afterCandidate = product.stock + actualRestockQty
-            const liveSp =
-              typeof attrs.liveShopeeStock === 'number' ? attrs.liveShopeeStock : afterCandidate
-            if (nextShortage === 0 && afterCandidate === liveSp) {
-              attrs.reconciliationStatus = 'RECONCILED_OK'
-              attrs.unreconciledShopeeDelta = 0
+            let mutatedAttrs = false
+            if (actualRestockQty > 0 && typeof attrs.mode1HoldBaselineStock === 'number') {
+              delete attrs.mode1HoldBaselineStock
+              delete attrs.mode1HoldSetAt
+              mutatedAttrs = true
             }
-            nextAttrJson = JSON.stringify(attrs)
+            if (cancelledShortage > 0) {
+              const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
+              const nextShortage = Math.max(0, prevShortage - cancelledShortage)
+              attrs.pendingOrderShortageQty = nextShortage
+              const afterCandidate = product.stock + actualRestockQty
+              const liveSp =
+                typeof attrs.liveShopeeStock === 'number' ? attrs.liveShopeeStock : afterCandidate
+              if (nextShortage === 0 && afterCandidate === liveSp) {
+                attrs.reconciliationStatus = 'RECONCILED_OK'
+                attrs.unreconciledShopeeDelta = 0
+              }
+              mutatedAttrs = true
+            }
+            if (mutatedAttrs) {
+              nextAttrJson = JSON.stringify(attrs)
+            }
           } catch {
             nextAttrJson = undefined
           }

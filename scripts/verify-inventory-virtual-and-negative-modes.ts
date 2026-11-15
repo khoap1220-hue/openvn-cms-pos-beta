@@ -89,6 +89,7 @@ async function main() {
   const testModelId2 = `888772${testRunTag}`
   const testOrderSn1 = `TEST_POL_CLAMP_${testRunTag}`
   const testOrderSn2 = `TEST_POL_NEG_${testRunTag}`
+  const testOrderSn3 = `TEST_POL_TRANSITION_${testRunTag}`
 
   // Snapshot original settings & product link attributes of real 18 SKUs
   const originalSettingsRows = await db.appSetting.findMany({
@@ -111,6 +112,10 @@ async function main() {
   })
   const channelsBefore = await db.channel.findMany({
     select: { id: true, key: true, syncedAt: true },
+  })
+  const pendingLedgersBefore = await db.ledgerEntry.findMany({
+    where: { scope: 'CHANNEL', action: 'OUTBOX_PENDING' },
+    select: { id: true, action: true },
   })
 
   const createdProductIds = new Set<string>()
@@ -451,42 +456,124 @@ async function main() {
     console.log('[PASS 4] Option 3 verified: POS & Shopee negative deduction (0 ➔ -2 ➔ -5), cancel (-3), import reconcile (+7)')
 
     // ------------------------------------------------------------------
-    // STEP 5: Option 1 — SYNC_CMS_TO_MARKETPLACE pushes real stock (7) & clamps negative (-2 ➔ 0 on Shopee)
+    // STEP 5: Option 1 & Seamless Mode 2 ➔ Mode 1 Transition (Hold Current vs Apply Immediately + Negative Clamping)
     // ------------------------------------------------------------------
-    // Note: Keep the 18 real SKUs untouched by snapshotting/restoring their attributes in finally;
-    // here we test Mode 1 Outbox resolution!
-    await callApi(cookie, '/api/settings', {
+    const preflightRes = await callApi<{
+      transitionImpact?: {
+        linkedShopeeSkus: number
+        wouldZeroOutOnShopeeCount: number
+        positiveDriftedSkusCount: number
+      }
+    }>(cookie, '/api/settings?includeTransitionImpact=1')
+    assert(
+      preflightRes.status === 200 &&
+        preflightRes.data.transitionImpact &&
+        preflightRes.data.transitionImpact.linkedShopeeSkus >= 2 &&
+        preflightRes.data.transitionImpact.wouldZeroOutOnShopeeCount >= 1,
+      `Expected preflight transitionImpact metrics, got ${JSON.stringify(preflightRes.data.transitionImpact)}`
+    )
+
+    // 5a. Default switch Mode 2 ➔ Mode 1 uses SEAMLESS_HOLD_CURRENT (NO sudden Shopee zero-wipe!)
+    const switchToMode1Hold = await callApi<{
+      transitionSummary?: {
+        strategy: string
+        heldOnMarketplaceCount: number
+        shouldTriggerDaemonSync: boolean
+      }
+    }>(cookie, '/api/settings', {
       method: 'PATCH',
       body: JSON.stringify({
         inventory_sync_mode: 'SYNC_CMS_TO_MARKETPLACE',
       }),
     })
+    assert(
+      switchToMode1Hold.status === 200 &&
+        switchToMode1Hold.data.transitionSummary?.strategy === 'SEAMLESS_HOLD_CURRENT' &&
+        switchToMode1Hold.data.transitionSummary.heldOnMarketplaceCount >= 2 &&
+        switchToMode1Hold.data.transitionSummary.shouldTriggerDaemonSync === false,
+      `Expected SEAMLESS_HOLD_CURRENT with 0 daemon sync trigger, got ${JSON.stringify(switchToMode1Hold.data.transitionSummary)}`
+    )
 
-    const outboxMode1Pos = await postWebhook<{
+    // Verify product-links marks held items as MODE1_HOLD_UNTIL_NEXT_CHANGE (IN_SYNC)
+    const linksAfterHold = await callApi<{
+      linkedItems: Array<{ cmsProductId: string; reconciliationStatus: string; syncStatus: string }>
+    }>(cookie, '/api/channels/product-links')
+    const heldLink1 = linksAfterHold.data.linkedItems.find((i) => i.cmsProductId === prod1.id)
+    const heldLink2 = linksAfterHold.data.linkedItems.find((i) => i.cmsProductId === prod2.id)
+    assert(
+      heldLink1?.reconciliationStatus === 'MODE1_HOLD_UNTIL_NEXT_CHANGE' &&
+        heldLink1.syncStatus === 'IN_SYNC' &&
+        heldLink2?.reconciliationStatus === 'MODE1_HOLD_UNTIL_NEXT_CHANGE',
+      `Expected MODE1_HOLD_UNTIL_NEXT_CHANGE on prod1 & prod2, got ${JSON.stringify({ heldLink1, heldLink2 })}`
+    )
+
+    // Outbox must emit ZERO stock-wipe jobs right after seamless Mode 2 ➔ Mode 1 switch
+    const outboxAfterSeamlessHold = await postWebhook<{
       jobs: Array<{ productId: string; stockDrifted: boolean; targetStock: number }>
     }>(secret, { event: 'OUTBOX_FETCH_PENDING', data: { onlySyntheticTest: true } })
-    const mode1ItemPos = outboxMode1Pos.data.jobs.find((i) => i.productId === prod1.id)
     assert(
-      mode1ItemPos && mode1ItemPos.stockDrifted && mode1ItemPos.targetStock === 7,
-      `Mode 1 must push CMS real stock 7 to Shopee, got ${JSON.stringify(mode1ItemPos)}`
+      !outboxAfterSeamlessHold.data.jobs.some((j) => j.productId === prod1.id || j.productId === prod2.id),
+      `SEAMLESS_HOLD_CURRENT must NOT emit Outbox stock wipe jobs, got ${JSON.stringify(outboxAfterSeamlessHold.data.jobs)}`
     )
+
+    // Subsequent real warehouse movement on prod1 (7 - 2 = 5) immediately unlocks ONLY prod1 while prod2 stays held!
+    const exportUnlockRes = await callApi(cookie, '/api/inventory', {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: prod1.id,
+        type: 'EXPORT',
+        quantity: 2,
+        note: 'Xuất 2 sp mở khóa đồng bộ Mode 1 cho prod1',
+      }),
+    })
+    assert(exportUnlockRes.status === 201, `EXPORT 2 unlock failed: ${exportUnlockRes.status}`)
+
+    const outboxAfterUnlock = await postWebhook<{
+      jobs: Array<{ productId: string; stockDrifted: boolean; targetStock: number }>
+    }>(secret, { event: 'OUTBOX_FETCH_PENDING', data: { onlySyntheticTest: true } })
+    const unlockedProd1 = outboxAfterUnlock.data.jobs.find((i) => i.productId === prod1.id)
+    const stillHeldProd2 = outboxAfterUnlock.data.jobs.find((i) => i.productId === prod2.id)
+    assert(
+      unlockedProd1 && unlockedProd1.stockDrifted && unlockedProd1.targetStock === 5,
+      `Real warehouse movement must unlock Mode 1 sync (targetStock=5) for prod1, got ${JSON.stringify(unlockedProd1)}`
+    )
+    assert(!stillHeldProd2, 'Untouched prod2 (CMS=0, Shopee=88) must remain held on Shopee')
+
     await postWebhook(secret, {
       event: 'OUTBOX_ACK_RESULT',
       data: {
         productId: prod1.id,
         status: 'COMPLETED',
-        syncedStock: 7,
+        syncedStock: 5,
         syncedPrice: 120000,
       },
     })
 
-    // Export 9 units in warehouse -> CMS real stock becomes -2; Shopee targetStock MUST clamp at 0!
+    // 5b. Explicit APPLY_IMMEDIATELY unlocks held SKU (prod2: CMS=0 ➔ queues targetStock=0)
+    const applyImmediateRes = await callApi<{
+      transitionSummary?: { strategy: string; queuedImmediateSyncCount: number }
+    }>(cookie, '/api/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        inventory_sync_mode: 'SYNC_CMS_TO_MARKETPLACE',
+        inventory_transition_strategy: 'APPLY_IMMEDIATELY',
+        inventory_transition_product_ids: [prod1.id, prod2.id],
+      }),
+    })
+    assert(
+      applyImmediateRes.status === 200 &&
+        applyImmediateRes.data.transitionSummary?.strategy === 'APPLY_IMMEDIATELY' &&
+        applyImmediateRes.data.transitionSummary.queuedImmediateSyncCount >= 1,
+      `APPLY_IMMEDIATELY failed: ${JSON.stringify(applyImmediateRes.data.transitionSummary)}`
+    )
+
+    // Export 7 units in warehouse on prod1 (5 - 7 = -2) -> Shopee targetStock MUST clamp at 0!
     const exportNegRes = await callApi(cookie, '/api/inventory', {
       method: 'POST',
       body: JSON.stringify({
         productId: prod1.id,
         type: 'EXPORT',
-        quantity: 9,
+        quantity: 7,
         note: 'Xuất kho âm -2 kiểm tra đẩy 0 lên Sàn',
       }),
     })
@@ -497,11 +584,173 @@ async function main() {
       jobs: Array<{ productId: string; stockDrifted: boolean; targetStock: number }>
     }>(secret, { event: 'OUTBOX_FETCH_PENDING', data: { onlySyntheticTest: true } })
     const mode1ItemClamp = outboxMode1Clamp.data.jobs.find((i) => i.productId === prod1.id)
+    const mode1Prod2Zero = outboxMode1Clamp.data.jobs.find((i) => i.productId === prod2.id)
     assert(
       mode1ItemClamp && mode1ItemClamp.stockDrifted && mode1ItemClamp.targetStock === 0,
       `Mode 1 with negative CMS stock (-2) must clamp Shopee targetStock at 0, got ${JSON.stringify(mode1ItemClamp)}`
     )
-    console.log('[PASS 5] Option 1 verified: Real stock pushed (7) and negative CMS stock (-2) clamped to 0 on Shopee')
+    assert(
+      mode1Prod2Zero && mode1Prod2Zero.stockDrifted && mode1Prod2Zero.targetStock === 0,
+      `APPLY_IMMEDIATELY must queue prod2 targetStock=0, got ${JSON.stringify(mode1Prod2Zero)}`
+    )
+    console.log('[PASS 5] Option 1 & Seamless Hold verified: Hold prevents 0-wipe, real move unlocks (5), APPLY_IMMEDIATELY & negative clamp (0) work')
+
+    // ------------------------------------------------------------------
+    // STEP 6: Zero-Disruption Reverse Transitions (Mode 1 ➔ Mode 2 Outbox Scrubbing + Option 3 ON ➔ OFF)
+    // ------------------------------------------------------------------
+    // 6a. Edit price of prod1 (120000 ➔ 135000) while prod1 ALSO has pending stock=0 push & prod2 has stock-only 0 push
+    const editPriceRes = await callApi(cookie, `/api/products/${prod1.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        sellPrice: 135000,
+      }),
+    })
+    assert(editPriceRes.status === 200, `PATCH /api/products/${prod1.id} price edit failed: ${editPriceRes.status}`)
+
+    // Switch Mode 1 ➔ Mode 2 (VIRTUAL_ALWAYS_IN_STOCK, autoRefill=false)
+    const switchBackMode2 = await callApi<{
+      transitionSummary?: {
+        cancelledStaleStockOutboxCount: number
+        preservedNonStockOutboxCount: number
+      }
+    }>(cookie, '/api/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        inventory_sync_mode: 'VIRTUAL_ALWAYS_IN_STOCK',
+        inventory_virtual_auto_refill: 'false',
+      }),
+    })
+    assert(
+      switchBackMode2.status === 200 &&
+        (switchBackMode2.data.transitionSummary?.cancelledStaleStockOutboxCount ?? 0) >= 1 &&
+        (switchBackMode2.data.transitionSummary?.preservedNonStockOutboxCount ?? 0) >= 1,
+      `Expected stale stock outbox scrubbed & price outbox preserved, got ${JSON.stringify(switchBackMode2.data.transitionSummary)}`
+    )
+
+    const outboxAfterReverse = await postWebhook<{
+      jobs: Array<{
+        productId: string
+        stockDrifted: boolean
+        priceDrifted: boolean
+        targetStock: number
+        targetPrice: number
+      }>
+    }>(secret, { event: 'OUTBOX_FETCH_PENDING', data: { onlySyntheticTest: true } })
+    const reverseProd2 = outboxAfterReverse.data.jobs.find((j) => j.productId === prod2.id)
+    const reverseProd1 = outboxAfterReverse.data.jobs.find((j) => j.productId === prod1.id)
+    assert(
+      !reverseProd2,
+      `Stale Mode 1 stock-zero Outbox job on prod2 must be cancelled when switching to Mode 2, got ${JSON.stringify(reverseProd2)}`
+    )
+    assert(
+      reverseProd1 &&
+        reverseProd1.priceDrifted === true &&
+        reverseProd1.targetPrice === 135000 &&
+        reverseProd1.stockDrifted === false &&
+        reverseProd1.targetStock === 5,
+      `Price edit on prod1 must be preserved (135000) while stale stock=0 wipe is blocked (keeps Shopee=5), got ${JSON.stringify(reverseProd1)}`
+    )
+
+    await postWebhook(secret, {
+      event: 'OUTBOX_ACK_RESULT',
+      data: {
+        productId: prod1.id,
+        status: 'COMPLETED',
+        syncedStock: 5,
+        syncedPrice: 135000,
+      },
+    })
+
+    // 6b. Switch allowNegativeStock: true ➔ false while prod1 is at real negative stock (-2)
+    const disableNegRes = await callApi<{
+      transitionSummary?: { preservedNegativeSkusCount: number }
+    }>(cookie, '/api/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        inventory_allow_negative_stock: 'false',
+      }),
+    })
+    assert(
+      disableNegRes.status === 200 &&
+        (disableNegRes.data.transitionSummary?.preservedNegativeSkusCount ?? 0) >= 1,
+      `Expected preservedNegativeSkusCount >= 1 when turning OFF allowNegativeStock, got ${JSON.stringify(disableNegRes.data.transitionSummary)}`
+    )
+    assert(
+      (await db.product.findUniqueOrThrow({ where: { id: prod1.id } })).stock === -2,
+      'Existing negative CMS stock (-2) must be 100% preserved when turning OFF allowNegativeStock'
+    )
+
+    // Incoming Shopee Live order while stock is -2 and allowNegativeStock=false MUST succeed without deepening negative debt
+    const shopeeOnNegOff = await postWebhook<{ ok: boolean; order?: { id: string } }>(secret, {
+      event: 'INBOUND_SHOPEE_ORDER_SYNC',
+      data: {
+        shopeeOrderSn: testOrderSn3,
+        shopeeOrderStatus: 'READY_TO_SHIP',
+        buyerUsername: 'buyer_transition_test',
+        recipientName: 'Khách Test Chuyển Chế Độ',
+        recipientPhone: '0900009915',
+        shippingAddress: 'Q7, TP.HCM',
+        items: [
+          {
+            shopeeItemId: testItemId1,
+            shopeeModelId: testModelId1,
+            sku: testSku1,
+            quantity: 2,
+            price: 135000,
+          },
+        ],
+      },
+    })
+    assert(shopeeOnNegOff.status === 200 && shopeeOnNegOff.data.ok, 'Shopee Live order must succeed when stock=-2 & allowNegativeStock=false')
+    if (shopeeOnNegOff.data.order?.id) createdOrderIds.add(shopeeOnNegOff.data.order.id)
+
+    const prod1AfterLiveOrder = await db.product.findUniqueOrThrow({ where: { id: prod1.id } })
+    assert(
+      prod1AfterLiveOrder.stock === -2,
+      `Stock must stay -2 (not deepen to -4) when allowNegativeStock=false, got ${prod1AfterLiveOrder.stock}`
+    )
+    const attrsAfterLiveOrder = JSON.parse(prod1AfterLiveOrder.attributes || '{}') as { pendingOrderShortageQty?: number }
+    assert(
+      attrsAfterLiveOrder.pendingOrderShortageQty === 2,
+      `Expected pendingOrderShortageQty=2 for reconciliation, got ${attrsAfterLiveOrder.pendingOrderShortageQty}`
+    )
+
+    // Partial physical warehouse IMPORT (+1: -2 ➔ -1) and monotonic ADJUST (-1 ➔ 0) must succeed while downward ADJUST (-1 ➔ -4) is blocked
+    const partialImportRes = await callApi(cookie, '/api/inventory', {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: prod1.id,
+        type: 'IMPORT',
+        quantity: 1,
+        note: 'Nhập từng phần +1 khi kho đang âm (-2 ➔ -1)',
+      }),
+    })
+    assert(partialImportRes.status === 201, `Partial IMPORT on negative SKU failed: ${partialImportRes.status}`)
+    assert((await db.product.findUniqueOrThrow({ where: { id: prod1.id } })).stock === -1, 'Expected stock = -1 after partial import +1')
+
+    const downwardAdjustBlocked = await callApi(cookie, '/api/inventory', {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: prod1.id,
+        type: 'ADJUST',
+        quantity: -4,
+        note: 'Thử kiểm kê âm sâu hơn khi đã tắt bán âm',
+      }),
+    })
+    assert(downwardAdjustBlocked.status === 400, `Downward ADJUST (-1 ➔ -4) must be blocked with 400, got ${downwardAdjustBlocked.status}`)
+
+    const monotonicAdjustRes = await callApi(cookie, '/api/inventory', {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: prod1.id,
+        type: 'ADJUST',
+        quantity: 0,
+        note: 'Kiểm kê khôi phục tồn kho từ -1 về 0',
+      }),
+    })
+    assert(monotonicAdjustRes.status === 201, `Monotonic ADJUST recovery (-1 ➔ 0) failed: ${monotonicAdjustRes.status}`)
+    assert((await db.product.findUniqueOrThrow({ where: { id: prod1.id } })).stock === 0, 'Expected stock = 0 after monotonic ADJUST')
+    console.log('[PASS 6] Zero-Disruption Mode Transitions verified: Stale stock Outbox scrubbed, Price edit preserved, Negative OFF safe recovery passed')
   } finally {
     console.log('--- Cleaning up synthetic records & restoring safe default policy ---')
     // Restore safe default policy via API so L1 cache invalidates cleanly
@@ -542,6 +791,14 @@ async function main() {
         where: { id: ch.id },
         data: { syncedAt: ch.syncedAt },
       })
+    }
+    for (const pl of pendingLedgersBefore) {
+      await db.ledgerEntry
+        .update({
+          where: { id: pl.id },
+          data: { action: pl.action },
+        })
+        .catch(() => null)
     }
 
     // Delete synthetic orders, salesInvoices, shipments, customers, products, movements, logs

@@ -212,7 +212,7 @@ export function resolveL1CacheKey(pathname: string, searchParams: URLSearchParam
     case '/api/ledger/test-guard':
       return 'ledger:test-guard'
     case '/api/settings':
-      return 'settings:public'
+      return searchParams.get('includeTransitionImpact') === '1' ? null : 'settings:public'
     case '/api/reconciliation':
       return 'reconciliation:main'
     case '/api/integrations':

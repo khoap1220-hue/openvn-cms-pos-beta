@@ -16,7 +16,15 @@ import {
 import {
   INVENTORY_POLICY_DEFAULTS_MAP,
   INVENTORY_POLICY_SETTING_KEYS,
+  type InventoryModeTransitionStrategy,
+  type InventoryTransitionExecutionSummary,
+  parseInventorySyncPolicy,
 } from '@/lib/inventory-policy-shared'
+import {
+  computeInventoryTransitionImpact,
+  getInventorySyncPolicy,
+  reconcileInventoryModeTransition,
+} from '@/lib/inventory-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -125,15 +133,19 @@ async function buildPublicSettings(): Promise<Record<string, string | boolean>> 
   return out
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const cached = getApiCache<Record<string, string | boolean>>('settings:public')
-    if (cached) {
-      return NextResponse.json(cached)
+    const includeImpact = req.nextUrl.searchParams.get('includeTransitionImpact') === '1'
+    let basePayload = getApiCache<Record<string, unknown>>('settings:public')
+    if (!basePayload) {
+      basePayload = await buildPublicSettings()
+      setApiCache('settings:public', basePayload, 60_000)
     }
-    const payload = await buildPublicSettings()
-    setApiCache('settings:public', payload, 60_000)
-    return NextResponse.json(payload)
+    if (includeImpact) {
+      const transitionImpact = await computeInventoryTransitionImpact()
+      return NextResponse.json({ ...basePayload, transitionImpact })
+    }
+    return NextResponse.json(basePayload)
   } catch (error) {
     console.error('Settings GET error:', error)
     return NextResponse.json({ error: 'Không thể tải cấu hình hệ thống' }, { status: 500 })
@@ -292,27 +304,45 @@ export async function PATCH(req: NextRequest) {
       inventoryPolicyChanged = true
     }
 
-    if (updates.length === 0 && maintenanceToggled === null) {
+    const rawTransitionStrategy = String(body.inventory_transition_strategy || '')
+      .trim()
+      .toUpperCase()
+    const transitionStrategy: InventoryModeTransitionStrategy =
+      rawTransitionStrategy === 'APPLY_IMMEDIATELY'
+        ? 'APPLY_IMMEDIATELY'
+        : 'SEAMLESS_HOLD_CURRENT'
+    const onlyProductIds = Array.isArray(body.inventory_transition_product_ids)
+      ? body.inventory_transition_product_ids.map((id) => String(id).trim()).filter(Boolean)
+      : undefined
+
+    if (updates.length === 0 && maintenanceToggled === null && !rawTransitionStrategy) {
       return NextResponse.json({ error: 'Không có gì để cập nhật' }, { status: 400 })
     }
+
+    const prevPolicy =
+      inventoryPolicyChanged || Boolean(rawTransitionStrategy)
+        ? await getInventorySyncPolicy()
+        : null
 
     const prevCached = getApiCache<Record<string, string | boolean>>('settings:public')
     if (updates.length > 0) {
       await setSettingsBatch(updates, prevCached)
     }
 
-    void logLedger({
-      scope: 'SETTINGS',
-      action: 'SETTINGS_UPDATED',
-      actor: 'OPERATOR',
-      title: `Cập nhật cấu hình hệ thống: ${updates.map((u) => u.key).join(', ')}`,
-      detail: {
-        keys: updates.map((u) => u.key),
-        // không bao giờ log giá trị raw của API key
-        gemini_api_key: updates.some((u) => u.key === 'gemini_api_key') ? '***đã thay đổi***' : undefined,
-        invoice_logo: updates.some((u) => u.key === 'invoice_logo') ? (updates.find((u) => u.key === 'invoice_logo')?.value ? '***ảnh logo***' : '***đã xóa logo***') : undefined,
-      },
-    })
+    if (updates.length > 0) {
+      void logLedger({
+        scope: 'SETTINGS',
+        action: 'SETTINGS_UPDATED',
+        actor: 'OPERATOR',
+        title: `Cập nhật cấu hình hệ thống: ${updates.map((u) => u.key).join(', ')}`,
+        detail: {
+          keys: updates.map((u) => u.key),
+          // không bao giờ log giá trị raw của API key
+          gemini_api_key: updates.some((u) => u.key === 'gemini_api_key') ? '***đã thay đổi***' : undefined,
+          invoice_logo: updates.some((u) => u.key === 'invoice_logo') ? (updates.find((u) => u.key === 'invoice_logo')?.value ? '***ảnh logo***' : '***đã xóa logo***') : undefined,
+        },
+      })
+    }
 
     invalidateApiCache('settings:')
     let fresh: Record<string, string | boolean>
@@ -332,21 +362,42 @@ export async function PATCH(req: NextRequest) {
       fresh = await buildPublicSettings()
     }
     setApiCache('settings:public', fresh, 60_000)
-    broadcast('settings.updated', { keys: updates.map((u) => u.key) })
-    if (inventoryPolicyChanged) {
+
+    let transitionSummary: InventoryTransitionExecutionSummary | null = null
+    if ((inventoryPolicyChanged || Boolean(rawTransitionStrategy)) && prevPolicy) {
+      const nextPolicy = parseInventorySyncPolicy(fresh)
+      transitionSummary = await reconcileInventoryModeTransition({
+        prevPolicy,
+        nextPolicy,
+        strategy: transitionStrategy,
+        onlyProductIds,
+        actor: 'OPERATOR',
+      })
+      setApiCache('settings:public', fresh, 60_000)
+    }
+
+    broadcast('settings.updated', {
+      keys: updates.map((u) => u.key),
+      transitionSummary: transitionSummary ?? undefined,
+    })
+    if (inventoryPolicyChanged || transitionSummary) {
       invalidateApiCache('channels:product-links')
-      broadcast('channel.updated', { reason: 'inventory_policy_changed' })
-      broadcast('outbox.updated', { reason: 'inventory_policy_changed' })
+      broadcast('inventory.updated', { reason: 'inventory_policy_changed' })
+      broadcast('channel.updated', { reason: 'inventory_policy_changed', transitionSummary })
+      broadcast('outbox.updated', { reason: 'inventory_policy_changed', transitionSummary })
       if (
         req.headers.get('x-test-suppress-daemon-trigger') !== '1' &&
-        (fresh.inventory_sync_mode === 'SYNC_CMS_TO_MARKETPLACE' ||
-          fresh.inventory_virtual_auto_refill === 'true')
+        transitionSummary?.shouldTriggerDaemonSync
       ) {
         fetch(
           `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
           { method: 'POST' }
         ).catch(() => null)
       }
+    }
+    if (transitionSummary) {
+      const transitionImpact = await computeInventoryTransitionImpact()
+      return NextResponse.json({ ...fresh, transitionSummary, transitionImpact })
     }
     return NextResponse.json(fresh)
   } catch (error) {

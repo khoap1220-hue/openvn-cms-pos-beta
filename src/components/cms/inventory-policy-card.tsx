@@ -5,7 +5,10 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api'
 import {
   DEFAULT_INVENTORY_SYNC_POLICY,
   type InventoryMarketplaceSyncMode,
+  type InventoryModeTransitionStrategy,
   type InventorySyncPolicy,
+  type InventoryTransitionExecutionSummary,
+  type InventoryTransitionImpactSummary,
   type NegativeStockScope,
   parseInventorySyncPolicy,
 } from '@/lib/inventory-policy-shared'
@@ -26,6 +29,8 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import {
+  AlertTriangle,
+  ArrowRightLeft,
   ArrowUpRight,
   CheckCircle2,
   ChevronDown,
@@ -45,6 +50,11 @@ interface InventoryPolicyCardProps {
   onPolicySaved?: (next: InventorySyncPolicy) => void
 }
 
+interface SettingsWithTransitionResponse extends Record<string, unknown> {
+  transitionImpact?: InventoryTransitionImpactSummary
+  transitionSummary?: InventoryTransitionExecutionSummary
+}
+
 export function InventoryPolicyCard({
   compact = false,
   defaultExpanded = !compact,
@@ -57,6 +67,10 @@ export function InventoryPolicyCard({
   const [applyingVirtual, setApplyingVirtual] = useState(false)
 
   const [savedPolicy, setSavedPolicy] = useState<InventorySyncPolicy>(DEFAULT_INVENTORY_SYNC_POLICY)
+  const [impact, setImpact] = useState<InventoryTransitionImpactSummary | null>(null)
+  const [transitionStrategy, setTransitionStrategy] =
+    useState<InventoryModeTransitionStrategy>('SEAMLESS_HOLD_CURRENT')
+
   const [syncMode, setSyncMode] = useState<InventoryMarketplaceSyncMode>(
     DEFAULT_INVENTORY_SYNC_POLICY.syncMode
   )
@@ -84,15 +98,34 @@ export function InventoryPolicyCard({
     setVirtualAutoRefill(pol.virtualAutoRefill)
     setAllowNegativeStock(pol.allowNegativeStock)
     setNegativeStockScope(pol.negativeStockScope)
+    setTransitionStrategy('SEAMLESS_HOLD_CURRENT')
+  }, [])
+
+  const refreshImpactOnly = useCallback(async () => {
+    try {
+      const raw = await apiGet<SettingsWithTransitionResponse>(
+        '/api/settings?includeTransitionImpact=1'
+      )
+      if (raw?.transitionImpact) {
+        setImpact(raw.transitionImpact)
+      }
+    } catch {
+      // ignore transient network error
+    }
   }, [])
 
   const loadPolicy = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true)
       try {
-        const raw = await apiGet<Record<string, unknown>>('/api/settings')
+        const raw = await apiGet<SettingsWithTransitionResponse>(
+          '/api/settings?includeTransitionImpact=1'
+        )
         const parsed = parseInventorySyncPolicy(raw)
         hydrateFromPolicy(parsed)
+        if (raw?.transitionImpact) {
+          setImpact(raw.transitionImpact)
+        }
       } catch {
         // Giữ cấu hình mặc định an toàn nếu mạng tạm gián đoạn
       } finally {
@@ -109,6 +142,8 @@ export function InventoryPolicyCard({
   useRealtime((ev) => {
     if (ev.type === 'settings.updated') {
       void loadPolicy(true)
+    } else if (ev.type === 'inventory.updated' || ev.type === 'channel.updated') {
+      void refreshImpactOnly()
     }
   })
 
@@ -118,34 +153,75 @@ export function InventoryPolicyCard({
     Math.min(Math.max(0, parsedQty - 1), Math.round(Number(virtualMinThreshold) || 10))
   )
 
+  const modeChanging = syncMode !== savedPolicy.syncMode
+  const negativeRestricting =
+    (savedPolicy.allowNegativeStock && !allowNegativeStock) ||
+    (savedPolicy.allowNegativeStock &&
+      allowNegativeStock &&
+      savedPolicy.negativeStockScope === 'ALL_CHANNELS' &&
+      negativeStockScope === 'MARKETPLACE_ONLY')
+
   const isDirty =
-    syncMode !== savedPolicy.syncMode ||
+    modeChanging ||
     parsedQty !== savedPolicy.virtualStockQty ||
     parsedThreshold !== savedPolicy.virtualMinThreshold ||
     virtualAutoRefill !== savedPolicy.virtualAutoRefill ||
     allowNegativeStock !== savedPolicy.allowNegativeStock ||
     negativeStockScope !== savedPolicy.negativeStockScope
 
+  const handleSelectSyncMode = (nextMode: InventoryMarketplaceSyncMode) => {
+    setSyncMode(nextMode)
+    // Mặc định luôn ưu tiên chuyển mượt không gián đoạn khi đổi chế độ
+    setTransitionStrategy('SEAMLESS_HOLD_CURRENT')
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
-      const updatedRaw = await apiPatch<Record<string, unknown>>('/api/settings', {
+      const updatedRaw = await apiPatch<SettingsWithTransitionResponse>('/api/settings', {
         inventory_sync_mode: syncMode,
         inventory_virtual_stock_qty: String(parsedQty),
         inventory_virtual_min_threshold: String(parsedThreshold),
         inventory_virtual_auto_refill: String(virtualAutoRefill),
         inventory_allow_negative_stock: String(allowNegativeStock),
         inventory_negative_stock_scope: negativeStockScope,
+        inventory_transition_strategy: modeChanging ? transitionStrategy : 'SEAMLESS_HOLD_CURRENT',
       })
       const nextPol = parseInventorySyncPolicy(updatedRaw)
       hydrateFromPolicy(nextPol)
+      if (updatedRaw?.transitionImpact) {
+        setImpact(updatedRaw.transitionImpact)
+      }
       onPolicySaved?.(nextPol)
+
+      const ts = updatedRaw?.transitionSummary
+      const summaryParts: string[] = []
+      if (ts) {
+        if (ts.heldOnMarketplaceCount > 0) {
+          summaryParts.push(`Giữ nguyên ${ts.heldOnMarketplaceCount} SKU đang bán trên Sàn`)
+        }
+        if (ts.queuedImmediateSyncCount > 0) {
+          summaryParts.push(`Xếp đồng bộ ngay ${ts.queuedImmediateSyncCount} SKU`)
+        }
+        if (ts.cancelledStaleStockOutboxCount > 0) {
+          summaryParts.push(`Khử ${ts.cancelledStaleStockOutboxCount} lệnh tồn cũ mâu thuẫn`)
+        }
+        if (ts.preservedNonStockOutboxCount > 0) {
+          summaryParts.push(`Bảo toàn ${ts.preservedNonStockOutboxCount} lệnh đổi giá/ảnh`)
+        }
+        if (ts.preservedNegativeSkusCount > 0) {
+          summaryParts.push(`Giữ nguyên ${ts.preservedNegativeSkusCount} SKU đang âm kho thật`)
+        }
+      }
+
       toast({
-        title: 'Đã lưu chính sách Tồn kho Thật CMS & Đồng bộ Sàn',
+        title: 'Đã chuyển đổi chính sách không gián đoạn vận hành',
         description:
-          nextPol.syncMode === 'SYNC_CMS_TO_MARKETPLACE'
-            ? `Chế độ 1: Đồng bộ tồn kho thật CMS ➔ Sàn · Bán âm CMS: ${nextPol.allowNegativeStock ? 'BẬT' : 'TẮT'}`
-            : `Chế độ 2: Sàn chạy tồn ảo (${nextPol.virtualStockQty}) chống ghi đè tồn thật CMS · Bán âm CMS: ${nextPol.allowNegativeStock ? 'BẬT' : 'TẮT'}`,
+          summaryParts.length > 0
+            ? summaryParts.join(' · ')
+            : nextPol.syncMode === 'SYNC_CMS_TO_MARKETPLACE'
+              ? `Chế độ 1: Đồng bộ tồn kho thật CMS ➔ Sàn · Bán âm CMS: ${nextPol.allowNegativeStock ? 'BẬT' : 'TẮT'}`
+              : `Chế độ 2: Sàn chạy tồn ảo (${nextPol.virtualStockQty}) chống ghi đè tồn thật CMS · Bán âm CMS: ${nextPol.allowNegativeStock ? 'BẬT' : 'TẮT'}`,
       })
     } catch (e) {
       toast({
@@ -161,18 +237,21 @@ export function InventoryPolicyCard({
   const handleApplyVirtualStockNow = async () => {
     setApplyingVirtual(true)
     try {
-      // Nếu người dùng vừa đổi số lượng tồn ảo hoặc chế độ mà chưa bấm Lưu, lưu trước để đồng nhất
       if (isDirty) {
-        const updatedRaw = await apiPatch<Record<string, unknown>>('/api/settings', {
+        const updatedRaw = await apiPatch<SettingsWithTransitionResponse>('/api/settings', {
           inventory_sync_mode: syncMode,
           inventory_virtual_stock_qty: String(parsedQty),
           inventory_virtual_min_threshold: String(parsedThreshold),
           inventory_virtual_auto_refill: String(virtualAutoRefill),
           inventory_allow_negative_stock: String(allowNegativeStock),
           inventory_negative_stock_scope: negativeStockScope,
+          inventory_transition_strategy: 'SEAMLESS_HOLD_CURRENT',
         })
         const nextPol = parseInventorySyncPolicy(updatedRaw)
         hydrateFromPolicy(nextPol)
+        if (updatedRaw?.transitionImpact) {
+          setImpact(updatedRaw.transitionImpact)
+        }
         onPolicySaved?.(nextPol)
       }
 
@@ -253,7 +332,7 @@ export function InventoryPolicyCard({
               </Badge>
             </div>
             <CardDescription className="text-xs">
-              Sàn TMĐT có thể chạy tồn kho ảo để chốt đơn liên tục (kể cả khi đang Live), nhưng tồn kho trên CMS bắt buộc là dữ liệu vật lý thật tại kho và không bao giờ bị tồn ảo từ Sàn ghi đè.
+              Sàn TMĐT có thể chạy tồn kho ảo để chốt đơn liên tục (kể cả khi đang Live), nhưng tồn kho trên CMS bắt buộc là dữ liệu vật lý thật tại kho và chuyển đổi qua lại giữa các chế độ không làm gián đoạn bán hàng.
             </CardDescription>
           </div>
 
@@ -291,11 +370,11 @@ export function InventoryPolicyCard({
             <div
               role="button"
               tabIndex={0}
-              onClick={() => setSyncMode('SYNC_CMS_TO_MARKETPLACE')}
+              onClick={() => handleSelectSyncMode('SYNC_CMS_TO_MARKETPLACE')}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setSyncMode('SYNC_CMS_TO_MARKETPLACE')
+                  handleSelectSyncMode('SYNC_CMS_TO_MARKETPLACE')
                 }
               }}
               className={cn(
@@ -326,11 +405,11 @@ export function InventoryPolicyCard({
             <div
               role="button"
               tabIndex={0}
-              onClick={() => setSyncMode('VIRTUAL_ALWAYS_IN_STOCK')}
+              onClick={() => handleSelectSyncMode('VIRTUAL_ALWAYS_IN_STOCK')}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setSyncMode('VIRTUAL_ALWAYS_IN_STOCK')
+                  handleSelectSyncMode('VIRTUAL_ALWAYS_IN_STOCK')
                 }
               }}
               className={cn(
@@ -501,11 +580,175 @@ export function InventoryPolicyCard({
             </div>
           </div>
 
+          {/* CỔNG CHUYỂN ĐỔI CHẾ ĐỘ KHÔNG GIÁN ĐOẠN VẬN HÀNH (Hiển thị ngay khi chuẩn bị đổi chế độ) */}
+          {(modeChanging || negativeRestricting) && (
+            <div className="rounded-xl border border-emerald-300/90 bg-emerald-50/45 p-3.5 dark:border-emerald-800/70 dark:bg-emerald-950/25">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ArrowRightLeft className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                  <span className="text-xs font-bold text-emerald-950 dark:text-emerald-200">
+                    Cổng chuyển đổi chế độ không gián đoạn vận hành
+                  </span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-400 bg-background text-[10px] font-semibold text-emerald-800 dark:border-emerald-700 dark:text-emerald-300"
+                >
+                  Bảo vệ giỏ POS · Đơn Live Shopee · Outbox Giá/Ảnh
+                </Badge>
+              </div>
+
+              {modeChanging && syncMode === 'SYNC_CMS_TO_MARKETPLACE' && (
+                <div className="mt-2.5 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {impact && impact.wouldZeroOutOnShopeeCount > 0 ? (
+                      <>
+                        Phát hiện{' '}
+                        <strong className="text-amber-700 dark:text-amber-400">
+                          {impact.wouldZeroOutOnShopeeCount}/{impact.linkedShopeeSkus} SKU
+                        </strong>{' '}
+                        đang còn hàng trên Sàn nhưng Kho thật CMS ≤ 0. Chọn phương thức chuyển tiếp:
+                      </>
+                    ) : (
+                      'Chọn phương thức chuyển tiếp từ Tồn ảo Sàn sang Đồng bộ Kho thật CMS ➔ Sàn:'
+                    )}
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setTransitionStrategy('SEAMLESS_HOLD_CURRENT')}
+                      className={cn(
+                        'rounded-lg border p-2.5 text-left transition-all',
+                        transitionStrategy === 'SEAMLESS_HOLD_CURRENT'
+                          ? 'border-emerald-600 bg-background ring-1 ring-emerald-600/30'
+                          : 'border-border/80 bg-background/70 hover:border-emerald-400'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-foreground">
+                          Chuyển mượt — Giữ nguyên hàng đang bán trên Sàn (Khuyên dùng)
+                        </span>
+                        {transitionStrategy === 'SEAMLESS_HOLD_CURRENT' && (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Không đẩy tồn 0 làm tắt hàng đột ngột lúc đang Live. Chỉ tự động đồng bộ những SKU phát sinh biến động kho thật mới kể từ sau khi lưu.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTransitionStrategy('APPLY_IMMEDIATELY')}
+                      className={cn(
+                        'rounded-lg border p-2.5 text-left transition-all',
+                        transitionStrategy === 'APPLY_IMMEDIATELY'
+                          ? 'border-amber-600 bg-amber-50/50 ring-1 ring-amber-600/30 dark:bg-amber-950/30'
+                          : 'border-border/80 bg-background/70 hover:border-amber-400'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1 text-xs font-semibold text-foreground">
+                          {impact && impact.wouldZeroOutOnShopeeCount > 0 && (
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                          )}
+                          Đồng bộ toàn bộ tồn thật CMS lên Sàn ngay
+                        </span>
+                        {transitionStrategy === 'APPLY_IMMEDIATELY' && (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Đẩy ngay <code className="rounded bg-muted px-1">max(0, Tồn CMS)</code> cho toàn danh mục
+                        {impact && impact.wouldZeroOutOnShopeeCount > 0
+                          ? ` (${impact.wouldZeroOutOnShopeeCount} SKU CMS ≤ 0 sẽ chuyển về Hết hàng trên Sàn).`
+                          : '.'}
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {modeChanging && syncMode === 'VIRTUAL_ALWAYS_IN_STOCK' && (
+                <div className="mt-2.5 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Hệ thống tự động khử các lệnh chờ hạ tồn cũ từ Chế độ 1 nhưng giữ nguyên 100% lệnh cập nhật Giá / Ẩn-Hiện / Ảnh đang chờ:
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setTransitionStrategy('SEAMLESS_HOLD_CURRENT')}
+                      className={cn(
+                        'rounded-lg border p-2.5 text-left transition-all',
+                        transitionStrategy === 'SEAMLESS_HOLD_CURRENT'
+                          ? 'border-emerald-600 bg-background ring-1 ring-emerald-600/30'
+                          : 'border-border/80 bg-background/70 hover:border-emerald-400'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-foreground">
+                          Chuyển mượt — Bảo vệ nguyên trạng tồn Sàn hiện có
+                        </span>
+                        {transitionStrategy === 'SEAMLESS_HOLD_CURRENT' && (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Bật lá chắn chống ghi đè 2 chiều tức thì mà không phát sinh lệnh gọi API sửa số tồn hiện tại trên Sàn.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTransitionStrategy('APPLY_IMMEDIATELY')}
+                      className={cn(
+                        'rounded-lg border p-2.5 text-left transition-all',
+                        transitionStrategy === 'APPLY_IMMEDIATELY'
+                          ? 'border-orange-500 bg-orange-50/50 ring-1 ring-orange-500/30 dark:bg-orange-950/30'
+                          : 'border-border/80 bg-background/70 hover:border-orange-400'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-foreground">
+                          Chuyển &amp; bơm ngay mức tồn ảo ({parsedQty}) lên Sàn
+                        </span>
+                        {transitionStrategy === 'APPLY_IMMEDIATELY' && (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-600" />
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Xếp lệnh đẩy mức tồn ảo {parsedQty} cho các SKU đang mở bán trên Sàn (Kho thật CMS giữ nguyên 100%).
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {negativeRestricting && (
+                <div className="mt-2 rounded-lg border border-emerald-200/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground dark:border-emerald-900/60">
+                  {impact && impact.negativeCmsSkusCount > 0 ? (
+                    <>
+                      Đang có{' '}
+                      <strong className="text-violet-700 dark:text-violet-300">
+                        {impact.negativeCmsSkusCount} SKU âm kho thật (-{impact.negativeCmsTotalUnits} đv)
+                      </strong>
+                      : Hệ thống giữ nguyên số âm thực tế để tự động bù trừ khi nhập kho / sản xuất mới; đồng thời khóa phát sinh bán âm mới tại POS mà không xóa giỏ hàng đang mở và vẫn tiếp nhận &amp; in đơn Live Shopee bình thường.
+                    </>
+                  ) : (
+                    <>
+                      Khi thu hẹp / tắt bán âm: Giỏ hàng đang mở tại quầy POS được giữ nguyên không văng đơn; đơn Live từ Sàn Shopee vẫn tự động tiếp nhận &amp; in phiếu khi kho CMS = 0.
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2.5">
             <p className="text-[11px] text-muted-foreground">
               {isDirty
-                ? 'Bạn có thay đổi chưa lưu — bấm «Lưu chính sách tồn kho» để áp dụng tức thì trên toàn hệ thống.'
-                : 'Đang áp dụng đồng bộ thời gian thực cho Kho CMS, Quầy POS và Trạm đồng bộ Sàn Shopee.'}
+                ? 'Thay đổi sẽ áp dụng tức thì qua Realtime cho Kho CMS, Quầy POS và Trạm đồng bộ Sàn Shopee mà không cần tải lại trang.'
+                : 'Đang vận hành ổn định thời gian thực cho Kho CMS, Quầy POS và Trạm đồng bộ Sàn Shopee.'}
             </p>
             <Button
               type="button"

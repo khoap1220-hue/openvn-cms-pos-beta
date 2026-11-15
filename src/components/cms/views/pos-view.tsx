@@ -640,6 +640,55 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     return map
   }, [activeTab.items])
 
+  // Đồng bộ tồn kho mới nhất vào các tab giỏ hàng đang mở mà không làm mất giỏ khi chuyển đổi chế độ / biến động kho
+  useEffect(() => {
+    if (products.length === 0) return
+    const stockMap = new Map<string, number>()
+    for (const p of products) {
+      stockMap.set(p.id, getAvailableStock(p))
+    }
+    setTabs((prev) =>
+      prev.map((tab) => {
+        let changed = false
+        const nextItems = tab.items.map((it) => {
+          const liveMax = stockMap.get(it.productId)
+          if (liveMax !== undefined && liveMax !== it.maxStock) {
+            changed = true
+            return { ...it, maxStock: liveMax }
+          }
+          return it
+        })
+        return changed ? { ...tab, items: nextItems } : tab
+      })
+    )
+  }, [products, getAvailableStock])
+
+  // Phát hiện các dòng trong giỏ vượt tồn khả dụng nếu cửa hàng vừa TẮT chế độ Bán âm POS giữa lúc thu ngân đang lên đơn
+  const overStockCartItems = useMemo(() => {
+    if (allowPosNegative) return []
+    return activeTab.items.filter((it) => {
+      const mult = it.unitMultiplier || 1
+      return it.quantity * mult > Math.max(0, it.maxStock)
+    })
+  }, [activeTab.items, allowPosNegative])
+
+  const reconcileCartToAvailableStock = useCallback(() => {
+    updateActiveTab((tab) => ({
+      ...tab,
+      items: tab.items.flatMap((it) => {
+        const mult = it.unitMultiplier || 1
+        const maxAllowedQty = Math.floor(Math.max(0, it.maxStock) / mult)
+        if (it.quantity <= maxAllowedQty) return [it]
+        if (maxAllowedQty <= 0) return []
+        return [{ ...it, quantity: maxAllowedQty }]
+      }),
+    }))
+    toast({
+      title: 'Đã cập nhật giỏ hàng theo tồn kho khả dụng',
+      description: 'Thu ngân có thể tiếp tục thanh toán ngay mà không phải tạo lại đơn.',
+    })
+  }, [toast, updateActiveTab])
+
   // ===== Tính toán tổng tiền, chiết khấu, đổi điểm, tiền thừa trả khách =====
   const subtotal = useMemo(
     () => activeTab.items.reduce((sum, it) => sum + it.price * it.quantity, 0),
@@ -2737,6 +2786,24 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                     </button>
                   )}
                 </div>
+
+                {overStockCartItems.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50/80 px-2.5 py-2 text-[11px] text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    <span>
+                      Chế độ Bán âm POS hiện đang <strong>TẮT</strong>: có{' '}
+                      <strong>{overStockCartItems.length} mã</strong> trong giỏ vượt tồn khả dụng.
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={reconcileCartToAvailableStock}
+                      className="h-6 border-amber-400 bg-background px-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 dark:text-amber-200"
+                    >
+                      Cập nhật theo tồn khả dụng
+                    </Button>
+                  </div>
+                )}
 
                 {activeTab.items.length === 0 ? (
                   <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-4 py-4 text-center sm:py-5">

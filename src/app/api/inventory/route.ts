@@ -46,9 +46,15 @@ function reconcilePendingShortageAttrs(
     }
 
     let shouldTriggerOutbox = false
+    if (movementQty !== 0 && typeof attrs.mode1HoldBaselineStock === 'number') {
+      delete attrs.mode1HoldBaselineStock
+      delete attrs.mode1HoldSetAt
+      mutated = true
+    }
     if (syncToMarketplace && hasShopeeLink && movementQty !== 0) {
       attrs.pendingOutboxSync = true
       attrs.cmsTargetStock = Math.max(0, afterStock)
+      attrs.cmsTargetStockOrigin = 'CMS_SYNC_POLICY'
       attrs.lastCmsEditAt = new Date().toISOString()
       delete attrs.outboxSuppressedKey
       mutated = true
@@ -590,9 +596,11 @@ export async function POST(req: NextRequest) {
             conversionSuffix = ` (Xuất ${absInput} ${inputUnitLabel} × ${effectiveRate} = ${movementQty} ${baseUnitLabel})`
           }
         } else {
-          newStock = inventoryPolicy.allowNegativeStock
-            ? Math.round(rawQty * effectiveRate)
-            : Math.max(0, Math.round(rawQty * effectiveRate))
+          const requestedAdjust = Math.round(rawQty * effectiveRate)
+          newStock =
+            inventoryPolicy.allowNegativeStock || requestedAdjust >= prod.stock
+              ? requestedAdjust
+              : Math.max(0, requestedAdjust)
           movementQty = newStock - prod.stock
           if (effectiveRate > 1) {
             conversionSuffix = ` (Kiểm kê ${rawQty} ${inputUnitLabel} × ${effectiveRate} = ${newStock} ${baseUnitLabel})`
@@ -675,10 +683,12 @@ export async function POST(req: NextRequest) {
       broadcast('inventory.updated', { batchCode, touchedIds })
       if (batchOutboxTriggered) {
         broadcast('outbox.updated', { batchCode, touchedIds })
-        fetch(
-          `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
-          { method: 'POST' }
-        ).catch(() => null)
+        if (req.headers.get('x-test-suppress-daemon-trigger') !== '1') {
+          fetch(
+            `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+            { method: 'POST' }
+          ).catch(() => null)
+        }
       }
 
       return NextResponse.json(
@@ -759,9 +769,12 @@ export async function POST(req: NextRequest) {
         conversionNoteSuffix = ` (Xuất ${absInput} ${inputUnitLabel} × ${effectiveRate} = -${Math.abs(movementQty)} ${baseUnitLabel})`
       }
     } else {
-      // ADJUST: quantity là số lượng tồn mới (tuyệt đối, có thể nhân hệ số quy đổi nếu chọn đơn vị chẵn)
+      // ADJUST: quantity là số lượng tồn mới (tuyệt đối; vẫn cho phép kiểm kê thu hẹp âm kho khi SP đang < 0)
       newStock = Math.round(rawQty * effectiveRate)
-      if (Number.isNaN(newStock) || (!inventoryPolicy.allowNegativeStock && newStock < 0)) {
+      if (
+        Number.isNaN(newStock) ||
+        (!inventoryPolicy.allowNegativeStock && newStock < 0 && newStock < product.stock)
+      ) {
         return NextResponse.json({ error: 'Số lượng tồn mới không hợp lệ' }, { status: 400 })
       }
       movementQty = newStock - product.stock
@@ -837,10 +850,12 @@ export async function POST(req: NextRequest) {
     broadcast('inventory.updated', { productId, sku: product.sku, stockAfter: newStock, inPlacePatched })
     if (singleAttrRes.shouldTriggerOutbox) {
       broadcast('outbox.updated', { productId, sku: product.sku })
-      fetch(
-        `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
-        { method: 'POST' }
-      ).catch(() => null)
+      if (req.headers.get('x-test-suppress-daemon-trigger') !== '1') {
+        fetch(
+          `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT || '51898'}/shopee/trigger-sync`,
+          { method: 'POST' }
+        ).catch(() => null)
+      }
     }
     dispatchWebhook('stock.movement', { productId, sku: product.sku, type, quantity: movementQty, stockAfter: newStock })
 

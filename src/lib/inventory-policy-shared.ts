@@ -10,6 +10,39 @@ export type NegativeStockScope =
   | 'ALL_CHANNELS' // Cho phép bán âm kho thật trên mọi kênh (Sàn TMĐT + POS tại quầy + Đơn nội bộ)
   | 'MARKETPLACE_ONLY' // Chỉ cho phép bán âm kho thật từ đơn đồng bộ Sàn TMĐT (POS vẫn chặn khi kho <= 0)
 
+export type InventoryModeTransitionStrategy =
+  | 'SEAMLESS_HOLD_CURRENT' // Mặc định an toàn: Chuyển mượt không gián đoạn (giữ nguyên hàng đang bán trên Sàn, chỉ đồng bộ từ biến động mới tiếp theo)
+  | 'APPLY_IMMEDIATELY' // Chủ động áp dụng ngay lên toàn bộ danh mục Sàn (Đẩy tồn thật CMS lên Sàn ngay hoặc Bơm mức tồn ảo ngay)
+
+export interface InventoryTransitionImpactSummary {
+  totalActiveProducts: number
+  linkedShopeeSkus: number
+  /** Số SKU liên kết đang có CMS <= 0 nhưng Sàn > 0 (sẽ về Hết hàng trên Sàn nếu chọn APPLY_IMMEDIATELY khi sang Chế độ 1) */
+  wouldZeroOutOnShopeeCount: number
+  /** Số SKU liên kết đang có CMS > 0 và lệch số với Sàn */
+  positiveDriftedSkusCount: number
+  /** Số SKU liên kết đang = 0 trên Sàn (có thể bơm tồn ảo khi sang Chế độ 2) */
+  zeroOnShopeeLinkedCount: number
+  /** Số SKU đang có tồn kho vật lý âm (< 0) trong CMS */
+  negativeCmsSkusCount: number
+  /** Tổng số đơn vị đang âm kho vật lý trong CMS */
+  negativeCmsTotalUnits: number
+  /** Số lệnh Outbox tồn kho từ chế độ cũ sẽ được tự động khử xung đột khi chuyển chế độ */
+  pendingModeStockOutboxCount: number
+}
+
+export interface InventoryTransitionExecutionSummary {
+  modeSwitched: boolean
+  negativeToggled: boolean
+  strategy: InventoryModeTransitionStrategy
+  heldOnMarketplaceCount: number
+  cancelledStaleStockOutboxCount: number
+  preservedNonStockOutboxCount: number
+  queuedImmediateSyncCount: number
+  preservedNegativeSkusCount: number
+  shouldTriggerDaemonSync: boolean
+}
+
 export interface InventorySyncPolicy {
   /** Chế độ liên kết tồn kho giữa Kho thật CMS và Sàn TMĐT */
   syncMode: InventoryMarketplaceSyncMode

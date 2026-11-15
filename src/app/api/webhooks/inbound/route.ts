@@ -2806,6 +2806,12 @@ export async function POST(req: NextRequest) {
           lastSyncedStock,
           cmsExplicitTargetStock:
             typeof attrs.cmsTargetStock === 'number' ? attrs.cmsTargetStock : undefined,
+          cmsTargetStockOrigin:
+            typeof attrs.cmsTargetStockOrigin === 'string' ? attrs.cmsTargetStockOrigin : undefined,
+          mode1HoldBaselineStock:
+            typeof attrs.mode1HoldBaselineStock === 'number'
+              ? attrs.mode1HoldBaselineStock
+              : undefined,
           hasExplicitOutbox,
           isUnlistedOnShopee: targetUnlisted,
         })
@@ -2824,8 +2830,20 @@ export async function POST(req: NextRequest) {
           typeof attrs.cmsTargetUnlisted === 'boolean' ||
           (lastSyncedUnlisted !== null && lastSyncedUnlisted !== targetUnlisted)
         const imageDrifted = Boolean(targetImage)
+        const hasActionableExplicitMutation =
+          hasExplicitOutbox &&
+          (!stockRes.isMarketplaceStockProtected ||
+            typeof attrs.cmsTargetPrice === 'number' ||
+            typeof attrs.cmsTargetUnlisted === 'boolean' ||
+            Boolean(targetImage))
 
-        if (stockDrifted || priceDrifted || unlistedDrifted || imageDrifted || hasExplicitOutbox) {
+        if (
+          stockDrifted ||
+          priceDrifted ||
+          unlistedDrifted ||
+          imageDrifted ||
+          hasActionableExplicitMutation
+        ) {
           const outboxId = explicitByProductId.get(p.id) || `AUTO_OUTBOX_${p.id}_${targetStock}_${targetPrice}_${targetUnlisted ? 1 : 0}`
           jobs.push({
             outboxId,
@@ -2914,6 +2932,8 @@ export async function POST(req: NextRequest) {
         }
         attrs.pendingOutboxSync = false
         delete attrs.cmsTargetStock
+        delete attrs.cmsTargetStockOrigin
+        delete attrs.mode1HoldBaselineStock
         delete attrs.cmsTargetPrice
         delete attrs.cmsTargetUnlisted
         delete attrs.cmsTargetImage

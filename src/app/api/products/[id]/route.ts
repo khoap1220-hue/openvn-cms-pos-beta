@@ -303,10 +303,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           const priceChanged = existing.sellPrice !== nextSellPrice || hasExplicitShopeeTrack
           const shouldPushImage = imageChanged && Boolean(imageInput) && syncImageToShopee
 
+          if (stockChanged && typeof latestAttrs.mode1HoldBaselineStock === 'number') {
+            delete latestAttrs.mode1HoldBaselineStock
+            delete latestAttrs.mode1HoldSetAt
+            attrsMutated = true
+          }
+
           if (shouldSyncStockToShopee || priceChanged || shouldPushImage) {
             latestAttrs.pendingOutboxSync = true
             if (shouldSyncStockToShopee) {
               latestAttrs.cmsTargetStock = targetShopeeStock
+              latestAttrs.cmsTargetStockOrigin = 'CMS_SYNC_POLICY'
             }
             latestAttrs.cmsTargetPrice = targetShopeePrice
             if (shouldPushImage && imageInput) {
@@ -492,7 +499,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
         if (outboxLogInput) {
           bgTasks.push(logLedger(outboxLogInput))
-          fetch(`${process.env.SHOPEE_SYNC_PORT ? `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT}` : 'http://127.0.0.1:51898'}/shopee/trigger-sync`, { method: 'POST' }).catch(() => null)
+          if (req.headers.get('x-test-suppress-daemon-trigger') !== '1') {
+            fetch(`${process.env.SHOPEE_SYNC_PORT ? `http://127.0.0.1:${process.env.SHOPEE_SYNC_PORT}` : 'http://127.0.0.1:51898'}/shopee/trigger-sync`, { method: 'POST' }).catch(() => null)
+          }
         }
 
         if (barcodeChanged) {

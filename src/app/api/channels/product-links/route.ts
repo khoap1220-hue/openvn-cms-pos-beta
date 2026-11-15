@@ -68,6 +68,7 @@ export interface LinkedMarketplaceItem {
     | 'PENDING_SHOPEE_ORDER'
     | 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
     | 'VIRTUAL_MARKETPLACE_ACTIVE'
+    | 'MODE1_HOLD_UNTIL_NEXT_CHANGE'
     | 'SHOPEE_DIRECT_ADJUSTED'
     | 'STOCK_DRIFT'
   lastReconcileDecision?: string
@@ -383,12 +384,22 @@ export async function GET() {
         movStats.shopeeAdjustDelta +
         movStats.manualDelta
 
+      const clampedCmsStock = Math.max(0, p.stock)
+      const isMode1SeamlessHeld =
+        inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE' &&
+        typeof attrs.mode1HoldBaselineStock === 'number' &&
+        attrs.mode1HoldBaselineStock === clampedCmsStock &&
+        !pendingOutboxProductIds.has(p.id) &&
+        liveShopeeStock !== clampedCmsStock
+
       let reconciliationStatus: LinkedMarketplaceItem['reconciliationStatus'] = 'RECONCILED_OK'
       if (
         inventoryPolicy.syncMode === 'VIRTUAL_ALWAYS_IN_STOCK' &&
         liveShopeeStock !== p.stock
       ) {
         reconciliationStatus = 'VIRTUAL_MARKETPLACE_ACTIVE'
+      } else if (isMode1SeamlessHeld) {
+        reconciliationStatus = 'MODE1_HOLD_UNTIL_NEXT_CHANGE'
       } else if (
         p.stock <= 0 &&
         liveShopeeStock > 0 &&
@@ -399,16 +410,18 @@ export async function GET() {
         reconciliationStatus = 'SHOPEE_DIRECT_ADJUSTED'
       } else if (attrs.reconciliationStatus === 'PENDING_SHOPEE_ORDER' && liveShopeeStock < p.stock) {
         reconciliationStatus = 'PENDING_SHOPEE_ORDER'
-      } else if (liveShopeeStock !== Math.max(0, p.stock) || lastSyncedStock !== Math.max(0, p.stock)) {
+      } else if (liveShopeeStock !== clampedCmsStock || lastSyncedStock !== clampedCmsStock) {
         reconciliationStatus =
           p.stock <= 0 && liveShopeeStock > 0 ? 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK' : 'STOCK_DRIFT'
       }
 
       const isUnlisted = Boolean(attrs.isUnlistedOnShopee)
-      const clampedCmsStock = Math.max(0, p.stock)
       let syncStatus: 'IN_SYNC' | 'STOCK_DRIFT' | 'PRICE_DRIFT' = 'IN_SYNC'
       if (inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE') {
-        if (lastSyncedStock !== clampedCmsStock || liveShopeeStock !== clampedCmsStock) {
+        if (
+          !isMode1SeamlessHeld &&
+          (lastSyncedStock !== clampedCmsStock || liveShopeeStock !== clampedCmsStock)
+        ) {
           syncStatus = 'STOCK_DRIFT'
         } else if (lastSyncedPrice !== p.sellPrice) {
           syncStatus = 'PRICE_DRIFT'
@@ -2803,7 +2816,9 @@ export async function POST(req: NextRequest) {
         attrs.outboxState = bridgeState.alive ? 'PENDING' : 'WAITING_SESSION'
         delete attrs.outboxError
         delete attrs.outboxSuppressedKey
+        delete attrs.mode1HoldBaselineStock
         attrs.cmsTargetStock = virtualQty
+        attrs.cmsTargetStockOrigin = 'VIRTUAL_POLICY'
         attrs.lastOutboxSyncAt = nowIso
         const nextJson = JSON.stringify(attrs)
 

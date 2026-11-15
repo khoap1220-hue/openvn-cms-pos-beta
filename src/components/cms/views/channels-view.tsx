@@ -132,6 +132,7 @@ interface LinkedMarketplaceItem {
   reconciliationStatus?:
     | 'RECONCILED_OK'
     | 'VIRTUAL_MARKETPLACE_ACTIVE'
+    | 'MODE1_HOLD_UNTIL_NEXT_CHANGE'
     | 'PENDING_SHOPEE_ORDER'
     | 'WAREHOUSE_EMPTY_MARKETPLACE_HAS_STOCK'
     | 'SHOPEE_DIRECT_ADJUSTED'
@@ -1809,7 +1810,8 @@ export function ChannelsView({
                                     <span
                                       className={
                                         item.cmsStock === (item.liveShopeeStock ?? item.lastSyncedShopeeStock) ||
-                                        item.reconciliationStatus === 'VIRTUAL_MARKETPLACE_ACTIVE'
+                                        item.reconciliationStatus === 'VIRTUAL_MARKETPLACE_ACTIVE' ||
+                                        item.reconciliationStatus === 'MODE1_HOLD_UNTIL_NEXT_CHANGE'
                                           ? 'font-medium text-emerald-600 dark:text-emerald-400'
                                           : 'font-semibold text-amber-600 dark:text-amber-400'
                                       }
@@ -1833,6 +1835,15 @@ export function ChannelsView({
                                       title="Sàn đang mở mức tồn ảo chống ghi đè Kho thật CMS"
                                     >
                                       Tồn ảo Sàn · Bảo vệ Kho thật
+                                    </Badge>
+                                  )}
+                                  {item.reconciliationStatus === 'MODE1_HOLD_UNTIL_NEXT_CHANGE' && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-emerald-300 bg-emerald-50 px-1 py-0 text-[9px] text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                      title="Chuyển mượt sang Chế độ 1: Giữ nguyên hàng đang bán trên Sàn để không ngắt phiên Live; tự động đồng bộ ngay khi có biến động kho mới"
+                                    >
+                                      Giữ tồn Sàn · Chờ biến động mới
                                     </Badge>
                                   )}
                                   {item.reconciliationStatus === 'PENDING_SHOPEE_ORDER' && (
@@ -1863,6 +1874,7 @@ export function ChannelsView({
                                     </Badge>
                                   )}
                                   {item.reconciliationStatus !== 'VIRTUAL_MARKETPLACE_ACTIVE' &&
+                                    item.reconciliationStatus !== 'MODE1_HOLD_UNTIL_NEXT_CHANGE' &&
                                     (item.cmsStock === 0 && (item.liveShopeeStock ?? item.lastSyncedShopeeStock) > 0 ? (
                                       <div className="flex flex-wrap justify-end gap-1 pt-0.5">
                                         <Button
