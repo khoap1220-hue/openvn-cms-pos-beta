@@ -85,7 +85,7 @@ export function WarehouseModuleNav({
 }) {
   return (
     <div className="mb-4 rounded-xl border border-border/80 bg-card p-1.5 shadow-xs sm:mb-5 sm:p-2">
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0">
+      <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0">
         {WAREHOUSE_MODULES.map((item) => {
           const Icon = item.icon
           const isActive = active === item.id

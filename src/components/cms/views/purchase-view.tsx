@@ -537,7 +537,7 @@ export function PurchaseView({ onNavigate }: { onNavigate?: (view: ViewId) => vo
         </div>
       ) : (
         <>
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard
           title="Tổng chi"
           value={loading ? '' : formatCompactVND(totalExpense)}

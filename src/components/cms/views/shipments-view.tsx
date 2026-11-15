@@ -257,7 +257,7 @@ export function ShipmentsView() {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <StatCard title="Đang vận chuyển" value={String(data?.stats.active ?? 0)} icon={Truck} loading={loading} iconClassName="bg-orange-100 text-orange-600 dark:bg-orange-950" />
         <StatCard title="Đã giao hôm nay" value={String(data?.stats.deliveredToday ?? 0)} icon={PackageCheck} loading={loading} iconClassName="bg-emerald-100 text-emerald-600 dark:bg-emerald-950" />
         <StatCard title="Đã báo ĐVVC hôm nay" value={String(data?.stats.dispatchedToday ?? 0)} icon={CalendarClock} loading={loading} hint="Agent tự báo khi đóng gói xong" iconClassName="bg-violet-100 text-violet-600 dark:bg-violet-950" />
@@ -294,7 +294,7 @@ export function ShipmentsView() {
       <Card className="border-border/70 p-0 shadow-sm">
         <CardContent className="p-0">
           {/* OPENVN Horizontal Shipment Status Tabs */}
-          <div className="overflow-x-auto border-b border-border/60 bg-muted/20 px-3 pt-1.5">
+          <div className="no-scrollbar overflow-x-auto border-b border-border/60 bg-muted/20 px-3 pt-1.5">
             <div className="flex min-w-max items-center gap-1">
               {[
                 { key: 'ALL', label: 'Tất cả vận đơn' },

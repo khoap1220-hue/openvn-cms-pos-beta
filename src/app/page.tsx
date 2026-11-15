@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { LucideIcon } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
@@ -325,6 +325,8 @@ export default function Home() {
   const badgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const viewStayRef = useRef<{ view: ViewId; enteredAt: number } | null>(null)
   const blockedLoggedRef = useRef<string | null>(null)
+  const popstateNavRef = useRef(false)
+  const hasSyncedUrlOnceRef = useRef(false)
 
   const handleNavigateWithParam = useCallback((view: ViewId, param?: string) => {
     if (param) setSelectedCampaignId(param)
@@ -368,18 +370,33 @@ export default function Home() {
     }
   }, [router])
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const requested = new URLSearchParams(window.location.search).get('view')
-      if (isViewId(requested)) {
-        setActiveView(requested)
-      }
+  // Đồng bộ đồng bộ (trước khi trình duyệt vẽ frame đầu) tham số ?view= từ URL để triệt tiêu nháy Dashboard (FOD)
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    const requested = new URLSearchParams(window.location.search).get('view')
+    if (isViewId(requested)) {
+      setActiveView(requested)
     }
+  }, [])
+
+  useEffect(() => {
     const t = setTimeout(() => void refreshAuthContext(true), 0)
-    return () => clearTimeout(t)
+    if (typeof window === 'undefined') return () => clearTimeout(t)
+
+    const handlePopState = () => {
+      const requested = new URLSearchParams(window.location.search).get('view')
+      const nextView: ViewId = isViewId(requested) ? requested : 'dashboard'
+      popstateNavRef.current = true
+      setActiveView(nextView)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('popstate', handlePopState)
+    }
   }, [refreshAuthContext])
 
-  // Ghi nhận hành vi chuyển màn hình kèm thời lượng lưu trang (durationMs) & đồng bộ query ?view=
+  // Ghi nhận hành vi chuyển màn hình kèm thời lượng lưu trang (durationMs) & đồng bộ query ?view= (hỗ trợ Back/Forward)
   useEffect(() => {
     if (!authLoaded || typeof window === 'undefined') return
 
@@ -389,8 +406,17 @@ export default function Home() {
         ? `${rawPath}/`
         : rawPath
     const targetUrl = activeView === 'dashboard' ? basePath : `${basePath}?view=${activeView}`
-    if (`${window.location.pathname}${window.location.search}` !== targetUrl) {
-      window.history.replaceState(null, '', targetUrl)
+    const currentFullUrl = `${window.location.pathname}${window.location.search}`
+
+    if (!hasSyncedUrlOnceRef.current) {
+      hasSyncedUrlOnceRef.current = true
+      if (currentFullUrl !== targetUrl) {
+        window.history.replaceState({ view: activeView }, '', targetUrl)
+      }
+    } else if (popstateNavRef.current) {
+      popstateNavRef.current = false
+    } else if (currentFullUrl !== targetUrl) {
+      window.history.pushState({ view: activeView }, '', targetUrl)
     }
 
     const allowed = canAccessView(permissions, activeView)

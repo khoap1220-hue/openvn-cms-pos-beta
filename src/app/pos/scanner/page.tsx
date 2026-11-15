@@ -894,29 +894,27 @@ function MobileScannerInner() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
             {connected && (
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
-                data-compact-btn="true"
                 aria-label="Làm mới trạng thái trạm POS"
-                className="h-8 w-8 text-slate-200 hover:bg-white/10 hover:text-white"
+                className="h-10 w-10 text-slate-200 hover:bg-white/10 hover:text-white sm:h-9 sm:w-9"
                 onClick={() => void fetchPhoneState(stationId, pairToken, true)}
               >
-                <RefreshCw className="h-3.5 w-3.5" />
+                <RefreshCw className="h-4 w-4" />
               </Button>
             )}
             <Button
               asChild
               size="sm"
               variant="outline"
-              data-compact-btn="true"
-              className="h-8 border-white/20 bg-white/10 px-2.5 text-[11px] text-white hover:bg-white/20 hover:text-white"
+              className="h-10 border-white/20 bg-white/10 px-3 text-xs text-white hover:bg-white/20 hover:text-white sm:h-9"
             >
               <Link href="/pos">
-                <ArrowLeft className="mr-1 h-3 w-3" />
+                <ArrowLeft className="mr-1 h-3.5 w-3.5" />
                 POS
               </Link>
             </Button>

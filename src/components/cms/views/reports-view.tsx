@@ -163,7 +163,7 @@ export function ReportsView() {
       ) : (
         <>
           {/* Summary */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatCard
               loading={loading}
               title={`Doanh thu ${days} ngày`}
@@ -403,7 +403,7 @@ export function ReportsView() {
                   <div>
                     <h3 className="mb-2 text-sm font-semibold">Lợi nhuận ròng theo kênh</h3>
                     <div className="overflow-x-auto rounded-lg border">
-                      <Table className="min-w-[900px]" aria-label="Lợi nhuận ròng theo kênh">
+                      <Table aria-label="Lợi nhuận ròng theo kênh">
                         <TableHeader>
                           <TableRow>
                             <TableHead className="pl-4">Kênh</TableHead>
@@ -451,7 +451,7 @@ export function ReportsView() {
                   <div>
                     <h3 className="mb-2 text-sm font-semibold">Unit Economics theo sản phẩm</h3>
                     <div className="overflow-hidden rounded-lg border [&_[data-slot=table-container]]:max-h-96 [&_[data-slot=table-container]]:overflow-y-auto [&_[data-slot=table-container]]:[scrollbar-width:thin]">
-                      <Table className="min-w-[1000px]" aria-label="Unit Economics theo sản phẩm">
+                      <Table aria-label="Unit Economics theo sản phẩm">
                         <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow>
                             <TableHead className="pl-4">Sản phẩm</TableHead>

@@ -1627,7 +1627,7 @@ export function AutoSocialView({ initialCampaignId, onNavigate }: AutoSocialView
             />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
-              <Table className="min-w-[900px]">
+              <Table tableId="auto-social-posts">
                 <TableHeader className="bg-muted/50">
                   <TableRow>
                     <TableHead className="w-[140px]">Kênh & Lịch đăng</TableHead>

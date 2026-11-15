@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-15T07:12:47Z",
+  "updated_at": "2026-11-15T08:05:00Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,8 +13,8 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-3E433ABA94F74D276783",
-    "signed_at": "2026-11-15T07:12:47Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-2F9AF345EEA7E3DDA924",
+    "signed_at": "2026-11-15T08:05:00Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
@@ -183,7 +183,7 @@
     {
       "view_key": "products",
       "tsx_file": "src/components/cms/views/products-view.tsx",
-      "sha256_before": "76ea332a002bcc28",
+      "sha256_before": "c11054318039eff6",
       "metrics": {
         "cards": 0,
         "tables": 4,
@@ -223,14 +223,14 @@
     {
       "view_key": "inventory",
       "tsx_file": "src/components/cms/views/inventory-view.tsx",
-      "sha256_before": "0670855299c08fb2",
+      "sha256_before": "8c4247a7ab23413b",
       "metrics": {
         "cards": 11,
         "tables": 4,
         "badges": 17,
         "truncate_nodes": 10,
         "nowrap_nodes": 13,
-        "accessible_labels": 23
+        "accessible_labels": 28
       },
       "findings": [
         "Phát hiện `10` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
@@ -303,14 +303,14 @@
     {
       "view_key": "pos",
       "tsx_file": "src/components/cms/views/pos-view.tsx",
-      "sha256_before": "358fdb51af843b05",
+      "sha256_before": "1ba044f797a21f0b",
       "metrics": {
         "cards": 3,
         "tables": 0,
         "badges": 7,
         "truncate_nodes": 13,
         "nowrap_nodes": 4,
-        "accessible_labels": 28
+        "accessible_labels": 31
       },
       "findings": [
         "Phát hiện `13` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
@@ -343,7 +343,7 @@
     {
       "view_key": "purchase",
       "tsx_file": "src/components/cms/views/purchase-view.tsx",
-      "sha256_before": "3b733e1425e760ef",
+      "sha256_before": "6a3a7289341a3aa3",
       "metrics": {
         "cards": 1,
         "tables": 3,
@@ -383,14 +383,14 @@
     {
       "view_key": "sales",
       "tsx_file": "src/components/cms/views/sales-view.tsx",
-      "sha256_before": "382806ae71c9ba9a",
+      "sha256_before": "8257021e50f82d63",
       "metrics": {
         "cards": 1,
         "tables": 2,
         "badges": 9,
         "truncate_nodes": 2,
         "nowrap_nodes": 10,
-        "accessible_labels": 11
+        "accessible_labels": 12
       },
       "findings": [
         "Phát hiện `2` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
@@ -423,7 +423,7 @@
     {
       "view_key": "shipments",
       "tsx_file": "src/components/cms/views/shipments-view.tsx",
-      "sha256_before": "1123cb8a94b57940",
+      "sha256_before": "c2cb9a62b61c54b6",
       "metrics": {
         "cards": 1,
         "tables": 1,
@@ -463,7 +463,7 @@
     {
       "view_key": "partners",
       "tsx_file": "src/components/cms/views/partners-view.tsx",
-      "sha256_before": "48689e0fbd208a52",
+      "sha256_before": "03ae7c34e3dc91f3",
       "metrics": {
         "cards": 1,
         "tables": 1,
@@ -503,7 +503,7 @@
     {
       "view_key": "campaigns",
       "tsx_file": "src/components/cms/views/campaigns-view.tsx",
-      "sha256_before": "c0069416f859d614",
+      "sha256_before": "5a3f028267eab664",
       "metrics": {
         "cards": 1,
         "tables": 1,
@@ -545,7 +545,7 @@
     {
       "view_key": "reports",
       "tsx_file": "src/components/cms/views/reports-view.tsx",
-      "sha256_before": "d46273cd2bafc369",
+      "sha256_before": "a130fd4b93fbb3cd",
       "metrics": {
         "cards": 5,
         "tables": 2,
@@ -585,7 +585,7 @@
     {
       "view_key": "ledger",
       "tsx_file": "src/components/cms/views/ledger-view.tsx",
-      "sha256_before": "5a6dde6537559f5f",
+      "sha256_before": "4e5315536f39aa9b",
       "metrics": {
         "cards": 2,
         "tables": 3,
@@ -627,17 +627,17 @@
     {
       "view_key": "iam",
       "tsx_file": "src/components/cms/views/iam-view.tsx",
-      "sha256_before": "72224926e11d51b7",
+      "sha256_before": "7c2c81b171bd7b63",
       "metrics": {
         "cards": 8,
         "tables": 4,
         "badges": 16,
-        "truncate_nodes": 6,
+        "truncate_nodes": 10,
         "nowrap_nodes": 0,
         "accessible_labels": 14
       },
       "findings": [
-        "Phát hiện `6` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
+        "Phát hiện `10` vị trí cắt chữ (`.truncate` / `.line-clamp`) cần cơ chế bung chữ khi hover/focus để không che khuất tên SP/SKU.",
         "Có `4` bảng dữ liệu và `0` cụm `whitespace-nowrap` cần khóa `min-width: 0; max-width: 100%` để không tràn mép phải ở 945px/1024px/1536px."
       ],
       "quick_wins": [

@@ -28,7 +28,7 @@ export function ProductAvatar({
         loading="lazy"
         onError={() => setFailedUrl(trimmedImage)}
         className={cn(
-          'h-10 w-10 shrink-0 select-none rounded-lg border border-border/60 object-cover',
+          'h-10 w-10 shrink-0 select-none rounded-lg border border-border/80 bg-muted/40 object-cover ring-1 ring-black/5 dark:border-slate-700 dark:bg-slate-800 dark:ring-white/10',
           className
         )}
       />

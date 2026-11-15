@@ -768,7 +768,7 @@ export function CustomersView() {
         description="Khách hàng ⇒ Thành viên: quản lý hồ sơ, nâng cấp thành viên, tích điểm và hạng thân thiết"
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <StatCard
           title="Tổng khách hàng"
           value={loading ? '' : formatNumber(stats?.totalCustomers ?? 0)}
@@ -1047,7 +1047,7 @@ export function CustomersView() {
                     <TableHead locked>Khách hàng</TableHead>
                     <TableHead>Hạng thành viên</TableHead>
                     <TableHead defaultHidden>Mã Hội viên</TableHead>
-                    <TableHead className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
+                    <TableHead defaultHidden className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
                     <TableHead>Số điện thoại</TableHead>
                     <TableHead defaultHidden>Email</TableHead>
                     <TableHead className="hidden md:table-cell">Địa chỉ</TableHead>
@@ -1077,7 +1077,15 @@ export function CustomersView() {
                             <ProductAvatar name={c.name} className="h-9 w-9" />
                             <div className="min-w-0">
                               <p className="truncate font-medium">{c.name}</p>
-                              <p className="truncate text-xs text-muted-foreground">{c.email || 'Chưa có email'}</p>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <span className="truncate text-xs text-muted-foreground">{c.email || 'Chưa có email'}</span>
+                                <DataLineageBadge
+                                  originSource={c.originSource}
+                                  changeCount={c.changeCount}
+                                  onInspect={() => openLineage(c)}
+                                  compact
+                                />
+                              </div>
                             </div>
                           </div>
                         </TableCell>

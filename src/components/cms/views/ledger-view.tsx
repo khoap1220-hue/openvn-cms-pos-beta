@@ -229,7 +229,7 @@ const TIME_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '1', label: 'Hôm nay' },
   { value: '7', label: '7 ngày qua' },
   { value: '30', label: '30 ngày qua' },
-  { value: 'ALL', label: 'Tất cả' },
+  { value: 'ALL', label: 'Mọi mốc nhanh' },
 ]
 
 const RECON_GUIDES: Array<{ title: string; description: string }> = [
@@ -304,7 +304,7 @@ function extractEntryBadges(entry: LedgerEntry): EntryBadges {
   ) {
     direction = {
       type: 'SAN_TO_SAN',
-      label: 'Sàn ➔ Sàn',
+      label: 'Sàn → Sàn',
       tooltip: 'Thay đổi phát sinh trực tiếp trên Sàn Shopee Seller Center (Giá, Tồn, Ẩn/Hiện hoặc SP trên Sàn)',
     }
   } else if (
@@ -318,7 +318,7 @@ function extractEntryBadges(entry: LedgerEntry): EntryBadges {
   ) {
     direction = {
       type: 'INBOUND',
-      label: 'Sàn ➔ CMS',
+      label: 'Sàn → CMS',
       tooltip: 'Dữ liệu từ sàn Shopee kéo về cập nhật hoặc đối soát vào hệ thống CMS',
     }
   } else if (
@@ -331,7 +331,7 @@ function extractEntryBadges(entry: LedgerEntry): EntryBadges {
   ) {
     direction = {
       type: 'OUTBOUND',
-      label: 'CMS ➔ Sàn',
+      label: 'CMS → Sàn',
       tooltip: 'Dữ liệu từ kho CMS đẩy ra sàn Shopee (đồng bộ tồn / giá / liên kết)',
     }
   } else if (
@@ -959,8 +959,8 @@ export function LedgerView() {
             />
           ) : (
             <div className="overflow-x-auto rounded-lg border lg:max-h-[540px] lg:overflow-y-auto">
-              <Table className="min-w-[920px]">
-                <TableHeader className="sticky top-0 bg-background">
+              <Table tableId="ledger-audit-main">
+                <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>
                     <TableHead>Thời gian</TableHead>
                     <TableHead>Phạm vi</TableHead>
@@ -1032,7 +1032,7 @@ export function LedgerView() {
                                 {rowPriceInfo &&
                                 rowPriceInfo.oldPrice !== undefined &&
                                 rowPriceInfo.newPrice !== undefined
-                                  ? `${formatVND(rowPriceInfo.oldPrice)} ➔ ${formatVND(rowPriceInfo.newPrice)}`
+                                  ? `${formatVND(rowPriceInfo.oldPrice)} → ${formatVND(rowPriceInfo.newPrice)}`
                                   : 'Đổi giá bán'}
                               </Badge>
                             )}

@@ -1079,14 +1079,14 @@ export function InventoryView({
 
       {/* ===== THANH ĐIỀU PHỐI & CHUYỂN ĐỔI ĐA KHO NHANH (TỐI ƯU ĐA THIẾT BỊ) ===== */}
       <div className="mb-4 rounded-xl border border-border/80 bg-card p-2.5 shadow-xs sm:mb-5 sm:p-3">
-        {/* Giao diện gọn 1 dòng cho Điện thoại & Tablet (< lg): Select chọn kho + 2 nút tác vụ chính */}
+        {/* Giao diện gọn cho Điện thoại & Tablet (< lg): Select chọn kho co giãn an toàn + nút tác vụ không đè chữ */}
         <div className="flex flex-wrap items-center justify-between gap-2 lg:hidden">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex min-w-[190px] flex-1 items-center gap-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Warehouse className="h-4 w-4" />
             </div>
             <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-              <SelectTrigger className="h-9 min-w-[170px] flex-1 text-xs font-semibold">
+              <SelectTrigger className="h-10 min-w-0 flex-1 text-xs font-semibold" aria-label="Chọn phạm vi kho">
                 <SelectValue placeholder="Chọn phạm vi kho..." />
               </SelectTrigger>
               <SelectContent>
@@ -1108,9 +1108,10 @@ export function InventoryView({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 px-2.5 text-xs"
+                className="h-10 px-2.5 text-xs"
                 onClick={() => openEditWarehouse(selectedWarehouseObj)}
                 title="Sửa thông tin kho đang chọn"
+                aria-label="Sửa thông tin kho đang chọn"
               >
                 <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
               </Button>
@@ -1119,7 +1120,7 @@ export function InventoryView({
               type="button"
               variant="outline"
               size="sm"
-              className="h-9 px-2.5 text-xs"
+              className="h-10 px-2.5 text-xs"
               onClick={() => {
                 const firstProd = products?.find((p) => p.type !== 'COMBO')?.id ?? ''
                 openQuickTransferForProduct(firstProd)
@@ -1132,7 +1133,7 @@ export function InventoryView({
               type="button"
               variant="outline"
               size="sm"
-              className="h-9 px-2.5 text-xs"
+              className="h-10 px-2.5 text-xs"
               onClick={() => {
                 setEditingWhId(null)
                 setAddWhForm({
@@ -1241,7 +1242,7 @@ export function InventoryView({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto border-t pt-2">
+          <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto border-t pt-2">
             <button
               type="button"
               onClick={() => setSelectedWarehouseId('ALL')}
@@ -1314,7 +1315,7 @@ export function InventoryView({
             title="Xuất kho & Điều chuyển nội bộ"
             description="Lập phiếu xuất nguyên vật liệu, xuất sử dụng nội bộ, xuất mẫu thử, xuất hủy hao hụt hoặc điều chuyển hàng giữa các kho"
           >
-            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-muted/50 p-1">
+            <div className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-muted/50 p-1">
               <button
                 type="button"
                 onClick={() => setExportSubTab('TERMINAL')}
@@ -1753,6 +1754,7 @@ export function InventoryView({
                                     type="button"
                                     variant="outline"
                                     size="icon"
+                                    aria-label={`Giảm tồn thực tế ${p.sku}`}
                                     className="h-7 w-7 shrink-0"
                                     onClick={() =>
                                       setActualStockMap((prev) => ({
@@ -1766,6 +1768,7 @@ export function InventoryView({
                                   <Input
                                     type="number"
                                     min={0}
+                                    aria-label={`Số lượng tồn thực tế ${p.sku}`}
                                     value={actualStockMap[p.id] !== undefined ? actualStockMap[p.id] : String(p.stock)}
                                     onChange={(e) =>
                                       setActualStockMap((prev) => ({
@@ -1782,6 +1785,7 @@ export function InventoryView({
                                     type="button"
                                     variant="outline"
                                     size="icon"
+                                    aria-label={`Tăng tồn thực tế ${p.sku}`}
                                     className="h-7 w-7 shrink-0"
                                     onClick={() =>
                                       setActualStockMap((prev) => ({
@@ -1987,10 +1991,10 @@ export function InventoryView({
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="border-b pb-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Warehouse className="h-5 w-5 text-[#0066CC]" />
-                      Bảng Tồn Kho Hiện Tại Theo Mặt Hàng ({filteredStockProducts.length} mã)
+                  <div className="min-w-0">
+                    <CardTitle className="flex items-start gap-2 text-sm leading-snug sm:items-center sm:text-base">
+                      <Warehouse className="mt-0.5 h-5 w-5 shrink-0 text-[#0066CC] sm:mt-0" />
+                      <span>Bảng Tồn Kho Hiện Tại Theo Mặt Hàng ({filteredStockProducts.length} mã)</span>
                     </CardTitle>
                     <CardDescription>
                       Hiển thị số lượng tồn theo đơn vị gốc, tự động quy đổi ra đơn vị mua lớn (Kg, Lít) và tính giá trị vốn tồn kho

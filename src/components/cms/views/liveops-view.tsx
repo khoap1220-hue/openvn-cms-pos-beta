@@ -345,7 +345,7 @@ export function LiveOpsView({
       {/* ===== Tiến trình Đơn hàng & Cảnh báo Vận hành Trọng yếu ===== */}
       <Card className="border-border/70 shadow-sm">
         <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2 overflow-x-auto">
+          <div className="no-scrollbar flex items-center gap-2 overflow-x-auto">
             {(data?.pipeline ?? []).map((step, i) => (
               <div key={step.key} className="flex shrink-0 items-center gap-2">
                 <div

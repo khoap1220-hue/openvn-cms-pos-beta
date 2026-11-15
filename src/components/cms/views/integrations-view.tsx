@@ -1014,7 +1014,7 @@ export function IntegrationsView() {
       />
 
       {/* Stats hàng đầu */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           title="Endpoint đang bật"
           value={loading ? '' : formatNumber(activeEndpoints)}

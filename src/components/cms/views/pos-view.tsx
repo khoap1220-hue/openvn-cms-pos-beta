@@ -406,12 +406,13 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
         setSelectedWarehouseId(def.id)
       }
 
+      if (!silent) setLoading(false)
+
       const posCh = validChannels.find((c) => (c?.key ?? '').toUpperCase() === 'POS')
       if (posCh) {
-        const ordRes = await apiGet<{ orders: Order[] }>(
-          `/api/orders?channelId=${posCh.id}&pageSize=10`
-        )
-        setRecentPosOrders(ordRes.orders)
+        void apiGet<{ orders: Order[] }>(`/api/orders?channelId=${posCh.id}&pageSize=10`)
+          .then((ordRes) => setRecentPosOrders(ordRes.orders))
+          .catch(() => {})
       }
     } catch (err) {
       if (!silent) {
@@ -2183,7 +2184,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           <Card className="border-border/80 shadow-xs">
             <CardContent className="space-y-3 p-3.5">
               {/* Hàng 1: Quét mã vạch (F2) + Camera Mobile + Tìm tên/SKU (F3) + Chuyển kiểu hiển thị */}
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-2 2xl:flex-row">
                 <div className="flex flex-1 items-center gap-1.5">
                   <form
                     className="relative flex-1"
@@ -2409,7 +2410,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                         className={cn(
                           'group relative flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none sm:p-3',
                           blockedByStock
-                            ? 'cursor-not-allowed border-border/50 bg-muted/40 opacity-60'
+                            ? 'cursor-not-allowed border-border/60 bg-muted/35 opacity-80 dark:border-slate-800 dark:bg-slate-900/60 dark:opacity-85'
                             : inCartQty > 0
                               ? 'cursor-pointer border-[#0066CC] bg-[#0066CC]/[0.04] shadow-xs ring-1 ring-[#0066CC]/35 active:scale-[0.99]'
                               : 'cursor-pointer border-border/80 bg-card hover:-translate-y-0.5 hover:border-[#0066CC]/60 hover:shadow-sm active:scale-[0.99]'
@@ -3557,6 +3558,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className="flex cursor-pointer items-center gap-2">
                     <Checkbox
+                      aria-label="Tự lập Hóa đơn bán"
                       checked={autoIssueInvoice}
                       onCheckedChange={(v) => setAutoIssueInvoice(Boolean(v))}
                     />
@@ -3564,6 +3566,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
                     <Checkbox
+                      aria-label="Tự động in Bill K80"
                       checked={printerConfig.autoPrintPosBill}
                       onCheckedChange={(v) => updatePrinterConfig({ autoPrintPosBill: Boolean(v) })}
                     />
@@ -3571,6 +3574,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 font-medium text-orange-700 dark:text-orange-400">
                     <Checkbox
+                      aria-label="Tự in đơn Shopee"
                       checked={printerConfig.autoPrintShopeeOrder}
                       onCheckedChange={(v) => updatePrinterConfig({ autoPrintShopeeOrder: Boolean(v) })}
                     />

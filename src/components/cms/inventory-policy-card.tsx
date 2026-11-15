@@ -487,6 +487,7 @@ export function InventoryPolicyCard({
                     </Label>
                     <Switch
                       id="inv-virtual-autorefill"
+                      aria-label="Tự động bù tồn ảo Sàn"
                       checked={virtualAutoRefill}
                       onCheckedChange={setVirtualAutoRefill}
                     />
@@ -557,7 +558,7 @@ export function InventoryPolicyCard({
                       value={negativeStockScope}
                       onValueChange={(val) => setNegativeStockScope(val as NegativeStockScope)}
                     >
-                      <SelectTrigger className="h-8 bg-background text-xs">
+                      <SelectTrigger className="h-8 bg-background text-xs" aria-label="Phạm vi cho phép bán âm">
                         <SelectValue placeholder="Phạm vi bán âm" />
                       </SelectTrigger>
                       <SelectContent>
@@ -573,6 +574,7 @@ export function InventoryPolicyCard({
                 )}
                 <Switch
                   id="inv-allow-negative"
+                  aria-label="Cho phép bán âm Kho thật CMS"
                   checked={allowNegativeStock}
                   onCheckedChange={setAllowNegativeStock}
                 />

@@ -864,23 +864,23 @@ export function IamView({
         onValueChange={(v) => setActiveTab(v as typeof activeTab)}
         className="space-y-4"
       >
-        <div className="overflow-x-auto pb-1">
-          <TabsList className="inline-flex h-auto min-h-11 w-max min-w-full justify-start gap-1 rounded-xl p-1 sm:min-w-0">
-            <TabsTrigger value="users" className="min-h-9 gap-1.5 px-3 text-xs sm:text-sm">
-              <UserCog className="h-4 w-4" />
-              <span>Nhân sự &amp; Tài khoản ({users.length})</span>
+        <div>
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl p-1 xl:inline-flex xl:w-fit">
+            <TabsTrigger value="users" className="min-h-9 min-w-0 justify-start gap-1.5 px-2.5 text-xs sm:justify-center sm:px-3 sm:text-sm">
+              <UserCog className="h-4 w-4 shrink-0" />
+              <span className="truncate">Nhân sự &amp; Tài khoản ({users.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="roles" className="min-h-9 gap-1.5 px-3 text-xs sm:text-sm">
-              <Shield className="h-4 w-4" />
-              <span>Ma trận Phân quyền (6 Vai trò)</span>
+            <TabsTrigger value="roles" className="min-h-9 min-w-0 justify-start gap-1.5 px-2.5 text-xs sm:justify-center sm:px-3 sm:text-sm">
+              <Shield className="h-4 w-4 shrink-0" />
+              <span className="truncate">Ma trận Phân quyền (6 Vai trò)</span>
             </TabsTrigger>
-            <TabsTrigger value="logs" className="min-h-9 gap-1.5 px-3 text-xs sm:text-sm">
-              <Activity className="h-4 w-4" />
-              <span>Theo dõi Hành vi &amp; Log ({totalFilteredLogs})</span>
+            <TabsTrigger value="logs" className="min-h-9 min-w-0 justify-start gap-1.5 px-2.5 text-xs sm:justify-center sm:px-3 sm:text-sm">
+              <Activity className="h-4 w-4 shrink-0" />
+              <span className="truncate">Theo dõi Hành vi &amp; Log ({totalFilteredLogs})</span>
             </TabsTrigger>
-            <TabsTrigger value="sessions" className="min-h-9 gap-1.5 px-3 text-xs sm:text-sm">
-              <Lock className="h-4 w-4" />
-              <span>Phiên &amp; Chính sách Bảo mật</span>
+            <TabsTrigger value="sessions" className="min-h-9 min-w-0 justify-start gap-1.5 px-2.5 text-xs sm:justify-center sm:px-3 sm:text-sm">
+              <Lock className="h-4 w-4 shrink-0" />
+              <span className="truncate">Phiên &amp; Chính sách Bảo mật</span>
             </TabsTrigger>
           </TabsList>
         </div>

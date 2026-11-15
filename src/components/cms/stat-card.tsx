@@ -17,17 +17,28 @@ interface StatCardProps {
 export function StatCard({ title, value, icon: Icon, trend, hint, iconClassName, loading }: StatCardProps) {
   const trendUp = trend?.value != null && trend.value > 0
   const trendDown = trend?.value != null && trend.value < 0
+  const isLongTextValue = value.length > 14 && !/^[\d\s.,+\-₫%đkKmMbBtrTr]+$/.test(value)
 
   return (
     <Card className="border-border/70 shadow-xs">
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between gap-2 sm:gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{title}</p>
+            <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm" title={title}>
+              {title}
+            </p>
             {loading ? (
               <div className="mt-1.5 h-7 w-20 animate-pulse rounded-md bg-muted sm:w-28" />
             ) : (
-              <p className="mt-0.5 truncate text-lg font-bold tracking-tight tabular-nums sm:mt-1 sm:text-2xl">
+              <p
+                className={cn(
+                  'mt-0.5 truncate font-bold tracking-tight sm:mt-1',
+                  isLongTextValue
+                    ? 'text-sm leading-snug sm:text-base'
+                    : 'text-lg tabular-nums sm:text-2xl'
+                )}
+                title={value || undefined}
+              >
                 {value}
               </p>
             )}

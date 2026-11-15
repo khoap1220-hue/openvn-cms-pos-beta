@@ -1601,7 +1601,7 @@ export function ProductsView({
       </PageHeader>
 
       {/* OPENVN Horizontal Quick-Filter Tabs (thuần bộ lọc vận hành Sản phẩm; phần Thiết lập đã đưa về Cấu hình Hệ thống) */}
-      <div className="mb-4 overflow-x-auto rounded-t-xl border border-b-0 bg-card px-2 pt-1.5 shadow-xs">
+      <div className="no-scrollbar mb-4 overflow-x-auto rounded-t-xl border border-b-0 bg-card px-2 pt-1.5 shadow-xs">
         <div className="flex min-w-max items-center gap-1 border-b border-border/60">
           {(
             [
@@ -2482,41 +2482,43 @@ export function ProductsView({
             aria-label="Tìm kiếm sản phẩm"
           />
         </div>
-        <Select
-          value={categoryFilter}
-          onValueChange={(v) => {
-            setCategoryFilter(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[180px]" aria-label="Lọc theo danh mục">
-            <SelectValue placeholder="Tất cả danh mục" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Tất cả danh mục</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[150px]" aria-label="Lọc theo trạng thái">
-            <SelectValue placeholder="Tất cả trạng thái" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
-            <SelectItem value="ACTIVE">Đang bán</SelectItem>
-            <SelectItem value="INACTIVE">Ngừng bán</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <Select
+            value={categoryFilter}
+            onValueChange={(v) => {
+              setCategoryFilter(v)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-[180px]" aria-label="Lọc theo danh mục">
+              <SelectValue placeholder="Tất cả danh mục" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Tất cả danh mục</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-[150px]" aria-label="Lọc theo trạng thái">
+              <SelectValue placeholder="Tất cả trạng thái" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+              <SelectItem value="ACTIVE">Đang bán</SelectItem>
+              <SelectItem value="INACTIVE">Ngừng bán</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Nội dung chính */}

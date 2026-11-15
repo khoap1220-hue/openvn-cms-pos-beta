@@ -100,7 +100,7 @@ export default function StandalonePosPage() {
             size="sm"
             variant="outline"
             onClick={() => void handleSwitchShift()}
-            className="h-9 border-white/20 bg-white/10 px-2.5 text-xs text-white hover:bg-white/20 hover:text-white sm:h-8 sm:px-3"
+            className="h-10 border-white/20 bg-white/10 px-2.5 text-xs text-white hover:bg-white/20 hover:text-white sm:h-9 sm:px-3"
             title="Đổi tài khoản / Chuyển ca thu ngân bằng PIN"
           >
             <LogOut className="mr-1 h-3.5 w-3.5 shrink-0" />
@@ -110,7 +110,7 @@ export default function StandalonePosPage() {
             asChild
             size="sm"
             variant="outline"
-            className="h-9 border-white/20 bg-white/10 px-2.5 text-xs text-white hover:bg-white/20 hover:text-white sm:h-8 sm:px-3"
+            className="h-10 border-white/20 bg-white/10 px-2.5 text-xs text-white hover:bg-white/20 hover:text-white sm:h-9 sm:px-3"
           >
             <Link href={fallbackCmsView === 'dashboard' ? '/' : `/?view=${fallbackCmsView}`}>
               <ArrowLeft className="mr-1 h-3.5 w-3.5 shrink-0" />

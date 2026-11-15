@@ -632,7 +632,7 @@ export function CampaignsView({ onNavigate }: CampaignsViewProps) {
       </PageHeader>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           title="Tổng chiến dịch"
           value={String(stats.total)}
@@ -682,7 +682,7 @@ export function CampaignsView({ onNavigate }: CampaignsViewProps) {
             </div>
 
             {/* Status Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <div className="no-scrollbar flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
               {[
                 { key: 'ALL', label: 'Tất cả' },
                 { key: 'RUNNING', label: 'Đang chạy' },
@@ -727,7 +727,7 @@ export function CampaignsView({ onNavigate }: CampaignsViewProps) {
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
-          <Table className="min-w-[850px]">
+          <Table tableId="campaigns-main">
             <TableHeader className="bg-muted/50">
               <TableRow>
                 <TableHead className="w-[180px]">Mã & Tên chương trình</TableHead>

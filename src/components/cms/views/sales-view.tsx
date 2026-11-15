@@ -518,7 +518,7 @@ export function SalesView() {
         </Button>
       </PageHeader>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard
           title="Tổng thu"
           value={loading ? '' : formatCompactVND(totalRevenue)}
@@ -614,11 +614,11 @@ export function SalesView() {
               />
             </div>
           ) : (
-            <div className="max-h-96 overflow-auto">
-              <Table>
-                <TableHeader className="sticky top-0 bg-background">
+            <div className="max-h-[560px] overflow-auto">
+              <Table tableId="sales-invoices-main">
+                <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>
-                    <TableHead>Mã HĐ</TableHead>
+                    <TableHead locked>Mã HĐ</TableHead>
                     <TableHead>Ngày</TableHead>
                     <TableHead>Khách hàng</TableHead>
                     <TableHead>Đơn nguồn</TableHead>
@@ -627,8 +627,8 @@ export function SalesView() {
                     <TableHead className="text-right">Tổng cộng</TableHead>
                     <TableHead>Trạng thái</TableHead>
                     <TableHead>Ký số</TableHead>
-                    <TableHead className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
-                    <TableHead className="text-right">Thao tác</TableHead>
+                    <TableHead defaultHidden className="hidden md:table-cell">Nguồn gốc &amp; Lịch sử</TableHead>
+                    <TableHead locked className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -639,7 +639,17 @@ export function SalesView() {
 
                     return (
                       <TableRow key={inv.id} className={isCancelled ? 'opacity-60' : undefined}>
-                        <TableCell className="whitespace-nowrap font-mono text-xs font-medium">{inv.code}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="font-mono text-xs font-semibold">{inv.code}</span>
+                            <DataLineageBadge
+                              originSource={inv.originSource}
+                              changeCount={inv.changeCount}
+                              onInspect={() => openLineage(inv)}
+                              compact
+                            />
+                          </div>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">{formatDate(inv.invoiceDate)}</TableCell>
                         <TableCell>
                           <p className="max-w-[160px] truncate font-medium">{inv.partner?.name ?? 'Khách lẻ'}</p>
@@ -733,6 +743,7 @@ export function SalesView() {
                               className="h-8 w-8"
                               onClick={() => setDetail(inv)}
                               title="Xem chi tiết"
+                              aria-label={`Xem chi tiết hóa đơn ${inv.code}`}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
