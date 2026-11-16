@@ -6,6 +6,14 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, LogOut, ShieldAlert, ShoppingBag, UserCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { ThemeToggle } from '@/components/cms/theme-toggle'
 import { PosView } from '@/components/cms/views/pos-view'
 import { trackClientBehavior } from '@/lib/behavior-client'
@@ -27,6 +35,8 @@ interface PosStaffInfo {
 export default function StandalonePosPage() {
   const router = useRouter()
   const [staff, setStaff] = useState<PosStaffInfo | null>(null)
+  const [shiftDialogOpen, setShiftDialogOpen] = useState(false)
+  const [switchingShift, setSwitchingShift] = useState(false)
   const [permissions, setPermissions] = useState<PermissionMap>(() =>
     resolveEffectivePermissions('ADMIN')
   )
@@ -56,11 +66,14 @@ export default function StandalonePosPage() {
   }, [router])
 
   const handleSwitchShift = async () => {
+    setSwitchingShift(true)
     try {
       await fetch('/api/auth', { method: 'DELETE' })
     } catch {
       // ignore
     }
+    setShiftDialogOpen(false)
+    setSwitchingShift(false)
     router.push('/login?next=/pos')
   }
 
@@ -100,7 +113,12 @@ export default function StandalonePosPage() {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => void handleSwitchShift()}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('openvn:close-pos-dialogs'))
+              }
+              setShiftDialogOpen(true)
+            }}
             className="h-10 border-white/20 bg-white/10 px-2.5 text-xs text-white hover:bg-white/20 hover:text-white sm:h-9 sm:px-3"
             title="Đổi tài khoản / Chuyển ca thu ngân bằng PIN"
           >
@@ -124,7 +142,7 @@ export default function StandalonePosPage() {
       </header>
       <main className="mx-auto w-full max-w-[1920px] flex-1 p-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3 2xl:max-w-[2400px] 2xl:px-6">
         {allowedPos ? (
-          <PosView standalone />
+          <PosView standalone onAnyModalOpen={() => setShiftDialogOpen(false)} />
         ) : (
           <div className="mx-auto my-12 max-w-lg">
             <Card className="border-amber-200 shadow-sm dark:border-amber-900">
@@ -156,6 +174,35 @@ export default function StandalonePosPage() {
           </div>
         )}
       </main>
+
+      <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-[#0066CC]" />
+              Chuyển ca trực / Đổi tài khoản Thu ngân
+            </DialogTitle>
+            <DialogDescription>
+              Xác nhận kết thúc phiên trực của{' '}
+              <strong>{staff?.displayName ?? 'Ca trực hiện tại'}</strong> để đăng nhập bằng mã PIN / tài khoản nhân viên tiếp theo.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => setShiftDialogOpen(false)}>
+              Tiếp tục ca hiện tại
+            </Button>
+            <Button
+              type="button"
+              disabled={switchingShift}
+              onClick={() => void handleSwitchShift()}
+              className="bg-[#0066CC] text-white hover:bg-[#0055B3]"
+            >
+              <LogOut className="mr-1.5 h-4 w-4" />
+              {switchingShift ? 'Đang chuyển ca...' : 'Xác nhận Đổi ca'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

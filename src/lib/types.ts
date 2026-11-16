@@ -199,6 +199,8 @@ export interface Order {
   paymentStatus: string
   subtotal: number
   shippingFee: number
+  discountAmount?: number
+  voucherCode?: string | null
   total: number
   /** snapshot % phí sàn TMĐT lúc tạo đơn (từ kênh) */
   platformFeePct?: number

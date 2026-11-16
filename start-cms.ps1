@@ -9,6 +9,18 @@ Set-Location -Path $PSScriptRoot
 $CmsPort = if ($env:PORT) { [int]$env:PORT } else { 3010 }
 $RealtimePort = if ($env:REALTIME_PORT) { [int]$env:REALTIME_PORT } else { 3013 }
 $ShopeePort = if ($env:SHOPEE_SYNC_PORT) { [int]$env:SHOPEE_SYNC_PORT } else { 51898 }
+if (-not (Get-NetTCPConnection -LocalPort $ShopeePort -State Listen -ErrorAction SilentlyContinue)) {
+    try {
+        $testListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $ShopeePort)
+        $testListener.Start()
+        $testListener.Stop()
+    } catch {
+        Write-Host "[PORT GUARD] Cong $ShopeePort bi Windows Hyper-V/WinNAT khoa — Tu dong chuyen Shopee Sync sang cong 3018." -ForegroundColor Yellow
+        $ShopeePort = 3018
+    }
+}
+$env:SHOPEE_SYNC_PORT = "$ShopeePort"
+$env:BRIDGE_PORT = "$ShopeePort"
 $DbFilePath = (Join-Path $PSScriptRoot "db/custom.db") -replace '\\', '/'
 
 $env:HOSTNAME = "0.0.0.0"

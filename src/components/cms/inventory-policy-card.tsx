@@ -178,7 +178,7 @@ export function InventoryPolicyCard({
   const handleSave = async () => {
     setSaving(true)
     try {
-      const updatedRaw = await apiPatch<SettingsWithTransitionResponse>('/api/settings', {
+      const submittedPatch = {
         inventory_sync_mode: syncMode,
         inventory_virtual_stock_qty: String(parsedQty),
         inventory_virtual_min_threshold: String(parsedThreshold),
@@ -186,8 +186,18 @@ export function InventoryPolicyCard({
         inventory_allow_negative_stock: String(allowNegativeStock),
         inventory_negative_stock_scope: negativeStockScope,
         inventory_transition_strategy: modeChanging ? transitionStrategy : 'SEAMLESS_HOLD_CURRENT',
-      })
-      const nextPol = parseInventorySyncPolicy(updatedRaw)
+      }
+      const updatedRaw = await apiPatch<SettingsWithTransitionResponse>('/api/settings', submittedPatch)
+      const mergedRaw: Record<string, unknown> = {
+        ...submittedPatch,
+        ...((updatedRaw as { settings?: Record<string, unknown> })?.settings ?? {}),
+        ...(updatedRaw ?? {}),
+      }
+      if (mergedRaw.inventory_sync_mode === undefined) mergedRaw.inventory_sync_mode = syncMode
+      if (mergedRaw.inventory_allow_negative_stock === undefined) {
+        mergedRaw.inventory_allow_negative_stock = String(allowNegativeStock)
+      }
+      const nextPol = parseInventorySyncPolicy(mergedRaw)
       hydrateFromPolicy(nextPol)
       if (updatedRaw?.transitionImpact) {
         setImpact(updatedRaw.transitionImpact)
@@ -238,7 +248,7 @@ export function InventoryPolicyCard({
     setApplyingVirtual(true)
     try {
       if (isDirty) {
-        const updatedRaw = await apiPatch<SettingsWithTransitionResponse>('/api/settings', {
+        const submittedPatch = {
           inventory_sync_mode: syncMode,
           inventory_virtual_stock_qty: String(parsedQty),
           inventory_virtual_min_threshold: String(parsedThreshold),
@@ -246,8 +256,14 @@ export function InventoryPolicyCard({
           inventory_allow_negative_stock: String(allowNegativeStock),
           inventory_negative_stock_scope: negativeStockScope,
           inventory_transition_strategy: 'SEAMLESS_HOLD_CURRENT',
-        })
-        const nextPol = parseInventorySyncPolicy(updatedRaw)
+        }
+        const updatedRaw = await apiPatch<SettingsWithTransitionResponse>('/api/settings', submittedPatch)
+        const mergedRaw: Record<string, unknown> = {
+          ...submittedPatch,
+          ...((updatedRaw as { settings?: Record<string, unknown> })?.settings ?? {}),
+          ...(updatedRaw ?? {}),
+        }
+        const nextPol = parseInventorySyncPolicy(mergedRaw)
         hydrateFromPolicy(nextPol)
         if (updatedRaw?.transitionImpact) {
           setImpact(updatedRaw.transitionImpact)
@@ -365,10 +381,16 @@ export function InventoryPolicyCard({
       {expanded && (
         <CardContent className="space-y-4 pt-0">
           {/* Lựa chọn 1 vs 2: Quan hệ giữa Kho thật CMS và Tồn kho Sàn */}
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span>Nhóm A · Chế độ đồng bộ với Sàn TMĐT (Chọn 1 trong 2 chế độ)</span>
+              <span className="font-normal normal-case">Loại trừ lẫn nhau (#1 hoặc #2)</span>
+            </div>
+            <div role="radiogroup" aria-label="Chế độ đồng bộ tồn kho với Sàn TMĐT" className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {/* TÙY CHỌN 1 */}
             <div
-              role="button"
+              role="radio"
+              aria-checked={syncMode === 'SYNC_CMS_TO_MARKETPLACE'}
               tabIndex={0}
               onClick={() => handleSelectSyncMode('SYNC_CMS_TO_MARKETPLACE')}
               onKeyDown={(e) => {
@@ -403,7 +425,8 @@ export function InventoryPolicyCard({
 
             {/* TÙY CHỌN 2 */}
             <div
-              role="button"
+              role="radio"
+              aria-checked={syncMode === 'VIRTUAL_ALWAYS_IN_STOCK'}
               tabIndex={0}
               onClick={() => handleSelectSyncMode('VIRTUAL_ALWAYS_IN_STOCK')}
               onKeyDown={(e) => {
@@ -434,6 +457,7 @@ export function InventoryPolicyCard({
                 Sàn duy trì tồn kho ảo để luôn còn hàng bán (đặc biệt khi Livestream / Pre-order / Sản xuất theo đơn). Chặn 100% việc tồn ảo từ Sàn ghi đè vào Kho thật CMS và không đẩy tồn{' '}
                 <code className="rounded bg-muted px-1 py-0.5 text-[11px]">0</code> lên làm tắt hàng trên Sàn.
               </p>
+            </div>
             </div>
           </div>
 
@@ -524,6 +548,11 @@ export function InventoryPolicyCard({
           )}
 
           {/* TÙY CHỌN 3: Cho phép bán âm Kho thật CMS */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span>Nhóm B · Quy tắc tồn vật lý tại Kho thật CMS (Tùy chọn độc lập #3)</span>
+              <span className="font-normal normal-case">Kết hợp song song được với cả Chế độ 1 hoặc Chế độ 2</span>
+            </div>
           <div
             className={cn(
               'rounded-xl border p-3.5 transition-colors',
@@ -580,6 +609,7 @@ export function InventoryPolicyCard({
                 />
               </div>
             </div>
+          </div>
           </div>
 
           {/* CỔNG CHUYỂN ĐỔI CHẾ ĐỘ KHÔNG GIÁN ĐOẠN VẬN HÀNH (Hiển thị ngay khi chuẩn bị đổi chế độ) */}

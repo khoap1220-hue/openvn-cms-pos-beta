@@ -141,8 +141,22 @@ const VIEW_LABELS: Record<ViewId, string> = {
   system: 'Trung tâm Cấu hình Hệ thống',
 }
 
-function isViewId(value: string | null): value is ViewId {
-  return Boolean(value && value in VIEW_LABELS)
+const VIEW_ALIASES: Record<string, ViewId> = {
+  settings: 'system',
+  import: 'purchase',
+  export: 'stock-export',
+  'inventory-balance': 'stock-balance',
+  production: 'bom',
+  shipping: 'shipments',
+  chat: 'inbox',
+  social: 'auto-social',
+  cashbook: 'accounting',
+}
+
+function resolveViewParam(value: string | null): ViewId | null {
+  if (!value) return null
+  if (value in VIEW_LABELS) return value as ViewId
+  return VIEW_ALIASES[value] ?? null
 }
 
 function getAvatarInitials(name: string): string {
@@ -354,9 +368,13 @@ export default function Home() {
 
       if (isInitial && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search)
-        const requested = params.get('view')
-        if (isViewId(requested) && canAccessView(nextPerms, requested)) {
-          setActiveView(requested)
+        const rawRequested = params.get('view')
+        const resolved = resolveViewParam(rawRequested)
+        if (rawRequested === 'settings') {
+          setSystemSectionTab('INVENTORY_POLICY')
+        }
+        if (resolved && canAccessView(nextPerms, resolved)) {
+          setActiveView(resolved)
         } else {
           setActiveView((prev) =>
             canAccessView(nextPerms, prev)
@@ -373,9 +391,13 @@ export default function Home() {
   // Đồng bộ đồng bộ (trước khi trình duyệt vẽ frame đầu) tham số ?view= từ URL để triệt tiêu nháy Dashboard (FOD)
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
-    const requested = new URLSearchParams(window.location.search).get('view')
-    if (isViewId(requested)) {
-      setActiveView(requested)
+    const rawRequested = new URLSearchParams(window.location.search).get('view')
+    const resolved = resolveViewParam(rawRequested)
+    if (rawRequested === 'settings') {
+      setSystemSectionTab('INVENTORY_POLICY')
+    }
+    if (resolved) {
+      setActiveView(resolved)
     }
   }, [])
 
@@ -384,8 +406,11 @@ export default function Home() {
     if (typeof window === 'undefined') return () => clearTimeout(t)
 
     const handlePopState = () => {
-      const requested = new URLSearchParams(window.location.search).get('view')
-      const nextView: ViewId = isViewId(requested) ? requested : 'dashboard'
+      const rawRequested = new URLSearchParams(window.location.search).get('view')
+      if (rawRequested === 'settings') {
+        setSystemSectionTab('INVENTORY_POLICY')
+      }
+      const nextView: ViewId = resolveViewParam(rawRequested) ?? 'dashboard'
       popstateNavRef.current = true
       setActiveView(nextView)
     }

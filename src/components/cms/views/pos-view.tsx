@@ -186,7 +186,13 @@ function createEmptyTab(index: number): PosOrderTab {
 
 const TIER_MAP = Object.fromEntries(MEMBER_TIERS.map((t) => [t.key, t]))
 
-export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
+export function PosView({
+  standalone = false,
+  onAnyModalOpen,
+}: {
+  standalone?: boolean
+  onAnyModalOpen?: () => void
+} = {}) {
   const { toast } = useToast()
 
   // ===== Dữ liệu kho hàng, danh mục, kênh bán & khách hàng =====
@@ -217,6 +223,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   // ===== Bộ lọc tìm kiếm hàng hóa tại kho =====
   const [searchQuery, setSearchQuery] = useState('')
   const [barcodeInput, setBarcodeInput] = useState('')
+  const [barcodeHint, setBarcodeHint] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('ALL')
   const [stockFilter, setStockFilter] = useState<'ALL' | 'IN_STOCK' | 'COMBO' | 'LOW_STOCK'>('IN_STOCK')
   const [layoutMode, setLayoutMode] = useState<'grid' | 'table'>('grid')
@@ -238,10 +245,42 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const [inventoryPolicy, setInventoryPolicy] = useState<InventorySyncPolicy>(DEFAULT_INVENTORY_SYNC_POLICY)
   const allowPosNegative = useMemo(() => canChannelSellNegative(inventoryPolicy, 'POS'), [inventoryPolicy])
 
+  // ===== Quản lý tập trung Modal Quầy POS (Loại trừ lẫn nhau — tối đa 1 hộp thoại mở tại một thời điểm) =====
+  const [activePosModal, setActivePosModal] = useState<
+    'none' | 'peripherals' | 'history' | 'camera' | 'newCustomer' | 'receipt'
+  >('none')
+  const newCustomerOpen = activePosModal === 'newCustomer'
+  const historyOpen = activePosModal === 'history'
+  const cameraOpen = activePosModal === 'camera'
+  const peripheralsOpen = activePosModal === 'peripherals'
+
+  const setNewCustomerOpen = useCallback((open: boolean) => {
+    if (open) onAnyModalOpen?.()
+    setActivePosModal((prev) => (open ? 'newCustomer' : prev === 'newCustomer' ? 'none' : prev))
+  }, [onAnyModalOpen])
+  const setHistoryOpen = useCallback((open: boolean) => {
+    if (open) onAnyModalOpen?.()
+    setActivePosModal((prev) => (open ? 'history' : prev === 'history' ? 'none' : prev))
+  }, [onAnyModalOpen])
+  const setCameraOpen = useCallback((open: boolean) => {
+    if (open) onAnyModalOpen?.()
+    setActivePosModal((prev) => (open ? 'camera' : prev === 'camera' ? 'none' : prev))
+  }, [onAnyModalOpen])
+  const setPeripheralsOpen = useCallback((open: boolean) => {
+    if (open) onAnyModalOpen?.()
+    setActivePosModal((prev) => (open ? 'peripherals' : prev === 'peripherals' ? 'none' : prev))
+  }, [onAnyModalOpen])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleCloseAll = () => setActivePosModal('none')
+    window.addEventListener('openvn:close-pos-dialogs', handleCloseAll)
+    return () => window.removeEventListener('openvn:close-pos-dialogs', handleCloseAll)
+  }, [])
+
   // ===== Tìm & tạo nhanh khách hàng tại quầy =====
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false)
-  const [newCustomerOpen, setNewCustomerOpen] = useState(false)
   const [newCustomerForm, setNewCustomerForm] = useState({
     name: '',
     phone: '',
@@ -251,11 +290,16 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const [creatingCustomer, setCreatingCustomer] = useState(false)
 
   // ===== Dialog In phiếu xuất kho / Hóa đơn K80 & Lịch sử đơn ca trực =====
-  const [receiptModal, setReceiptModal] = useState<CompletedPosReceipt | null>(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
+  const [receiptModal, setReceiptModalState] = useState<CompletedPosReceipt | null>(null)
+  const receiptDialogOpen = activePosModal === 'receipt' && receiptModal !== null
+  const setReceiptModal = useCallback((next: CompletedPosReceipt | null, openDialog = true) => {
+    setReceiptModalState(next)
+    setActivePosModal((prev) =>
+      next && openDialog ? 'receipt' : !next && prev === 'receipt' ? 'none' : prev
+    )
+  }, [])
 
   // ===== Tối ưu trải nghiệm Mobile POS: Quét Camera & Thu gọn Ưu đãi =====
-  const [cameraOpen, setCameraOpen] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [cameraFilter, setCameraFilter] = useState('')
   const [showPromoMobile, setShowPromoMobile] = useState(false)
@@ -264,7 +308,6 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const lastScannedRef = useRef<{ code: string; time: number }>({ code: '', time: 0 })
 
   // ===== Trung tâm Thiết bị ngoại vi, Điện thoại quét mã & Tự động in POS / Shopee =====
-  const [peripheralsOpen, setPeripheralsOpen] = useState(false)
   const [peripheralsTab, setPeripheralsTab] = useState<'phone' | 'printer' | 'shopee'>('phone')
   const [windowsPrinters, setWindowsPrinters] = useState<WindowsPrinterClientItem[]>([])
   const [printerConfig, setPrinterConfig] = useState<PeripheralPrinterConfig>(() => loadPrinterConfig())
@@ -511,7 +554,16 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
   const handleBarcodeSubmit = useCallback(
     (rawCode: string) => {
       const code = rawCode.trim()
-      if (!code) return
+      if (!code) {
+        setBarcodeHint('Vui lòng quét tem mã vạch hoặc nhập mã SKU sản phẩm cần thêm vào giỏ.')
+        barcodeInputRef.current?.focus()
+        toast({
+          title: 'Chưa nhập mã vạch hoặc mã SKU',
+          description: 'Quét tem mã vạch (F2) hoặc gõ mã SKU sản phẩm trước khi bấm Thêm.',
+        })
+        return
+      }
+      setBarcodeHint(null)
       const exactMatch =
         products.find(
           (p) =>
@@ -935,7 +987,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       const printRes = await printReceipt(receiptPayload, {
         config: printerConfig,
         onWindowPrint: () => {
-          setReceiptModal(rec)
+          setReceiptModal(rec, Boolean(opts?.openModal !== false && !peripheralsOpen))
           if (opts?.manualTrigger || !isHeadlessQaCrawler()) {
             setTimeout(() => {
               window.print()
@@ -945,7 +997,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       })
 
       if (opts?.openModal !== false && !peripheralsOpen) {
-        setReceiptModal(rec)
+        setReceiptModal(rec, true)
       }
 
       if (!printRes.success && printRes.error) {
@@ -957,7 +1009,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       }
       return formatPrintMethodLabel(printRes.method, printRes.printerName)
     },
-    [formatPrintMethodLabel, peripheralsOpen, printerConfig, toast]
+    [formatPrintMethodLabel, peripheralsOpen, printerConfig, setReceiptModal, toast]
   )
 
   // ===== Xuất in tự động / thủ công Vận đơn Sàn Shopee (Tem A6 105×148mm hoặc Nhiệt K80) =====
@@ -1242,19 +1294,23 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           },
           warehouseId: selectedWarehouse?.id,
           voucherCode: activeTab.voucherCode || undefined,
-          items: activeTab.items.map((it, idx) => ({
-            id: `pos-item-${Date.now()}-${idx}`,
-            productId: it.productId,
-            quantity: it.quantity,
-            price: it.price,
-            unitMultiplier: it.unitMultiplier,
-            unitLabel: it.unitLabel,
-            product: {
-              id: it.productId,
-              sku: it.sku,
-              name: it.name,
-            },
-          })),
+          items: activeTab.items.map((it, idx) => {
+            const fullProd = products.find((p) => p.id === it.productId)
+            return {
+              id: `pos-item-${Date.now()}-${idx}`,
+              productId: it.productId,
+              quantity: it.quantity,
+              price: it.price,
+              unitMultiplier: it.unitMultiplier,
+              unitLabel: it.unitLabel,
+              product: {
+                id: it.productId,
+                sku: it.sku,
+                name: it.name,
+                costPrice: fullProd?.costPrice ?? 0,
+              },
+            }
+          }),
           customerId: activeTab.customer?.id,
           customerName: fallbackCustomerName,
           customerPhone: activeTab.customer?.phone || undefined,
@@ -1273,6 +1329,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           subtotal,
           shippingFee,
           discountAmount: manualDiscount,
+          totalDiscountAmount: totalDiscount,
           total: grandTotal,
           redeemPoints,
           instantComplete: isPickup,
@@ -1344,6 +1401,14 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
           try {
             const invRes = await apiPost<{ invoice: { code: string } }>('/api/sales-invoices', {
               orderId: normalizedOrder.id,
+              invoiceDate: normalizedOrder.createdAt || new Date().toISOString(),
+              subtotal: normalizedOrder.total,
+              vatRate: 0,
+              vatAmount: 0,
+              total: normalizedOrder.total,
+              status: 'POSTED',
+              order: { code: normalizedOrder.code },
+              partner: { name: fallbackCustomerName, taxCode: null },
               note: `Xuất hóa đơn tự động từ quầy POS tại kho (${normalizedOrder.code})`,
             })
             issuedInvoiceCode = invRes.invoice?.code || null
@@ -1434,6 +1499,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
     },
     [
       posChannel,
+      products,
       selectedWarehouse,
       activeTab,
       manualDiscount,
@@ -2050,7 +2116,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
               <div
                 key={tab.id}
                 className={cn(
-                  'group flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
+                  'group flex min-h-10 shrink-0 items-center gap-1 rounded-lg pl-3 pr-1.5 py-1 text-xs font-medium transition-all',
                   isCurrent
                     ? 'bg-[#0066CC] font-semibold text-white shadow-xs'
                     : 'bg-white/10 text-slate-200 hover:bg-white/15'
@@ -2058,8 +2124,12 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
               >
                 <button
                   type="button"
-                  onClick={() => setActiveTabId(tab.id)}
-                  className="flex items-center gap-1.5"
+                  aria-current={isCurrent ? 'true' : undefined}
+                  onClick={() => {
+                    setActiveTabId(tab.id)
+                    if (isCurrent) barcodeInputRef.current?.focus()
+                  }}
+                  className="flex min-h-8 items-center gap-1.5 py-0.5"
                 >
                   <ShoppingBag className="h-3.5 w-3.5" />
                   <span>{tab.label}</span>
@@ -2080,9 +2150,9 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   onClick={() => closeOrderTab(tab.id)}
                   title="Đóng hoặc làm mới đơn này"
                   aria-label={`Đóng ${tab.label}`}
-                  className="ml-0.5 rounded p-0.5 opacity-75 hover:bg-black/20 hover:opacity-100"
+                  className="ml-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md opacity-80 hover:bg-black/20 hover:opacity-100"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             )
@@ -2204,10 +2274,17 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                     <Input
                       ref={barcodeInputRef}
                       value={barcodeInput}
-                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      onChange={(e) => {
+                        setBarcodeInput(e.target.value)
+                        if (barcodeHint) setBarcodeHint(null)
+                      }}
                       placeholder="Quét mã / SKU..."
                       aria-label="Quét mã vạch hoặc nhập SKU"
-                      className="h-10 border-[#0066CC]/40 bg-sky-50/40 pl-9 pr-18 text-base font-medium focus-visible:ring-[#0066CC] sm:text-xs lg:pr-26 dark:bg-sky-950/20"
+                      aria-invalid={barcodeHint ? true : undefined}
+                      className={cn(
+                        'h-10 border-[#0066CC]/40 bg-sky-50/40 pl-9 pr-18 text-base font-medium focus-visible:ring-[#0066CC] sm:text-xs lg:pr-26 dark:bg-sky-950/20',
+                        barcodeHint && 'border-amber-500 ring-1 ring-amber-500/40'
+                      )}
                     />
                     <kbd className="pointer-events-none absolute right-17 top-1/2 hidden -translate-y-1/2 rounded border border-sky-300/70 bg-background/85 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0066CC] lg:inline-block dark:border-sky-800 dark:text-sky-300">
                       F2
@@ -2291,6 +2368,14 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
                   </div>
                 </div>
               </div>
+              {barcodeHint && (
+                <p
+                  role="status"
+                  className="rounded-lg border border-amber-300/80 bg-amber-50/80 px-3 py-1.5 text-xs font-medium text-amber-800 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-300"
+                >
+                  {barcodeHint}
+                </p>
+              )}
 
               {/* Hàng 2: Khu vực Bộ lọc Phân loại Tồn & Danh mục Sản phẩm nổi bật, tách nhãn rõ ràng */}
               <div
@@ -3921,7 +4006,7 @@ export function PosView({ standalone = false }: { standalone?: boolean } = {}) {
       </Dialog>
 
       {/* ===== DIALOG PHIẾU XUẤT KHO KIÊM HÓA ĐƠN BÁN LẺ K80 CHUẨN OPENVN POS ===== */}
-      <Dialog open={receiptModal !== null} onOpenChange={(o) => !o && setReceiptModal(null)}>
+      <Dialog open={receiptDialogOpen} onOpenChange={(o) => !o && setReceiptModal(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

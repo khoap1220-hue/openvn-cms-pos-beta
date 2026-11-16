@@ -45,7 +45,8 @@ except ImportError:
 
 CMS_WEBHOOK_URL = os.environ.get("CMS_WEBHOOK_URL", "http://127.0.0.1:3010/api/webhooks/inbound")
 CMS_API_KEY = os.environ.get("CMS_API_KEY", "191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955")
-BRIDGE_PORT = int(os.environ.get("BRIDGE_PORT", 51898))
+BRIDGE_PORT = int(os.environ.get("SHOPEE_SYNC_PORT") or os.environ.get("BRIDGE_PORT") or 51898)
+FALLBACK_BRIDGE_PORT = 3018
 MAX_RETRY_ATTEMPTS = 5
 
 def is_outbox_dry_run():
@@ -2160,12 +2161,19 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
 PIPELINE_LOCK = threading.Lock()
 
 def start_http_bridge():
-    try:
-        server = ThreadingHTTPServer(('127.0.0.1', BRIDGE_PORT), LocalBridgeHandler)
-        print(f"[BRIDGE SERVER] Đang lắng nghe tại http://127.0.0.1:{BRIDGE_PORT}/shopee/queue & /shopee/session")
-        server.serve_forever()
-    except Exception as e:
-        print(f"[BRIDGE SERVER INFO] Port {BRIDGE_PORT} đang được tiến trình khác sử dụng ({e})")
+    global BRIDGE_PORT
+    for cand_port in ([BRIDGE_PORT, FALLBACK_BRIDGE_PORT] if BRIDGE_PORT != FALLBACK_BRIDGE_PORT else [BRIDGE_PORT]):
+        try:
+            server = ThreadingHTTPServer(('127.0.0.1', cand_port), LocalBridgeHandler)
+            BRIDGE_PORT = cand_port
+            print(f"[BRIDGE SERVER] Đang lắng nghe tại http://127.0.0.1:{cand_port}/shopee/queue & /shopee/session")
+            server.serve_forever()
+            return
+        except PermissionError as pe:
+            print(f"[BRIDGE SERVER WARN] Port {cand_port} bị Windows Hyper-V/WinNAT khóa ({pe}) — tự động chuyển sang cổng dự phòng {FALLBACK_BRIDGE_PORT}")
+        except Exception as e:
+            print(f"[BRIDGE SERVER INFO] Port {cand_port} đang được tiến trình khác sử dụng ({e})")
+            return
 
 def run_async_cycle_once(force_products=False):
     with GLOBAL_STATE["lock"]:

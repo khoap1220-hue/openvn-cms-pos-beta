@@ -86,17 +86,26 @@ async function main() {
     allGreen = false
   }
 
-  // 3. Kiểm tra Shopee Seller Sync Daemon (:51898/shopee/status)
-  let sp = await probeJson(`${SHOPEE_DAEMON_URL}/shopee/status`, 12000)
-  if (!sp.ok) sp = await probeJson(`${SHOPEE_DAEMON_URL}/shopee/status`, 12000)
+  // 3. Kiểm tra Shopee Seller Sync Daemon (:51898 hoặc cổng dự phòng :3018 khi Windows Hyper-V khóa dải 51xxx)
+  let activeShopeeUrl = SHOPEE_DAEMON_URL
+  let sp = await probeJson(`${activeShopeeUrl}/shopee/status`, 8000)
+  if (!sp.ok && !process.env.SHOPEE_DAEMON_URL && !process.env.SHOPEE_SYNC_PORT) {
+    const fbUrl = 'http://127.0.0.1:3018'
+    const spFb = await probeJson(`${fbUrl}/shopee/status`, 8000)
+    if (spFb.ok) {
+      sp = spFb
+      activeShopeeUrl = fbUrl
+    }
+  }
+  if (!sp.ok) sp = await probeJson(`${activeShopeeUrl}/shopee/status`, 8000)
   if (sp.ok && (sp.body?.ok || sp.body?.status === 'ok' || sp.body?.shopUsername || sp.body?.username || sp.body?.shopId)) {
     const tracked = sp.body.trackedProducts ?? sp.body.asyncQueue?.trackedProducts ?? 0
     const dlq = sp.body.dlqCount ?? sp.body.asyncQueue?.dlqCount ?? 0
     console.log(
-      `✅ [3/4] Shopee Sync Daemon  : OK (${SHOPEE_DAEMON_URL}/shopee/status · ${sp.latencyMs}ms · shop=${sp.body.shopUsername || sp.body.username || 'thaimy1605'} [${sp.body.shopId || '197195817'}] · tracked=${tracked} · dlq=${dlq})`,
+      `✅ [3/4] Shopee Sync Daemon  : OK (${activeShopeeUrl}/shopee/status · ${sp.latencyMs}ms · shop=${sp.body.shopUsername || sp.body.username || 'thaimy1605'} [${sp.body.shopId || '197195817'}] · tracked=${tracked} · dlq=${dlq})`,
     )
   } else {
-    console.error(`❌ [3/4] Shopee Sync Daemon  : OFFLINE (${SHOPEE_DAEMON_URL}/shopee/status · ${sp.error || `HTTP ${sp.status}`})`)
+    console.error(`❌ [3/4] Shopee Sync Daemon  : OFFLINE (${activeShopeeUrl}/shopee/status · ${sp.error || `HTTP ${sp.status}`})`)
     allGreen = false
   }
 

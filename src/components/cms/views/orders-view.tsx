@@ -426,12 +426,32 @@ export function OrdersView() {
           remaining: number
         }
       }>(`/api/orders?${params.toString()}`)
-      const cleanOrders = (data.orders ?? []).filter(
+      const rawOrders = (data.orders ?? []).filter(
         (o) => Boolean(o.code) || Number.isFinite(Number(o.total))
       )
+      // Lọc dự phòng phía client khi chạy từ snapshot tĩnh + overlay trên CDN (đảm bảo tab Trạng thái / Kênh / Tìm kiếm luôn khớp)
+      const qLower = search.trim().toLowerCase()
+      const cleanOrders = rawOrders.filter((o) => {
+        if (statusFilter !== 'ALL' && o.status !== statusFilter) return false
+        if (channelFilter !== 'ALL' && o.channel?.id !== channelFilter && (o as { channelId?: string }).channelId !== channelFilter) {
+          return false
+        }
+        if (qLower) {
+          const codeMatch = (o.code ?? '').toLowerCase().includes(qLower)
+          const nameMatch = (o.customer?.name ?? '').toLowerCase().includes(qLower)
+          const phoneMatch = (o.customer?.phone ?? '').toLowerCase().includes(qLower)
+          if (!codeMatch && !nameMatch && !phoneMatch) return false
+        }
+        return true
+      })
+      const minTotalFromPage = cleanOrders.length > 0 ? (page - 1) * PAGE_SIZE + cleanOrders.length : 0
+      const resolvedTotal =
+        rawOrders.length !== cleanOrders.length
+          ? cleanOrders.length
+          : Math.max(Number(data.total) || 0, minTotalFromPage)
       setOrders(cleanOrders)
-      setTotal(data.total)
-      setTotalPages(Math.max(1, data.totalPages))
+      setTotal(resolvedTotal)
+      setTotalPages(Math.max(1, Number(data.totalPages) || 1, Math.ceil(resolvedTotal / PAGE_SIZE)))
       setPeriodStats(data.period ?? null)
       setError(null)
     } catch (err) {
@@ -901,8 +921,12 @@ export function OrdersView() {
   }
 
   // ===== Phân trang hiển thị =====
-  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
-  const to = Math.min(page * PAGE_SIZE, total)
+  const effectiveTotal = Math.max(total, orders.length > 0 ? (page - 1) * PAGE_SIZE + orders.length : 0)
+  const from = effectiveTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const to =
+    orders.length > 0
+      ? Math.min((page - 1) * PAGE_SIZE + orders.length, effectiveTotal)
+      : Math.min(page * PAGE_SIZE, effectiveTotal)
   const hasFilter =
     search !== '' ||
     statusFilter !== 'ALL' ||
@@ -917,10 +941,17 @@ export function OrdersView() {
   const packingDoneLines = packingItems.filter((it) => (scannedCounts[it.productId] ?? 0) >= it.quantity).length
   const packingAllDone = packingItems.length > 0 && packingDoneLines === packingItems.length
 
-  // Đối soát đơn: phí sàn snapshot lúc tạo + giá vốn từ snapshot costPrice từng dòng (thiếu costPrice tính 0)
+  // Đối soát đơn: trừ đúng chiết khấu / voucher + phí sàn snapshot + giá vốn từng dòng → lợi nhuận thực nhận
   const platformFee = detail?.platformFee ?? 0
+  const orderDiscount = detail
+    ? Math.max(
+        0,
+        Number(detail.discountAmount) ||
+          Math.max(0, (Number(detail.subtotal) || 0) + (Number(detail.shippingFee) || 0) - (Number(detail.total) || 0))
+      )
+    : 0
   const costTotal = detail ? detail.items.reduce((sum, it) => sum + it.quantity * (it.product?.costPrice ?? 0), 0) : 0
-  const netProfit = detail ? detail.subtotal - platformFee - costTotal : 0
+  const netProfit = detail ? detail.subtotal - orderDiscount - platformFee - costTotal : 0
 
   return (
     <div>
@@ -1258,7 +1289,7 @@ export function OrdersView() {
           {/* Phân trang server-side */}
           <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
             <p className="text-sm text-muted-foreground">
-              Hiển thị {formatNumber(from)}–{formatNumber(to)} trong {formatNumber(total)} đơn
+              Hiển thị {formatNumber(from)}–{formatNumber(to)} trong {formatNumber(effectiveTotal)} đơn
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -1431,6 +1462,14 @@ export function OrdersView() {
                         <span className="text-muted-foreground">Tạm tính</span>
                         <span>{formatVND(detail.subtotal)}</span>
                       </div>
+                      {orderDiscount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Giảm giá / Voucher</span>
+                          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                            -{formatVND(orderDiscount)}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Phí vận chuyển</span>
                         <span>{formatVND(detail.shippingFee)}</span>
@@ -1442,7 +1481,7 @@ export function OrdersView() {
                       </div>
                     </div>
 
-                    {/* Đối soát — tóm tắt tài chính: phí sàn snapshot + giá vốn → lợi nhuận thực nhận */}
+                    {/* Đối soát — tóm tắt tài chính: trừ chiết khấu + phí sàn snapshot + giá vốn → lợi nhuận thực nhận */}
                     <div className="space-y-1.5 border-t pt-3 text-sm sm:border-t-0 sm:border-l sm:pl-3 sm:pt-0 lg:border-l-0 lg:border-t lg:pl-0 lg:pt-3">
                       <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         <Calculator className="h-3.5 w-3.5" />
@@ -1452,6 +1491,14 @@ export function OrdersView() {
                         <span className="text-muted-foreground">Tạm thu (hàng)</span>
                         <span>{formatVND(detail.subtotal)}</span>
                       </div>
+                      {orderDiscount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Chiết khấu / Voucher</span>
+                          <span className="text-rose-600 dark:text-rose-400">
+                            -{formatVND(orderDiscount)}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Phí ship</span>
                         <span>{formatVND(detail.shippingFee)}</span>

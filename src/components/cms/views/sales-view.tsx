@@ -334,9 +334,16 @@ export function SalesView() {
     return { subtotal, vat, total: subtotal + vat }
   }, [rows, vatRate])
 
-  const posted = (invoices ?? []).filter((inv) => inv.status === 'POSTED')
-  const totalRevenue = posted.reduce((sum, inv) => sum + inv.total, 0)
-  const totalVatOutput = posted.reduce((sum, inv) => sum + inv.vatAmount, 0)
+  const safeInvoices = useMemo(
+    () =>
+      (Array.isArray(invoices) ? invoices : []).filter((inv) =>
+        Boolean(inv && (inv.id || inv.code))
+      ),
+    [invoices]
+  )
+  const posted = safeInvoices.filter((inv) => (inv.status ?? 'POSTED') === 'POSTED')
+  const totalRevenue = posted.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0)
+  const totalVatOutput = posted.reduce((sum, inv) => sum + (Number(inv.vatAmount) || 0), 0)
 
   const handleCreate = async () => {
     const common = {
@@ -529,7 +536,7 @@ export function SalesView() {
         />
         <StatCard
           title="Số hóa đơn"
-          value={loading ? '' : formatNumber(invoices?.length ?? 0)}
+          value={loading ? '' : formatNumber(safeInvoices.length)}
           icon={Receipt}
           loading={loading}
           hint={`${posted.length} đã ghi sổ`}
@@ -599,7 +606,7 @@ export function SalesView() {
             <div className="p-4">
               <ErrorState message={error} onRetry={() => void load()} />
             </div>
-          ) : !invoices || invoices.length === 0 ? (
+          ) : safeInvoices.length === 0 ? (
             <div className="p-4">
               <EmptyState
                 icon={Receipt}
@@ -632,16 +639,18 @@ export function SalesView() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((inv) => {
+                  {safeInvoices.map((inv) => {
                     const signed = isInvoiceSigned(inv)
                     const lookup = getInvoiceLookupCode(inv)
-                    const isCancelled = inv.status === 'CANCELLED'
+                    const effStatus = inv.status ?? 'POSTED'
+                    const isCancelled = effStatus === 'CANCELLED'
+                    const effDate = inv.invoiceDate || (inv as { createdAt?: string }).createdAt
 
                     return (
                       <TableRow key={inv.id} className={isCancelled ? 'opacity-60' : undefined}>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col items-start gap-1">
-                            <span className="font-mono text-xs font-semibold">{inv.code}</span>
+                            <span className="font-mono text-xs font-semibold">{inv.code || 'HDB-MOI'}</span>
                             <DataLineageBadge
                               originSource={inv.originSource}
                               changeCount={inv.changeCount}
@@ -650,9 +659,9 @@ export function SalesView() {
                             />
                           </div>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">{formatDate(inv.invoiceDate)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-sm">{formatDate(effDate)}</TableCell>
                         <TableCell>
-                          <p className="max-w-[160px] truncate font-medium">{inv.partner?.name ?? 'Khách lẻ'}</p>
+                          <p className="max-w-[160px] xl:max-w-[260px] 2xl:max-w-[420px] truncate font-medium">{inv.partner?.name ?? 'Khách lẻ'}</p>
                           {inv.partner?.taxCode && (
                             <p className="font-mono text-xs text-muted-foreground">{inv.partner.taxCode}</p>
                           )}
@@ -662,13 +671,13 @@ export function SalesView() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(inv.subtotal)}</TableCell>
                         <TableCell className="whitespace-nowrap text-right tabular-nums text-sky-700 dark:text-sky-400">
-                          {inv.vatRate}% · {formatVND(inv.vatAmount)}
+                          {inv.vatRate ?? 0}% · {formatVND(inv.vatAmount)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">
                           {formatVND(inv.total)}
                         </TableCell>
                         <TableCell>
-                          {inv.status === 'POSTED' ? (
+                          {effStatus === 'POSTED' ? (
                             <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
                               Đã ghi sổ
                             </Badge>
@@ -788,7 +797,7 @@ export function SalesView() {
                   )}
                 </DialogTitle>
                 <DialogDescription>
-                  {formatDate(detail.invoiceDate)} — {detail.partner?.name ?? 'Khách lẻ'}
+                  {formatDate(detail.invoiceDate || (detail as { createdAt?: string }).createdAt)} — {detail.partner?.name ?? 'Khách lẻ'}
                   {detail.order ? ` · từ đơn ${detail.order.code}` : ' · tạo thủ công'}
                 </DialogDescription>
               </DialogHeader>
@@ -831,16 +840,16 @@ export function SalesView() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {detail.items.map((item, i) => (
+                    {(Array.isArray(detail.items) ? detail.items : []).map((item, i) => (
                       <TableRow key={`${detail.id}-${i}`}>
-                        <TableCell className="whitespace-nowrap font-mono text-xs">{item.product.sku}</TableCell>
+                        <TableCell className="whitespace-nowrap font-mono text-xs">{item.product?.sku ?? 'SKU'}</TableCell>
                         <TableCell>
-                          <p className="max-w-[220px] truncate font-medium">{item.product.name}</p>
-                          <p className="text-xs text-muted-foreground">{item.product.unit}</p>
+                          <p className="max-w-[220px] xl:max-w-[380px] truncate font-medium">{item.product?.name ?? 'Sản phẩm'}</p>
+                          <p className="text-xs text-muted-foreground">{item.product?.unit ?? ''}</p>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right tabular-nums">{formatNumber(item.quantity)}</TableCell>
                         <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(item.unitPrice)}</TableCell>
-                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(item.amount)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right tabular-nums">{formatVND(item.amount ?? (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

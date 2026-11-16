@@ -276,7 +276,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
               key={chip.label}
               type="button"
               onClick={() => onNavigate?.(chip.view)}
-              className="inline-flex min-h-8 items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[#0066CC]/50 hover:bg-[#0066CC]/10 hover:text-[#0066CC] dark:hover:text-sky-300"
+              className="inline-flex min-h-11 items-center rounded-full border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:border-[#0066CC]/50 hover:bg-[#0066CC]/10 hover:text-[#0066CC] dark:hover:text-sky-300"
             >
               {chip.label}
             </button>
@@ -287,7 +287,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 px-3 text-xs font-semibold"
+            className="h-11 px-3.5 text-xs font-semibold"
             onClick={() => onNavigate?.('pos')}
           >
             <Store className="mr-1.5 h-3.5 w-3.5 text-[#0066CC]" />
@@ -297,7 +297,7 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 px-3 text-xs font-semibold"
+            className="h-11 px-3.5 text-xs font-semibold"
             onClick={() => onNavigate?.('orders')}
           >
             <ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />

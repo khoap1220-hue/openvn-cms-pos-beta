@@ -18,13 +18,21 @@ export function formatNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat('vi-VN').format(safe)
 }
 
-export function formatDate(iso: string | Date): string {
-  const d = typeof iso === 'string' ? new Date(iso) : iso
+function toValidDate(iso: string | Date | null | undefined): Date | null {
+  if (!iso) return null
+  const d = iso instanceof Date ? iso : new Date(iso)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+export function formatDate(iso: string | Date | null | undefined): string {
+  const d = toValidDate(iso)
+  if (!d) return '—'
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-export function formatDateTime(iso: string | Date): string {
-  const d = typeof iso === 'string' ? new Date(iso) : iso
+export function formatDateTime(iso: string | Date | null | undefined): string {
+  const d = toValidDate(iso)
+  if (!d) return '—'
   return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
@@ -33,8 +41,9 @@ export function percentDiff(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 1000) / 10
 }
 
-export function timeAgo(iso: string | Date): string {
-  const d = typeof iso === 'string' ? new Date(iso) : iso
+export function timeAgo(iso: string | Date | null | undefined): string {
+  const d = toValidDate(iso)
+  if (!d) return '—'
   const seconds = Math.floor((Date.now() - d.getTime()) / 1000)
   if (seconds < 10) return 'vừa xong'
   if (seconds < 60) return `${seconds} giây trước`
