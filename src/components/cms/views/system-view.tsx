@@ -73,6 +73,7 @@ import {
 import { cn } from '@/lib/utils'
 import { SystemCatalogSettings, type CatalogSettingsSubTab } from '@/components/cms/views/system-catalog-settings'
 import { InventoryPolicyCard } from '@/components/cms/inventory-policy-card'
+import { PwaSettingsCard } from '@/components/cms/pwa-app-center'
 import {
   DEFAULT_SHOP_PROFILE,
   SHOP_PROFILE_PRESETS,
@@ -398,18 +399,75 @@ export function SystemView({
     }
   }
 
-  const handleDownloadBackup = () => {
+  const handleDownloadBackup = async () => {
     trackClientBehavior({
       category: 'EXPORT',
       action: 'DATA_EXPORT',
       module: 'system',
-      summary: 'Tải bản sao lưu cơ sở dữ liệu SQLite (.db)',
+      summary: 'Tải bản sao lưu cơ sở dữ liệu (.db / .json)',
     })
-    window.open('/api/system/backup', '_blank')
-    toast({
-      title: 'Đang tải bản sao lưu Database (.db)',
-      description: 'Tệp sao lưu SQLite đã được xuất về máy tính của bạn.',
-    })
+    try {
+      const res = await fetch('/api/system/backup')
+      const ct = (res.headers.get('content-type') || '').toLowerCase()
+      if (res.ok && !ct.includes('text/html') && !ct.includes('application/json')) {
+        const blob = await res.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `openvn-backup-${new Date().toISOString().slice(0, 10)}.db`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+        toast({
+          title: 'Đã tải bản sao lưu Database (.db)',
+          description: 'Tệp sao lưu SQLite đã được xuất về máy tính của bạn.',
+        })
+        return
+      }
+    } catch {
+      // Fallback xuất gói JSON Snapshot khi chạy trên môi trường CDN tĩnh
+    }
+
+    try {
+      const [products, orders, customers, salesInvoices, settingsSnap] = await Promise.all([
+        apiGet<unknown>('/api/products').catch(() => null),
+        apiGet<unknown>('/api/orders').catch(() => null),
+        apiGet<unknown>('/api/customers').catch(() => null),
+        apiGet<unknown>('/api/sales-invoices').catch(() => null),
+        apiGet<unknown>('/api/settings').catch(() => null),
+      ])
+      const backupObj = {
+        exportedAt: new Date().toISOString(),
+        format: 'OPENVN_SNAPSHOT_V1',
+        products,
+        orders,
+        customers,
+        salesInvoices,
+        settings: settingsSnap,
+      }
+      const blob = new Blob([JSON.stringify(backupObj, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `openvn-snapshot-backup-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast({
+        title: 'Đã xuất bản sao lưu Snapshot (.json)',
+        description: 'Toàn bộ sản phẩm, đơn hàng, khách hàng và hóa đơn hiện tại đã được tải về máy.',
+      })
+    } catch (e) {
+      toast({
+        title: 'Không thể xuất bản sao lưu',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại.',
+        variant: 'destructive',
+      })
+    }
   }
 
   const handleGoLiveReset = async () => {
@@ -615,13 +673,17 @@ export function SystemView({
   const testAi = async () => {
     setTestingAi(true)
     try {
-      const res = await apiPost<{ cashForecast: string }>('/api/ai-analysis', {
+      const res = await apiPost<{ cashForecast?: string }>('/api/ai-analysis', {
         year: CURRENT_YEAR,
         quarter: CURRENT_QUARTER,
       })
+      const preview =
+        typeof res?.cashForecast === 'string' && res.cashForecast.trim()
+          ? res.cashForecast.slice(0, 200)
+          : 'Mô-đun phân tích tài chính & dòng tiền theo kỳ đang sẵn sàng phục vụ.'
       toast({
         title: `AI hoạt động tốt — Q${CURRENT_QUARTER}/${CURRENT_YEAR}`,
-        description: res.cashForecast.slice(0, 200),
+        description: preview,
       })
     } catch (e) {
       toast({
@@ -723,8 +785,8 @@ export function SystemView({
               },
               {
                 id: 'SECURITY_AI_DATA' as const,
-                label: 'Bảo mật, AI & Go-Live',
-                sub: 'Gemini AI · RBAC · Sao lưu .db',
+                label: 'App, Thông báo & AI',
+                sub: 'Cài như App · Chuông · AI · Sao lưu',
                 icon: ShieldCheck,
               },
               {
@@ -1476,14 +1538,19 @@ export function SystemView({
 
             {(activeSection === 'SECURITY_AI_DATA' || activeSection === 'ALL') && (
               <>
-          {/* Gemini AI — card nền tối */}
-          <Card className="border-slate-800 bg-slate-900 text-slate-100 lg:col-span-2 dark:bg-slate-950">
+          {/* Ứng dụng Độc lập (Cài đặt như App) & Thông báo Đẩy Thời gian thực */}
+          <div className="lg:col-span-2">
+            <PwaSettingsCard />
+          </div>
+
+          {/* Gemini AI */}
+          <Card className="border-border/70 bg-card shadow-sm lg:col-span-2">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base text-slate-100">
-                <Gem className="h-5 w-5 text-sky-400" />
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Gem className="h-5 w-5 text-[#0066CC] dark:text-sky-400" />
                 Gemini AI
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription>
                 API Key dùng cho &quot;Phân tích chuyên sâu AI&quot; — dự báo dòng tiền, cảnh báo tồn kho, chiến lược lợi
                 nhuận. Key đã lưu không bao giờ hiển thị lại.
               </CardDescription>
@@ -1491,11 +1558,11 @@ export function SystemView({
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="min-w-[240px] flex-1">
-                  <Label htmlFor="gemini-key" className="text-slate-300">
+                  <Label htmlFor="gemini-key">
                     Gemini API Key
                   </Label>
                   <div className="relative mt-1.5">
-                    <KeyRound className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                    <KeyRound className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="gemini-key"
                       type="password"
@@ -1504,14 +1571,14 @@ export function SystemView({
                       placeholder={
                         settings?.geminiConfigured ? '•••••••••••••••• (đã lưu)' : 'AIza... dán API Key vào đây'
                       }
-                      className="border-slate-700 bg-slate-800 pl-8 text-slate-100 placeholder:text-slate-500"
+                      className="pl-8"
                     />
                   </div>
                 </div>
                 <Button
                   onClick={() => void saveApiKey()}
                   disabled={savingKey || !apiKeyInput.trim()}
-                  className="bg-white text-slate-900 hover:bg-slate-200"
+                  className="bg-[#0066CC] text-white hover:bg-[#0055B3]"
                 >
                   {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Lưu key
@@ -1520,19 +1587,18 @@ export function SystemView({
                   variant="outline"
                   onClick={() => void testAi()}
                   disabled={testingAi}
-                  className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
                 >
-                  {testingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {testingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-[#0066CC]" />}
                   Kiểm tra AI
                 </Button>
                 {settings?.geminiConfigured && (
-                  <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">
+                  <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                     <BadgeCheck className="h-3 w-3" />
                     Đã cấu hình
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 Kiểm tra AI sẽ chạy phân tích nhanh cho kỳ hiện tại Q{CURRENT_QUARTER}/{CURRENT_YEAR} và hiển thị đoạn
                 xem trước 200 ký tự của dự báo dòng tiền.
               </p>

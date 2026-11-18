@@ -30,12 +30,28 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "OPENVN · Ưu Đàm — CMS bán hàng đa kênh",
+  applicationName: "OPENVN POS",
+  title: "OPENVN · Ưu Đàm — CMS bán hàng đa kênh & POS",
   description:
-    "Hệ thống quản trị bán hàng đa kênh OPENVN: Shopee, Lazada, TikTok Shop, Tiki, Website, Facebook và cửa hàng POS trong một nơi duy nhất.",
-  keywords: ["CMS", "bán hàng đa kênh", "Shopee", "Lazada", "TikTok Shop", "quản lý đơn hàng", "quản lý kho"],
+    "Hệ thống quản trị bán hàng đa kênh OPENVN: Shopee, Lazada, TikTok Shop, Tiki, Website, Facebook và cửa hàng POS trong một ứng dụng duy nhất.",
+  keywords: ["CMS", "bán hàng đa kênh", "Shopee", "Lazada", "TikTok Shop", "quản lý đơn hàng", "quản lý kho", "POS"],
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "OPENVN POS",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/icons/icon-192.png"],
   },
 };
 

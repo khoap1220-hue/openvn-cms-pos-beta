@@ -64,7 +64,7 @@ export default async function BlogListPage() {
       {/* Header / Thanh điều hướng thương hiệu */}
       <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-[#faf8f5]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" className="group flex items-center gap-3 transition-opacity hover:opacity-90">
+          <Link href="/store" className="group flex items-center gap-3 transition-opacity hover:opacity-90">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-800 text-amber-100 shadow-sm transition-transform group-hover:scale-105">
               <Sparkles className="h-5 w-5" />
             </div>
@@ -77,7 +77,7 @@ export default async function BlogListPage() {
           </Link>
           <div className="flex items-center gap-4 text-sm font-medium text-stone-600">
             <Link
-              href="/"
+              href="/store"
               className="rounded-full px-4 py-1.5 transition-colors hover:bg-stone-200/60 hover:text-stone-900"
             >
               Cửa hàng
@@ -124,10 +124,10 @@ export default async function BlogListPage() {
               bạn vui lòng quay lại sau ít phút.
             </p>
             <Link
-              href="/"
+              href="/store"
               className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-800 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-900"
             >
-              Về Trang Chủ Ưu Đàm
+              Khám Phá Cửa Hàng Ưu Đàm
             </Link>
           </div>
         ) : (

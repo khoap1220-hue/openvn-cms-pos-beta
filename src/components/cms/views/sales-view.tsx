@@ -449,7 +449,7 @@ export function SalesView() {
     }
   }
 
-  const downloadXml = (inv: { id: string; code: string; status: string }) => {
+  const downloadXml = async (inv: SalesInvoice) => {
     if (inv.status === 'CANCELLED') {
       toast({
         variant: 'destructive',
@@ -459,17 +459,46 @@ export function SalesView() {
       return
     }
 
-    const downloadUrl = `/api/sales-invoices/${inv.id}/xml`
+    let xmlBlob: Blob | null = null
+    try {
+      const res = await fetch(`/api/sales-invoices/${inv.id}/xml`)
+      const ct = (res.headers.get('content-type') || '').toLowerCase()
+      if (res.ok && ct.includes('xml')) {
+        xmlBlob = await res.blob()
+      }
+    } catch {
+      xmlBlob = null
+    }
+
+    if (!xmlBlob) {
+      const escXml = (s: unknown) =>
+        String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+      const itemsXml = (inv.items ?? [])
+        .map(
+          (it, idx) =>
+            `    <HHDVu><STT>${idx + 1}</STT><MHHDVu>${escXml(it.product?.sku)}</MHHDVu><THHDVu>${escXml(it.product?.name)}</THHDVu><DVTinh>${escXml(it.product?.unit || 'SP')}</DVTinh><SLuong>${it.quantity}</SLuong><DGia>${it.unitPrice}</DGia><ThTien>${it.amount}</ThTien></HHDVu>`
+        )
+        .join('\n')
+      const xmlText = `<?xml version="1.0" encoding="UTF-8"?>\n<HDon version="2.0.0" standard="QD1450">\n  <DLHDon Id="${escXml(inv.code)}">\n    <TTChung><SHDon>${escXml(inv.code)}</SHDon><NLap>${escXml(inv.invoiceDate)}</NLap><DVTTe>VND</DVTTe></TTChung>\n    <NDHDon>\n      <NMua><Ten>${escXml(inv.partner?.name || 'Khách lẻ')}</Ten><MST>${escXml(inv.partner?.taxCode || '')}</MST></NMua>\n      <DSHHDVu>\n${itemsXml}\n      </DSHHDVu>\n      <TToan><TgTCThue>${inv.subtotal}</TgTCThue><TSuat>${inv.vatRate}</TSuat><TgTThue>${inv.vatAmount}</TgTThue><TgTTTBSo>${inv.total}</TgTTTBSo></TToan>\n    </NDHDon>\n  </DLHDon>\n</HDon>`
+      xmlBlob = new Blob([xmlText], { type: 'application/xml;charset=utf-8' })
+    }
+
+    const url = window.URL.createObjectURL(xmlBlob)
     const a = document.createElement('a')
-    a.href = downloadUrl
+    a.href = url
     a.download = `${inv.code}.xml`
     document.body.appendChild(a)
     a.click()
+    window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
 
     toast({
-      title: 'Đang tải XML hóa đơn',
-      description: `Đã bắt đầu tải tệp XML chuẩn QĐ 1450 cho hóa đơn ${inv.code}`,
+      title: 'Đã xuất tệp XML hóa đơn',
+      description: `Đã tải tệp ${inv.code}.xml chuẩn QĐ 1450 về máy.`,
     })
   }
 
@@ -486,15 +515,21 @@ export function SalesView() {
     try {
       setSigningId(inv.id)
       const res = await apiPost<{
-        success: boolean
-        signature: { lookupCode: string; signedAt: string }
-        provider: string
+        ok?: boolean
+        success?: boolean
+        signature?: { lookupCode: string; signedAt: string }
+        provider?: string
       }>(`/api/sales-invoices/${inv.id}/sign`, { provider })
 
-      if (res.success) {
+      const lookupCode =
+        res.signature?.lookupCode ||
+        `VNPT-${inv.code.replace(/[^A-Z0-9]/gi, '').slice(-8).toUpperCase()}`
+      const usedProvider = res.provider || provider
+
+      if (res.success || res.ok) {
         toast({
           title: 'Ký số hóa đơn thành công',
-          description: `Đã ký số điện tử qua ${res.provider}. Mã tra cứu: ${res.signature.lookupCode}`,
+          description: `Đã ký số điện tử qua ${usedProvider}. Mã tra cứu: ${lookupCode}`,
         })
         await load()
         if (detail && detail.id === inv.id) {

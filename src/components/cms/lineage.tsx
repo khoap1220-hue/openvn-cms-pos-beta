@@ -76,21 +76,41 @@ export function ChangeCountBadge({
   className?: string
 }) {
   const changed = (changeCount ?? 0) > 0
+  const label = changed ? `Đã đổi (${changeCount} lần)` : 'Nguyên bản'
+  const titleText = changed
+    ? `Đã được cập nhật ${changeCount} lần — bấm để xem lịch sử`
+    : 'Chưa từng bị chỉnh sửa — bấm để xem nguồn gốc'
+  const colorClasses = changed
+    ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300'
+    : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-400'
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
+        title={titleText}
+        className={cn(
+          'inline-flex min-h-7 cursor-pointer items-center rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+          colorClasses,
+          className
+        )}
+      >
+        {label}
+      </button>
+    )
+  }
+
   return (
     <Badge
       variant="outline"
-      onClick={onClick}
-      className={cn(
-        'whitespace-nowrap text-[11px] font-medium',
-        changed
-          ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300'
-          : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-400',
-        onClick && 'cursor-pointer transition-opacity hover:opacity-80',
-        className
-      )}
-      title={changed ? `Đã được cập nhật ${changeCount} lần — bấm để xem lịch sử` : 'Chưa từng bị chỉnh sửa'}
+      className={cn('whitespace-nowrap text-[11px] font-medium', colorClasses, className)}
+      title={titleText}
     >
-      {changed ? `Đã đổi (${changeCount} lần)` : 'Nguyên bản'}
+      {label}
     </Badge>
   )
 }
@@ -240,9 +260,40 @@ export function LineageInspectorDialog({
       if (target.entityId) qs.set('entityId', target.entityId)
       else if (target.entityCode) qs.set('entityCode', target.entityCode)
       const res = await fetch(`/api/lineage?${qs.toString()}`)
-      if (!res.ok) throw new Error('Không tải được lịch sử')
-      const json = await res.json()
-      setData({ origin: json.origin, changes: json.changes ?? [], changeCount: json.changeCount ?? 0, entityCode: json.entityCode })
+      if (res.ok) {
+        const json = await res.json()
+        setData({
+          origin: json.origin ?? null,
+          changes: Array.isArray(json.changes) ? json.changes : [],
+          changeCount: json.changeCount ?? 0,
+          entityCode: json.entityCode ?? target.entityCode ?? null,
+        })
+        return
+      }
+      // Fallback sang Sổ Data (/api/ledger) khi chạy trên môi trường CDN tĩnh không có query endpoint /api/lineage
+      const ledgerRes = await fetch('/api/ledger')
+      if (ledgerRes.ok) {
+        const ledgerJson = (await ledgerRes.json()) as { entries?: LineageEntryRaw[] }
+        const allEntries = Array.isArray(ledgerJson.entries) ? ledgerJson.entries : []
+        const matched = allEntries
+          .filter(
+            (e) =>
+              e.entityType === target.entityType &&
+              ((target.entityId && e.entityId === target.entityId) ||
+                (target.entityCode && e.entityCode === target.entityCode))
+          )
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        const originEntry = matched[0] ?? null
+        const changeEntries = matched.slice(1)
+        setData({
+          origin: originEntry,
+          changes: changeEntries,
+          changeCount: changeEntries.length,
+          entityCode: target.entityCode ?? originEntry?.entityCode ?? null,
+        })
+        return
+      }
+      throw new Error('Không tải được lịch sử')
     } catch {
       setError('Không thể tải lịch sử nguồn gốc. Vui lòng thử lại.')
     } finally {

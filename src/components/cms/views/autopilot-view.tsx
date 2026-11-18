@@ -55,7 +55,13 @@ export function AutopilotView() {
   const loadLog = useCallback(async () => {
     try {
       const d = await apiGet<ActivitiesData>(`/api/agent-activities?limit=100&agent=${agentFilter}`)
-      setLog(d)
+      const rawActs = Array.isArray(d?.activities) ? d.activities : []
+      const filteredActs =
+        agentFilter === 'ALL' ? rawActs : rawActs.filter((a) => a.agent === agentFilter)
+      setLog({
+        activities: filteredActs,
+        byAgent: Array.isArray(d?.byAgent) ? d.byAgent : [],
+      })
     } catch {
       // bỏ qua
     }

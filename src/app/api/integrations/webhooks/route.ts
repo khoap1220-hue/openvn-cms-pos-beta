@@ -5,14 +5,18 @@ import { logLedger } from '@/lib/ledger'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/integrations/webhooks — danh sách endpoint kèm 5 lần gửi mới nhất mỗi endpoint
+// GET /api/integrations/webhooks — danh sách endpoint kèm 5 lần gửi mới nhất mỗi endpoint (đã che secret)
 export async function GET() {
   try {
     const webhooks = await db.webhookEndpoint.findMany({
       orderBy: { createdAt: 'desc' },
       include: { deliveries: { orderBy: { createdAt: 'desc' }, take: 5 } },
     })
-    return NextResponse.json({ webhooks })
+    const safeWebhooks = webhooks.map((w) => ({
+      ...w,
+      secret: w.secret && w.secret.length > 6 ? `${w.secret.slice(0, 3)}••••••••${w.secret.slice(-3)}` : '••••••••',
+    }))
+    return NextResponse.json({ webhooks: safeWebhooks })
   } catch (error) {
     console.error('Webhooks GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh sách webhook' }, { status: 500 })

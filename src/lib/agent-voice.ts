@@ -7,6 +7,7 @@
 //  4. Giọng nhắn Zalo đời thường, câu ngắn, "dạ/nha/nhé/đó ạ", tối đa 1 emoji.
 
 export const BANNED_PHRASES: Array<{ pattern: RegExp; replace: string }> = [
+  { pattern: /\b(Chị|chị|Anh|anh)\s+(kho|quầy|lẻ|vãng lai|shopee|tiktok|lazada)\b/g, replace: 'mình' },
   { pattern: /vô cùng quý giá/gi, replace: 'quý ạ' },
   { pattern: /nguồn động lực quý báu/gi, replace: 'động lực để tụi em cố gắng' },
   { pattern: /động lực quý báu/gi, replace: 'động lực để tụi em cố gắng' },
@@ -125,18 +126,31 @@ function deaccent(s: string): string {
 
 export interface NameProfile {
   gender: 'nữ' | 'nam' | 'không rõ'
-  givenName: string // tên gọi dùng khi xưng hô: "Trân", "Quân", "Mỹ Linh"
-  title: 'Chị' | 'Anh'
-  salutation: string // "Em - Chị Trân"
+  givenName: string // tên gọi dùng khi xưng hô: "Trân", "Quân", "Mỹ Linh" hoặc "mình" cho khách vãng lai
+  title: 'Chị' | 'Anh' | 'Mình'
+  salutation: string // "Em - Chị Trân" hoặc "Tụi em - Mình"
   ageHint: string
 }
 
+const GENERIC_WALKIN_NAME_RE =
+  /^(khách|khach)\b|tại kho|tai kho|tại quầy|tai quay|vãng lai|vang lai|mua lẻ|mua le|trực tiếp|truc tiep|\b(shopee|tiktok|lazada|tiki)\b|^(công ty|cong ty|cty|doanh nghiệp|cửa hàng|shop|đối tác)\b/i
+
 /** Phân tích tên khách Việt Nam → cách xưng hô + chân dung ước lượng. */
 export function analyzeCustomerName(fullName: string): NameProfile {
-  const words = fullName.trim().split(/\s+/).filter(Boolean)
+  const trimmed = fullName.trim()
+  if (!trimmed || GENERIC_WALKIN_NAME_RE.test(trimmed)) {
+    return {
+      gender: 'không rõ',
+      givenName: 'mình',
+      title: 'Mình',
+      salutation: 'Tụi em - Mình',
+      ageHint: 'Khách hàng Ưu Đàm',
+    }
+  }
+  const words = trimmed.split(/\s+/).filter(Boolean)
   const last = deaccent(words[words.length - 1] ?? '')
   const last2 = deaccent(words.slice(-2).join(' '))
-  const givenAccent = words.length >= 2 ? words.slice(-2).join(' ') : fullName
+  const givenAccent = words.length >= 2 ? words.slice(-2).join(' ') : trimmed
 
   let score = 0
   for (const w of words.slice(1)) {
@@ -162,10 +176,10 @@ export function analyzeCustomerName(fullName: string): NameProfile {
   const title: 'Chị' | 'Anh' = gender === 'nam' ? 'Anh' : 'Chị'
   // Tên gọi: nếu từ cuối là "Anh" và cặp 2 từ có nghĩa (Minh Anh) → lấy 2 từ, ngược lại lấy từ cuối
   const useTwo = last === 'anh' && FEMALE_PAIRS.has(last2)
-  const givenName = useTwo ? words.slice(-2).join(' ') : words[words.length - 1] ?? fullName
+  const givenName = useTwo ? givenAccent : words[words.length - 1] ?? trimmed
   const buckets = ['~22–28', '~25–32', '~28–35', '~30–40']
   let hash = 0
-  for (const ch of deaccent(fullName)) hash = (hash * 31 + ch.charCodeAt(0)) % 9973
+  for (const ch of deaccent(trimmed)) hash = (hash * 31 + ch.charCodeAt(0)) % 9973
   const ageHint = `${buckets[hash % buckets.length]} (ước lượng)`
   return { gender, givenName, title, salutation: `Em - ${title} ${givenName}`, ageHint }
 }
@@ -217,8 +231,15 @@ export function buildVoiceContext(input: {
   painPoints?: string[]
 }): VoiceContext {
   const profile = analyzeCustomerName(input.name)
-  const titleLower = profile.title === 'Anh' ? 'anh' : 'chị'
-  const displayName = input.salutation ? input.salutation.replace(/^Em\s*-\s*/i, '') : `${titleLower} ${profile.givenName}`
+  const rawCleanedSalutation = input.salutation
+    ? input.salutation.replace(/^(Em|Tụi em)\s*-\s*/i, '').replace(/\b(Chị|chị|Anh|anh)\s+(kho|quầy|lẻ)\b/g, 'mình')
+    : ''
+  const defaultDisplay =
+    profile.title === 'Mình'
+      ? 'mình'
+      : `${profile.title === 'Anh' ? 'anh' : 'chị'} ${profile.givenName}`
+  const displayName =
+    profile.title === 'Mình' ? 'mình' : rawCleanedSalutation || defaultDisplay
   const friendly = (input.items ?? []).filter((i): i is NonNullable<typeof i> => !!i && !!i.product)
   const itemsText = friendlyItemsText(friendly)
   return {

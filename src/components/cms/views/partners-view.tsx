@@ -146,11 +146,21 @@ export function PartnersView() {
     void load()
   }, [load])
 
-  // Lọc type phía client để luôn gộp BOTH vào cả 2 nhóm
+  // Lọc type & từ khóa phía client để luôn gộp BOTH vào cả 2 nhóm và hoạt động tức thì trên mọi môi trường
+  const qLower = search.trim().toLowerCase()
   const filtered = (partners ?? []).filter((p) => {
-    if (typeFilter === 'ALL') return true
-    if (typeFilter === 'SUPPLIER') return p.type === 'SUPPLIER' || p.type === 'BOTH'
-    return p.type === 'CUSTOMER' || p.type === 'BOTH'
+    if (typeFilter === 'SUPPLIER' && p.type !== 'SUPPLIER' && p.type !== 'BOTH') return false
+    if (typeFilter === 'CUSTOMER' && p.type !== 'CUSTOMER' && p.type !== 'BOTH') return false
+    if (qLower) {
+      const match =
+        (p.name ?? '').toLowerCase().includes(qLower) ||
+        (p.code ?? '').toLowerCase().includes(qLower) ||
+        (p.taxCode ?? '').toLowerCase().includes(qLower) ||
+        (p.phone ?? '').toLowerCase().includes(qLower) ||
+        (p.email ?? '').toLowerCase().includes(qLower)
+      if (!match) return false
+    }
+    return true
   })
 
   const totalPartners = partners?.length ?? 0

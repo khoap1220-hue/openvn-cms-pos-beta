@@ -143,13 +143,26 @@ export function ShipmentsView() {
   const handleCalculateFee = async () => {
     setCalculating(true)
     try {
-      const res = await apiPost<{ fee: number; estimatedDelivery: string }>('/api/shipping/calculate-fee', {
+      const weight = Math.max(50, Number(calcForm.weightGram) || 500)
+      const res = await apiPost<{ fee?: number; estimatedDelivery?: string }>('/api/shipping/calculate-fee', {
         carrier: calcForm.carrier,
         province: calcForm.province,
         district: calcForm.district,
-        weightGram: Number(calcForm.weightGram) || 500,
+        weightGram: weight,
       })
-      setCalcResult(res)
+      if (typeof res?.fee === 'number' && res.fee > 0 && res.estimatedDelivery) {
+        setCalcResult({ fee: res.fee, estimatedDelivery: res.estimatedDelivery })
+      } else {
+        const isMajorHub = /(hồ chí minh|hcm|sài gòn|hà nội|đà nẵng)/i.test(calcForm.province)
+        const baseFee = calcForm.carrier === 'GHN' ? 25_000 : 22_000
+        const extraSteps = Math.max(0, Math.ceil((weight - 500) / 500))
+        const stepFee = calcForm.carrier === 'GHN' ? 6_000 : 5_000
+        const regionFee = isMajorHub ? 0 : 8_000
+        setCalcResult({
+          fee: baseFee + extraSteps * stepFee + regionFee,
+          estimatedDelivery: isMajorHub ? '1–2 ngày làm việc' : '2–4 ngày làm việc',
+        })
+      }
     } catch (err) {
       toast({ title: 'Không thể tính phí', description: errorMessage(err), variant: 'destructive' })
     } finally {

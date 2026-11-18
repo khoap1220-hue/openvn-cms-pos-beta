@@ -135,10 +135,35 @@ export function QuickSearchDialog({
             : Promise.resolve({ customers: [] }),
         ])
         if (!cancelled) {
+          const ql = q.toLowerCase()
+          const matchedOrders = (ordRes.orders ?? [])
+            .filter(
+              (o) =>
+                (o.code ?? '').toLowerCase().includes(ql) ||
+                (o.customer?.name ?? '').toLowerCase().includes(ql) ||
+                (o.customer?.phone ?? '').toLowerCase().includes(ql)
+            )
+            .slice(0, 4)
+          const matchedProducts = (prodRes.products ?? [])
+            .filter(
+              (p) =>
+                (p.sku ?? '').toLowerCase().includes(ql) ||
+                (p.name ?? '').toLowerCase().includes(ql) ||
+                ((p as { barcode?: string | null }).barcode ?? '').toLowerCase().includes(ql)
+            )
+            .slice(0, 4)
+          const matchedCustomers = (custRes.customers ?? [])
+            .filter(
+              (c) =>
+                (c.name ?? '').toLowerCase().includes(ql) ||
+                (c.phone ?? '').toLowerCase().includes(ql) ||
+                (c.memberCode ?? '').toLowerCase().includes(ql)
+            )
+            .slice(0, 4)
           setResults({
-            orders: (ordRes.orders ?? []).slice(0, 4),
-            products: (prodRes.products ?? []).slice(0, 4),
-            customers: (custRes.customers ?? []).slice(0, 4),
+            orders: matchedOrders,
+            products: matchedProducts,
+            customers: matchedCustomers,
           })
         }
       } catch {

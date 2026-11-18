@@ -436,6 +436,9 @@ export function OrdersView() {
         if (channelFilter !== 'ALL' && o.channel?.id !== channelFilter && (o as { channelId?: string }).channelId !== channelFilter) {
           return false
         }
+        if (originSource !== 'ALL' && o.originSource !== originSource) return false
+        if (changedFilter === 'CHANGED' && (o.changeCount ?? 0) <= 0) return false
+        if (changedFilter === 'ORIGINAL' && (o.changeCount ?? 0) > 0) return false
         if (qLower) {
           const codeMatch = (o.code ?? '').toLowerCase().includes(qLower)
           const nameMatch = (o.customer?.name ?? '').toLowerCase().includes(qLower)

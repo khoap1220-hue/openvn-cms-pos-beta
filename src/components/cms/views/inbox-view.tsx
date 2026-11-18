@@ -51,6 +51,11 @@ function parseReactions(raw: string | null | undefined): Reaction[] {
   }
 }
 
+function normalizeNaturalVocative(text: string | null | undefined): string {
+  if (!text) return ''
+  return text.replace(/\b(Chị|chị|Anh|anh)\s+(kho|quầy|lẻ|vãng lai)\b/g, 'mình')
+}
+
 function parseJsonArray(raw: string | null | undefined): string[] {
   if (!raw) return []
   try {
@@ -100,8 +105,8 @@ export function InboxView() {
 
   const loadConversations = useCallback(async () => {
     try {
-      const d = await apiGet<{ conversations: Conversation[] }>('/api/inbox')
-      setConversations(d.conversations)
+      const d = await apiGet<{ conversations?: Conversation[] }>('/api/inbox')
+      setConversations(Array.isArray(d?.conversations) ? d.conversations : [])
     } catch {
       // bỏ qua lỗi load
     } finally {
@@ -109,25 +114,77 @@ export function InboxView() {
     }
   }, [])
 
-  const loadMessages = useCallback(async (customerId: string, channelKey: string) => {
-    setMessagesLoading(true)
-    try {
-      const d = await apiGet<{ messages: DirectMessage[] }>(`/api/inbox?customerId=${encodeURIComponent(customerId)}&channelKey=${encodeURIComponent(channelKey)}`)
-      setMessages(d.messages)
-    } catch {
-      setMessages([])
-    } finally {
-      setMessagesLoading(false)
-    }
-  }, [])
+  const loadMessages = useCallback(
+    async (customerId: string, channelKey: string, fallbackLastMsg?: Conversation['lastMessage']) => {
+      const toDirectMsg = (raw: Conversation['lastMessage']): DirectMessage => ({
+        id: `seed-${customerId}-${channelKey}`,
+        channelKey,
+        customerId,
+        sender: raw.sender === 'CUSTOMER' ? 'CUSTOMER' : raw.sender === 'AGENT' ? 'AGENT' : 'OPERATOR',
+        agentName: raw.agentName ?? null,
+        content: normalizeNaturalVocative(raw.content),
+        relatedOrderId: null,
+        isAuto: Boolean(raw.isAuto),
+        readAt: raw.createdAt,
+        createdAt: raw.createdAt,
+      })
 
-  const loadMemory = useCallback(async (customerId: string) => {
+      setMessagesLoading(true)
+      try {
+        const d = await apiGet<{ messages?: DirectMessage[]; conversations?: Conversation[] }>(
+          `/api/inbox?customerId=${encodeURIComponent(customerId)}&channelKey=${encodeURIComponent(channelKey)}`
+        )
+        if (Array.isArray(d?.messages)) {
+          setMessages(d.messages)
+        } else if (Array.isArray(d?.conversations)) {
+          const matched = d.conversations.find(
+            (c) => c.customerId === customerId && c.channelKey === channelKey
+          )
+          const seedMsg = matched?.lastMessage ?? fallbackLastMsg
+          setMessages(seedMsg ? [toDirectMsg(seedMsg)] : [])
+        } else {
+          setMessages(fallbackLastMsg ? [toDirectMsg(fallbackLastMsg)] : [])
+        }
+      } catch {
+        setMessages(fallbackLastMsg ? [toDirectMsg(fallbackLastMsg)] : [])
+      } finally {
+        setMessagesLoading(false)
+      }
+    },
+    []
+  )
+
+  const loadMemory = useCallback(async (customerId: string, fallbackCustomer?: Conversation['customer']) => {
+    const buildFallbackCustomer = (fc: Conversation['customer']): Customer => ({
+      id: customerId,
+      name: fc.name,
+      phone: fc.phone ?? null,
+      email: null,
+      address: null,
+      createdAt: new Date().toISOString(),
+      points: 0,
+      avatarUrl: null,
+      salutation: 'Tụi em - Mình',
+      contextSummary: 'Khách hàng tương tác qua hộp thư Zalo của Ưu Đàm.',
+      stats: { orderCount: 1, totalSpent: 0, lastOrderAt: null },
+    })
+
     setMemoryLoading(true)
     try {
-      const d = await apiGet<{ customer: Customer }>(`/api/customers/${encodeURIComponent(customerId)}/memory`)
-      setMemory(d.customer)
+      const d = await apiGet<{ customer?: Customer }>(`/api/customers/${encodeURIComponent(customerId)}/memory`)
+      if (d?.customer) {
+        setMemory(d.customer)
+      } else if (fallbackCustomer) {
+        setMemory(buildFallbackCustomer(fallbackCustomer))
+      } else {
+        setMemory(null)
+      }
     } catch {
-      setMemory(null)
+      if (fallbackCustomer) {
+        setMemory(buildFallbackCustomer(fallbackCustomer))
+      } else {
+        setMemory(null)
+      }
     } finally {
       setMemoryLoading(false)
     }
@@ -161,14 +218,16 @@ export function InboxView() {
       if (selected) {
         void (async () => {
           try {
-            const d = await apiGet<{ messages: DirectMessage[] }>(
+            const d = await apiGet<{ messages?: DirectMessage[] }>(
               `/api/inbox?customerId=${encodeURIComponent(selected.customerId)}&channelKey=${encodeURIComponent(selected.channelKey)}`,
             )
+            if (!Array.isArray(d?.messages)) return
+            const nextMsgs = d.messages
             setMessages((prev) => {
               const lastId = prev[prev.length - 1]?.id
-              const nextId = d.messages[d.messages.length - 1]?.id
-              if (prev.length === d.messages.length && lastId === nextId) return prev
-              return d.messages
+              const nextId = nextMsgs[nextMsgs.length - 1]?.id
+              if (prev.length === nextMsgs.length && lastId === nextId) return prev
+              return nextMsgs
             })
           } catch {
             // im lặng — giữ nguyên tin nhắn hiện có
@@ -191,8 +250,8 @@ export function InboxView() {
   const openConversation = (conv: Conversation) => {
     setSelected(conv)
     setMessages([])
-    void loadMessages(conv.customerId, conv.channelKey)
-    void loadMemory(conv.customerId)
+    void loadMessages(conv.customerId, conv.channelKey, conv.lastMessage)
+    void loadMemory(conv.customerId, conv.customer)
     setConversations((prev) => prev.map((c) => (c.key === conv.key ? { ...c, unread: 0 } : c)))
   }
 
@@ -201,13 +260,29 @@ export function InboxView() {
     if (!input.trim() && !pendingImage) return
     setSending(true)
     try {
-      const d = await apiPost<{ message: DirectMessage }>('/api/inbox', {
+      const contentText = input.trim() || '[Ảnh khách gửi]'
+      const d = await apiPost<{ message?: DirectMessage }>('/api/inbox', {
         customerId: selected.customerId,
         channelKey: selected.channelKey,
-        content: input.trim() || '[Ảnh khách gửi]',
+        content: contentText,
         imageUrl: pendingImage ?? undefined,
       })
-      setMessages((prev) => [...prev, d.message])
+      const savedMsg: DirectMessage = d?.message ?? {
+        id: `msg-${Date.now()}`,
+        customerId: selected.customerId,
+        channelKey: selected.channelKey,
+        sender: 'OPERATOR',
+        content: contentText,
+        imageUrl: pendingImage ?? null,
+        imageAnalysis: null,
+        reactions: null,
+        agentName: null,
+        isAuto: false,
+        readAt: new Date().toISOString(),
+        relatedOrderId: null,
+        createdAt: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, savedMsg])
       setInput('')
       setPendingImage(null)
     } catch (error) {
@@ -378,7 +453,7 @@ export function InboxView() {
                     </span>
                     <span className={cn('mt-0.5 line-clamp-1 block text-xs', conv.unread > 0 ? 'font-medium text-foreground' : 'text-muted-foreground')}>
                       {conv.lastMessage.sender === 'CUSTOMER' ? '' : conv.lastMessage.isAuto ? '[AI] ' : '[NV] '}
-                      {conv.lastMessage.content}
+                      {normalizeNaturalVocative(conv.lastMessage.content)}
                     </span>
                     <span className="mt-1 flex items-center gap-1.5">
                       <span className="text-[10px] text-muted-foreground">{CHANNEL_KEY_LABELS[conv.channelKey] ?? conv.channelKey}</span>
@@ -485,7 +560,7 @@ export function InboxView() {
                               m.sender === 'OPERATOR' && 'rounded-br-md bg-violet-600 text-white',
                             )}
                           >
-                            {m.content}
+                            {normalizeNaturalVocative(m.content)}
                           </div>
                           {reactions.length > 0 && (
                             <div className={cn('flex gap-1', mine ? 'justify-end pr-1' : 'justify-start pl-1')}>
@@ -522,7 +597,7 @@ export function InboxView() {
               <div className={cn('flex flex-wrap items-center gap-1.5 border-t px-3 pt-2', mobilePanel === 'memory' && 'hidden lg:flex')}>
                 <span className="text-[11px] font-medium text-muted-foreground">Giả lập khách gửi ảnh:</span>
                 {IMAGE_SCENARIOS.map((sc) => (
-                  <Button key={sc.key} size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={scenarioSending !== null} onClick={() => void runScenario(sc.key)}>
+                  <Button key={sc.key} size="sm" variant="outline" className="h-9 px-2.5 text-[11px]" disabled={scenarioSending !== null} onClick={() => void runScenario(sc.key)}>
                     {scenarioSending === sc.key ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
                     {sc.label}
                   </Button>
@@ -596,7 +671,7 @@ export function InboxView() {
                   <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-hidden />
                   Chân dung & Trí nhớ AI
                 </p>
-                <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-[11px]" disabled={summarizing} onClick={() => void reSummarize()}>
+                <Button size="sm" variant="outline" className="h-9 gap-1 px-2.5 text-[11px]" disabled={summarizing} onClick={() => void reSummarize()}>
                   <RefreshCw className={cn('h-3 w-3', summarizing && 'animate-spin')} />
                   Tóm tắt lại
                 </Button>
@@ -606,7 +681,7 @@ export function InboxView() {
                 <CustomerAvatar customer={{ name: memory.name, avatarUrl: memory.avatarUrl }} className="h-12 w-12" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold">{memory.name}</p>
-                  <p className="truncate text-xs text-emerald-700 dark:text-emerald-400">{memory.salutation ?? '—'}</p>
+                  <p className="truncate text-xs text-emerald-700 dark:text-emerald-400">{normalizeNaturalVocative(memory.salutation) || '—'}</p>
                   {profile && (
                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                       {profile.gender} · {profile.ageHint}

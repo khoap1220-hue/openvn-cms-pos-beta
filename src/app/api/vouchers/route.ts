@@ -119,32 +119,50 @@ export async function POST(req: NextRequest) {
         : null
     const scope = body.scope === 'ALLIANCE' ? 'ALLIANCE' : 'ALL'
 
-    const voucher = await db.voucher.upsert({
-      where: { code },
-      update: {
-        title,
-        description: body.description ? String(body.description).trim() : null,
-        discountType,
-        discountValue,
-        maxDiscount,
-        minOrderAmount,
-        usageLimit,
-        scope,
-        active: true,
-      },
-      create: {
-        code,
-        title,
-        description: body.description ? String(body.description).trim() : null,
-        discountType,
-        discountValue,
-        maxDiscount,
-        minOrderAmount,
-        usageLimit,
-        scope,
-        active: true,
-      },
-    })
+    const editId = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : null
+    const existingById = editId ? await db.voucher.findUnique({ where: { id: editId } }) : null
+
+    const voucher = existingById
+      ? await db.voucher.update({
+          where: { id: existingById.id },
+          data: {
+            code,
+            title,
+            description: body.description ? String(body.description).trim() : null,
+            discountType,
+            discountValue,
+            maxDiscount,
+            minOrderAmount,
+            usageLimit,
+            scope,
+          },
+        })
+      : await db.voucher.upsert({
+          where: { code },
+          update: {
+            title,
+            description: body.description ? String(body.description).trim() : null,
+            discountType,
+            discountValue,
+            maxDiscount,
+            minOrderAmount,
+            usageLimit,
+            scope,
+            active: true,
+          },
+          create: {
+            code,
+            title,
+            description: body.description ? String(body.description).trim() : null,
+            discountType,
+            discountValue,
+            maxDiscount,
+            minOrderAmount,
+            usageLimit,
+            scope,
+            active: true,
+          },
+        })
 
     await recordLineageChange({
       scope: 'CAMPAIGN',

@@ -149,7 +149,7 @@ export function ReportsView() {
               key={p.days}
               variant={days === p.days ? 'default' : 'ghost'}
               size="sm"
-              className="h-7 px-3"
+              className="h-9 px-3.5"
               onClick={() => setDays(p.days)}
             >
               {p.label}

@@ -415,14 +415,56 @@ export function ProductsView({
   >([])
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null)
 
-  const handleExportCsv = async () => {
+  const handleExportCsv = async (exportList: ProductRow[] = products) => {
     try {
       setExportingCsv(true)
-      const res = await fetch('/api/products/export')
-      if (!res.ok) {
-        throw new Error(`Lỗi tải danh mục (${res.status})`)
+      let blob: Blob | null = null
+      try {
+        const res = await fetch('/api/products/export')
+        const ct = (res.headers.get('content-type') || '').toLowerCase()
+        if (res.ok && !ct.includes('text/html') && !ct.includes('application/json')) {
+          blob = await res.blob()
+        }
+      } catch {
+        blob = null
       }
-      const blob = await res.blob()
+
+      if (!blob) {
+        // Fallback kết xuất CSV chuẩn UTF-8 BOM trực tiếp trên trình duyệt khi chạy từ CDN tĩnh
+        const escCsv = (val: unknown) => {
+          const s = String(val ?? '').replace(/"/g, '""')
+          return /[",\n\r]/.test(s) ? `"${s}"` : s
+        }
+        const header = [
+          'SKU',
+          'Tên sản phẩm',
+          'Danh mục',
+          'Loại SP',
+          'ĐVT',
+          'Giá vốn',
+          'Giá bán',
+          'Tồn kho thật CMS',
+          'Ngưỡng sắp hết',
+          'Mã vạch',
+          'Trạng thái',
+        ]
+        const rowsCsv = exportList.map((p) => [
+          escCsv(p.sku),
+          escCsv(p.name),
+          escCsv(p.category?.name ?? ''),
+          escCsv(p.type ?? 'SIMPLE'),
+          escCsv(p.unit ?? 'cái'),
+          escCsv(p.costPrice ?? 0),
+          escCsv(p.sellPrice ?? 0),
+          escCsv(p.stock ?? 0),
+          escCsv(p.lowStockThreshold ?? 0),
+          escCsv(p.barcode ?? ''),
+          escCsv(p.status ?? 'ACTIVE'),
+        ])
+        const csvContent = '\uFEFF' + [header.join(','), ...rowsCsv.map((r) => r.join(','))].join('\r\n')
+        blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+      }
+
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -433,7 +475,7 @@ export function ProductsView({
       document.body.removeChild(a)
       toast({
         title: 'Xuất CSV thành công',
-        description: 'Tệp danh mục sản phẩm đã được tải về máy.',
+        description: `Đã xuất ${exportList.length} sản phẩm ra tệp danh-muc-san-pham.csv.`,
       })
     } catch (err) {
       toast({
@@ -1559,7 +1601,7 @@ export function ProductsView({
             <Scale className="mr-1.5 h-4 w-4" />
             Cấu hình Danh mục &amp; Quy đổi ĐVT
           </Button>
-          <Button variant="outline" onClick={() => void handleExportCsv()} disabled={exportingCsv}>
+          <Button variant="outline" onClick={() => void handleExportCsv(filteredProducts)} disabled={exportingCsv}>
             {exportingCsv ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
             {exportingCsv ? 'Đang xuất...' : 'Xuất CSV'}
           </Button>
@@ -1610,7 +1652,7 @@ export function ProductsView({
                 <span>Nhập sản phẩm từ CSV</span>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => void handleExportCsv()}
+                onClick={() => void handleExportCsv(filteredProducts)}
                 disabled={exportingCsv}
                 className="cursor-pointer gap-2 text-xs"
               >

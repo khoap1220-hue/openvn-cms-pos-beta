@@ -43,6 +43,7 @@ import {
   Megaphone,
   Menu,
   MessageSquare,
+  MonitorSmartphone,
   Package,
   Plus,
   Puzzle,
@@ -72,7 +73,10 @@ import {
   type ViewId,
 } from '@/components/cms/app-sidebar'
 import { QuickSearchDialog } from '@/components/cms/quick-search-dialog'
+import { PwaHeaderControls } from '@/components/cms/pwa-app-center'
 import { ThemeToggle } from '@/components/cms/theme-toggle'
+import { dispatchAppNotification, initPwaClientRuntime } from '@/lib/pwa-notifications'
+import { formatVND } from '@/lib/format'
 import { PosView } from '@/components/cms/views/pos-view'
 import { LiveOpsView } from '@/components/cms/views/liveops-view'
 import { InboxView } from '@/components/cms/views/inbox-view'
@@ -604,14 +608,82 @@ export default function Home() {
     return () => clearTimeout(t)
   }, [refreshBadges])
 
-  // Đăng ký Service Worker (Offline-first)
+  // Khởi tạo PWA Runtime (Service Worker Subpath-Safe + Cài đặt như App + Điều hướng từ Thông báo đẩy)
+  const [pwaOpenRequest, setPwaOpenRequest] = useState<{
+    nonce: number
+    panel: 'notifications' | 'install'
+  } | null>(null)
+
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
-        // không chặn ứng dụng nếu SW lỗi
-      })
+    initPwaClientRuntime()
+    const onNavigateFromNotif = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ url?: string; view?: string | null }>).detail
+      if (detail?.view && detail.view in VIEW_LABELS) {
+        setActiveView(detail.view as ViewId)
+        return
+      }
+      if (detail?.url) {
+        try {
+          const parsed = new URL(detail.url, window.location.origin)
+          const qView = parsed.searchParams.get('view')
+          if (qView && qView in VIEW_LABELS) {
+            setActiveView(qView as ViewId)
+            return
+          }
+          if (parsed.pathname.endsWith('/pos')) {
+            setActiveView('pos')
+          }
+        } catch {
+          // ignore invalid URL
+        }
+      }
     }
-  }, [])
+
+    const onCloudOp = (ev: Event) => {
+      const op = (
+        ev as CustomEvent<{
+          col?: string
+          method?: string
+          opId?: string
+          savedItem?: Record<string, unknown>
+        }>
+      ).detail
+      if (!op || !op.col) return
+      if (op.col === 'orders' && op.method === 'POST') {
+        const sv = op.savedItem ?? {}
+        const code = typeof sv.code === 'string' && sv.code ? sv.code : 'Đơn mới'
+        const total = Number(sv.total)
+        void dispatchAppNotification({
+          title: `Đơn hàng mới ${code}`,
+          body: Number.isFinite(total) && total > 0
+            ? `Giá trị đơn ${formatVND(total)} vừa được ghi nhận đồng bộ thời gian thực.`
+            : 'Vừa phát sinh đơn hàng mới trên hệ thống bán hàng đa kênh.',
+          category: 'orders',
+          severity: 'success',
+          view: 'orders',
+          targetUrl: '/?view=orders',
+          dedupeKey: `cloud-order:${op.opId || code}`,
+        })
+      } else if (op.col === 'inventory' && op.method === 'POST') {
+        void dispatchAppNotification({
+          title: 'Biến động Thẻ kho Thật CMS',
+          body: ' Tồn kho thực tế vừa được cập nhật phiếu Nhập / Xuất / Kiểm kê.',
+          category: 'inventory',
+          severity: 'info',
+          view: 'inventory',
+          targetUrl: '/?view=inventory',
+          dedupeKey: `cloud-inv:${op.opId || Date.now()}`,
+        })
+      }
+    }
+
+    window.addEventListener('openvn:navigate-from-notification', onNavigateFromNotif)
+    window.addEventListener('openvn:cloud-op', onCloudOp)
+    return () => {
+      window.removeEventListener('openvn:navigate-from-notification', onNavigateFromNotif)
+      window.removeEventListener('openvn:cloud-op', onCloudOp)
+    }
+  }, [setActiveView])
 
   const { profile: shopProfile, refreshProfile: refreshShopProfile } = useShopProfile()
 
@@ -701,6 +773,20 @@ export default function Home() {
               : 'Mọi thay đổi giá/tồn trên CMS vẫn được lưu an toàn vào Hàng đợi Bất đồng bộ.',
           variant: 'destructive',
         })
+        void dispatchAppNotification({
+          title: `Mất phiên Cookie Shopee (${d.username || 'thaimy1605'})`,
+          body:
+            (d.deferredOutboxCount ?? 0) > 0
+              ? `Đang giữ an toàn ${d.deferredOutboxCount} tác vụ chờ đẩy Sàn. Hãy dán lại cURL hoặc mở Extension.`
+              : 'Hãy làm mới phiên Cookie Shopee để tiếp tục đồng bộ 2 chiều.',
+          category: 'channels',
+          severity: 'critical',
+          view: 'channels',
+          targetUrl: '/?view=channels',
+          dedupeKey: `session-lost:${d.shopId || d.username || 'shopee'}`,
+          dedupeWindowMs: 180_000,
+          urgent: true,
+        })
       } else if (e.type === 'channel.session_restored') {
         setChannelBannerDismissedSig(null)
         const d = (e.data ?? {}) as { username?: string; requeuedCount?: number }
@@ -720,6 +806,60 @@ export default function Home() {
             d.reason ||
             'Phân loại trên Shopee không còn khớp Model ID. Hãy kiểm tra trong Hàng đợi Bất đồng bộ.',
           variant: 'destructive',
+        })
+        void dispatchAppNotification({
+          title: `Cảnh báo đứt liên kết mã Sàn [${d.sku || 'SKU'}]`,
+          body: d.reason || 'Phân loại trên Shopee không còn khớp Model ID. Cần kiểm tra lại liên kết.',
+          category: 'channels',
+          severity: 'warning',
+          view: 'channels',
+          targetUrl: '/?view=channels',
+          dedupeKey: `link-lost:${d.sku || 'sku'}`,
+          dedupeWindowMs: 180_000,
+        })
+      }
+    }
+
+    if (e.type === 'order.created') {
+      const d = (e.data ?? {}) as { code?: string; total?: number; channelName?: string; channelKey?: string }
+      const code = d.code || 'Đơn mới'
+      const chLabel = d.channelName || d.channelKey || 'Đa kênh'
+      void dispatchAppNotification({
+        title: `Đơn hàng mới ${code} (${chLabel})`,
+        body:
+          typeof d.total === 'number' && Number.isFinite(d.total)
+            ? `Tổng thanh toán ${formatVND(d.total)} — chạm để mở xử lý đơn & in phiếu giao.`
+            : 'Vừa có đơn hàng mới chuyển về hệ thống OPENVN.',
+        category: 'orders',
+        severity: 'success',
+        view: 'orders',
+        targetUrl: '/?view=orders',
+        dedupeKey: `rt-order:${code}`,
+      })
+    } else if (e.type === 'message.new') {
+      const d = (e.data ?? {}) as { customerName?: string; preview?: string; content?: string }
+      void dispatchAppNotification({
+        title: `Tin nhắn mới từ ${d.customerName || 'Khách hàng'}`,
+        body: d.preview || d.content || 'Khách hàng vừa gửi tin nhắn cần tư vấn trên hộp thư đa kênh.',
+        category: 'inbox',
+        severity: 'info',
+        view: 'inbox',
+        targetUrl: '/?view=inbox',
+        dedupeKey: `rt-msg:${d.customerName || 'guest'}:${(d.preview || d.content || '').slice(0, 24)}`,
+        dedupeWindowMs: 25_000,
+      })
+    } else if (e.type === 'inventory.updated') {
+      const d = (e.data ?? {}) as { sku?: string; newStock?: number; negativeStock?: boolean }
+      if (d.negativeStock || (typeof d.newStock === 'number' && d.newStock < 0)) {
+        void dispatchAppNotification({
+          title: `Cảnh báo Kho Thật Âm [${d.sku || 'SKU'}]`,
+          body: `Tồn kho thật CMS của ${d.sku || 'sản phẩm'} đang ở mức ${d.newStock ?? 'âm'}. Hãy nhập bù kho sớm.`,
+          category: 'inventory',
+          severity: 'warning',
+          view: 'inventory',
+          targetUrl: '/?view=inventory',
+          dedupeKey: `rt-neg-stock:${d.sku || 'sku'}`,
+          dedupeWindowMs: 120_000,
         })
       }
     }
@@ -892,6 +1032,18 @@ export default function Home() {
               </Button>
             )}
 
+            <PwaHeaderControls
+              variant="cms"
+              onNavigateView={(v) => {
+                if (v === 'pos') {
+                  setActiveView('pos')
+                } else if (v in VIEW_LABELS) {
+                  setActiveView(v as ViewId)
+                }
+              }}
+              externalOpenRequest={pwaOpenRequest}
+            />
+
             <ThemeToggle />
 
             {/* Menu Tài khoản Ca trực + Gộp gọn Trạng thái Hệ thống, AI, Tạo đơn & Cảnh báo */}
@@ -1058,6 +1210,16 @@ export default function Home() {
                 )}
 
                 <DropdownMenuSeparator />
+
+                <DropdownMenuItem
+                  onClick={() =>
+                    setPwaOpenRequest({ nonce: Date.now(), panel: 'install' })
+                  }
+                  className="cursor-pointer gap-2"
+                >
+                  <MonitorSmartphone className="h-4 w-4 text-[#0066CC]" />
+                  <span>Cài đặt như App &amp; Thông báo đẩy</span>
+                </DropdownMenuItem>
 
                 {canViewIam && (
                   <DropdownMenuItem onClick={() => setActiveView('iam')} className="cursor-pointer gap-2">

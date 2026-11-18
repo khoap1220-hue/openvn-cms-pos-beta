@@ -190,6 +190,7 @@ export function CustomersView() {
   // Quản lý Chương trình Khuyến mãi & Mã Voucher
   const [vouchers, setVouchers] = useState<VoucherInfo[]>([])
   const [voucherDialogOpen, setVoucherDialogOpen] = useState(false)
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [voucherForm, setVoucherForm] = useState({
     code: '',
     title: '',
@@ -262,7 +263,22 @@ export function CustomersView() {
             '/api/loyalty-policy'
           ).catch(() => null),
         ])
-        setCustomers(data.customers)
+        const rawList = Array.isArray(data.customers) ? data.customers : []
+        const kw = keyword.trim().toLowerCase()
+        const filteredList = rawList.filter((c) => {
+          if (scope === 'MEMBER' && !c.isMember && !c.memberCode) return false
+          if (scope === 'CUSTOMER' && (c.isMember || Boolean(c.memberCode))) return false
+          if (kw) {
+            const match =
+              (c.name ?? '').toLowerCase().includes(kw) ||
+              (c.phone ?? '').toLowerCase().includes(kw) ||
+              (c.email ?? '').toLowerCase().includes(kw) ||
+              (c.memberCode ?? '').toLowerCase().includes(kw)
+            if (!match) return false
+          }
+          return true
+        })
+        setCustomers(filteredList)
         setStats(data.stats)
         setVouchers(vchRes.vouchers)
         if (polRes) {
@@ -292,6 +308,7 @@ export function CustomersView() {
     setVoucherSubmitting(true)
     try {
       await apiPost('/api/vouchers', {
+        id: editingVoucherId ?? undefined,
         code: voucherForm.code.trim().toUpperCase(),
         title: voucherForm.title.trim(),
         discountType: voucherForm.discountType,
@@ -300,8 +317,13 @@ export function CustomersView() {
         minOrderAmount: Number(voucherForm.minOrderAmount) || 0,
         scope: voucherForm.scope,
       })
-      toast({ title: `Đã lưu mã khuyến mãi ${voucherForm.code.toUpperCase()}` })
+      toast({
+        title: editingVoucherId
+          ? `Đã cập nhật mã khuyến mãi ${voucherForm.code.toUpperCase()}`
+          : `Đã lưu mã khuyến mãi ${voucherForm.code.toUpperCase()}`,
+      })
       setVoucherDialogOpen(false)
+      setEditingVoucherId(null)
       setVoucherForm({
         code: '',
         title: '',
@@ -335,6 +357,7 @@ export function CustomersView() {
   }
 
   const openEditVoucher = (v: VoucherInfo) => {
+    setEditingVoucherId(v.id)
     setVoucherForm({
       code: v.code,
       title: v.title,
@@ -868,7 +891,23 @@ export function CustomersView() {
                 <Layers className="mr-1 h-3.5 w-3.5" />
                 Quản lý các Đợt thay đổi ({policyWaves.length || 2} đợt)
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setVoucherDialogOpen(true)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditingVoucherId(null)
+                  setVoucherForm({
+                    code: '',
+                    title: '',
+                    discountType: 'PERCENT',
+                    discountValue: '10',
+                    maxDiscount: '50000',
+                    minOrderAmount: '200000',
+                    scope: 'ALL',
+                  })
+                  setVoucherDialogOpen(true)
+                }}
+              >
                 <Plus className="mr-1 h-3.5 w-3.5" /> Tạo Mã Khuyến Mãi (Voucher)
               </Button>
             </div>

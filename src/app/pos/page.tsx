@@ -14,9 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { PwaHeaderControls } from '@/components/cms/pwa-app-center'
 import { ThemeToggle } from '@/components/cms/theme-toggle'
 import { PosView } from '@/components/cms/views/pos-view'
+import { useRealtime } from '@/hooks/use-realtime'
 import { trackClientBehavior } from '@/lib/behavior-client'
+import { formatVND } from '@/lib/format'
+import { dispatchAppNotification, initPwaClientRuntime } from '@/lib/pwa-notifications'
 import {
   canAccessView,
   resolveEffectivePermissions,
@@ -42,6 +46,7 @@ export default function StandalonePosPage() {
   )
 
   useEffect(() => {
+    initPwaClientRuntime()
     trackClientBehavior({
       category: 'NAVIGATION',
       action: 'VIEW_MODULE',
@@ -63,7 +68,52 @@ export default function StandalonePosPage() {
       })
       .catch(() => null)
     document.title = 'POS Bán hàng tại kho — OPENVN · Ưu Đàm'
+    const onCloudOp = (ev: Event) => {
+      const op = (
+        ev as CustomEvent<{
+          col?: string
+          method?: string
+          opId?: string
+          savedItem?: Record<string, unknown>
+        }>
+      ).detail
+      if (!op || op.col !== 'orders' || op.method !== 'POST') return
+      const sv = op.savedItem ?? {}
+      const code = typeof sv.code === 'string' && sv.code ? sv.code : 'Đơn POS'
+      const total = Number(sv.total)
+      void dispatchAppNotification({
+        title: `Đã chốt đơn ${code}`,
+        body:
+          Number.isFinite(total) && total > 0
+            ? `Thanh toán ${formatVND(total)} đã được ghi nhận và đồng bộ.`
+            : 'Đơn hàng mới vừa được ghi nhận tại quầy POS.',
+        category: 'orders',
+        severity: 'success',
+        targetUrl: '/?view=orders',
+        dedupeKey: `pos-cloud-order:${op.opId || code}`,
+      })
+    }
+    window.addEventListener('openvn:cloud-op', onCloudOp)
+    return () => window.removeEventListener('openvn:cloud-op', onCloudOp)
   }, [router])
+
+  useRealtime((e) => {
+    if (e.type === 'order.created') {
+      const d = (e.data ?? {}) as { code?: string; total?: number; channelName?: string; channelKey?: string }
+      const code = d.code || 'Đơn mới'
+      void dispatchAppNotification({
+        title: `Đơn mới ${code} (${d.channelName || d.channelKey || 'Sàn/POS'})`,
+        body:
+          typeof d.total === 'number' && Number.isFinite(d.total)
+            ? `Giá trị ${formatVND(d.total)} vừa ghi nhận trên hệ thống.`
+            : 'Có đơn hàng mới vừa chuyển về kho.',
+        category: 'orders',
+        severity: 'success',
+        targetUrl: '/?view=orders',
+        dedupeKey: `pos-rt-order:${code}`,
+      })
+    }
+  })
 
   const handleSwitchShift = async () => {
     setSwitchingShift(true)
@@ -137,6 +187,7 @@ export default function StandalonePosPage() {
               <span className="hidden sm:inline">Về trang Quản trị CMS</span>
             </Link>
           </Button>
+          <PwaHeaderControls variant="pos" onModalOpen={() => setShiftDialogOpen(false)} />
           <ThemeToggle />
         </div>
       </header>
