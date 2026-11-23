@@ -1,0 +1,551 @@
+﻿00. TỔNG QUAN VẬN HÀNH — BƠ MỘC,,,,,,
+"File VẬN HÀNH: ghi chép hằng ngày (nhập hàng, mẻ đúc, đơn bán, thu chi). Tồn kho & báo cáo tự tính. Danh mục/giá chuẩn copy từ Ke_Hoach_Dinh_Gia_Bo_Moc.xlsx.",,,,,,
+Tháng hiện tại:,2026-11-01,→ đến trước ngày:,2026-12-01,,,
+,,,,,,
+A. THÁNG NÀY (TỪ NGÀY 1 ĐẾN HÔM NAY),,,,B. CẢNH BÁO KHO,,
+Doanh thu ghi nhận,0,,,Số vật tư CẦN ĐẶT HÀNG,6,Xem 09_Ton_Kho_Vat_Tu
+Thực nhận,0,,,Số SKU CẦN ĐÚC / ĐÓNG THÊM,19,Xem 10_Ton_Kho_Thanh_Pham
+Lãi gộp (thực nhận − giá vốn),0,,,Số mã ÂM KHO (ghi chép thiếu),0,Thường do quên ghi nhập hàng hoặc tồn đầu kỳ sai
+SL sản phẩm đã bán,0,,,Giá trị tồn vật tư,3625043,
+SL đã sản xuất đạt,0,,,Giá trị tồn thành phẩm,0,
+Chi mua vật tư,0,,,Tồn đầu kỳ chưa kiểm kê (số mã),52,Cân/đếm thực tế rồi đổi thành 'Đã kiểm kê'
+"Chi khác (OPEX, dụng cụ...)",0,,,,,
+Kế hoạch: SL / tháng,200,,,,,
+Kế hoạch: Lãi ròng / tháng,2143696,,,,,
+,,,,,,
+,,,,,,
+C. QUY TRÌNH GHI CHÉP,,,,,,
+Khi nào,Sheet,Việc cần làm,,,,
+Lần đầu,04_Ton_Dau_Ky,"Cân/đếm vật tư & thành phẩm đang có, sửa số ô vàng, đổi tình trạng 'Đã kiểm kê'.",,,,
+Khi mua hàng,05_Nhap_Hang,"1 dòng / mặt hàng, SL theo ĐVT chuẩn, thành tiền thực trả.",,,,
+Sau mỗi mẻ đúc / đóng gói,06_San_Xuat,"SL đổ khuôn, SL đạt; cân thạch cao nếu được.",,,,
+Mỗi ngày (hoặc mỗi đơn),07_Don_Ban,Shopee: lấy số thực nhận ở Seller Center. Cập nhật trạng thái khi giao xong / hoàn.,,,,
+"Khi hư hỏng, tặng, kiểm kê lệch",08_Dieu_Chinh_Kho,SL âm = trừ kho.,,,,
+"Khi trả điện, web, rút tiền...",11_Thu_Chi_Khac,Cuối tháng ghi 'OPEX — Quỹ tái đầu tư khuôn'.,,,,
+Cuối tháng,12_Bao_Cao_Thang,Chọn tháng → xem thực tế vs kế hoạch; tỷ lệ phế phẩm & giá nhập mới đưa về file kế hoạch.,,,,
+Khi file kế hoạch đổi giá / mã,"01, 02, 03",Dán lại giá trị từ file kế hoạch (hoặc nhờ trợ lý đồng bộ).,,,,
+01. DANH MỤC VẬT TƯ (COPY TỪ FILE KẾ HOẠCH 03_Vat_Tu),,,,,,,,
+Cột A–F là bản copy giá trị từ file kế hoạch (không sửa tay ở đây). Cột H 'Điểm đặt hàng lại' là ô vàng anh/chị tự chỉnh.,,,,,,,,
+Mã VT được cân thực tế khi đúc:,,NVL-001,(thạch cao — nhập số gram cân thực ở 06_San_Xuat cột J để trừ kho đúng thực tế),,,,,
+Mã VT,Nhóm VT,Tên vật tư,ĐVT chuẩn,Đơn giá chuẩn (đ/ĐVT),Trạng thái,Nhu cầu KH / tháng,Điểm đặt hàng lại,Ghi chú
+NVL-001,Vỏ khoáng,Thạch cao đúc mịn TA-P3C (Hemi Hydrate),g,9.3944,Đang dùng,51600,26000,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+NVL-002,Vỏ khoáng,Cát thạch anh mịn (0.1 - 0.3mm),g,22,Đang dùng,2330,2000,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+NVL-003,Vỏ khoáng,Xi măng trắng Portland,g,17.48,Đang dùng,11650,6000,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+NVL-004,Vỏ khoáng,Thạch cao Long Vu Resin (Lô thử nghiệm R&D),g,27.6,Ngừng dùng,,,Chưa dùng trong BOM — không cần cảnh báo
+NVL-005,Sáp & Tinh dầu,Sáp bơ thực vật / Sáp đậu nành,g,,R&D — chưa mua,,,R&D — chưa mua
+NVL-006,Sáp & Tinh dầu,Tinh dầu thơm làm nến (Fragrance Oil),ml,,R&D — chưa mua,,,R&D — chưa mua
+PG-001,Phụ gia & Màu & Phủ,Bột tăng trắng Titanium Dioxide (TiO2),g,312,Có hàng — chưa dùng trong BOM,,,Chưa dùng trong BOM — không cần cảnh báo
+PG-002,Phụ gia & Màu & Phủ,"Bột màu Oxit sắt (Đen 722, Đỏ Y101, Vàng M35)",g,78,Có hàng — chưa dùng trong BOM,,,Chưa dùng trong BOM — không cần cảnh báo
+PG-003,Phụ gia & Màu & Phủ,Phụ gia phá bọt Deformer AX 406,g,219.0608,Đang dùng,446.6,300,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+PG-004,Phụ gia & Màu & Phủ,Chất độn cao lanh Metakaolin MKA 11,g,46.118,Đang dùng,4398,3000,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+PG-005,Phụ gia & Màu & Phủ,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR,ml,144,Đang dùng,1398,700,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+PG-006,Phụ gia & Màu & Phủ,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201,g,160,Đang dùng,693.2,400,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-001,Bao bì & Tem nhãn,Hộp carton 20x15x10 sóng B,cái,1880.94,Đang dùng,205,110,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-002,Bao bì & Tem nhãn,Hộp carton lớn 30x20x15 sóng B,cái,3729.05,Đang dùng,,,Chưa dùng trong BOM — không cần cảnh báo
+BB-003,Bao bì & Tem nhãn,Cuộn xốp nổ bọc hàng 30cm x 100m,m,899.58,Đang dùng,102,60,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-004,Bao bì & Tem nhãn,Giấy tổ ong gói hàng Zimbi 30cm x 100m,m,1470,Đang dùng,94.5,50,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-005,Bao bì & Tem nhãn,Băng keo dán thùng Trắng Trong 1kg,g,63.789,Đang dùng,983,500,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-006,Bao bì & Tem nhãn,Giấy rơm sợi 3mm vàng nhạt,g,60,Đang dùng,378,200,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-007,Bao bì & Tem nhãn,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag),tờ,700,Đang dùng,91,50,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-008,Bao bì & Tem nhãn,Túi Zip chỉ đỏ PE 20x30cm,túi,1033.8,Đang dùng,27,20,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-009,Bao bì & Tem nhãn,Túi Zip chỉ đỏ PE 18x25cm,túi,603.864,Đang dùng,2,1,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-010,Bao bì & Tem nhãn,Túi Zip chỉ đỏ PE 12x17cm,túi,301.928,Đang dùng,8,4,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-011,Bao bì & Tem nhãn,Dây thừng trang trí 2mm,m,144.9512195121951,Đang dùng,147,80,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+BB-012,Bấc & Phụ kiện nến,Bấc cotton + Đế dán bấc,cái,,R&D — chưa mua,,,R&D — chưa mua
+BB-013,Bấc & Phụ kiện nến,Bấc gỗ + Chân đế kẹp,cái,,R&D — chưa mua,,,R&D — chưa mua
+BB-014,Bấc & Phụ kiện nến,Cốc nhôm / Polycarbonate đựng nến Tealight,cái,,R&D — chưa mua,,,R&D — chưa mua
+BB-015,Bấc & Phụ kiện nến,Lọ diêm gỗ dài 10cm (lọ 20 que),lọ,,R&D — chưa mua,,,R&D — chưa mua
+BB-016,Bao bì & Tem nhãn,Nhãn dán Decal A4 90x65mm (túi nguyên liệu),cái,112.5,Đang dùng,17,9,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+TH-001,Tiêu hao & Bảo hộ,Găng tay Nitrile không bột Đen (Size M),chiếc,745.51,Có hàng — chưa dùng trong BOM,,,Chưa dùng trong BOM — không cần cảnh báo
+TH-002,Tiêu hao & Bảo hộ,Găng tay Nitrile không bột Trắng (Size L),chiếc,499.99,Có hàng — chưa dùng trong BOM,,,Chưa dùng trong BOM — không cần cảnh báo
+TH-003,Tiêu hao & Bảo hộ,Giấy nhám nước RIKEN C35P (400 & 1000),tờ,3610,Có hàng — chưa dùng trong BOM,,,Chưa dùng trong BOM — không cần cảnh báo
+TH-004,Tiêu hao & Bảo hộ,Khăn lau đa năng Microfiber 30x30cm,khăn,6145.6,Có hàng — chưa dùng trong BOM,,,Chưa dùng trong BOM — không cần cảnh báo
+HH-001,Hàng nhập bán sẵn,Nến bơ Tealight nhập bán sẵn (Chờ chọn NCC),viên,,R&D — chưa mua,,,R&D — chưa mua
+BB-017,Bao bì & Tem nhãn,Giấy nến lót sản phẩm trong hộp,tờ,200,Đang dùng,189,100,Đề xuất = nhu cầu ~15 ngày theo kế hoạch
+"02. DANH MỤC SKU ĐANG BÁN & GIÁ CHUẨN (COPY TỪ FILE KẾ HOẠCH 09, 11, 12)",,,,,,,,,,,,,
+"Giá vốn chuẩn, giá bán chốt và sản lượng kế hoạch là bản copy giá trị. Cột N 'Tồn tối thiểu' là ô vàng — dưới mức này sheet 10 báo cần đúc/đóng thêm.",,,,,,,,,,,,,
+,,,,,,,,,,,,,
+Mã SKU,Tên SKU,Nhóm DM,Nhóm định giá,Giá vốn chuẩn,Shopee giá thực tế,Shopee giá bán thường,Giá lẻ Zalo/Web,Giá sỉ B1,Giá sỉ B2,KH SL Shopee / tháng,KH SL lẻ / tháng,KH SL sỉ / tháng,Tồn TP tối thiểu
+BM-DEC-LAMA-LUN,"Hũ Thạch Cao Vân Sọc Lùn, Nắp Chóp (Trắng)",A,DECOR,14003,52000,58000,46000,30000,25000,20,3,4,7
+BM-DEC-BUPSEN,"Hũ Thạch Cao Búp Sen, Có Nắp (Trắng)",A,DECOR,14503,56000,62000,49000,32000,27000,20,3,4,7
+BM-DEC-LAMA-CAO,"Hũ Thạch Cao Trụ Sọc Cao, Có Nắp (Trắng)",A,DECOR,14503,56000,62000,49000,32000,27000,15,2,3,5
+BM-DEC-VAT-BACAU,"Hũ Thạch Cao Trụ Trơn, Nắp Đĩa (Trắng)",A,DECOR,14503,56000,62000,49000,32000,27000,15,2,3,5
+BM-DEC-SOC-PHANG,Hũ Thạch Cao Sọc Đứng Nắp Phẳng (Trắng),A,DECOR,14003,52000,58000,46000,30000,25000,15,2,3,5
+BM-DEC-SEN,Đế Nến Hoa Sen Thạch Cao Size Nhỏ (Trắng),A,DECOR,8781,30000,33000,26000,17000,14000,12,2,2,4
+BM-DEC-SEN-L,Đế Nến Hoa Sen Thạch Cao Size Lớn (Trắng),A,DECOR,12393,50000,55000,44000,29000,24000,10,2,2,4
+BM-DEC-OVAL,Khay Thạch Cao Oval / Bầu Dục Decor (Trắng),A,DECOR,11393,40000,44000,35000,23000,19000,10,2,2,4
+BM-DEC-TRAITIM,Khay / Đế Thạch Cao Hình Trái Tim (Trắng — Khuôn Thô),A,DECOR,8781,30000,33000,26000,17000,14000,8,1,2,3
+BM-NL-THACHCAO,Bột Thạch Cao Trắng Siêu Mịn Thái Lan TA-P3C (Túi 1kg),A,NGUYENLIEU,14691,43000,48000,30000,17000,15000,2,3,0,2
+BM-NL-PHABOT,"Phụ Gia Phá Bọt Khí Đúc Thạch Cao, Xi Măng AX406 (Gói 100g)",A,NGUYENLIEU,26471,69000,76000,57000,38000,35000,1,1,0,1
+BM-NL-SIEUDEO,Phụ Gia Siêu Dẻo Giảm Nước PCE PPC1201 (Gói 100g),A,NGUYENLIEU,20565,45000,50000,40000,26000,23000,1,1,0,1
+BM-NL-METAKAOLIN,Bột Tăng Cứng Thạch Cao & XM Trắng Metakaolin MKA11 (Túi 500g),A,NGUYENLIEU,27926,59000,65000,51000,35000,32000,1,1,0,1
+BM-BB-ZIP-2030,Túi Zip Chỉ Đỏ PE 20x30cm (Xấp Đóng Gói),A,BAOBI,21867,37000,41000,30000,25000,23000,0,1,0,1
+BM-BB-ZIP-1825,Túi Zip Chỉ Đỏ PE 18x25cm (Xấp Đóng Gói),A,BAOBI,16288,28000,31000,23000,19000,18000,0,0,0,0
+BM-BB-ZIP-1217,Túi Zip Chỉ Đỏ PE 12x17cm (Xấp Đóng Gói),A,BAOBI,16287,28000,31000,23000,19000,18000,0,0,0,0
+BM-BB-CT-201510,Combo Hộp Carton Sóng B 20x15x10cm (Gói 10 Hộp),A,BAOBI,20128,34000,38000,28000,23000,21000,0,1,0,1
+BM-BB-CT-302015,Combo Hộp Carton Sóng B 30x20x15cm (Gói 10 Hộp),A,BAOBI,38610,61000,68000,50000,43000,40000,0,0,0,0
+BM-SET-HUKHAY,Set Combo Hũ + Khay Thạch Cao Decor (Mộc Trắng),A,DECOR,20259,89000,99000,78000,51000,43000,5,2,0,2
+BM-KD-CHUMSOC,Chum Sọc Thạch Cao Đặt Nến Tealight (Chờ Kiểm Khuôn Riêng),A,DECOR,9281,31000,34000,27000,18000,15000,5,1,0,2
+BM-SI-TC-5KG,Combo Sỉ 5kg Bột Thạch Cao Thái Lan TA-P3C (5 Túi Zip 1kg — Đóng Chung Thùng Sỉ),B,SI-NL,60071,,,89000,81000,75000,0,0,0,0
+BM-SI-TC-25KG,Bao Sỉ Nguyên 25kg Bột Thạch Cao Thái Lan TA-P3C (Nguyên Bao Nhà Máy — Giao Xưởng),B,SI-NL,237542,,,330000,307000,287000,0,0,3,1
+BM-SI-PG-COMBO,Combo Sỉ Phụ Gia Đúc Thạch Cao Xưởng (1kg Metakaolin + 200g Siêu Dẻo + 100g Phá Bọt),B,SI-NL,108100,,,161000,148000,138000,0,0,2,1
+BM-SI-HU-LO10,Thùng Sỉ 10 Phôi Hũ Thạch Cao Trắng Mix Mẫu (Đóng Thùng Lớn + Xốp Nổ — Không Hộp Lẻ),B,PHOI-SI,100937,,,289000,250000,230000,0,0,0,0
+BM-SI-KHAY-LO10,Thùng Sỉ 10 Khay / Đế Nến Thạch Cao Trắng Mix Mẫu (Sen / Oval / Tim — Đóng Thùng Sỉ),B,PHOI-SI,73011,,,200000,173000,159000,0,0,0,0
+03. ĐỊNH MỨC CHUẨN / 1 SP (COPY TỪ FILE KẾ HOẠCH 08_BOM — ĐÃ NHÂN HỆ SỐ MẺ),,,,
+"Dùng để tự trừ kho: dòng 'NVL' trừ khi sản xuất (06), dòng 'Bao bì' trừ khi xuất bán (07). Không sửa tay — cập nhật bằng cách dán lại từ file kế hoạch.",,,,
+,,,,
+Mã SKU,Loại,Mã VT,Định mức / 1 SP,Tên vật tư (tự tra)
+BM-DEC-LAMA-LUN,NVL,NVL-001,300,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-LAMA-LUN,NVL,NVL-003,75,Xi măng trắng Portland
+BM-DEC-LAMA-LUN,NVL,NVL-002,15,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-LAMA-LUN,NVL,PG-006,0.6,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-LAMA-LUN,NVL,PG-003,0.3,Phụ gia phá bọt Deformer AX 406
+BM-DEC-LAMA-LUN,NVL,PG-004,9,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-LAMA-LUN,NVL,PG-005,9,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-LAMA-LUN,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-LAMA-LUN,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-LAMA-LUN,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-LAMA-LUN,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-LAMA-LUN,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-LAMA-LUN,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-LAMA-LUN,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-LAMA-LUN,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-BUPSEN,NVL,NVL-001,300,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-BUPSEN,NVL,NVL-003,75,Xi măng trắng Portland
+BM-DEC-BUPSEN,NVL,NVL-002,15,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-BUPSEN,NVL,PG-006,0.6,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-BUPSEN,NVL,PG-003,0.3,Phụ gia phá bọt Deformer AX 406
+BM-DEC-BUPSEN,NVL,PG-004,9,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-BUPSEN,NVL,PG-005,9,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-BUPSEN,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-BUPSEN,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-BUPSEN,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-BUPSEN,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-BUPSEN,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-BUPSEN,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-BUPSEN,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-BUPSEN,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-LAMA-CAO,NVL,NVL-001,300,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-LAMA-CAO,NVL,NVL-003,75,Xi măng trắng Portland
+BM-DEC-LAMA-CAO,NVL,NVL-002,15,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-LAMA-CAO,NVL,PG-006,0.6,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-LAMA-CAO,NVL,PG-003,0.3,Phụ gia phá bọt Deformer AX 406
+BM-DEC-LAMA-CAO,NVL,PG-004,9,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-LAMA-CAO,NVL,PG-005,9,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-LAMA-CAO,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-LAMA-CAO,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-LAMA-CAO,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-LAMA-CAO,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-LAMA-CAO,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-LAMA-CAO,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-LAMA-CAO,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-LAMA-CAO,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-VAT-BACAU,NVL,NVL-001,300,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-VAT-BACAU,NVL,NVL-003,75,Xi măng trắng Portland
+BM-DEC-VAT-BACAU,NVL,NVL-002,15,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-VAT-BACAU,NVL,PG-006,0.6,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-VAT-BACAU,NVL,PG-003,0.3,Phụ gia phá bọt Deformer AX 406
+BM-DEC-VAT-BACAU,NVL,PG-004,9,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-VAT-BACAU,NVL,PG-005,9,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-VAT-BACAU,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-VAT-BACAU,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-VAT-BACAU,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-VAT-BACAU,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-VAT-BACAU,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-VAT-BACAU,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-VAT-BACAU,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-VAT-BACAU,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-SOC-PHANG,NVL,NVL-001,300,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-SOC-PHANG,NVL,NVL-003,75,Xi măng trắng Portland
+BM-DEC-SOC-PHANG,NVL,NVL-002,15,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-SOC-PHANG,NVL,PG-006,0.6,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-SOC-PHANG,NVL,PG-003,0.3,Phụ gia phá bọt Deformer AX 406
+BM-DEC-SOC-PHANG,NVL,PG-004,9,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-SOC-PHANG,NVL,PG-005,9,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-SOC-PHANG,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-SOC-PHANG,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-SOC-PHANG,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-SOC-PHANG,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-SOC-PHANG,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-SOC-PHANG,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-SOC-PHANG,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-SOC-PHANG,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-SEN,NVL,NVL-001,100,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-SEN,NVL,NVL-003,25,Xi măng trắng Portland
+BM-DEC-SEN,NVL,NVL-002,5,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-SEN,NVL,PG-006,0.2,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-SEN,NVL,PG-003,0.1,Phụ gia phá bọt Deformer AX 406
+BM-DEC-SEN,NVL,PG-004,3,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-SEN,NVL,PG-005,3,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-SEN,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-SEN,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-SEN,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-SEN,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-SEN,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-SEN,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-SEN,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-SEN,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-SEN-L,NVL,NVL-001,200,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-SEN-L,NVL,NVL-003,50,Xi măng trắng Portland
+BM-DEC-SEN-L,NVL,NVL-002,10,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-SEN-L,NVL,PG-006,0.4,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-SEN-L,NVL,PG-003,0.2,Phụ gia phá bọt Deformer AX 406
+BM-DEC-SEN-L,NVL,PG-004,6,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-SEN-L,NVL,PG-005,6,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-SEN-L,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-SEN-L,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-SEN-L,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-SEN-L,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-SEN-L,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-SEN-L,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-SEN-L,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-SEN-L,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-OVAL,NVL,NVL-001,200,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-OVAL,NVL,NVL-003,50,Xi măng trắng Portland
+BM-DEC-OVAL,NVL,NVL-002,10,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-OVAL,NVL,PG-006,0.4,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-OVAL,NVL,PG-003,0.2,Phụ gia phá bọt Deformer AX 406
+BM-DEC-OVAL,NVL,PG-004,6,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-OVAL,NVL,PG-005,6,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-OVAL,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-OVAL,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-OVAL,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-OVAL,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-OVAL,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-OVAL,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-OVAL,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-OVAL,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-DEC-TRAITIM,NVL,NVL-001,100,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-DEC-TRAITIM,NVL,NVL-003,25,Xi măng trắng Portland
+BM-DEC-TRAITIM,NVL,NVL-002,5,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-DEC-TRAITIM,NVL,PG-006,0.2,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-DEC-TRAITIM,NVL,PG-003,0.1,Phụ gia phá bọt Deformer AX 406
+BM-DEC-TRAITIM,NVL,PG-004,3,Chất độn cao lanh Metakaolin MKA 11
+BM-DEC-TRAITIM,NVL,PG-005,3,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-DEC-TRAITIM,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-DEC-TRAITIM,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-DEC-TRAITIM,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-DEC-TRAITIM,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-DEC-TRAITIM,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-DEC-TRAITIM,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-DEC-TRAITIM,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-DEC-TRAITIM,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-SET-HUKHAY,NVL,NVL-001,500,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-SET-HUKHAY,NVL,NVL-003,125,Xi măng trắng Portland
+BM-SET-HUKHAY,NVL,NVL-002,25,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-SET-HUKHAY,NVL,PG-006,1,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-SET-HUKHAY,NVL,PG-003,0.5,Phụ gia phá bọt Deformer AX 406
+BM-SET-HUKHAY,NVL,PG-004,15,Chất độn cao lanh Metakaolin MKA 11
+BM-SET-HUKHAY,NVL,PG-005,15,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-SET-HUKHAY,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-SET-HUKHAY,Bao bì,BB-003,1,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-SET-HUKHAY,Bao bì,BB-004,1,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-SET-HUKHAY,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-SET-HUKHAY,Bao bì,BB-006,4,Giấy rơm sợi 3mm vàng nhạt
+BM-SET-HUKHAY,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-SET-HUKHAY,Bao bì,BB-011,1,Dây thừng trang trí 2mm
+BM-SET-HUKHAY,Bao bì,BB-017,2,Giấy nến lót sản phẩm trong hộp
+BM-KD-CHUMSOC,NVL,NVL-001,100,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-KD-CHUMSOC,NVL,NVL-003,25,Xi măng trắng Portland
+BM-KD-CHUMSOC,NVL,NVL-002,5,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-KD-CHUMSOC,NVL,PG-006,0.2,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-KD-CHUMSOC,NVL,PG-003,0.1,Phụ gia phá bọt Deformer AX 406
+BM-KD-CHUMSOC,NVL,PG-004,3,Chất độn cao lanh Metakaolin MKA 11
+BM-KD-CHUMSOC,NVL,PG-005,3,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-KD-CHUMSOC,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-KD-CHUMSOC,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-KD-CHUMSOC,Bao bì,BB-004,0.5,Giấy tổ ong gói hàng Zimbi 30cm x 100m
+BM-KD-CHUMSOC,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-KD-CHUMSOC,Bao bì,BB-006,2,Giấy rơm sợi 3mm vàng nhạt
+BM-KD-CHUMSOC,Bao bì,BB-007,0.5,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag)
+BM-KD-CHUMSOC,Bao bì,BB-011,0.8,Dây thừng trang trí 2mm
+BM-KD-CHUMSOC,Bao bì,BB-017,1,Giấy nến lót sản phẩm trong hộp
+BM-NL-THACHCAO,NVL,NVL-001,1000,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-NL-THACHCAO,Bao bì,BB-008,1,Túi Zip chỉ đỏ PE 20x30cm
+BM-NL-THACHCAO,Bao bì,BB-016,1,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-NL-THACHCAO,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-NL-THACHCAO,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-NL-THACHCAO,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-NL-PHABOT,NVL,PG-003,100,Phụ gia phá bọt Deformer AX 406
+BM-NL-PHABOT,Bao bì,BB-010,1,Túi Zip chỉ đỏ PE 12x17cm
+BM-NL-PHABOT,Bao bì,BB-016,1,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-NL-PHABOT,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-NL-PHABOT,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-NL-PHABOT,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-NL-SIEUDEO,NVL,PG-006,100,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-NL-SIEUDEO,Bao bì,BB-010,1,Túi Zip chỉ đỏ PE 12x17cm
+BM-NL-SIEUDEO,Bao bì,BB-016,1,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-NL-SIEUDEO,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-NL-SIEUDEO,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-NL-SIEUDEO,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-NL-METAKAOLIN,NVL,PG-004,500,Chất độn cao lanh Metakaolin MKA 11
+BM-NL-METAKAOLIN,Bao bì,BB-009,1,Túi Zip chỉ đỏ PE 18x25cm
+BM-NL-METAKAOLIN,Bao bì,BB-016,1,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-NL-METAKAOLIN,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-NL-METAKAOLIN,Bao bì,BB-003,0.5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-NL-METAKAOLIN,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-BB-CT-201510,NVL,BB-001,10,Hộp carton 20x15x10 sóng B
+BM-BB-CT-201510,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-BB-CT-302015,NVL,BB-002,10,Hộp carton lớn 30x20x15 sóng B
+BM-BB-CT-302015,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-BB-ZIP-2030,NVL,BB-008,20,Túi Zip chỉ đỏ PE 20x30cm
+BM-BB-ZIP-2030,Bao bì,BB-005,3,Băng keo dán thùng Trắng Trong 1kg
+BM-BB-ZIP-1825,NVL,BB-009,25,Túi Zip chỉ đỏ PE 18x25cm
+BM-BB-ZIP-1825,Bao bì,BB-005,3,Băng keo dán thùng Trắng Trong 1kg
+BM-BB-ZIP-1217,NVL,BB-010,50,Túi Zip chỉ đỏ PE 12x17cm
+BM-BB-ZIP-1217,Bao bì,BB-005,3,Băng keo dán thùng Trắng Trong 1kg
+BM-SI-TC-5KG,NVL,NVL-001,5000,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-SI-TC-5KG,Bao bì,BB-008,5,Túi Zip chỉ đỏ PE 20x30cm
+BM-SI-TC-5KG,Bao bì,BB-016,5,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-SI-TC-5KG,Bao bì,BB-002,1,Hộp carton lớn 30x20x15 sóng B
+BM-SI-TC-5KG,Bao bì,BB-005,10,Băng keo dán thùng Trắng Trong 1kg
+BM-SI-TC-25KG,NVL,NVL-001,25000,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-SI-TC-25KG,Bao bì,BB-016,2,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-SI-TC-25KG,Bao bì,BB-005,15,Băng keo dán thùng Trắng Trong 1kg
+BM-SI-PG-COMBO,NVL,PG-004,1000,Chất độn cao lanh Metakaolin MKA 11
+BM-SI-PG-COMBO,NVL,PG-006,200,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-SI-PG-COMBO,NVL,PG-003,100,Phụ gia phá bọt Deformer AX 406
+BM-SI-PG-COMBO,Bao bì,BB-008,1,Túi Zip chỉ đỏ PE 20x30cm
+BM-SI-PG-COMBO,Bao bì,BB-010,2,Túi Zip chỉ đỏ PE 12x17cm
+BM-SI-PG-COMBO,Bao bì,BB-016,3,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-SI-PG-COMBO,Bao bì,BB-001,1,Hộp carton 20x15x10 sóng B
+BM-SI-PG-COMBO,Bao bì,BB-003,1,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-SI-PG-COMBO,Bao bì,BB-005,5,Băng keo dán thùng Trắng Trong 1kg
+BM-SI-HU-LO10,NVL,NVL-001,3000,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-SI-HU-LO10,NVL,NVL-003,750,Xi măng trắng Portland
+BM-SI-HU-LO10,NVL,NVL-002,150,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-SI-HU-LO10,NVL,PG-004,90,Chất độn cao lanh Metakaolin MKA 11
+BM-SI-HU-LO10,NVL,PG-006,6,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-SI-HU-LO10,NVL,PG-003,3,Phụ gia phá bọt Deformer AX 406
+BM-SI-HU-LO10,NVL,PG-005,90,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-SI-HU-LO10,Bao bì,BB-002,1,Hộp carton lớn 30x20x15 sóng B
+BM-SI-HU-LO10,Bao bì,BB-003,5,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-SI-HU-LO10,Bao bì,BB-006,50,Giấy rơm sợi 3mm vàng nhạt
+BM-SI-HU-LO10,Bao bì,BB-005,20,Băng keo dán thùng Trắng Trong 1kg
+BM-SI-HU-LO10,Bao bì,BB-016,1,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+BM-SI-KHAY-LO10,NVL,NVL-001,2000,Thạch cao đúc mịn TA-P3C (Hemi Hydrate)
+BM-SI-KHAY-LO10,NVL,NVL-003,500,Xi măng trắng Portland
+BM-SI-KHAY-LO10,NVL,NVL-002,100,Cát thạch anh mịn (0.1 - 0.3mm)
+BM-SI-KHAY-LO10,NVL,PG-004,60,Chất độn cao lanh Metakaolin MKA 11
+BM-SI-KHAY-LO10,NVL,PG-006,4,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201
+BM-SI-KHAY-LO10,NVL,PG-003,2,Phụ gia phá bọt Deformer AX 406
+BM-SI-KHAY-LO10,NVL,PG-005,60,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR
+BM-SI-KHAY-LO10,Bao bì,BB-002,1,Hộp carton lớn 30x20x15 sóng B
+BM-SI-KHAY-LO10,Bao bì,BB-003,4,Cuộn xốp nổ bọc hàng 30cm x 100m
+BM-SI-KHAY-LO10,Bao bì,BB-006,40,Giấy rơm sợi 3mm vàng nhạt
+BM-SI-KHAY-LO10,Bao bì,BB-005,15,Băng keo dán thùng Trắng Trong 1kg
+BM-SI-KHAY-LO10,Bao bì,BB-016,1,Nhãn dán Decal A4 90x65mm (túi nguyên liệu)
+04. TỒN ĐẦU KỲ (KIỂM KÊ LẦN ĐẦU),,,,,,,
+"Số vàng hiện là ƯỚC TÍNH = lượng đã mua theo chứng từ, CHƯA trừ phần đã dùng thử. Hãy cân/đếm thực tế, sửa số, đổi tình trạng thành 'Đã kiểm kê'. Chỉ ghi giao dịch ở các sheet khác từ sau ngày kiểm kê.",,,,,,,
+,,,,,,,
+Loại mã,Mã,Tên (tự tra),ĐVT,SL tồn đầu kỳ,Ngày kiểm kê,Tình trạng,Ghi chú
+VT,NVL-001,Thạch cao đúc mịn TA-P3C (Hemi Hydrate),g,25000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,NVL-002,Cát thạch anh mịn (0.1 - 0.3mm),g,2000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,NVL-003,Xi măng trắng Portland,g,2000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,NVL-004,Thạch cao Long Vu Resin (Lô thử nghiệm R&D),g,5000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,NVL-005,Sáp bơ thực vật / Sáp đậu nành,g,0,2026-11-22,Chưa có hàng,
+VT,NVL-006,Tinh dầu thơm làm nến (Fragrance Oil),ml,0,2026-11-22,Chưa có hàng,
+VT,PG-001,Bột tăng trắng Titanium Dioxide (TiO2),g,500,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,PG-002,"Bột màu Oxit sắt (Đen 722, Đỏ Y101, Vàng M35)",g,1500,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,PG-003,Phụ gia phá bọt Deformer AX 406,g,5000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,PG-004,Chất độn cao lanh Metakaolin MKA 11,g,2000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,PG-005,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR,ml,1000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,PG-006,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201,g,2000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-001,Hộp carton 20x15x10 sóng B,cái,50,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-002,Hộp carton lớn 30x20x15 sóng B,cái,20,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-003,Cuộn xốp nổ bọc hàng 30cm x 100m,m,100,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-004,Giấy tổ ong gói hàng Zimbi 30cm x 100m,m,100,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-005,Băng keo dán thùng Trắng Trong 1kg,g,1000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-006,Giấy rơm sợi 3mm vàng nhạt,g,2000,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-007,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag),tờ,100,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-008,Túi Zip chỉ đỏ PE 20x30cm,túi,75,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-009,Túi Zip chỉ đỏ PE 18x25cm,túi,125,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-010,Túi Zip chỉ đỏ PE 12x17cm,túi,250,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-011,Dây thừng trang trí 2mm,m,410,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,BB-012,Bấc cotton + Đế dán bấc,cái,0,2026-11-22,Chưa có hàng,
+VT,BB-013,Bấc gỗ + Chân đế kẹp,cái,0,2026-11-22,Chưa có hàng,
+VT,BB-014,Cốc nhôm / Polycarbonate đựng nến Tealight,cái,0,2026-11-22,Chưa có hàng,
+VT,BB-015,Lọ diêm gỗ dài 10cm (lọ 20 que),lọ,0,2026-11-22,Chưa có hàng,
+VT,BB-016,Nhãn dán Decal A4 90x65mm (túi nguyên liệu),cái,800,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,TH-001,Găng tay Nitrile không bột Đen (Size M),chiếc,100,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,TH-002,Găng tay Nitrile không bột Trắng (Size L),chiếc,100,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,TH-003,Giấy nhám nước RIKEN C35P (400 & 1000),tờ,10,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,TH-004,Khăn lau đa năng Microfiber 30x30cm,khăn,5,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+VT,HH-001,Nến bơ Tealight nhập bán sẵn (Chờ chọn NCC),viên,0,2026-11-22,Chưa có hàng,
+VT,BB-017,Giấy nến lót sản phẩm trong hộp,tờ,100,2026-11-22,Ước tính — cần cân/đếm lại,Ước tính theo 1 lần mua; đã dùng thử bao nhiêu thì trừ đi.
+TP,BM-DEC-LAMA-LUN,"Hũ Thạch Cao Vân Sọc Lùn, Nắp Chóp (Trắng)",sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-BUPSEN,"Hũ Thạch Cao Búp Sen, Có Nắp (Trắng)",sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-LAMA-CAO,"Hũ Thạch Cao Trụ Sọc Cao, Có Nắp (Trắng)",sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-VAT-BACAU,"Hũ Thạch Cao Trụ Trơn, Nắp Đĩa (Trắng)",sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-SOC-PHANG,Hũ Thạch Cao Sọc Đứng Nắp Phẳng (Trắng),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-SEN,Đế Nến Hoa Sen Thạch Cao Size Nhỏ (Trắng),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-SEN-L,Đế Nến Hoa Sen Thạch Cao Size Lớn (Trắng),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-OVAL,Khay Thạch Cao Oval / Bầu Dục Decor (Trắng),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-DEC-TRAITIM,Khay / Đế Thạch Cao Hình Trái Tim (Trắng — Khuôn Thô),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-NL-THACHCAO,Bột Thạch Cao Trắng Siêu Mịn Thái Lan TA-P3C (Túi 1kg),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-NL-PHABOT,"Phụ Gia Phá Bọt Khí Đúc Thạch Cao, Xi Măng AX406 (Gói 100g)",sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-NL-SIEUDEO,Phụ Gia Siêu Dẻo Giảm Nước PCE PPC1201 (Gói 100g),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-NL-METAKAOLIN,Bột Tăng Cứng Thạch Cao & XM Trắng Metakaolin MKA11 (Túi 500g),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-BB-ZIP-2030,Túi Zip Chỉ Đỏ PE 20x30cm (Xấp Đóng Gói),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-BB-ZIP-1825,Túi Zip Chỉ Đỏ PE 18x25cm (Xấp Đóng Gói),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-BB-ZIP-1217,Túi Zip Chỉ Đỏ PE 12x17cm (Xấp Đóng Gói),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-BB-CT-201510,Combo Hộp Carton Sóng B 20x15x10cm (Gói 10 Hộp),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-BB-CT-302015,Combo Hộp Carton Sóng B 30x20x15cm (Gói 10 Hộp),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-SET-HUKHAY,Set Combo Hũ + Khay Thạch Cao Decor (Mộc Trắng),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-KD-CHUMSOC,Chum Sọc Thạch Cao Đặt Nến Tealight (Chờ Kiểm Khuôn Riêng),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-SI-TC-5KG,Combo Sỉ 5kg Bột Thạch Cao Thái Lan TA-P3C (5 Túi Zip 1kg — Đóng Chung Thùng Sỉ),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-SI-TC-25KG,Bao Sỉ Nguyên 25kg Bột Thạch Cao Thái Lan TA-P3C (Nguyên Bao Nhà Máy — Giao Xưởng),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-SI-PG-COMBO,Combo Sỉ Phụ Gia Đúc Thạch Cao Xưởng (1kg Metakaolin + 200g Siêu Dẻo + 100g Phá Bọt),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-SI-HU-LO10,Thùng Sỉ 10 Phôi Hũ Thạch Cao Trắng Mix Mẫu (Đóng Thùng Lớn + Xốp Nổ — Không Hộp Lẻ),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+TP,BM-SI-KHAY-LO10,Thùng Sỉ 10 Khay / Đế Nến Thạch Cao Trắng Mix Mẫu (Sen / Oval / Tim — Đóng Thùng Sỉ),sp,0,2026-11-22,Ước tính — cần cân/đếm lại,Thành phẩm đã đúc sẵn (nếu có) thì nhập số đếm được.
+05. NHẬP HÀNG / MUA VẬT TƯ (MỖI DÒNG = 1 MẶT HÀNG),,,,,,,,,,,
+"Ghi SL theo ĐVT chuẩn (vd bao 25kg → 25000 g). Thành tiền = số thực trả sau voucher, gồm ship phân bổ. Đơn giá thực lệch >10% so với chuẩn → cập nhật lại file kế hoạch 03_Vat_Tu.",,,,,,,,,,,
+,,,,,,,,,,,
+Ngày,Mã đơn / chứng từ,Nhà cung cấp,Mã VT,Tên VT (tự tra),ĐVT,SL (ĐVT chuẩn),Thành tiền thực trả,Đơn giá thực / ĐVT,Đơn giá chuẩn,Lệch so với chuẩn,Ghi chú (quy cách mua...)
+06. NHẬT KÝ SẢN XUẤT — MẺ ĐÚC & CHIẾT / ĐÓNG GÓI,,,,,,,,,,,,,,,
+Mỗi dòng = 1 mẻ của 1 SKU. 'SL làm' = số đổ khuôn (gồm cả hỏng) → trừ NVL theo định mức; 'SL đạt' → cộng kho thành phẩm. Cân thạch cao thực (cột J) để biết hao hụt thật; bỏ trống thì trừ theo định mức.,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+Ngày,Mã mẻ,Loại,Mã SKU,Tên SKU (tự tra),SL làm (đổ khuôn / đóng),SL đạt,SL lỗi / phế,% lỗi,Thạch cao cân thực (g),Thạch cao theo định mức (g),Thạch cao trừ kho (g),Chênh thạch cao vs định mức,Phút làm thực tế,Người làm,Ghi chú lỗi / cải tiến
+07. ĐƠN BÁN HÀNG (MỖI DÒNG = 1 SKU TRONG ĐƠN),,,,,,,,,,,,,,,,,,,,
+Shopee: lấy 'Số tiền thực nhận' trong Seller Center; Phí = Thành tiền − Thực nhận (nhập ở 1 dòng của đơn). Có thể ghi gộp theo ngày (mã đơn SHP-ddmm). Lẻ/Sỉ: phí = phí COD + phần ship shop trả.,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,
+Ngày,Mã đơn,Kênh,Khách hàng,Mã SKU,Tên SKU (tự tra),SL,Đơn giá bán thực,Thành tiền,Phí sàn / COD / voucher shop,Ship shop trả,Thực nhận,Trạng thái,Doanh thu ghi nhận,Thực nhận ghi nhận,SL xuất kho TP,SL trừ bao bì,Giá vốn chuẩn,Lãi gộp,Giá chuẩn kênh,Ghi chú
+"08. ĐIỀU CHỈNH KHO (HƯ HỎNG, DÙNG THỬ, QUÀ TẶNG, CHÊNH KIỂM KÊ...)",,,,,,
+"SL dương = cộng kho, âm = trừ kho. Dùng khi đóng đơn sỉ khác định mức, làm mẫu thử, tặng KOC, hoặc khi kiểm kê thấy chênh.",,,,,,
+,,,,,,
+Ngày,Loại mã,Mã,Tên (tự tra),SL (+/−),Lý do,Ghi chú
+09. TỒN KHO VẬT TƯ (TỰ TÍNH — KHÔNG NHẬP),,,,,,,,,,,
+Tồn = Đầu kỳ (04) + Nhập (05) − Xuất sản xuất theo định mức NVL (06) − Xuất bao bì theo đơn bán (07) ± Điều chỉnh (08). Thạch cao trừ theo số cân thực nếu có.,,,,,,,,,,,
+,,,,,,,,,,Tổng giá trị tồn:,3625043
+Mã VT,Tên vật tư,ĐVT,Tồn đầu kỳ,Nhập,Xuất sản xuất,Xuất bao bì (bán),Điều chỉnh,TỒN HIỆN TẠI,Điểm đặt hàng lại,Cảnh báo,Giá trị tồn (đ)
+NVL-001,Thạch cao đúc mịn TA-P3C (Hemi Hydrate),g,25000,0,0,0,0,25000,26000,CẦN ĐẶT HÀNG,234860
+NVL-002,Cát thạch anh mịn (0.1 - 0.3mm),g,2000,0,0,0,0,2000,2000,CẦN ĐẶT HÀNG,44000
+NVL-003,Xi măng trắng Portland,g,2000,0,0,0,0,2000,6000,CẦN ĐẶT HÀNG,34960
+NVL-004,Thạch cao Long Vu Resin (Lô thử nghiệm R&D),g,5000,0,0,0,0,5000,,,138000
+NVL-005,Sáp bơ thực vật / Sáp đậu nành,g,0,0,0,0,0,0,,,0
+NVL-006,Tinh dầu thơm làm nến (Fragrance Oil),ml,0,0,0,0,0,0,,,0
+PG-001,Bột tăng trắng Titanium Dioxide (TiO2),g,500,0,0,0,0,500,,,156000
+PG-002,"Bột màu Oxit sắt (Đen 722, Đỏ Y101, Vàng M35)",g,1500,0,0,0,0,1500,,,117000
+PG-003,Phụ gia phá bọt Deformer AX 406,g,5000,0,0,0,0,5000,300,OK,1095304
+PG-004,Chất độn cao lanh Metakaolin MKA 11,g,2000,0,0,0,0,2000,3000,CẦN ĐẶT HÀNG,92236
+PG-005,Phủ bóng chống thấm Acrylic Sealer HUNGACOLOR,ml,1000,0,0,0,0,1000,700,OK,144000
+PG-006,Phụ gia siêu dẻo Polycarboxylate PCE-PPC 1201,g,2000,0,0,0,0,2000,400,OK,320000
+BB-001,Hộp carton 20x15x10 sóng B,cái,50,0,0,0,0,50,110,CẦN ĐẶT HÀNG,94047
+BB-002,Hộp carton lớn 30x20x15 sóng B,cái,20,0,0,0,0,20,,OK,74581
+BB-003,Cuộn xốp nổ bọc hàng 30cm x 100m,m,100,0,0,0,0,100,60,OK,89958
+BB-004,Giấy tổ ong gói hàng Zimbi 30cm x 100m,m,100,0,0,0,0,100,50,OK,147000
+BB-005,Băng keo dán thùng Trắng Trong 1kg,g,1000,0,0,0,0,1000,500,OK,63789
+BB-006,Giấy rơm sợi 3mm vàng nhạt,g,2000,0,0,0,0,2000,200,OK,120000
+BB-007,Giấy bìa Kraft Nhật A4 180gsm (thiệp/tag),tờ,100,0,0,0,0,100,50,OK,70000
+BB-008,Túi Zip chỉ đỏ PE 20x30cm,túi,75,0,0,0,0,75,20,OK,77535
+BB-009,Túi Zip chỉ đỏ PE 18x25cm,túi,125,0,0,0,0,125,1,OK,75483
+BB-010,Túi Zip chỉ đỏ PE 12x17cm,túi,250,0,0,0,0,250,4,OK,75482
+BB-011,Dây thừng trang trí 2mm,m,410,0,0,0,0,410,80,OK,59430
+BB-012,Bấc cotton + Đế dán bấc,cái,0,0,0,0,0,0,,,0
+BB-013,Bấc gỗ + Chân đế kẹp,cái,0,0,0,0,0,0,,,0
+BB-014,Cốc nhôm / Polycarbonate đựng nến Tealight,cái,0,0,0,0,0,0,,,0
+BB-015,Lọ diêm gỗ dài 10cm (lọ 20 que),lọ,0,0,0,0,0,0,,,0
+BB-016,Nhãn dán Decal A4 90x65mm (túi nguyên liệu),cái,800,0,0,0,0,800,9,OK,90000
+TH-001,Găng tay Nitrile không bột Đen (Size M),chiếc,100,0,0,0,0,100,,,74551
+TH-002,Găng tay Nitrile không bột Trắng (Size L),chiếc,100,0,0,0,0,100,,,49999
+TH-003,Giấy nhám nước RIKEN C35P (400 & 1000),tờ,10,0,0,0,0,10,,,36100
+TH-004,Khăn lau đa năng Microfiber 30x30cm,khăn,5,0,0,0,0,5,,,30728
+HH-001,Nến bơ Tealight nhập bán sẵn (Chờ chọn NCC),viên,0,0,0,0,0,0,,,0
+BB-017,Giấy nến lót sản phẩm trong hộp,tờ,100,0,0,0,0,100,100,CẦN ĐẶT HÀNG,20000
+10. TỒN KHO THÀNH PHẨM (TỰ TÍNH — KHÔNG NHẬP),,,,,,,,,,
+"Tồn = Đầu kỳ (04) + SL đạt (06) − SL xuất bán (07: đã giao, đang giao, hoàn hỏng) ± Điều chỉnh (08). Hoàn nhập lại kho thì không trừ.",,,,,,,,,,
+,,,,,,,,Tổng giá trị tồn:,0,
+Mã SKU,Tên SKU,Tồn đầu kỳ,Sản xuất đạt,Xuất bán,Điều chỉnh,TỒN HIỆN TẠI,Tồn tối thiểu,Cảnh báo,Giá trị tồn (giá vốn),Bán 30 ngày gần nhất
+BM-DEC-LAMA-LUN,"Hũ Thạch Cao Vân Sọc Lùn, Nắp Chóp (Trắng)",0,0,0,0,0,7,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-BUPSEN,"Hũ Thạch Cao Búp Sen, Có Nắp (Trắng)",0,0,0,0,0,7,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-LAMA-CAO,"Hũ Thạch Cao Trụ Sọc Cao, Có Nắp (Trắng)",0,0,0,0,0,5,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-VAT-BACAU,"Hũ Thạch Cao Trụ Trơn, Nắp Đĩa (Trắng)",0,0,0,0,0,5,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-SOC-PHANG,Hũ Thạch Cao Sọc Đứng Nắp Phẳng (Trắng),0,0,0,0,0,5,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-SEN,Đế Nến Hoa Sen Thạch Cao Size Nhỏ (Trắng),0,0,0,0,0,4,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-SEN-L,Đế Nến Hoa Sen Thạch Cao Size Lớn (Trắng),0,0,0,0,0,4,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-OVAL,Khay Thạch Cao Oval / Bầu Dục Decor (Trắng),0,0,0,0,0,4,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-DEC-TRAITIM,Khay / Đế Thạch Cao Hình Trái Tim (Trắng — Khuôn Thô),0,0,0,0,0,3,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-NL-THACHCAO,Bột Thạch Cao Trắng Siêu Mịn Thái Lan TA-P3C (Túi 1kg),0,0,0,0,0,2,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-NL-PHABOT,"Phụ Gia Phá Bọt Khí Đúc Thạch Cao, Xi Măng AX406 (Gói 100g)",0,0,0,0,0,1,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-NL-SIEUDEO,Phụ Gia Siêu Dẻo Giảm Nước PCE PPC1201 (Gói 100g),0,0,0,0,0,1,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-NL-METAKAOLIN,Bột Tăng Cứng Thạch Cao & XM Trắng Metakaolin MKA11 (Túi 500g),0,0,0,0,0,1,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-BB-ZIP-2030,Túi Zip Chỉ Đỏ PE 20x30cm (Xấp Đóng Gói),0,0,0,0,0,1,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-BB-ZIP-1825,Túi Zip Chỉ Đỏ PE 18x25cm (Xấp Đóng Gói),0,0,0,0,0,0,,0,0
+BM-BB-ZIP-1217,Túi Zip Chỉ Đỏ PE 12x17cm (Xấp Đóng Gói),0,0,0,0,0,0,,0,0
+BM-BB-CT-201510,Combo Hộp Carton Sóng B 20x15x10cm (Gói 10 Hộp),0,0,0,0,0,1,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-BB-CT-302015,Combo Hộp Carton Sóng B 30x20x15cm (Gói 10 Hộp),0,0,0,0,0,0,,0,0
+BM-SET-HUKHAY,Set Combo Hũ + Khay Thạch Cao Decor (Mộc Trắng),0,0,0,0,0,2,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-KD-CHUMSOC,Chum Sọc Thạch Cao Đặt Nến Tealight (Chờ Kiểm Khuôn Riêng),0,0,0,0,0,2,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-SI-TC-5KG,Combo Sỉ 5kg Bột Thạch Cao Thái Lan TA-P3C (5 Túi Zip 1kg — Đóng Chung Thùng Sỉ),0,0,0,0,0,0,,0,0
+BM-SI-TC-25KG,Bao Sỉ Nguyên 25kg Bột Thạch Cao Thái Lan TA-P3C (Nguyên Bao Nhà Máy — Giao Xưởng),0,0,0,0,0,1,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-SI-PG-COMBO,Combo Sỉ Phụ Gia Đúc Thạch Cao Xưởng (1kg Metakaolin + 200g Siêu Dẻo + 100g Phá Bọt),0,0,0,0,0,1,CẦN ĐÚC / ĐÓNG THÊM,0,0
+BM-SI-HU-LO10,Thùng Sỉ 10 Phôi Hũ Thạch Cao Trắng Mix Mẫu (Đóng Thùng Lớn + Xốp Nổ — Không Hộp Lẻ),0,0,0,0,0,0,,0,0
+BM-SI-KHAY-LO10,Thùng Sỉ 10 Khay / Đế Nến Thạch Cao Trắng Mix Mẫu (Sen / Oval / Tim — Đóng Thùng Sỉ),0,0,0,0,0,0,,0,0
+"11. THU / CHI KHÁC (OPEX THỰC TẾ, MUA DỤNG CỤ, RÚT TIỀN...)",,,,,,
+"Tiền bán hàng (07) và tiền mua vật tư (05) đã tự tính — KHÔNG ghi lại ở đây. Mỗi tháng nhớ ghi dòng 'OPEX — Quỹ tái đầu tư khuôn' (180.000đ, chuyển sang tiết kiệm) để so đúng với kế hoạch.",,,,,,
+,,,,,,
+Ngày,Thu / Chi,Nhóm,Mã CP kế hoạch,Diễn giải,Số tiền,Ghi chú
+12. BÁO CÁO THÁNG — THỰC TẾ SO VỚI KẾ HOẠCH,,,,,,,,,
+Chọn tháng ở ô vàng C3 (nhập ngày 1 của tháng). Số kế hoạch là bản copy từ file kế hoạch tại thời điểm dựng file.,,,,,,,,,
+Tháng báo cáo (ngày 1):,,2026-11-01,→ đến trước ngày:,2026-12-01,,,,,
+,,,,,,,,,
+A. BÁN HÀNG THEO KÊNH,,,,,,,,,
+Kênh,SL bán thực,SL kế hoạch,% đạt SL,Doanh thu thực,Doanh thu KH,Thực nhận,Giá vốn chuẩn,Lãi gộp thực,Lãi đóng góp KH
+Shopee,0,140,0%,0,6979000,0,0,0,1287056
+Lẻ Zalo / Website,0,30,0%,0,1288000,0,0,0,673078
+Sỉ,0,30,0%,0,2014000,0,0,0,813562
+TỔNG,0,200,0%,0,10281000,0,0,0,2773696
+,,,,,,,,,
+B. LÃI / LỖ THỰC TẾ THÁNG,,,,,,,,,
+Chỉ tiêu,Thực tế,Kế hoạch,Chênh lệch,,,,,,
+Lãi gộp (thực nhận − giá vốn chuẩn),0,2773696,-2773696,,,,,,
+(−) OPEX thực (11: nhóm 'OPEX — ...'),0,-630000,630000,,,,,,
+➜ LÃI RÒNG THÁNG,0,2143696,-2143696,,,,,,
+(+) Công trực tiếp (theo kế hoạch),673000,673000,0,,,,,,
+➜ THU NHẬP GIA ĐÌNH (ước),673000,2816696,-2143696,,,,,,
+,,,,,,,,,
+C. SẢN XUẤT & HAO HỤT THỰC TẾ (→ đưa về file kế hoạch làm tham số hao hụt),,,,,,,,,
+Chỉ tiêu,Giá trị,Ghi chú,,,,,,,
+Số mẻ trong tháng,0,,,,,,,,
+Tổng SL làm (đổ khuôn / đóng),0,,,,,,,,
+Tổng SL đạt,0,,,,,,,,
+Tỷ lệ phế phẩm thực,,Kế hoạch hiện coi = 0%,,,,,,,
+Thạch cao cân thực (g),0,,,,,,,,
+Thạch cao theo định mức của các mẻ có cân (g),0,,,,,,,,
+Chênh thạch cao thực vs định mức,0,Dương = dùng nhiều hơn định mức,,,,,,,
+,,,,,,,,,
+D. DÒNG TIỀN THỰC TRONG THÁNG,,,,,,,,,
+Khoản,Số tiền,,,,,,,,
+(+) Thực nhận từ đơn bán,0,,,,,,,,
+(+) Thu khác (11),0,,,,,,,,
+(−) Mua vật tư (05),0,,,,,,,,
+"(−) Chi khác (11, gồm OPEX, dụng cụ, rút tiền)",0,,,,,,,,
+➜ DÒNG TIỀN RÒNG THÁNG,0,,,,,,,,
+,,,,,,,,,
+"E. THEO SKU — SL BÁN THỰC VS KẾ HOẠCH, GIÁ BÁN BQ THỰC VS GIÁ CHUẨN, % LỖI ĐÚC",,,,,,,,,
+Mã SKU,SL bán thực,SL KH / tháng,% đạt,Giá BQ thực,Giá chuẩn BQ,Chênh giá,SL làm,SL đạt,% lỗi
+BM-DEC-LAMA-LUN,0,27,0%,,48074,,0,0,
+BM-DEC-BUPSEN,0,27,0%,,51667,,0,0,
+BM-DEC-LAMA-CAO,0,20,0%,,51700,,0,0,
+BM-DEC-VAT-BACAU,0,20,0%,,51700,,0,0,
+BM-DEC-SOC-PHANG,0,20,0%,,48100,,0,0,
+BM-DEC-SEN,0,16,0%,,27875,,0,0,
+BM-DEC-SEN-L,0,14,0%,,46143,,0,0,
+BM-DEC-OVAL,0,14,0%,,36857,,0,0,
+BM-DEC-TRAITIM,0,11,0%,,27273,,0,0,
+BM-NL-THACHCAO,0,5,0%,,35200,,0,0,
+BM-NL-PHABOT,0,2,0%,,63000,,0,0,
+BM-NL-SIEUDEO,0,2,0%,,42500,,0,0,
+BM-NL-METAKAOLIN,0,2,0%,,55000,,0,0,
+BM-BB-ZIP-2030,0,1,0%,,30000,,0,0,
+BM-BB-ZIP-1825,0,0,,,28000,,0,0,
+BM-BB-ZIP-1217,0,0,,,28000,,0,0,
+BM-BB-CT-201510,0,1,0%,,28000,,0,0,
+BM-BB-CT-302015,0,0,,,61000,,0,0,
+BM-SET-HUKHAY,0,7,0%,,85857,,0,0,
+BM-KD-CHUMSOC,0,6,0%,,30333,,0,0,
+BM-SI-TC-5KG,0,0,,,89000,,0,0,
+BM-SI-TC-25KG,0,3,0%,,330000,,0,0,
+BM-SI-PG-COMBO,0,2,0%,,161000,,0,0,
+BM-SI-HU-LO10,0,0,,,289000,,0,0,
+BM-SI-KHAY-LO10,0,0,,,200000,,0,0,

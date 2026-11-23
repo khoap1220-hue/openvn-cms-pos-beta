@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { apiGet, apiPost } from '@/lib/api'
+import { fetchBaocaoExportBlob } from '@/lib/baocao-client'
 import { formatAttributesReadable, formatCompactVND, formatDateTime, formatNumber, formatVND } from '@/lib/format'
 import { EmptyState, ErrorState, PageHeader, TableSkeleton } from '@/components/cms/page-header'
 import { StatCard } from '@/components/cms/stat-card'
@@ -41,11 +42,14 @@ import {
 } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { trackClientBehavior } from '@/lib/behavior-client'
 import { useToast } from '@/hooks/use-toast'
 import {
   CircleDollarSign,
   Crown,
+  FileSpreadsheet,
   Landmark,
+  Loader2,
   LockKeyhole,
   Package,
   PackageSearch,
@@ -145,7 +149,13 @@ const AI_SECTIONS = [
   },
 ]
 
-export function InvoiceDashboardView({ onNavigate }: { onNavigate?: (view: string) => void }) {
+export function InvoiceDashboardView({
+  onNavigate,
+  canOpenReports = true,
+}: {
+  onNavigate?: (view: string) => void
+  canOpenReports?: boolean
+}) {
   const [year, setYear] = useState<number>(CURRENT_YEAR)
   const [quarter, setQuarter] = useState<number | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
@@ -155,6 +165,7 @@ export function InvoiceDashboardView({ onNavigate }: { onNavigate?: (view: strin
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null)
   const [aiNeedsKey, setAiNeedsKey] = useState(false)
+  const [downloadingBaocao, setDownloadingBaocao] = useState(false)
   const { toast } = useToast()
 
   const load = useCallback(async () => {
@@ -219,7 +230,75 @@ export function InvoiceDashboardView({ onNavigate }: { onNavigate?: (view: strin
       <PageHeader
         title="Bảng điều khiển hạch toán"
         description="Tổng quan doanh thu, chi phí, thuế VAT, lợi nhuận và dòng tiền kho theo kỳ kế toán"
-      />
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={downloadingBaocao}
+          className="border-emerald-300 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+          onClick={async () => {
+            setDownloadingBaocao(true)
+            try {
+              const now = new Date()
+              const ym = `${year}-${String(now.getMonth() + 1).padStart(2, '0')}`
+              const params = new URLSearchParams({ format: 'xlsx', month: ym })
+              const blob = await fetchBaocaoExportBlob('xlsx', params)
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = 'baocao.xlsx'
+              document.body.appendChild(a)
+              a.click()
+              a.remove()
+              URL.revokeObjectURL(url)
+              trackClientBehavior({
+                category: 'EXPORT',
+                action: 'DATA_EXPORT',
+                module: 'accounting',
+                targetType: 'BaocaoWorkbook',
+                targetCode: 'baocao.xlsx',
+                summary: `Tải mẫu Sổ Vận hành Bơ Mộc (baocao.xlsx, tháng ${ym}) từ Bảng điều khiển hạch toán`,
+              })
+              toast({
+                title: 'Đã tải tệp baocao.xlsx (13 Sheet)',
+                description: `Báo cáo tháng ${ym} đã sẵn sàng mở trên Excel / Google Sheets.`,
+              })
+            } catch (err) {
+              toast({
+                title: 'Không thể tải baocao.xlsx',
+                description: err instanceof Error ? err.message : 'Lỗi kết nối máy chủ',
+                variant: 'destructive',
+              })
+            } finally {
+              setDownloadingBaocao(false)
+            }
+          }}
+          data-testid="accounting-export-baocao-xlsx"
+        >
+          {downloadingBaocao ? (
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+          ) : (
+            <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+          )}
+          Tải mẫu baocao (.xlsx)
+        </Button>
+        {onNavigate && canOpenReports && (
+          <Button
+            size="sm"
+            className="bg-[#0066CC] text-white hover:bg-[#0055B3]"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem('cms_open_report_tab', 'baocao')
+                window.dispatchEvent(new CustomEvent('cms:open-report-tab', { detail: 'baocao' }))
+              }
+              onNavigate('reports')
+            }}
+            data-testid="accounting-open-baocao-view"
+          >
+            Mở Sổ Vận hành Bơ Mộc (13 Sheet)
+          </Button>
+        )}
+      </PageHeader>
 
       {/* FR-DB-01: Bộ lọc toàn cục Quý / Năm + trạng thái chốt sổ */}
       <div className="flex flex-wrap items-center gap-3">

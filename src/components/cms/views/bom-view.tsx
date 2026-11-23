@@ -106,7 +106,13 @@ function ComboBadge() {
   )
 }
 
-export function BomView({ onNavigate }: { onNavigate?: (view: ViewId) => void } = {}) {
+export function BomView({
+  onNavigate,
+  canOpenReports = true,
+}: {
+  onNavigate?: (view: ViewId) => void
+  canOpenReports?: boolean
+} = {}) {
   const [activeSection, setActiveSection] = useState<'PRODUCTION' | 'BOM_SETUP'>('PRODUCTION')
   const [groups, setGroups] = useState<BomGroup[] | null>(null)
   const [products, setProducts] = useState<ProductLite[] | null>(null)
@@ -299,7 +305,11 @@ export function BomView({ onNavigate }: { onNavigate?: (view: ViewId) => void } 
 
   return (
     <div>
-      <WarehouseModuleNav active="bom" onNavigate={onNavigate} />
+      <WarehouseModuleNav
+        active="bom"
+        onNavigate={onNavigate}
+        canOpenReports={canOpenReports}
+      />
 
       <PageHeader
         title="Sản xuất & Định mức (BOM)"

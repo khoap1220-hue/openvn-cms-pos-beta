@@ -35,7 +35,8 @@ import { formatCompactVND, formatNumber, formatVND } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { apiGet } from '@/lib/api'
 import type { PnlData, ReportsData } from '@/lib/types'
-import { CheckCircle2, Percent, Receipt, Wallet } from 'lucide-react'
+import { Baocao1BoMocPanel } from '@/components/cms/views/baocao1-bomoc-panel'
+import { BarChart3, CheckCircle2, FileSpreadsheet, Percent, Receipt, Wallet } from 'lucide-react'
 
 const PERIODS = [
   { days: 7, label: '7 ngày' },
@@ -81,6 +82,18 @@ function PnlSegment({
 }
 
 export function ReportsView() {
+  const [reportTab, setReportTab] = useState<'analytics' | 'baocao'>(() => {
+    if (typeof window !== 'undefined') {
+      const requested = window.sessionStorage.getItem('cms_open_report_tab')
+      if (requested === 'baocao' || requested === 'baocao1') {
+        window.sessionStorage.removeItem('cms_open_report_tab')
+        return 'baocao'
+      }
+      const sp = new URLSearchParams(window.location.search)
+      if (sp.get('tab') === 'baocao' || sp.get('tab') === 'baocao1') return 'baocao'
+    }
+    return 'analytics'
+  })
   const [days, setDays] = useState(30)
   const [data, setData] = useState<ReportsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -89,6 +102,19 @@ export function ReportsView() {
   // lỗi P&L chỉ ẩn phần P&L, KHÔNG phá các phần báo cáo cũ
   const [pnl, setPnl] = useState<PnlData | null>(null)
   const [pnlLoading, setPnlLoading] = useState(true)
+
+  useEffect(() => {
+    const onOpenReportTab = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail
+      if (detail === 'baocao' || detail === 'baocao1') {
+        setReportTab('baocao')
+      } else if (detail === 'analytics') {
+        setReportTab('analytics')
+      }
+    }
+    window.addEventListener('cms:open-report-tab', onOpenReportTab)
+    return () => window.removeEventListener('cms:open-report-tab', onOpenReportTab)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -104,10 +130,12 @@ export function ReportsView() {
   }, [days])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (reportTab !== 'analytics') return
+    void load()
+  }, [load, reportTab])
 
   useEffect(() => {
+    if (reportTab !== 'analytics') return
     let cancelled = false
     setPnlLoading(true)
     apiGet<PnlData>(`/api/reports/pnl?days=${days}`)
@@ -123,7 +151,7 @@ export function ReportsView() {
     return () => {
       cancelled = true
     }
-  }, [days])
+  }, [days, reportTab])
 
   const maxChannelRevenue = Math.max(1, ...(data?.revenueByChannel ?? []).map((c) => c.revenue))
   const statusColors: Record<string, string> = {
@@ -137,28 +165,62 @@ export function ReportsView() {
 
   return (
     <div className="space-y-5">
-      {/* Period switcher */}
+      {/* Header & Mode Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight md:text-2xl">Báo cáo & phân tích</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Doanh thu, hiệu quả kênh bán và sản phẩm bán chạy</p>
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl">Báo cáo &amp; phân tích</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Doanh thu, P&amp;L 5 tầng và Sổ Vận hành Bơ Mộc chuẩn 13 Sheet (<code>baocao</code>)
+          </p>
         </div>
-        <div className="flex rounded-lg border p-1">
-          {PERIODS.map((p) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border bg-muted/30 p-1">
             <Button
-              key={p.days}
-              variant={days === p.days ? 'default' : 'ghost'}
+              variant={reportTab === 'analytics' ? 'default' : 'ghost'}
               size="sm"
-              className="h-9 px-3.5"
-              onClick={() => setDays(p.days)}
+              className="h-9 gap-1.5 px-3"
+              onClick={() => setReportTab('analytics')}
+              data-testid="tab-reports-analytics"
             >
-              {p.label}
+              <BarChart3 className="h-4 w-4" />
+              Phân tích &amp; P&amp;L
             </Button>
-          ))}
+            <Button
+              variant={reportTab === 'baocao' ? 'default' : 'ghost'}
+              size="sm"
+              className={cn(
+                'h-9 gap-1.5 px-3',
+                reportTab === 'baocao' && 'bg-emerald-600 text-white hover:bg-emerald-700'
+              )}
+              onClick={() => setReportTab('baocao')}
+              data-testid="tab-reports-baocao"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Sổ Vận hành Bơ Mộc (baocao · 13 Sheet)
+            </Button>
+          </div>
+
+          {reportTab === 'analytics' && (
+            <div className="flex rounded-lg border p-1">
+              {PERIODS.map((p) => (
+                <Button
+                  key={p.days}
+                  variant={days === p.days ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-9 px-3.5"
+                  onClick={() => setDays(p.days)}
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {error ? (
+      {reportTab === 'baocao' ? (
+        <Baocao1BoMocPanel />
+      ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : (
         <>

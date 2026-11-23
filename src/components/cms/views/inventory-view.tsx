@@ -185,9 +185,11 @@ function getNormalizedUnitCost(p: ProductWithBarcode): number {
 export function InventoryView({
   initialModule = 'STOCK',
   onNavigate,
+  canOpenReports = true,
 }: {
   initialModule?: InventoryModuleMode
   onNavigate?: (view: ViewId) => void
+  canOpenReports?: boolean
 } = {}) {
   const { profile: shopProfile } = useShopProfile()
   const [lowStock, setLowStock] = useState<LowStockProduct[] | null>(null)
@@ -1091,6 +1093,7 @@ export function InventoryView({
         active={activeNavModule}
         onNavigate={onNavigate}
         lowStockCount={lowStock?.length ?? 0}
+        canOpenReports={canOpenReports}
       />
 
       {/* ===== THANH ĐIỀU PHỐI & CHUYỂN ĐỔI ĐA KHO NHANH (TỐI ƯU ĐA THIẾT BỊ) ===== */}

@@ -110,6 +110,13 @@ function describeProxyMutation(methodInput: string, pathname: string): {
   if (pathname.startsWith('/api/purchase-invoices')) {
     return { module: 'purchase', summary: `${verb} phiếu nhập hàng NCC`, riskLevel: 'MEDIUM' }
   }
+  if (pathname.startsWith('/api/reports/baocao')) {
+    return {
+      module: 'reports',
+      summary: `${verb} Sổ Vận hành Bơ Mộc (baocao · 13 Sheet)`,
+      riskLevel: 'LOW',
+    }
+  }
   if (pathname.startsWith('/api/periods')) {
     return { module: 'accounting', summary: 'Chốt / Mở lại kỳ sổ sách kế toán quý', riskLevel: 'HIGH' }
   }

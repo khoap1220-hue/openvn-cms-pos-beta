@@ -65,6 +65,7 @@ db/*.db-shm
 db/*.bak*
 db/*.sql
 db/.maintenance_state.json*
+db/bo-moc-baocao*-state.json*
 *.db-wal
 *.db-shm
 /custom.db

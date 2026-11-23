@@ -5,6 +5,7 @@ import {
   ArrowUpFromLine,
   Boxes,
   ClipboardCheck,
+  FileSpreadsheet,
   Warehouse,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -78,14 +79,23 @@ export function WarehouseModuleNav({
   active,
   onNavigate,
   lowStockCount = 0,
+  canOpenReports = true,
 }: {
   active: WarehouseModuleId
   onNavigate?: (view: ViewId) => void
   lowStockCount?: number
+  canOpenReports?: boolean
 }) {
+  const showBaocaoShortcut = Boolean(onNavigate && canOpenReports)
+
   return (
     <div className="mb-4 rounded-xl border border-border/80 bg-card p-1.5 shadow-xs sm:mb-5 sm:p-2">
-      <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0">
+      <div
+        className={cn(
+          'no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 xl:grid xl:overflow-visible xl:pb-0',
+          showBaocaoShortcut ? 'xl:grid-cols-6' : 'xl:grid-cols-5'
+        )}
+      >
         {WAREHOUSE_MODULES.map((item) => {
           const Icon = item.icon
           const isActive = active === item.id
@@ -142,6 +152,34 @@ export function WarehouseModuleNav({
             </button>
           )
         })}
+
+        {showBaocaoShortcut && onNavigate && (
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem('cms_open_report_tab', 'baocao')
+                window.dispatchEvent(new CustomEvent('cms:open-report-tab', { detail: 'baocao' }))
+              }
+              onNavigate('reports')
+            }}
+            title="Sổ Vận hành Bơ Mộc (baocao · 13 Sheet) — Tồn vật tư, Mẻ đúc & Xuất Excel"
+            data-testid="warehouse-open-baocao-btn"
+            className="group relative flex shrink-0 items-center gap-2 rounded-lg border border-emerald-200/80 bg-emerald-50/60 px-2.5 py-1.5 text-left text-emerald-900 transition-all hover:border-emerald-400 hover:bg-emerald-100/80 xl:shrink xl:py-2 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-200"
+          >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-emerald-300/70 bg-background text-emerald-600 xl:h-8 xl:w-8 xl:rounded-lg dark:border-emerald-800 dark:text-emerald-400">
+              <FileSpreadsheet className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="whitespace-nowrap text-xs font-bold leading-tight">
+                6. Sổ baocao
+              </span>
+              <p className="mt-0.5 hidden truncate text-[11px] leading-tight text-emerald-700/85 2xl:block dark:text-emerald-300/80">
+                13 Sheet · Xuất baocao.xlsx
+              </p>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   )

@@ -155,6 +155,8 @@ const VIEW_ALIASES: Record<string, ViewId> = {
   chat: 'inbox',
   social: 'auto-social',
   cashbook: 'accounting',
+  baocao: 'reports',
+  baocao1: 'reports',
 }
 
 function resolveViewParam(value: string | null): ViewId | null {
@@ -373,13 +375,24 @@ export default function Home() {
       if (isInitial && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search)
         const rawRequested = params.get('view')
+        const rawTab = params.get('tab')
         const resolved = resolveViewParam(rawRequested)
         if (rawRequested === 'settings') {
           setSystemSectionTab('INVENTORY_POLICY')
         }
+        const wantsBaocao =
+          rawRequested === 'baocao' ||
+          rawRequested === 'baocao1' ||
+          rawTab === 'baocao' ||
+          rawTab === 'baocao1'
         if (resolved && canAccessView(nextPerms, resolved)) {
+          if (wantsBaocao && resolved === 'reports') {
+            window.sessionStorage.setItem('cms_open_report_tab', 'baocao')
+            window.dispatchEvent(new CustomEvent('cms:open-report-tab', { detail: 'baocao' }))
+          }
           setActiveView(resolved)
         } else {
+          window.sessionStorage.removeItem('cms_open_report_tab')
           setActiveView((prev) =>
             canAccessView(nextPerms, prev)
               ? prev
@@ -395,10 +408,20 @@ export default function Home() {
   // Đồng bộ đồng bộ (trước khi trình duyệt vẽ frame đầu) tham số ?view= từ URL để triệt tiêu nháy Dashboard (FOD)
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
-    const rawRequested = new URLSearchParams(window.location.search).get('view')
+    const sp = new URLSearchParams(window.location.search)
+    const rawRequested = sp.get('view')
+    const rawTab = sp.get('tab')
     const resolved = resolveViewParam(rawRequested)
     if (rawRequested === 'settings') {
       setSystemSectionTab('INVENTORY_POLICY')
+    }
+    if (
+      rawRequested === 'baocao' ||
+      rawRequested === 'baocao1' ||
+      rawTab === 'baocao' ||
+      rawTab === 'baocao1'
+    ) {
+      window.sessionStorage.setItem('cms_open_report_tab', 'baocao')
     }
     if (resolved) {
       setActiveView(resolved)
@@ -410,9 +433,20 @@ export default function Home() {
     if (typeof window === 'undefined') return () => clearTimeout(t)
 
     const handlePopState = () => {
-      const rawRequested = new URLSearchParams(window.location.search).get('view')
+      const sp = new URLSearchParams(window.location.search)
+      const rawRequested = sp.get('view')
+      const rawTab = sp.get('tab')
       if (rawRequested === 'settings') {
         setSystemSectionTab('INVENTORY_POLICY')
+      }
+      if (
+        rawRequested === 'baocao' ||
+        rawRequested === 'baocao1' ||
+        rawTab === 'baocao' ||
+        rawTab === 'baocao1'
+      ) {
+        window.sessionStorage.setItem('cms_open_report_tab', 'baocao')
+        window.dispatchEvent(new CustomEvent('cms:open-report-tab', { detail: 'baocao' }))
       }
       const nextView: ViewId = resolveViewParam(rawRequested) ?? 'dashboard'
       popstateNavRef.current = true
@@ -1391,7 +1425,12 @@ export default function Home() {
                 {activeView === 'inbox' && <InboxView />}
                 {activeView === 'shipments' && <ShipmentsView />}
                 {activeView === 'autopilot' && <AutopilotView />}
-                {activeView === 'dashboard' && <DashboardView onNavigate={setActiveView} />}
+                {activeView === 'dashboard' && (
+                  <DashboardView
+                    onNavigate={setActiveView}
+                    canOpenReports={canAccessView(permissions, 'reports')}
+                  />
+                )}
                 {activeView === 'products' && (
                   <ProductsView
                     onOpenSystemCatalog={(subTab) => {
@@ -1413,19 +1452,49 @@ export default function Home() {
                 )}
                 {activeView === 'customers' && <CustomersView />}
                 {activeView === 'inventory' && (
-                  <InventoryView key="view-stock" initialModule="STOCK" onNavigate={setActiveView} />
+                  <InventoryView
+                    key="view-stock"
+                    initialModule="STOCK"
+                    onNavigate={setActiveView}
+                    canOpenReports={canAccessView(permissions, 'reports')}
+                  />
                 )}
                 {activeView === 'stock-export' && (
-                  <InventoryView key="view-export" initialModule="EXPORT" onNavigate={setActiveView} />
+                  <InventoryView
+                    key="view-export"
+                    initialModule="EXPORT"
+                    onNavigate={setActiveView}
+                    canOpenReports={canAccessView(permissions, 'reports')}
+                  />
                 )}
                 {activeView === 'stock-balance' && (
-                  <InventoryView key="view-balance" initialModule="BALANCE" onNavigate={setActiveView} />
+                  <InventoryView
+                    key="view-balance"
+                    initialModule="BALANCE"
+                    onNavigate={setActiveView}
+                    canOpenReports={canAccessView(permissions, 'reports')}
+                  />
                 )}
                 {activeView === 'reports' && <ReportsView />}
-                {activeView === 'accounting' && <InvoiceDashboardView onNavigate={(v) => setActiveView(v as ViewId)} />}
+                {activeView === 'accounting' && (
+                  <InvoiceDashboardView
+                    onNavigate={(v) => setActiveView(v as ViewId)}
+                    canOpenReports={canAccessView(permissions, 'reports')}
+                  />
+                )}
                 {activeView === 'partners' && <PartnersView />}
-                {activeView === 'bom' && <BomView onNavigate={setActiveView} />}
-                {activeView === 'purchase' && <PurchaseView onNavigate={setActiveView} />}
+                {activeView === 'bom' && (
+                  <BomView
+                    onNavigate={setActiveView}
+                    canOpenReports={canAccessView(permissions, 'reports')}
+                  />
+                )}
+                {activeView === 'purchase' && (
+                  <PurchaseView
+                    onNavigate={setActiveView}
+                    canOpenReports={canAccessView(permissions, 'reports')}
+                  />
+                )}
                 {activeView === 'sales' && <SalesView />}
                 {activeView === 'iam' && <IamView currentPermissions={permissions} />}
                 {activeView === 'system' && (

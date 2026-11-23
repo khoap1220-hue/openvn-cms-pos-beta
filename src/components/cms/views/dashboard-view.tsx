@@ -8,6 +8,7 @@ import {
   Bot,
   Clock,
   ExternalLink,
+  FileSpreadsheet,
   MessageSquare,
   Package,
   PackageMinus,
@@ -48,7 +49,13 @@ import type { DashboardData, LiveOpsData } from '@/lib/types'
 import type { ViewId } from '@/components/cms/app-sidebar'
 import { cn } from '@/lib/utils'
 
-export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => void }) {
+export function DashboardView({
+  onNavigate,
+  canOpenReports = true,
+}: {
+  onNavigate?: (view: ViewId) => void
+  canOpenReports?: boolean
+}) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [liveops, setLiveops] = useState<LiveOpsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -197,6 +204,23 @@ export function DashboardView({ onNavigate }: { onNavigate?: (view: ViewId) => v
             <Button size="sm" variant="outline" className="h-10 px-3" onClick={() => onNavigate?.('products')}>
               <Package className="mr-1.5 h-4 w-4 text-violet-600" /> Sản phẩm
             </Button>
+            {canOpenReports && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-10 border-emerald-300/80 bg-emerald-50/50 px-3 text-emerald-800 hover:bg-emerald-100/70 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.sessionStorage.setItem('cms_open_report_tab', 'baocao')
+                    window.dispatchEvent(new CustomEvent('cms:open-report-tab', { detail: 'baocao' }))
+                  }
+                  onNavigate?.('reports')
+                }}
+                data-testid="dashboard-open-baocao-btn"
+              >
+                <FileSpreadsheet className="mr-1.5 h-4 w-4 text-emerald-600" /> Sổ baocao (13 Sheet)
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="h-10 px-3" onClick={() => onNavigate?.('liveops')}>
               <Rocket className="mr-1.5 h-4 w-4 text-amber-600" /> Điều hành AI
             </Button>

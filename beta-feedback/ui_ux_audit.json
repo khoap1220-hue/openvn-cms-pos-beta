@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-18T07:21:32Z",
+  "updated_at": "2026-11-23T11:43:53Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,8 +13,8 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-97DF9179BCCE67ABF72A",
-    "signed_at": "2026-11-18T07:21:32Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-9D4E1D7DEA3655BCF4F8",
+    "signed_at": "2026-11-23T11:43:53Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
@@ -105,7 +105,7 @@
     {
       "view_key": "dashboard",
       "tsx_file": "src/components/cms/views/dashboard-view.tsx",
-      "sha256_before": "f6698b275813f216",
+      "sha256_before": "3c6e82790cafe448",
       "metrics": {
         "cards": 7,
         "tables": 0,
@@ -223,7 +223,7 @@
     {
       "view_key": "inventory",
       "tsx_file": "src/components/cms/views/inventory-view.tsx",
-      "sha256_before": "0827c3057a89f791",
+      "sha256_before": "5bf876e78386e23c",
       "metrics": {
         "cards": 11,
         "tables": 4,
@@ -263,7 +263,7 @@
     {
       "view_key": "bom",
       "tsx_file": "src/components/cms/views/bom-view.tsx",
-      "sha256_before": "12be107ef1234fea",
+      "sha256_before": "b4d7a7c9c06a4679",
       "metrics": {
         "cards": 3,
         "tables": 2,
@@ -343,7 +343,7 @@
     {
       "view_key": "purchase",
       "tsx_file": "src/components/cms/views/purchase-view.tsx",
-      "sha256_before": "6a3a7289341a3aa3",
+      "sha256_before": "cbc25e31997051e9",
       "metrics": {
         "cards": 1,
         "tables": 3,
@@ -545,7 +545,7 @@
     {
       "view_key": "reports",
       "tsx_file": "src/components/cms/views/reports-view.tsx",
-      "sha256_before": "5ab8b9ee20ce3bdb",
+      "sha256_before": "6c55947cc4cbce90",
       "metrics": {
         "cards": 5,
         "tables": 2,

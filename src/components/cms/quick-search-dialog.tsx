@@ -7,6 +7,7 @@ import {
   BookOpenText,
   Bot,
   Boxes,
+  FileSpreadsheet,
   LayoutDashboard,
   Loader2,
   MessagesSquare,
@@ -42,7 +43,9 @@ import { ORDER_STATUS_LABELS } from '@/lib/types'
 import type { ViewId } from '@/components/cms/app-sidebar'
 
 interface QuickNavEntry {
+  key?: string
   id: ViewId
+  reportTab?: 'baocao'
   label: string
   hint: string
   keywords: string
@@ -67,6 +70,7 @@ const QUICK_NAVS: QuickNavEntry[] = [
   { id: 'partners', label: 'Nhà cung cấp & Đối tác', hint: 'Danh bạ đối tác, mã số thuế, công nợ', keywords: 'doi tac nha cung cap partners mst', icon: Users },
   { id: 'channels', label: 'Kênh bán hàng đa sàn', hint: 'Shopee, TikTok Shop, Lazada, Tiki, Zalo, POS, Website', keywords: 'kenh ban channels shopee tiktok lazada', icon: Store },
   { id: 'accounting', label: 'Sổ quỹ & Bảng điều khiển Kế toán', hint: 'Dòng tiền, công nợ, chốt sổ kỳ kế toán', keywords: 'ke toan so quy accounting chot so', icon: ReceiptText },
+  { key: 'reports-baocao', id: 'reports', reportTab: 'baocao', label: 'Sổ Vận hành Bơ Mộc (baocao · 13 Sheet)', hint: 'Xuất baocao.xlsx 13 Sheet công thức sống, tồn kho VT/TP, mẻ đúc & OPEX', keywords: 'baocao bao cao 13 sheet bo moc so van hanh opex me duc thach cao ton dau ky xlsx csv', icon: FileSpreadsheet },
   { id: 'reports', label: 'Báo cáo phân tích & Lãi lỗ (P&L)', hint: 'Báo cáo doanh thu, lợi nhuận, AI phân tích tài chính', keywords: 'bao cao reports lai lo pnl phan tich', icon: BarChart3 },
   { id: 'ledger', label: 'Nhật ký Sổ Data (Audit Trail)', hint: 'Truy xuất nguồn gốc dữ liệu & lịch sử chỉnh sửa', keywords: 'so data ledger audit lich su', icon: BookOpenText },
   { id: 'iam', label: 'Nhân sự, Phân quyền & Nhật ký Hành vi', hint: 'Quản lý tài khoản nhân viên, ma trận RBAC 6 vai trò, theo dõi log thao tác & cảnh báo bảo mật', keywords: 'iam nhan su phan quyen rbac log hanh vi tai khoan pin bao mat', icon: ShieldCheck },
@@ -192,15 +196,19 @@ export function QuickSearchDialog({
     ).slice(0, 6)
   }, [query, permissions])
 
-  const selectView = (view: ViewId) => {
+  const selectView = (view: ViewId, reportTab?: 'baocao') => {
     const q = query.trim()
+    if (reportTab && typeof window !== 'undefined') {
+      window.sessionStorage.setItem('cms_open_report_tab', reportTab)
+      window.dispatchEvent(new CustomEvent('cms:open-report-tab', { detail: reportTab }))
+    }
     if (q.length >= 2) {
       trackClientBehavior({
         category: 'NAVIGATION',
         action: 'QUICK_SEARCH',
         module: view,
-        summary: `Tìm kiếm nhanh Ctrl+K "${q.slice(0, 60)}" → mở ${view}`,
-        metadata: { keyword: q.slice(0, 60), targetView: view },
+        summary: `Tìm kiếm nhanh Ctrl+K "${q.slice(0, 60)}" → mở ${reportTab ? `${view}:${reportTab}` : view}`,
+        metadata: { keyword: q.slice(0, 60), targetView: view, reportTab },
       })
     }
     onNavigate(view)
@@ -331,9 +339,9 @@ export function QuickSearchDialog({
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
               {matchedNavs.map((nav) => (
                 <button
-                  key={nav.id}
+                  key={nav.key ?? nav.id}
                   type="button"
-                  onClick={() => selectView(nav.id)}
+                  onClick={() => selectView(nav.id, nav.reportTab)}
                   className="flex items-center gap-2.5 rounded-lg border border-border/60 bg-card px-3 py-2 text-left transition-all hover:border-primary/40 hover:bg-primary/5"
                 >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

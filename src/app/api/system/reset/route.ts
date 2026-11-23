@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  createDefaultBaocao1State,
+  readBaocao1State,
+  withBaocao1StateLock,
+  writeBaocao1State,
+} from '@/lib/baocao1-bomoc'
 import { db } from '@/lib/db'
 import { syncComboStock } from '@/lib/combo'
 import { logLedger } from '@/lib/ledger'
@@ -125,8 +131,27 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // Làm sạch giao dịch mẫu & ghi đè trạng thái đơn mẫu trên Sổ Vận hành Bơ Mộc (baocao)
+    await withBaocao1StateLock(() => {
+      if (resetStockZero) {
+        writeBaocao1State(createDefaultBaocao1State())
+      } else {
+        const cur = readBaocao1State()
+        writeBaocao1State({
+          ...cur,
+          manualPurchases: [],
+          manualProductions: [],
+          manualSalesOrders: [],
+          salesOrderStatusOverrides: {},
+          manualAdjustments: [],
+          otherCashflows: [],
+        })
+      }
+    }).catch(() => null)
+
     broadcast('settings.updated', { key: 'simulation_mode', enabled: false })
     broadcast('order.updated', { reset: true })
+    broadcast('reports.baocao.updated', { reset: true })
 
     return NextResponse.json({
       ok: true,

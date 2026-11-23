@@ -144,7 +144,13 @@ const todayInput = () => {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-export function PurchaseView({ onNavigate }: { onNavigate?: (view: ViewId) => void } = {}) {
+export function PurchaseView({
+  onNavigate,
+  canOpenReports = true,
+}: {
+  onNavigate?: (view: ViewId) => void
+  canOpenReports?: boolean
+} = {}) {
   const [invoices, setInvoices] = useState<InvoiceWithLineage[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -485,7 +491,11 @@ export function PurchaseView({ onNavigate }: { onNavigate?: (view: ViewId) => vo
 
   return (
     <div>
-      <WarehouseModuleNav active="purchase" onNavigate={onNavigate} />
+      <WarehouseModuleNav
+        active="purchase"
+        onNavigate={onNavigate}
+        canOpenReports={canOpenReports}
+      />
 
       <PageHeader
         title="Nhập kho & Hóa đơn mua hàng"

@@ -29,6 +29,7 @@ export type CmsEventType =
   | 'behavior.new'
   | 'marketplace.unlisted_alert'
   | 'peripheral.event'
+  | 'reports.baocao.updated'
 
 export interface MaintenanceMemoryState {
   enabled: boolean

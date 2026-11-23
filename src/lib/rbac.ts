@@ -522,6 +522,20 @@ export function resolveApiRoutePermission(
     }
   }
 
+  // Báo cáo vận hành Bơ Mộc (baocao — 13 Sheet): cho phép cả Kế toán, Quản lý và Quản trị
+  if (pathname.startsWith('/api/reports/baocao')) {
+    return {
+      anyOf: [
+        { domain: 'analytics_audit', level: isRead ? 'READ' : writeLevel },
+        { domain: 'finance', level: isRead ? 'READ' : writeLevel },
+      ],
+      module: 'reports',
+      description: isRead
+        ? 'Xem & Xuất Báo cáo Vận hành Bơ Mộc (baocao)'
+        : 'Cập nhật Kiểm kê / Thu-Chi OPEX trên Báo cáo Vận hành Bơ Mộc (baocao)',
+    }
+  }
+
   // Báo cáo Lãi lỗ P&L, Đối soát, Sổ Data, Phân tích AI
   if (
     pathname.startsWith('/api/reports') ||
