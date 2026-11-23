@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-23T11:43:53Z",
+  "updated_at": "2026-11-23T12:46:23Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,8 +13,8 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-9D4E1D7DEA3655BCF4F8",
-    "signed_at": "2026-11-23T11:43:53Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-B8EC64470D4F345F82E7",
+    "signed_at": "2026-11-23T12:46:23Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
@@ -545,7 +545,7 @@
     {
       "view_key": "reports",
       "tsx_file": "src/components/cms/views/reports-view.tsx",
-      "sha256_before": "6c55947cc4cbce90",
+      "sha256_before": "3d233aa3608d2243",
       "metrics": {
         "cards": 5,
         "tables": 2,

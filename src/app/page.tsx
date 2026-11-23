@@ -468,7 +468,20 @@ export default function Home() {
       rawPath !== '/' && !rawPath.endsWith('/') && !/\.[a-z0-9]+$/i.test(rawPath)
         ? `${rawPath}/`
         : rawPath
-    const targetUrl = activeView === 'dashboard' ? basePath : `${basePath}?view=${activeView}`
+    const curSp = new URLSearchParams(window.location.search)
+    const keepBaocaoTab =
+      activeView === 'reports' &&
+      (curSp.get('tab') === 'baocao' ||
+        curSp.get('tab') === 'baocao1' ||
+        curSp.get('view') === 'baocao' ||
+        curSp.get('view') === 'baocao1' ||
+        window.sessionStorage.getItem('cms_open_report_tab') === 'baocao')
+    const targetUrl =
+      activeView === 'dashboard'
+        ? basePath
+        : keepBaocaoTab
+          ? `${basePath}?view=reports&tab=baocao`
+          : `${basePath}?view=${activeView}`
     const currentFullUrl = `${window.location.pathname}${window.location.search}`
 
     if (!hasSyncedUrlOnceRef.current) {

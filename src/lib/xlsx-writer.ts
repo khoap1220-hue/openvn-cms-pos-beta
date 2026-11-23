@@ -1,12 +1,11 @@
 /**
- * Pure-TypeScript OpenXML (.xlsx) Workbook Writer
- * Zero external dependencies — uses Node's built-in `node:zlib` (deflateRawSync) + IEEE 802.3 CRC-32.
+ * Pure-TypeScript Isomorphic OpenXML (.xlsx) Workbook Writer (Node.js + Browser)
+ * Zero external dependencies — supports synchronous Node.js DEFLATE (`zlib.deflateRawSync`)
+ * and browser/edge Web Standard `CompressionStream('deflate-raw')` + IEEE 802.3 CRC-32.
  * Supports multi-sheet workbooks, live Excel formulas (<f>) with precomputed cached values (<v>),
  * Excel serial dates (yyyy-mm-dd), styles (headers, yellow input cells "ô vàng", alerts, totals),
  * column widths, merged cells, and freeze panes.
  */
-
-import { deflateRawSync } from 'node:zlib'
 
 export type XlsxStyleKey =
   | 'default'
@@ -88,6 +87,8 @@ export interface XlsxSheetSpec {
 // ============================================================================
 // Helpers: Column letters, Excel date serial, XML escaping
 // ============================================================================
+
+const utf8Encoder = new TextEncoder()
 
 export function colIndexToLetter(col1Based: number): string {
   let n = col1Based
@@ -191,35 +192,6 @@ const STYLE_INDEX: Record<XlsxStyleKey, number> = {
 }
 
 function buildStylesXml(): string {
-  // NumFmts:
-  //   0   = General
-  //   164 = #,##0
-  //   165 = 0.0%
-  //   166 = yyyy-mm-dd
-  //   167 = #,##0.#### (clean general-like thousands) -> we use General (0) or #,##0.## (167) for decimals
-  // Fonts:
-  //   0 = Regular 10pt Segoe UI / Arial (#0F172A)
-  //   1 = Title Bold 13pt (#0F172A)
-  //   2 = Subtitle Italic 9.5pt (#475569)
-  //   3 = Section Bold 10.5pt (#0369A1)
-  //   4 = Table Header Bold 10pt White (#FFFFFF)
-  //   5 = Bold 10pt (#0F172A)
-  //   6 = Muted 9.5pt (#64748B)
-  //   7 = Alert Warn Bold 10pt (#B45309)
-  //   8 = Alert Danger Bold 10pt (#BE123C)
-  //   9 = Alert OK Bold 10pt (#047857)
-  // Fills (0 = none, 1 = gray125 REQUIRED by Excel):
-  //   2 = Section sky (#E0F2FE)
-  //   3 = Header dark slate (#1E293B)
-  //   4 = Yellow editable input "ô vàng" (#FEF9C3)
-  //   5 = Formula subtle (#F8FAFC)
-  //   6 = Total / KPI emerald tint (#ECFDF5)
-  //   7 = Warn amber tint (#FFFBEB)
-  //   8 = Danger rose tint (#FFF1F2)
-  // Borders:
-  //   0 = none
-  //   1 = thin light border (#CBD5E1)
-  //   2 = medium top/bottom total border (#64748B)
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <numFmts count="3">
@@ -476,7 +448,6 @@ function buildWorksheetXml(sheet: XlsxSheetSpec, sst: SharedStringsTable): strin
         const sstIdx = sst.intern(val)
         rowCells.push(`<c r="${ref}" t="s"${sAttr}><v>${sstIdx}</v></c>`)
       } else if (styleIdx > 0) {
-        // Empty styled cell (e.g. bordered / yellow input cell ready for user entry)
         rowCells.push(`<c r="${ref}"${sAttr}/>`)
       }
     }
@@ -501,7 +472,7 @@ function buildWorksheetXml(sheet: XlsxSheetSpec, sst: SharedStringsTable): strin
 }
 
 // ============================================================================
-// ZIP Packaging (PKZIP 2.0 + Raw Deflate + CRC-32)
+// ZIP Packaging (PKZIP 2.0 + Raw Deflate / Store + IEEE 802.3 CRC-32)
 // ============================================================================
 
 const CRC32_TABLE = (() => {
@@ -516,7 +487,7 @@ const CRC32_TABLE = (() => {
   return table
 })()
 
-function crc32(buf: Buffer): number {
+function crc32(buf: Uint8Array): number {
   let crc = 0xffffffff
   for (let i = 0; i < buf.length; i++) {
     crc = CRC32_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8)
@@ -526,79 +497,118 @@ function crc32(buf: Buffer): number {
 
 interface ZipEntryInput {
   path: string
-  data: Buffer
+  data: Uint8Array
 }
 
-function buildZipArchive(entries: ZipEntryInput[]): Buffer {
-  const localChunks: Buffer[] = []
-  const centralChunks: Buffer[] = []
+interface PreparedZipEntry {
+  path: string
+  uncompressed: Uint8Array
+  compressed: Uint8Array
+  method: 0 | 8
+  crc: number
+}
+
+function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
+  let total = 0
+  for (const c of chunks) total += c.byteLength
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const c of chunks) {
+    out.set(c, offset)
+    offset += c.byteLength
+  }
+  return out
+}
+
+function assembleZipArchive(entries: PreparedZipEntry[]): Uint8Array {
+  const localChunks: Uint8Array[] = []
+  const centralChunks: Uint8Array[] = []
   let localOffset = 0
 
   for (const entry of entries) {
-    const nameBuf = Buffer.from(entry.path, 'utf8')
-    const uncompressed = entry.data
-    const compressed = deflateRawSync(uncompressed, { level: 6 })
-    const crc = crc32(uncompressed)
+    const nameBuf = utf8Encoder.encode(entry.path)
+    const { uncompressed, compressed, method, crc } = entry
 
     // Local file header (30 bytes + filename)
-    const localHeader = Buffer.alloc(30)
-    localHeader.writeUInt32LE(0x04034b50, 0) // signature
-    localHeader.writeUInt16LE(20, 4) // version needed (2.0)
-    localHeader.writeUInt16LE(0, 6) // general purpose bit flag
-    localHeader.writeUInt16LE(8, 8) // compression method: DEFLATE (8)
-    localHeader.writeUInt16LE(0, 10) // mod time
-    localHeader.writeUInt16LE(0x5776, 12) // mod date (2026-11-22)
-    localHeader.writeUInt32LE(crc, 14) // crc-32
-    localHeader.writeUInt32LE(compressed.length, 18) // compressed size
-    localHeader.writeUInt32LE(uncompressed.length, 22) // uncompressed size
-    localHeader.writeUInt16LE(nameBuf.length, 26) // file name length
-    localHeader.writeUInt16LE(0, 28) // extra field length
+    const localHeader = new Uint8Array(30)
+    const lv = new DataView(localHeader.buffer)
+    lv.setUint32(0, 0x04034b50, true) // signature
+    lv.setUint16(4, 20, true) // version needed (2.0)
+    lv.setUint16(6, 0, true) // general purpose bit flag
+    lv.setUint16(8, method, true) // 8 = DEFLATE, 0 = STORE
+    lv.setUint16(10, 0, true) // mod time
+    lv.setUint16(12, 0x5776, true) // mod date (2026-11-22)
+    lv.setUint32(14, crc, true) // crc-32
+    lv.setUint32(18, compressed.byteLength, true) // compressed size
+    lv.setUint32(22, uncompressed.byteLength, true) // uncompressed size
+    lv.setUint16(26, nameBuf.byteLength, true) // file name length
+    lv.setUint16(28, 0, true) // extra field length
 
     localChunks.push(localHeader, nameBuf, compressed)
 
     // Central directory file header (46 bytes + filename)
-    const centralHeader = Buffer.alloc(46)
-    centralHeader.writeUInt32LE(0x02014b50, 0) // signature
-    centralHeader.writeUInt16LE(20, 4) // version made by
-    centralHeader.writeUInt16LE(20, 6) // version needed
-    centralHeader.writeUInt16LE(0, 8) // flags
-    centralHeader.writeUInt16LE(8, 10) // compression method: DEFLATE
-    centralHeader.writeUInt16LE(0, 12) // mod time
-    centralHeader.writeUInt16LE(0x5776, 14) // mod date
-    centralHeader.writeUInt32LE(crc, 16)
-    centralHeader.writeUInt32LE(compressed.length, 20)
-    centralHeader.writeUInt32LE(uncompressed.length, 24)
-    centralHeader.writeUInt16LE(nameBuf.length, 28)
-    centralHeader.writeUInt16LE(0, 30) // extra length
-    centralHeader.writeUInt16LE(0, 32) // comment length
-    centralHeader.writeUInt16LE(0, 34) // disk number start
-    centralHeader.writeUInt16LE(0, 36) // internal attrs
-    centralHeader.writeUInt32LE(0, 38) // external attrs
-    centralHeader.writeUInt32LE(localOffset, 42) // relative offset of local header
+    const centralHeader = new Uint8Array(46)
+    const cv = new DataView(centralHeader.buffer)
+    cv.setUint32(0, 0x02014b50, true) // signature
+    cv.setUint16(4, 20, true) // version made by
+    cv.setUint16(6, 20, true) // version needed
+    cv.setUint16(8, 0, true) // flags
+    cv.setUint16(10, method, true) // compression method
+    cv.setUint16(12, 0, true) // mod time
+    cv.setUint16(14, 0x5776, true) // mod date
+    cv.setUint32(16, crc, true)
+    cv.setUint32(20, compressed.byteLength, true)
+    cv.setUint32(24, uncompressed.byteLength, true)
+    cv.setUint16(28, nameBuf.byteLength, true)
+    cv.setUint16(30, 0, true) // extra length
+    cv.setUint16(32, 0, true) // comment length
+    cv.setUint16(34, 0, true) // disk number start
+    cv.setUint16(36, 0, true) // internal attrs
+    cv.setUint32(38, 0, true) // external attrs
+    cv.setUint32(42, localOffset, true) // relative offset of local header
 
     centralChunks.push(centralHeader, nameBuf)
-    localOffset += localHeader.length + nameBuf.length + compressed.length
+    localOffset += localHeader.byteLength + nameBuf.byteLength + compressed.byteLength
   }
 
-  const centralDirSize = centralChunks.reduce((acc, b) => acc + b.length, 0)
-  const eocd = Buffer.alloc(22)
-  eocd.writeUInt32LE(0x06054b50, 0) // EOCD signature
-  eocd.writeUInt16LE(0, 4) // disk number
-  eocd.writeUInt16LE(0, 6) // start disk
-  eocd.writeUInt16LE(entries.length, 8) // entries on disk
-  eocd.writeUInt16LE(entries.length, 10) // total entries
-  eocd.writeUInt32LE(centralDirSize, 12) // size of central dir
-  eocd.writeUInt32LE(localOffset, 16) // offset of central dir
-  eocd.writeUInt16LE(0, 20) // comment length
+  const centralDirSize = centralChunks.reduce((acc, b) => acc + b.byteLength, 0)
+  const eocd = new Uint8Array(22)
+  const ev = new DataView(eocd.buffer)
+  ev.setUint32(0, 0x06054b50, true) // EOCD signature
+  ev.setUint16(4, 0, true) // disk number
+  ev.setUint16(6, 0, true) // start disk
+  ev.setUint16(8, entries.length, true) // entries on disk
+  ev.setUint16(10, entries.length, true) // total entries
+  ev.setUint32(12, centralDirSize, true) // size of central dir
+  ev.setUint32(16, localOffset, true) // offset of central dir
+  ev.setUint16(20, 0, true) // comment length
 
-  return Buffer.concat([...localChunks, ...centralChunks, eocd])
+  return concatUint8Arrays([...localChunks, ...centralChunks, eocd])
 }
 
-// ============================================================================
-// Public Entrypoint: buildXlsxBuffer
-// ============================================================================
+async function deflateRawAsync(data: Uint8Array): Promise<{ method: 0 | 8; compressed: Uint8Array }> {
+  if (typeof CompressionStream !== 'undefined') {
+    try {
+      const cs = new CompressionStream('deflate-raw')
+      const writer = cs.writable.getWriter()
+      const writePromise = writer.write(new Uint8Array(data)).then(() => writer.close())
+      const reader = cs.readable.getReader()
+      const chunks: Uint8Array[] = []
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) chunks.push(value)
+      }
+      await writePromise
+      return { method: 8, compressed: concatUint8Arrays(chunks) }
+    } catch {
+      // Fallback to uncompressed PKZIP STORE (method 0) if deflate-raw unsupported
+    }
+  }
+  return { method: 0, compressed: data }
+}
 
-export function buildXlsxBuffer(sheets: XlsxSheetSpec[]): Buffer {
+function prepareXlsxXmlEntries(sheets: XlsxSheetSpec[]): ZipEntryInput[] {
   if (sheets.length === 0) {
     throw new Error('Workbook must contain at least 1 sheet')
   }
@@ -618,7 +628,7 @@ export function buildXlsxBuffer(sheets: XlsxSheetSpec[]): Buffer {
     safeNames.push(candidate)
   }
 
-  const worksheetXmlBuffers = sheets.map((s) => Buffer.from(buildWorksheetXml(s, sst), 'utf8'))
+  const worksheetXmlBuffers = sheets.map((s) => utf8Encoder.encode(buildWorksheetXml(s, sst)))
 
   const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -664,18 +674,76 @@ ${sheets
   <Relationship Id="rId${sstRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
 </Relationships>`
 
-  const entries: ZipEntryInput[] = [
-    { path: '[Content_Types].xml', data: Buffer.from(contentTypesXml, 'utf8') },
-    { path: '_rels/.rels', data: Buffer.from(rootRelsXml, 'utf8') },
-    { path: 'xl/workbook.xml', data: Buffer.from(workbookXml, 'utf8') },
-    { path: 'xl/_rels/workbook.xml.rels', data: Buffer.from(workbookRelsXml, 'utf8') },
-    { path: 'xl/styles.xml', data: Buffer.from(buildStylesXml(), 'utf8') },
-    { path: 'xl/sharedStrings.xml', data: Buffer.from(sst.toXml(), 'utf8') },
+  return [
+    { path: '[Content_Types].xml', data: utf8Encoder.encode(contentTypesXml) },
+    { path: '_rels/.rels', data: utf8Encoder.encode(rootRelsXml) },
+    { path: 'xl/workbook.xml', data: utf8Encoder.encode(workbookXml) },
+    { path: 'xl/_rels/workbook.xml.rels', data: utf8Encoder.encode(workbookRelsXml) },
+    { path: 'xl/styles.xml', data: utf8Encoder.encode(buildStylesXml()) },
+    { path: 'xl/sharedStrings.xml', data: utf8Encoder.encode(sst.toXml()) },
     ...worksheetXmlBuffers.map((buf, idx) => ({
       path: `xl/worksheets/sheet${idx + 1}.xml`,
       data: buf,
     })),
   ]
+}
 
-  return buildZipArchive(entries)
+/**
+ * Browser + Node.js universal async OpenXML `.xlsx` builder.
+ * Uses Web Standard `CompressionStream('deflate-raw')` (PKZIP method 8 DEFLATE).
+ */
+export async function buildXlsxUint8Array(sheets: XlsxSheetSpec[]): Promise<Uint8Array> {
+  const xmlEntries = prepareXlsxXmlEntries(sheets)
+  const prepared: PreparedZipEntry[] = await Promise.all(
+    xmlEntries.map(async (e) => {
+      const { method, compressed } = await deflateRawAsync(e.data)
+      return {
+        path: e.path,
+        uncompressed: e.data,
+        compressed,
+        method,
+        crc: crc32(e.data),
+      }
+    })
+  )
+  return assembleZipArchive(prepared)
+}
+
+/**
+ * Synchronous Node.js OpenXML `.xlsx` builder returning `Buffer`.
+ */
+export function buildXlsxBuffer(
+  sheets: XlsxSheetSpec[],
+  deflateRawFn?: (data: Uint8Array) => Uint8Array
+): Buffer {
+  const xmlEntries = prepareXlsxXmlEntries(sheets)
+  const builtinZlib =
+    !deflateRawFn && typeof process !== 'undefined'
+      ? (
+          process as unknown as {
+            getBuiltinModule?: (id: string) => {
+              deflateRawSync?: (buf: Uint8Array, opts?: { level?: number }) => Uint8Array
+            }
+          }
+        ).getBuiltinModule?.('node:zlib')
+      : undefined
+  const effDeflate =
+    deflateRawFn ??
+    (builtinZlib?.deflateRawSync
+      ? (b: Uint8Array) => builtinZlib.deflateRawSync!(b, { level: 6 })
+      : undefined)
+
+  const prepared: PreparedZipEntry[] = xmlEntries.map((e) => {
+    const compressed = effDeflate ? effDeflate(e.data) : e.data
+    return {
+      path: e.path,
+      uncompressed: e.data,
+      compressed,
+      method: effDeflate ? 8 : 0,
+      crc: crc32(e.data),
+    }
+  })
+
+  const zipped = assembleZipArchive(prepared)
+  return Buffer.from(zipped.buffer, zipped.byteOffset, zipped.byteLength)
 }

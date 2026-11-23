@@ -116,6 +116,22 @@ export function ReportsView() {
     return () => window.removeEventListener('cms:open-report-tab', onOpenReportTab)
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const rawPath = window.location.pathname || '/'
+    const basePath =
+      rawPath !== '/' && !rawPath.endsWith('/') && !/\.[a-z0-9]+$/i.test(rawPath)
+        ? `${rawPath}/`
+        : rawPath
+    const sp = new URLSearchParams(window.location.search)
+    const curView = sp.get('view')
+    if (curView && curView !== 'reports' && curView !== 'baocao' && curView !== 'baocao1') return
+    const desiredSearch = reportTab === 'baocao' ? '?view=reports&tab=baocao' : '?view=reports'
+    if (window.location.search !== desiredSearch) {
+      window.history.replaceState(window.history.state, '', `${basePath}${desiredSearch}`)
+    }
+  }, [reportTab])
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)

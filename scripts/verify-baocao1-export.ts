@@ -715,9 +715,38 @@ async function main() {
       await postBaocaoActionClient({
         action: 'ADD_PURCHASE',
         date: '2026-11-25',
+        docCode: 'MH-STATIC-235',
         materialCode: 'NVL-001',
-        qtyStandardUnit: 10000,
-        actualTotalPaid: 95000,
+        qtyStandardUnit: 25000,
+        actualTotalPaid: 235000,
+      })
+      await postBaocaoActionClient({
+        action: 'ADD_PRODUCTION',
+        date: '2026-11-25',
+        batchCode: 'ME-STATIC-01',
+        sku: 'BM-DEC-LAMA-LUN',
+        qtyStarted: 10,
+        qtyGood: 9,
+      })
+      await postBaocaoActionClient({
+        action: 'ADD_SALES_ORDER',
+        date: '2026-11-25',
+        orderCode: 'SHP-INTRANSIT-01',
+        channel: 'Shopee',
+        sku: 'BM-DEC-LAMA-LUN',
+        qty: 2,
+        actualUnitPrice: 52000,
+        status: 'Đang giao',
+      })
+      await postBaocaoActionClient({
+        action: 'ADD_SALES_ORDER',
+        date: '2026-11-26',
+        orderCode: 'SHP-DELIVERED-02',
+        channel: 'Shopee',
+        sku: 'BM-SEN-01-TRANG', // Shopee variant -> maps to BM-DEC-SEN
+        qty: 3,
+        actualUnitPrice: 30000,
+        status: 'Đã giao',
       })
       await postBaocaoActionClient({ action: 'BULK_CONFIRM_OPENING_STOCK', stocktakeDate: '2026-11-22' })
       const staticSnap = await fetchBaocaoSnapshotClient({
@@ -729,6 +758,92 @@ async function main() {
         staticSnap.purchases.length === 1 && staticSnap.overview.stockAlerts.unverifiedOpeningCount === 0,
         'Static CDN overlay handles POST 405 mutations & BULK_CONFIRM_OPENING_STOCK seamlessly'
       )
+
+      // Verify Bug #3 fix: 'Đang giao' deducts finished stock (stockOutQty=2) & packaging (BB-001=5 for 2+3 orders)
+      const staticLama = staticSnap.finishedInventory.find((f) => f.sku === 'BM-DEC-LAMA-LUN')!
+      const staticBb001 = staticSnap.materialInventory.find((m) => m.code === 'BB-001')!
+      const staticSen = staticSnap.finishedInventory.find((f) => f.sku === 'BM-DEC-SEN')!
+      assert(
+        staticLama.producedGoodQty === 9 && staticLama.soldOutQty === 2 && staticLama.currentQty === 7,
+        "Static CDN 'Đang giao' order deducts finished stock (9 good - 2 in-transit = 7)"
+      )
+      assert(
+        staticBb001.packagingSoldQty === 5,
+        "Static CDN deducts outbound cartons for both 'Đang giao' (2) and 'Đã giao' (3) orders (= 5)"
+      )
+      assert(
+        staticSen.soldOutQty === 3,
+        'Static CDN maps Shopee variant BM-SEN-01-TRANG to canonical BM-DEC-SEN'
+      )
+
+      // Verify Bug #4 fix: Sheet 12 Section E (bySku) updates dynamically on Static CDN
+      const staticBySkuLama = staticSnap.monthlyReport.bySku.find((s) => s.sku === 'BM-DEC-LAMA-LUN')!
+      const staticBySkuSen = staticSnap.monthlyReport.bySku.find((s) => s.sku === 'BM-DEC-SEN')!
+      assert(
+        staticBySkuLama.qtyStarted === 10 && staticBySkuLama.qtyGood === 9 && staticBySkuSen.actualSoldQty === 3,
+        'Static CDN recomputes Sheet 12_Bao_Cao_Thang Section E (bySku) for both production & delivered sales'
+      )
+
+      // Verify Bug #1 fix: Dynamic XLSX & CSV export on Static CDN includes user mutations AND respects scope=template
+      const dynXlsxBlob = await fetchBaocaoExportBlob(
+        'xlsx',
+        new URLSearchParams({ format: 'xlsx', month: '2026-11', scope: 'from_stocktake' })
+      )
+      const dynXlsxEntries = unzipEntries(Buffer.from(await dynXlsxBlob.arrayBuffer()))
+      assert(
+        dynXlsxEntries.get('xl/worksheets/sheet6.xml')!.includes('235000') &&
+          dynXlsxEntries.get('xl/sharedStrings.xml')!.includes('MH-STATIC-235'),
+        'Static CDN dynamic baocao.xlsx includes live user purchase (235,000đ / MH-STATIC-235) in 05_Nhap_Hang'
+      )
+
+      const dynCsvBlob = await fetchBaocaoExportBlob(
+        'csv',
+        new URLSearchParams({ format: 'csv', month: '2026-11', scope: 'from_stocktake' })
+      )
+      const dynCsvText = new TextDecoder().decode(await dynCsvBlob.arrayBuffer())
+      assert(
+        dynCsvText.includes('MH-STATIC-235') && dynCsvText.includes('SHP-INTRANSIT-01'),
+        'Static CDN dynamic baocao.csv includes live user mutations'
+      )
+
+      const tplCsvBlob = await fetchBaocaoExportBlob(
+        'csv',
+        new URLSearchParams({ format: 'csv', month: '2026-11', scope: 'template' })
+      )
+      const tplCsvText = new TextDecoder().decode(await tplCsvBlob.arrayBuffer())
+      assert(
+        !tplCsvText.includes('MH-STATIC-235') && !tplCsvText.includes('SHP-INTRANSIT-01'),
+        'Static CDN dynamic export respects scope=template (0 transaction rows)'
+      )
+
+      // Verify Bug #5 fix: Static CDN adversarial validation parity
+      let rejectedBadDate = false
+      try {
+        await postBaocaoActionClient({
+          action: 'ADD_CASHFLOW',
+          date: '2026-02-30',
+          flowType: 'Chi',
+          description: 'Invalid date',
+          amount: 10000,
+        })
+      } catch {
+        rejectedBadDate = true
+      }
+      assert(rejectedBadDate, 'Static CDN rejects impossible calendar date 2026-02-30')
+
+      let rejectedUnknownMat = false
+      try {
+        await postBaocaoActionClient({
+          action: 'ADD_PURCHASE',
+          date: '2026-11-25',
+          materialCode: 'UNKNOWN-VT-999',
+          qtyStandardUnit: 10,
+          actualTotalPaid: 10000,
+        })
+      } catch {
+        rejectedUnknownMat = true
+      }
+      assert(rejectedUnknownMat, 'Static CDN rejects unknown materialCode UNKNOWN-VT-999')
     } finally {
       globalThis.fetch = origFetch
       ;(globalThis as Record<string, unknown>).window = origWin
