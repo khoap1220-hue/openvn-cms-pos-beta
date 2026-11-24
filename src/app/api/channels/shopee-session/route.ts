@@ -13,6 +13,7 @@ import {
 } from '@/lib/shopee-extension-bundle'
 import {
   isCloudRenderRuntime,
+  isTrustedShopeeCloudBridgeOrigin,
   markVaultSessionExpiredInMeta,
   readDecryptedShopeeSessionFromVault,
   readShopeeSessionVaultMetadata,
@@ -34,25 +35,9 @@ const SESSION_WATCH_KEYS = [
   'csrftoken',
 ] as const
 
-const ALLOWED_EXACT_ORIGINS = new Set([
-  'https://khoaphan.dev',
-  'https://www.khoaphan.dev',
-  'https://khoap1220-hue.github.io',
-  'https://openvn-cms-pos-backend.onrender.com',
-  'http://localhost:3010',
-  'http://127.0.0.1:3010',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-])
-
 function buildShopeeSessionCorsHeaders(req?: NextRequest): Record<string, string> {
   const rawOrigin = req?.headers.get('origin')?.trim().replace(/\/+$/, '') || ''
-  const lower = rawOrigin.toLowerCase()
-  const isAllowedOrigin =
-    Boolean(rawOrigin) &&
-    (ALLOWED_EXACT_ORIGINS.has(lower) ||
-      lower.startsWith('chrome-extension://') ||
-      lower.startsWith('moz-extension://'))
+  const isAllowedOrigin = Boolean(rawOrigin) && isTrustedShopeeCloudBridgeOrigin(rawOrigin)
 
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -90,10 +75,25 @@ function resolveProjectRoot(
     return envRoot
   }
   const cwd = process.cwd()
+  if (
+    fsMod.existsSync(
+      /* turbopackIgnore: true */ pathMod.join(
+        /* turbopackIgnore: true */ cwd,
+        'scripts',
+        'shopee_seller_sync.py'
+      )
+    )
+  ) {
+    return cwd
+  }
   const twoUp = pathMod.resolve(/* turbopackIgnore: true */ cwd, '..', '..')
   if (
     fsMod.existsSync(
-      /* turbopackIgnore: true */ pathMod.join(/* turbopackIgnore: true */ twoUp, 'scripts')
+      /* turbopackIgnore: true */ pathMod.join(
+        /* turbopackIgnore: true */ twoUp,
+        'scripts',
+        'shopee_seller_sync.py'
+      )
     )
   ) {
     return twoUp
@@ -575,21 +575,28 @@ export async function GET(req?: NextRequest) {
 export async function POST(req: NextRequest) {
   const corsHeaders = buildShopeeSessionCorsHeaders(req)
   try {
-    const isPublicBridgeCaller = req.headers.get('x-unauthenticated-public-bridge') === '1'
-    const requiredPasscode = process.env.SHOPEE_CLOUD_SYNC_PASSCODE?.trim()
-    if (isPublicBridgeCaller && requiredPasscode) {
-      const providedPasscode = req.headers.get('x-cloud-sync-passcode')?.trim() || ''
-      if (providedPasscode !== requiredPasscode) {
-        return NextResponse.json(
-          {
-            ok: false,
-            code: 'CLOUD_PASSCODE_REQUIRED',
-            error: 'Thiếu hoặc sai mã khóa đồng bộ Cloud (SHOPEE_CLOUD_SYNC_PASSCODE).',
-          },
-          { status: 401, headers: corsHeaders }
-        )
-      }
+    const rawOrigin = req.headers.get('origin')?.trim().replace(/\/+$/, '') || ''
+    const reqOrigin = req.nextUrl.origin.replace(/\/+$/, '')
+    const isCrossOrigin = Boolean(rawOrigin && rawOrigin.toLowerCase() !== reqOrigin.toLowerCase())
+    if (isCrossOrigin && !isTrustedShopeeCloudBridgeOrigin(rawOrigin)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'ORIGIN_FORBIDDEN',
+          error: 'Nguồn gọi chéo tên miền (Origin) không nằm trong danh sách được phép.',
+        },
+        { status: 403, headers: corsHeaders }
+      )
     }
+
+    const hasForwardedFor = Boolean(req.headers.get('x-forwarded-for')?.trim())
+    const isAuthenticatedCmsCaller = req.headers.get('x-cms-authenticated-caller') === '1'
+    const isRemoteOrCloudRequest = isCloudRenderRuntime() || hasForwardedFor
+    const requiredPasscode = process.env.SHOPEE_CLOUD_SYNC_PASSCODE?.trim()
+    const isPublicBridgeCaller =
+      req.headers.get('x-unauthenticated-public-bridge') === '1' ||
+      (!isAuthenticatedCmsCaller &&
+        (isRemoteOrCloudRequest || isCrossOrigin || Boolean(requiredPasscode)))
 
     const body = (await req.json().catch(() => ({}))) as {
       action?:
@@ -602,7 +609,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (
-      isPublicBridgeCaller &&
+      (isRemoteOrCloudRequest || isPublicBridgeCaller) &&
       (body.action === 'LAUNCH_ONE_TIME_BROWSER' || body.action === 'SYNC_FROM_CDP')
     ) {
       return NextResponse.json(
@@ -614,6 +621,20 @@ export async function POST(req: NextRequest) {
         },
         { status: 403, headers: corsHeaders }
       )
+    }
+
+    if (isPublicBridgeCaller && requiredPasscode) {
+      const providedPasscode = req.headers.get('x-cloud-sync-passcode')?.trim() || ''
+      if (providedPasscode !== requiredPasscode) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: 'CLOUD_PASSCODE_REQUIRED',
+            error: 'Thiếu hoặc sai mã khóa đồng bộ Cloud (SHOPEE_CLOUD_SYNC_PASSCODE).',
+          },
+          { status: 401, headers: corsHeaders }
+        )
+      }
     }
 
     const bridgePort = process.env.SHOPEE_SYNC_PORT || '51898'
@@ -894,7 +915,29 @@ export async function POST(req: NextRequest) {
 
     // ===== 3. KIỂM TRA PHIÊN TRỰC TUYẾN (HỖ TRỢ DAEMON + SUPABASE VAULT + AUTO-CDP) =====
     if (body.action === 'CHECK_SESSION') {
-      const daemonPre = await fetchDaemonStatus(bridgePort)
+      const [daemonPre, vaultMetaPre] = await Promise.all([
+        fetchDaemonStatus(bridgePort),
+        readShopeeSessionVaultMetadata(),
+      ])
+
+      // Nếu đang trên Cloud Render mà Máy bán hàng VN (LOCAL_VN) đang giữ khóa Leader Lease hợp lệ kèm phiên Live:
+      // tôn trọng khóa chống xung đột IP, trả về telemetry Live từ Vault mà không bắn request song song từ Singapore!
+      if (
+        (daemonPre?.standbyYieldedToLocal ||
+          (isCloudRenderRuntime() &&
+            vaultMetaPre.leaderLease.active &&
+            vaultMetaPre.leaderLease.holderRole === 'LOCAL_VN')) &&
+        vaultMetaPre.hasEncryptedSession &&
+        vaultMetaPre.verifiedLive
+      ) {
+        const standbyLivePayload = await buildCombinedStatusPayload({
+          alive: true,
+          shopId: vaultMetaPre.shopId,
+          username: vaultMetaPre.username,
+        })
+        return NextResponse.json(standbyLivePayload, { headers: corsHeaders })
+      }
+
       let checkedViaDaemon = false
       if (daemonPre && !daemonPre.standbyYieldedToLocal) {
         try {
@@ -1110,6 +1153,13 @@ export async function POST(req: NextRequest) {
       verifiedLive = true
       detectedShopId = bridgeData.shopId ? String(bridgeData.shopId) : binding.shopId
       detectedUsername = bridgeData.username ? String(bridgeData.username) : binding.username
+      const diskAfterBridge = await readSessionDiskMetadata()
+      if (
+        diskAfterBridge.cookieCount > 0 &&
+        (diskAfterBridge.hasSpcSt || diskAfterBridge.hasSpcScSession || diskAfterBridge.hasSpcEc)
+      ) {
+        finalCookies = diskAfterBridge.rawCookies
+      }
     } catch {
       // 4.2 Daemon :51898 chưa chạy -> Node.js tự xác thực trực tiếp với Shopee API v2/login
       const directCheck = await verifyDirectlyWithShopee(parsed.cookies, spcCds, csrfToken)

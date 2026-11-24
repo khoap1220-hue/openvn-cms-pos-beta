@@ -3,30 +3,35 @@ import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
 import { invalidateApiCache } from '@/lib/realtime'
 import {
-  mergePreservingInternalVaultFields,
   stripInternalCredentialFields,
+  upsertBaseCredentialPreservingInternalFieldsAtomic,
 } from '@/lib/shopee-session-vault'
 import {
   BASE_DB_PROVIDER_KEYS,
   INTEGRATION_PROVIDERS,
   getNormalizedCredentials,
   invalidateInboundSecretsCache,
+  maskCredentialConfig,
 } from '@/lib/webhook-service'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/integrations/credentials — danh sách provider tích hợp chuẩn của OPENVN
+// GET /api/integrations/credentials — danh sách provider tích hợp chuẩn của OPENVN (đã che mờ các trường bí mật)
 export async function GET() {
   try {
     const credentials = await getNormalizedCredentials()
-    return NextResponse.json({ credentials })
+    const safeCredentials = credentials.map((c) => ({
+      ...c,
+      config: maskCredentialConfig(c.config),
+    }))
+    return NextResponse.json({ credentials: safeCredentials })
   } catch (error) {
     console.error('Credentials GET error:', error)
     return NextResponse.json({ error: 'Không thể tải danh sách credential' }, { status: 500 })
   }
 }
 
-// POST/PATCH /api/integrations/credentials { provider, name?, config, active? } — upsert theo provider
+// POST/PATCH /api/integrations/credentials { provider, name?, config, active? } — upsert nguyên tử theo provider
 async function upsertCredential(req: NextRequest) {
   const body = (await req.json()) as {
     provider?: string
@@ -47,27 +52,14 @@ async function upsertCredential(req: NextRequest) {
   const nextName = body.name?.trim() || label
 
   if (BASE_DB_PROVIDER_KEYS.has(provider)) {
-    const existingRow = await db.integrationCredential.findUnique({
-      where: { provider },
-      select: { config: true },
-    })
     const safePublicConfig = stripInternalCredentialFields(body.config) ?? {}
-    const mergedDbConfig = mergePreservingInternalVaultFields(existingRow?.config, safePublicConfig)
-
-    const credential = await db.integrationCredential.upsert({
-      where: { provider },
-      update: {
-        name: nextName,
-        config: JSON.stringify(mergedDbConfig),
-        active: nextActive,
-      },
-      create: {
+    const { credential, publicReturnedConfig } =
+      await upsertBaseCredentialPreservingInternalFieldsAtomic({
         provider,
         name: nextName,
-        config: JSON.stringify(mergedDbConfig),
+        publicConfig: safePublicConfig,
         active: nextActive,
-      },
-    })
+      })
 
     invalidateInboundSecretsCache()
     invalidateApiCache('integrations:')
@@ -86,7 +78,7 @@ async function upsertCredential(req: NextRequest) {
     return {
       credential: {
         ...credential,
-        config: JSON.stringify(safePublicConfig),
+        config: JSON.stringify(maskCredentialConfig(publicReturnedConfig) ?? {}),
       },
       status: 200 as const,
     }

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { dispatchWebhook, verifyInboundWebhook } from '@/lib/webhook-service'
+import {
+  dispatchWebhook,
+  resolveSafeProjectRoot,
+  verifyInboundWebhook,
+} from '@/lib/webhook-service'
 import { createOrder, cancelOrder, isMaskedOrDummyPhone } from '@/lib/order-service'
 import { logLedger, recordLineageChange } from '@/lib/ledger'
 import { broadcast, patchProductInApiCache, invalidateApiCache } from '@/lib/realtime'
@@ -292,8 +296,9 @@ export async function POST(req: NextRequest) {
 
     const event = verified.payload.event
     const data = verified.payload.data
-    const isTrustedInternalDaemon =
-      verified.isTrustedNonDemoSecret || (!hasForwardedFor && !isCloudRenderRuntime())
+    // Chỉ chấp nhận truy cập Kho Phiên Mã Hóa nội bộ khi request đến từ loopback (không qua reverse proxy x-forwarded-for)
+    // VÀ được ký bằng khóa cầu nối Daemon nội bộ (CMS_INTERNAL_BRIDGE_SECRET / .cms_bridge_token / CMS_API_KEY), tuyệt đối chặn khóa đối tác ngoài!
+    const isTrustedInternalDaemon = !hasForwardedFor && verified.isInternalDaemonBridgeSecret
 
     // ===== 1. PING: kiểm tra kết nối =====
     if (event === 'INBOUND_PING') {
@@ -1044,23 +1049,16 @@ export async function POST(req: NextRequest) {
         try {
           const fs = await import('fs')
           const path = await import('path')
-          const envRoot = process.env.OPENVN_PROJECT_ROOT?.trim()
-          const candDirect = path.join(
-            /* turbopackIgnore: true */ envRoot || process.cwd(),
+          const safeRoot = resolveSafeProjectRoot()
+          const sessionPath = path.join(
+            /* turbopackIgnore: true */ safeRoot,
             'scripts',
             '.shopee_session.json'
           )
-          const candParent = path.join(
-            /* turbopackIgnore: true */ process.cwd(),
-            '..',
-            '..',
-            'scripts',
-            '.shopee_session.json'
-          )
-          const sessionPath = fs.existsSync(/* turbopackIgnore: true */ path.dirname(candDirect))
-            ? candDirect
-            : candParent
-          if (verifiedLive || !fs.existsSync(/* turbopackIgnore: true */ sessionPath)) {
+          if (
+            fs.existsSync(/* turbopackIgnore: true */ path.dirname(sessionPath)) &&
+            (verifiedLive || !fs.existsSync(/* turbopackIgnore: true */ sessionPath))
+          ) {
             fs.writeFileSync(
               sessionPath,
               JSON.stringify(

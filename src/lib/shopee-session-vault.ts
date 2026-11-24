@@ -120,6 +120,30 @@ export function isCloudRenderRuntime(): boolean {
   )
 }
 
+const TRUSTED_SHOPEE_BRIDGE_EXACT_ORIGINS = new Set([
+  'https://khoaphan.dev',
+  'https://www.khoaphan.dev',
+  'https://khoap1220-hue.github.io',
+  'https://openvn-cms-pos-backend.onrender.com',
+  'http://localhost:3010',
+  'http://127.0.0.1:3010',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+])
+
+export function isTrustedShopeeCloudBridgeOrigin(originHeader: string | null | undefined): boolean {
+  const origin = (originHeader || '').trim().replace(/\/+$/, '').toLowerCase()
+  if (!origin) return false
+  if (origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://')) {
+    return true
+  }
+  const configuredCloud = resolvePublicCloudBackendOrigin().toLowerCase()
+  if (configuredCloud && origin === configuredCloud) {
+    return true
+  }
+  return TRUSTED_SHOPEE_BRIDGE_EXACT_ORIGINS.has(origin)
+}
+
 /**
  * Loại bỏ hoàn toàn mọi trường nội bộ bắt đầu bằng `__` (`__vault_v1`, `__lease_v1`)
  * để tuyệt đối không bao giờ lộ ciphertext/lease ra API công khai hoặc snapshot tĩnh `gh-pages`.
@@ -137,7 +161,8 @@ export function stripInternalCredentialFields(
 }
 
 /**
- * Bảo toàn các trường nội bộ `__vault_v1`, `__lease_v1` khi người vận hành lưu cấu hình tích hợp Shopee.
+ * Bảo toàn các trường nội bộ `__vault_v1`, `__lease_v1` và các giá trị bí mật đang bị che mờ (`••••`)
+ * khi người vận hành lưu cấu hình tích hợp từ giao diện.
  */
 export function mergePreservingInternalVaultFields(
   existingRawConfig: string | null | undefined,
@@ -152,6 +177,17 @@ export function mergePreservingInternalVaultFields(
       for (const [k, v] of Object.entries(existingObj)) {
         if (k.startsWith('__') && v !== undefined) {
           preserved[k] = v
+          continue
+        }
+        const incomingVal = preserved[k]
+        if (
+          typeof incomingVal === 'string' &&
+          (incomingVal.includes('••••') || incomingVal.includes('[REDACTED')) &&
+          typeof v === 'string' &&
+          v.trim() !== '' &&
+          !v.includes('••••')
+        ) {
+          preserved[k] = v
         }
       }
       return preserved
@@ -160,6 +196,14 @@ export function mergePreservingInternalVaultFields(
     // ignore malformed legacy config
   }
   return sanitizedIncoming
+}
+
+function safeDecodeUriComponent(raw: string): string {
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
 }
 
 function extractDatabaseSecretMaterial(): string {
@@ -172,10 +216,13 @@ function extractDatabaseSecretMaterial(): string {
     try {
       const parsed = new URL(uri)
       if (parsed.password) {
-        return `supabase-db-pwd:${decodeURIComponent(parsed.password)}`
+        return `supabase-db-pwd:${safeDecodeUriComponent(parsed.password)}`
       }
     } catch {
-      // fallback if SQLite file: URI in local offline test
+      const match = uri.match(/^[a-z0-9+.-]+:\/\/[^:/?#]+:(.+)@[^@/?#]+/i)
+      if (match?.[1]) {
+        return `supabase-db-pwd:${safeDecodeUriComponent(match[1])}`
+      }
     }
   }
   return `fallback-db-uri:${candidates[0] || 'local-dev-ephemeral'}`
@@ -240,6 +287,7 @@ export function encryptShopeeSessionPayload(input: {
   updatedByRole?: ShopeeNodeRole | 'OPERATOR'
   verifiedLive?: boolean
   version?: number
+  preferredKd?: EncryptedVaultEnvelopeV1['kd']
   customSecretOverride?: string
 }): EncryptedVaultEnvelopeV1 {
   const cookies = input.cookies || {}
@@ -265,7 +313,9 @@ export function encryptShopeeSessionPayload(input: {
   const version = Math.max(1, Math.floor(Number(input.version) || 1))
 
   const candidates = resolveCandidateKeys(input.customSecretOverride)
-  const primary = candidates[0]
+  const primary =
+    (input.preferredKd ? candidates.find((c) => c.kd === input.preferredKd) : undefined) ||
+    candidates[0]
   const iv = crypto.randomBytes(12)
   const aad = buildVaultAad(shopId)
 
@@ -468,7 +518,6 @@ async function mutateShopeeCredentialConfigAtomic<T>(
   }
 ): Promise<T> {
   return db.$transaction(async (tx) => {
-    const nowMs = Date.now()
     let currentCfg: Record<string, unknown> = {}
     let rowExists = false
 
@@ -503,6 +552,8 @@ async function mutateShopeeCredentialConfigAtomic<T>(
       }
     }
 
+    // Lấy mốc thời gian chính xác SAU khi đã giành được khóa hàng FOR UPDATE trên PostgreSQL
+    const nowMs = Date.now()
     const { patch, result } = mutator(currentCfg, nowMs)
     if (Object.keys(patch).length > 0) {
       const merged = { ...currentCfg, ...patch }
@@ -533,6 +584,60 @@ async function mutateShopeeCredentialConfigAtomic<T>(
   })
 }
 
+export async function upsertBaseCredentialPreservingInternalFieldsAtomic(params: {
+  provider: string
+  name: string
+  publicConfig: Record<string, unknown>
+  active: boolean
+}) {
+  return db.$transaction(async (tx) => {
+    let existingRawConfig: string | null = null
+    try {
+      const locked = await tx.$queryRaw<Array<{ id: string; config: string | null }>>`
+        SELECT "id", "config"
+        FROM "IntegrationCredential"
+        WHERE "provider" = ${params.provider}
+        FOR UPDATE
+      `
+      if (locked.length > 0) {
+        existingRawConfig = locked[0].config
+      }
+    } catch {
+      const existing = await tx.integrationCredential.findUnique({
+        where: { provider: params.provider },
+        select: { config: true },
+      })
+      existingRawConfig = existing?.config ?? null
+    }
+
+    const mergedDbConfig = mergePreservingInternalVaultFields(
+      existingRawConfig,
+      params.publicConfig
+    )
+    const publicReturnedConfig = stripInternalCredentialFields(mergedDbConfig) ?? {}
+
+    const credential = await tx.integrationCredential.upsert({
+      where: { provider: params.provider },
+      update: {
+        name: params.name,
+        config: JSON.stringify(mergedDbConfig),
+        active: params.active,
+      },
+      create: {
+        provider: params.provider,
+        name: params.name,
+        config: JSON.stringify(mergedDbConfig),
+        active: params.active,
+      },
+    })
+
+    return {
+      credential,
+      publicReturnedConfig,
+    }
+  })
+}
+
 export async function saveEncryptedShopeeSessionToVault(input: {
   cookies: Record<string, string>
   spcCds: string
@@ -546,9 +651,13 @@ export async function saveEncryptedShopeeSessionToVault(input: {
   return mutateShopeeCredentialConfigAtomic((currentCfg) => {
     const prevVault = currentCfg.__vault_v1 as EncryptedVaultEnvelopeV1 | undefined
     const nextVersion = (Number(prevVault?.version) || 0) + 1
+    // Bảo toàn cơ chế dẫn xuất khóa DB_CREDENTIAL_HKDF khi trạm nền xoay vòng Cookie để tránh lệch khóa bất đối xứng giữa Local & Cloud
+    const preferredKd =
+      prevVault?.kd === 'DB_CREDENTIAL_HKDF' ? ('DB_CREDENTIAL_HKDF' as const) : undefined
     const envelope = encryptShopeeSessionPayload({
       ...input,
       version: nextVersion,
+      preferredKd,
     })
     return {
       patch: { __vault_v1: envelope },

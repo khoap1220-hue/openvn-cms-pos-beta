@@ -26,17 +26,57 @@ echo " Internal Webhook Target: $CMS_WEBHOOK_URL (Zero-Secret Ephemeral Auth)"
 echo "=========================================================="
 
 # 1. Start Realtime WebSocket Service (port 3003) in background
+REALTIME_PID=""
 if [ -d "mini-services/realtime" ]; then
   echo "[1/3] Starting Realtime WebSocket Service on :$REALTIME_PORT..."
   (cd mini-services/realtime && node --experimental-strip-types index.ts) &
+  REALTIME_PID=$!
 fi
 
-# 2. Start Shopee Seller Sync & AES-256-GCM Vault Daemon 24/7 in background
+# 2. Start Shopee Seller Sync & AES-256-GCM Vault Daemon 24/7 in supervised background loop
+SHOPEE_SUPERVISOR_PID=""
 if [ -f "scripts/shopee_seller_sync.py" ]; then
   echo "[2/3] Starting Shopee 24/7 Vault & Leader-Lease Daemon..."
-  python3 -B scripts/shopee_seller_sync.py &
+  (
+    set +e
+    PY_PID=""
+    trap 'if [ -n "$PY_PID" ]; then kill -TERM "$PY_PID" 2>/dev/null || true; wait "$PY_PID" 2>/dev/null || true; fi; exit 0' INT TERM
+    while true; do
+      python3 -B scripts/shopee_seller_sync.py &
+      PY_PID=$!
+      wait "$PY_PID"
+      EXIT_CODE=$?
+      PY_PID=""
+      if [ "$EXIT_CODE" -eq 0 ]; then
+        break
+      fi
+      echo "[WARN] Shopee 24/7 Daemon exited (code $EXIT_CODE) — restarting in 5s..."
+      sleep 5
+    done
+  ) &
+  SHOPEE_SUPERVISOR_PID=$!
 fi
 
-# 3. Start Next.js Production Standalone Server on main $PORT
+# 3. Start Next.js Production Standalone Server & coordinate graceful Leader-Lease release on SIGTERM
 echo "[3/3] Starting Next.js Production Server on :$PORT..."
-exec node server.js
+node server.js &
+NODE_SERVER_PID=$!
+
+graceful_shutdown() {
+  echo "[SHUTDOWN] Releasing Shopee Leader Lease on Supabase before stopping Next.js..."
+  if [ -n "$SHOPEE_SUPERVISOR_PID" ]; then
+    kill -TERM "$SHOPEE_SUPERVISOR_PID" 2>/dev/null || true
+    sleep 2
+  fi
+  if [ -n "$REALTIME_PID" ]; then
+    kill -TERM "$REALTIME_PID" 2>/dev/null || true
+  fi
+  if [ -n "$NODE_SERVER_PID" ]; then
+    kill -TERM "$NODE_SERVER_PID" 2>/dev/null || true
+    wait "$NODE_SERVER_PID" 2>/dev/null || true
+  fi
+  exit 0
+}
+
+trap graceful_shutdown INT TERM
+wait "$NODE_SERVER_PID"

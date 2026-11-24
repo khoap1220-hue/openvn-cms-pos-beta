@@ -58,10 +58,32 @@ const MAINTENANCE_EXEMPT_PREFIXES = [
 const STATIC_PUBLIC_ASSET_RE =
   /\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest|txt|xml|woff2?)$/i
 
+function isProxyCloudRenderRuntime(): boolean {
+  const explicitRole = (process.env.SHOPEE_NODE_ROLE || '').trim().toUpperCase()
+  if (explicitRole === 'CLOUD' || explicitRole === 'CLOUD_RENDER' || explicitRole === 'RENDER') {
+    return true
+  }
+  return (
+    process.env.RENDER === 'true' ||
+    Boolean(process.env.RENDER_SERVICE_ID?.trim()) ||
+    Boolean(process.env.RENDER_EXTERNAL_URL?.trim())
+  )
+}
+
 function isTrustedShopeeCloudBridgeOrigin(originHeader: string | null): boolean {
   const origin = (originHeader || '').trim().replace(/\/+$/, '').toLowerCase()
   if (!origin) return false
   if (origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://')) {
+    return true
+  }
+  const configuredCloud = (
+    process.env.NEXT_PUBLIC_CLOUD_BACKEND_URL?.trim() ||
+    process.env.RENDER_EXTERNAL_URL?.trim() ||
+    'https://openvn-cms-pos-backend.onrender.com'
+  )
+    .replace(/\/+$/, '')
+    .toLowerCase()
+  if (configuredCloud && origin === configuredCloud) {
     return true
   }
   return (
@@ -74,6 +96,18 @@ function isTrustedShopeeCloudBridgeOrigin(originHeader: string | null): boolean 
     origin === 'http://localhost:3000' ||
     origin === 'http://127.0.0.1:3000'
   )
+}
+
+function buildSanitizedRequestHeaders(req: NextRequest): Headers {
+  const h = new Headers(req.headers)
+  h.delete('x-cms-authenticated-caller')
+  h.delete('x-unauthenticated-public-bridge')
+  h.delete('x-staff-uid')
+  h.delete('x-staff-usr')
+  h.delete('x-staff-name')
+  h.delete('x-staff-role')
+  h.delete('x-staff-sid')
+  return h
 }
 
 // Bộ đệm ngắn hạn (4 giây) kiểm tra trạng thái thu hồi phiên & quyền mới nhất từ SQLite
@@ -320,7 +354,9 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
               })
             )
           }
-          return NextResponse.next()
+          const apiKeyHeaders = buildSanitizedRequestHeaders(req)
+          apiKeyHeaders.set('x-cms-authenticated-caller', '1')
+          return NextResponse.next({ request: { headers: apiKeyHeaders } })
         }
         return NextResponse.json(
           { error: 'API Key không hợp lệ hoặc đã bị thu hồi' },
@@ -521,7 +557,8 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     }
 
     // Truyền định danh nhân sự đã xác thực xuống Route Handlers & Sổ Data (logLedger)
-    const reqHeaders = new Headers(req.headers)
+    const reqHeaders = buildSanitizedRequestHeaders(req)
+    reqHeaders.set('x-cms-authenticated-caller', '1')
     reqHeaders.set('x-staff-uid', claims.uid)
     reqHeaders.set('x-staff-usr', claims.usr)
     reqHeaders.set('x-staff-name', encodeURIComponent(claims.nam))
@@ -608,24 +645,43 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
         })
       )
     }
+    const openHeaders = buildSanitizedRequestHeaders(req)
     if (pathname === '/api/channels/shopee-session') {
-      const originHdr = req.headers.get('origin')
-      const reqHost = req.nextUrl.origin
-      if (originHdr && originHdr !== reqHost) {
-        const bridgeHeaders = new Headers(req.headers)
-        bridgeHeaders.set('x-unauthenticated-public-bridge', '1')
-        return NextResponse.next({ request: { headers: bridgeHeaders } })
+      const originHdr = req.headers.get('origin')?.trim().replace(/\/+$/, '') || ''
+      const reqHost = req.nextUrl.origin.replace(/\/+$/, '')
+      const isCrossOrigin = Boolean(originHdr && originHdr.toLowerCase() !== reqHost.toLowerCase())
+      if (
+        isCrossOrigin &&
+        !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()) &&
+        !isTrustedShopeeCloudBridgeOrigin(originHdr)
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: 'ORIGIN_FORBIDDEN',
+            error: 'Nguồn gọi chéo tên miền (Origin) không nằm trong danh sách tin cậy.',
+          },
+          { status: 403 }
+        )
+      }
+      if (
+        isCrossOrigin ||
+        isProxyCloudRenderRuntime() ||
+        Boolean(req.headers.get('x-forwarded-for')?.trim())
+      ) {
+        openHeaders.set('x-unauthenticated-public-bridge', '1')
       }
     }
-    return NextResponse.next()
+    return NextResponse.next({ request: { headers: openHeaders } })
   }
 
-  // Cho phép Trang Beta chính chủ (khoaphan.dev / github.io) & Chrome Extension đẩy/kiểm tra phiên Shopee trực tiếp lên Cloud
+  // Cho phép Trang Beta chính chủ (khoaphan.dev / github.io), Chrome Extension và GET telemetry đọc/đẩy phiên Shopee an toàn trên Cloud
   if (
     pathname === '/api/channels/shopee-session' &&
-    isTrustedShopeeCloudBridgeOrigin(req.headers.get('origin'))
+    (req.method.toUpperCase() === 'GET' ||
+      isTrustedShopeeCloudBridgeOrigin(req.headers.get('origin')))
   ) {
-    const bridgeHeaders = new Headers(req.headers)
+    const bridgeHeaders = buildSanitizedRequestHeaders(req)
     bridgeHeaders.set('x-unauthenticated-public-bridge', '1')
     return NextResponse.next({ request: { headers: bridgeHeaders } })
   }

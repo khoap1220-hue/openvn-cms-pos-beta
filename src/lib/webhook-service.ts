@@ -542,25 +542,83 @@ export function isPublicDemoSecret(secret: string): boolean {
   return digest === LEGACY_DEMO_KEY_SHA256
 }
 
+export function maskSecretText(val: unknown): string {
+  const s = typeof val === 'string' ? val.trim() : ''
+  if (!s) return ''
+  if (s.length <= 6) return '••••••••'
+  return `${s.slice(0, 3)}••••••••${s.slice(-3)}`
+}
+
+export function maskCredentialConfig(
+  cfg: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  const clean = stripInternalCredentialFields(cfg)
+  if (!clean) return null
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(clean)) {
+    if (
+      typeof v === 'string' &&
+      v.trim() !== '' &&
+      /(secret|token|key|password|cookie|spc_|cipher)/i.test(k)
+    ) {
+      out[k] = maskSecretText(v)
+    } else {
+      out[k] = v
+    }
+  }
+  return out
+}
+
+export function resolveSafeProjectRoot(): string {
+  const envRoot = process.env.OPENVN_PROJECT_ROOT?.trim()
+  if (envRoot && fs.existsSync(/* turbopackIgnore: true */ envRoot)) {
+    return envRoot
+  }
+  const cwd = process.cwd()
+  if (
+    fs.existsSync(
+      /* turbopackIgnore: true */ path.join(
+        /* turbopackIgnore: true */ cwd,
+        'scripts',
+        'shopee_seller_sync.py'
+      )
+    )
+  ) {
+    return cwd
+  }
+  const twoUp = path.resolve(/* turbopackIgnore: true */ cwd, '..', '..')
+  if (
+    fs.existsSync(
+      /* turbopackIgnore: true */ path.join(
+        /* turbopackIgnore: true */ twoUp,
+        'scripts',
+        'shopee_seller_sync.py'
+      )
+    )
+  ) {
+    return twoUp
+  }
+  return cwd
+}
+
 export function getOrCreateLocalBridgeToken(): string | null {
   const envInternal = process.env.CMS_INTERNAL_BRIDGE_SECRET?.trim()
   if (envInternal && envInternal.length >= 24) return envInternal
   if (cachedLocalBridgeToken) return cachedLocalBridgeToken
 
   try {
-    const envRoot = process.env.OPENVN_PROJECT_ROOT?.trim()
-    const cwd = process.cwd()
-    const twoUp = path.resolve(/* turbopackIgnore: true */ cwd, '..', '..')
-    const baseRoot =
-      envRoot && fs.existsSync(/* turbopackIgnore: true */ envRoot)
-        ? envRoot
-        : fs.existsSync(
-              /* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ twoUp, 'scripts')
-            )
-          ? twoUp
-          : cwd
+    const baseRoot = resolveSafeProjectRoot()
     const scriptsDir = path.join(/* turbopackIgnore: true */ baseRoot, 'scripts')
-    if (!fs.existsSync(/* turbopackIgnore: true */ scriptsDir)) return null
+    if (
+      !fs.existsSync(
+        /* turbopackIgnore: true */ path.join(
+          /* turbopackIgnore: true */ scriptsDir,
+          'shopee_seller_sync.py'
+        )
+      )
+    ) {
+      return null
+    }
     const tokenPath = path.join(/* turbopackIgnore: true */ scriptsDir, '.cms_bridge_token')
     if (fs.existsSync(/* turbopackIgnore: true */ tokenPath)) {
       const existing = fs.readFileSync(/* turbopackIgnore: true */ tokenPath, 'utf-8').trim()
@@ -581,6 +639,23 @@ export function getOrCreateLocalBridgeToken(): string | null {
   }
 }
 
+function getInternalDaemonBridgeSecretsSet(): Set<string> {
+  const internalSet = new Set<string>()
+  const envBridgeSecret = process.env.CMS_INTERNAL_BRIDGE_SECRET?.trim()
+  if (envBridgeSecret && !isPublicDemoSecret(envBridgeSecret)) {
+    internalSet.add(envBridgeSecret)
+  }
+  const envCmsApiKey = process.env.CMS_API_KEY?.trim()
+  if (envCmsApiKey && !isPublicDemoSecret(envCmsApiKey)) {
+    internalSet.add(envCmsApiKey)
+  }
+  const localBridgeToken = getOrCreateLocalBridgeToken()
+  if (localBridgeToken && !isPublicDemoSecret(localBridgeToken)) {
+    internalSet.add(localBridgeToken)
+  }
+  return internalSet
+}
+
 export async function getActiveInboundSecrets(): Promise<string[]> {
   const now = Date.now()
   if (cachedInboundSecrets && cachedInboundSecrets.expiresAt > now) {
@@ -594,12 +669,11 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
   ])
 
   const secrets = new Set<string>()
+  for (const internalSec of getInternalDaemonBridgeSecretsSet()) {
+    secrets.add(internalSec)
+  }
   const envCmsApiKey = process.env.CMS_API_KEY?.trim()
   if (envCmsApiKey) secrets.add(envCmsApiKey)
-  const envBridgeSecret = process.env.CMS_INTERNAL_BRIDGE_SECRET?.trim()
-  if (envBridgeSecret) secrets.add(envBridgeSecret)
-  const localBridgeToken = getOrCreateLocalBridgeToken()
-  if (localBridgeToken) secrets.add(localBridgeToken)
 
   for (const c of credentials) {
     try {
@@ -643,7 +717,8 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
 /**
  * Xác thực inbound webhook từ hệ thống ngoài (hỗ trợ cả HMAC-SHA256 X-Signature và SePay Authorization: Apikey <token>).
  * Trên môi trường Cloud (Render) hoặc request qua reverse proxy internet (`hasForwardedFor`), tự động chặn toàn bộ
- * các khóa mẫu công khai (`PUBLIC_DEMO_SECRETS`) để bảo vệ tuyệt đối Kho Phiên & dữ liệu vận hành.
+ * các khóa mẫu công khai (`PUBLIC_DEMO_SECRETS`), đồng thời phân tách riêng khóa cầu nối Daemon nội bộ (`isInternalDaemonBridgeSecret`)
+ * để tuyệt đối không cho khóa đối tác ngoài (`ApiKey` / `IntegrationCredential`) đọc Kho Phiên Mã Hóa.
  */
 export async function verifyInboundWebhook(
   rawBody: string,
@@ -651,10 +726,16 @@ export async function verifyInboundWebhook(
   authorizationHeader?: string | null,
   options?: { hasForwardedFor?: boolean }
 ): Promise<
-  | { ok: true; payload: Record<string, unknown>; isTrustedNonDemoSecret: boolean }
+  | {
+      ok: true
+      payload: Record<string, unknown>
+      isTrustedNonDemoSecret: boolean
+      isInternalDaemonBridgeSecret: boolean
+    }
   | { ok: false; reason: string }
 > {
   const allSecrets = await getActiveInboundSecrets()
+  const internalDaemonSecrets = getInternalDaemonBridgeSecretsSet()
   const rejectPublicDemoSecrets = Boolean(options?.hasForwardedFor) || isCloudRenderRuntime()
   const allowedSecrets = rejectPublicDemoSecrets
     ? allSecrets.filter((s) => !isPublicDemoSecret(s))
@@ -674,6 +755,7 @@ export async function verifyInboundWebhook(
 
   if (!matchedSecret) return { ok: false, reason: 'Chữ ký HMAC hoặc Apikey không hợp lệ' }
   const isTrustedNonDemoSecret = !isPublicDemoSecret(matchedSecret)
+  const isInternalDaemonBridgeSecret = internalDaemonSecrets.has(matchedSecret)
 
   try {
     const payload = JSON.parse(rawBody) as Record<string, unknown>
@@ -686,6 +768,7 @@ export async function verifyInboundWebhook(
           data: payload,
         },
         isTrustedNonDemoSecret,
+        isInternalDaemonBridgeSecret,
       }
     }
     if (
@@ -695,7 +778,12 @@ export async function verifyInboundWebhook(
     ) {
       return { ok: false, reason: 'Sự kiện phải có tiền tố INBOUND_ hoặc OUTBOX_' }
     }
-    return { ok: true, payload, isTrustedNonDemoSecret }
+    return {
+      ok: true,
+      payload,
+      isTrustedNonDemoSecret,
+      isInternalDaemonBridgeSecret,
+    }
   } catch {
     return { ok: false, reason: 'Body không phải JSON hợp lệ' }
   }

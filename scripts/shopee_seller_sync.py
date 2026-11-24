@@ -174,6 +174,8 @@ GLOBAL_STATE = {
     "leaderLease": None,
     "vaultVersion": 0,
     "vaultUpdatedAtMs": 0,
+    "lastCheckedVaultUpdatedAtMs": 0,
+    "justHydratedFromVault": False,
     "cmsBridgeOnline": False,
     "lastAlertedLost": False,
     "lastAlertReason": "",
@@ -376,14 +378,14 @@ def load_session():
         save_session(cookies, spc_cds, csrf_token, source="INITIAL_FALLBACK")
     return cookies, spc_cds, csrf_token
 
-def _push_session_to_vault_bg(cookies_copy, spc_cds, csrf_token, source):
+def _push_session_to_vault_bg(cookies_copy, spc_cds, csrf_token, source, timeout=8):
     try:
         if not isinstance(cookies_copy, dict) or not (
             cookies_copy.get("SPC_ST") or cookies_copy.get("SPC_SC_SESSION") or cookies_copy.get("SPC_EC")
         ):
-            return
+            return False
         if str(cookies_copy.get("SPC_U", "")) == "3813970" or cookies_copy.get("SPC_ST") == "test_token":
-            return
+            return False
         with GLOBAL_STATE["lock"]:
             sid = str(GLOBAL_STATE.get("shopId") or "197195817")
             uname = str(GLOBAL_STATE.get("username") or "thaimy1605")
@@ -400,7 +402,7 @@ def _push_session_to_vault_bg(cookies_copy, spc_cds, csrf_token, source):
                 "syncVaultOnly": True,
                 "updatedByRole": NODE_ROLE,
             },
-            timeout=8,
+            timeout=timeout,
         )
         if ok and isinstance(resp, dict) and resp.get("ok"):
             with GLOBAL_STATE["lock"]:
@@ -408,10 +410,13 @@ def _push_session_to_vault_bg(cookies_copy, spc_cds, csrf_token, source):
                     GLOBAL_STATE["vaultVersion"] = int(resp["vaultVersion"])
                 if resp.get("updatedAtMs"):
                     GLOBAL_STATE["vaultUpdatedAtMs"] = int(resp["updatedAtMs"])
+                    GLOBAL_STATE["lastCheckedVaultUpdatedAtMs"] = int(resp["updatedAtMs"])
+            return True
     except Exception:
         pass
+    return False
 
-def save_session(cookies, spc_cds, csrf_token, source="AUTO_SLIDING_SESSION"):
+def save_session(cookies, spc_cds, csrf_token, source="AUTO_SLIDING_SESSION", sync_vault_wait=False):
     _write_json_file(SESSION_FILE, {
         "cookies": cookies,
         "spc_cds": spc_cds,
@@ -426,11 +431,14 @@ def save_session(cookies, spc_cds, csrf_token, source="AUTO_SLIDING_SESSION"):
         and isinstance(cookies, dict)
         and (cookies.get("SPC_ST") or cookies.get("SPC_SC_SESSION") or cookies.get("SPC_EC"))
     ):
+        if sync_vault_wait:
+            return _push_session_to_vault_bg(dict(cookies), spc_cds, csrf_token, source, timeout=4)
         threading.Thread(
             target=_push_session_to_vault_bg,
             args=(dict(cookies), spc_cds, csrf_token, source),
             daemon=True,
         ).start()
+    return False
 
 def update_cookies_from_headers(cookies, headers):
     updated = False
@@ -2495,6 +2503,7 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                     return
 
                 with GLOBAL_STATE["lock"]:
+                    is_standby = bool(GLOBAL_STATE.get("standbyYieldedToLocal", False))
                     GLOBAL_STATE["cookies"] = incoming_cookies
                     GLOBAL_STATE["spc_cds"] = spc_cds
                     GLOBAL_STATE["csrf_token"] = csrf_token
@@ -2504,35 +2513,51 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                     GLOBAL_STATE["lastAlertedLost"] = False
                     GLOBAL_STATE["lastAlertReason"] = ""
                     GLOBAL_STATE["outboundRetries"].clear()
-                save_session(incoming_cookies, spc_cds, csrf_token, source=source)
-                requeued_dlq = requeue_dlq_to_inbound()
+                vault_synced = bool(
+                    save_session(
+                        incoming_cookies,
+                        spc_cds,
+                        csrf_token,
+                        source=source,
+                        sync_vault_wait=(NODE_ROLE == "LOCAL_VN"),
+                    )
+                )
+                requeued_dlq = 0 if is_standby else requeue_dlq_to_inbound()
 
-                def _bg_replay_on_session_restore():
-                    try:
-                        notify_session_alert("SESSION_RESTORED", f"Đã nạp lại Cookie qua {source}")
-                        time.sleep(0.2)
-                        with PIPELINE_LOCK:
-                            # BƯỚC 1: Quét & đối soát Inbound từ Shopee về CMS TRƯỚC để cập nhật giá/tồn/phân loại thực tế mới nhất trên Sàn
-                            if not is_inbound_product_sync_disabled():
-                                detect_and_enqueue_inbound_products(incoming_cookies, spc_cds, csrf_token, str(shopid), str(uname), force=False)
-                            detect_and_enqueue_inbound_orders(incoming_cookies, spc_cds, csrf_token)
-                            flush_inbound_queue_to_cms()
-                            # BƯỚC 2: Sau khi đã đối soát Inbound, mới xả các job Outbox có chủ đích từ CMS lên Shopee
-                            process_outbound_outbox_from_cms(incoming_cookies, spc_cds, csrf_token)
-                    except Exception as e_rep:
-                        print(f"[SESSION-RESTORE REPLAY ERR] {e_rep}")
+                if not is_standby:
+                    def _bg_replay_on_session_restore():
+                        try:
+                            notify_session_alert("SESSION_RESTORED", f"Đã nạp lại Cookie qua {source}")
+                            time.sleep(0.2)
+                            with PIPELINE_LOCK:
+                                # BƯỚC 1: Quét & đối soát Inbound từ Shopee về CMS TRƯỚC để cập nhật giá/tồn/phân loại thực tế mới nhất trên Sàn
+                                if not is_inbound_product_sync_disabled():
+                                    detect_and_enqueue_inbound_products(incoming_cookies, spc_cds, csrf_token, str(shopid), str(uname), force=False)
+                                detect_and_enqueue_inbound_orders(incoming_cookies, spc_cds, csrf_token)
+                                flush_inbound_queue_to_cms()
+                                # BƯỚC 2: Sau khi đã đối soát Inbound, mới xả các job Outbox có chủ đích từ CMS lên Shopee
+                                process_outbound_outbox_from_cms(incoming_cookies, spc_cds, csrf_token)
+                        except Exception as e_rep:
+                            print(f"[SESSION-RESTORE REPLAY ERR] {e_rep}")
 
-                threading.Thread(target=_bg_replay_on_session_restore, daemon=True).start()
+                    threading.Thread(target=_bg_replay_on_session_restore, daemon=True).start()
+
                 payload = json.dumps({
                     "ok": True,
                     "verifiedLive": True,
+                    "vaultSynced": vault_synced,
+                    "standbyYieldedToLocal": is_standby,
                     "shopId": str(shopid),
                     "username": str(uname),
                     "cookieCount": len(incoming_cookies),
                     "source": source,
-                    "autoReplayScheduled": True,
+                    "autoReplayScheduled": not is_standby,
                     "requeuedDlqCount": requeued_dlq,
-                    "message": "Xác thực & cập nhật phiên Cookie Shopee thành công! Hàng đợi bất đồng bộ đang tự động xả."
+                    "message": (
+                        "Xác thực & lưu phiên dự phòng thành công (Máy bán hàng VN đang giữ quyền đồng bộ chính)."
+                        if is_standby
+                        else "Xác thực & cập nhật phiên Cookie Shopee thành công! Hàng đợi bất đồng bộ đang tự động xả."
+                    )
                 }).encode('utf-8')
                 self.send_response(200)
                 self._send_cors()
@@ -2848,62 +2873,70 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"ok": True, "paused": False}).encode('utf-8'))
         elif self.path == '/shopee/trigger-sync':
             with GLOBAL_STATE["lock"]:
+                is_standby = bool(GLOBAL_STATE.get("standbyYieldedToLocal", False))
                 curr_cookies = dict(GLOBAL_STATE["cookies"])
                 curr_spc_cds = GLOBAL_STATE["spc_cds"]
                 curr_csrf = GLOBAL_STATE["csrf_token"]
                 shopid = GLOBAL_STATE["shopId"]
                 uname = GLOBAL_STATE["username"]
 
-            def _bg_trigger_pipeline():
-                try:
-                    time.sleep(0.15)
-                    with PIPELINE_LOCK:
-                        # BƯỚC 1: Luôn chạy Outbound Outbox (CMS -> Shopee) TRƯỚC để đẩy mọi thay đổi vừa thao tác trên CMS lên Sàn
-                        process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
-                        # BƯỚC 2: Quét Inbound với force=False (chỉ lấy các thay đổi thực sự mới trên Sàn, không ép ghi đè dữ liệu cũ về CMS)
-                        if is_inbound_product_sync_disabled():
-                            print("[INBOUND PRODUCT SYNC] Bypassed (SHOPEE_OUTBOX_DRY_RUN / SHOPEE_INBOUND_DISABLE active) to protect CMS stock.")
-                        else:
-                            detect_and_enqueue_inbound_products(curr_cookies, curr_spc_cds, curr_csrf, shopid, uname, force=False)
-                        detect_and_enqueue_inbound_orders(curr_cookies, curr_spc_cds, curr_csrf)
-                        flush_inbound_queue_to_cms()
-                except Exception as e:
-                    print(f"[TRIGGER-SYNC BG ERR] {e}")
+            if not is_standby:
+                def _bg_trigger_pipeline():
+                    try:
+                        time.sleep(0.15)
+                        with PIPELINE_LOCK:
+                            # BƯỚC 1: Luôn chạy Outbound Outbox (CMS -> Shopee) TRƯỚC để đẩy mọi thay đổi vừa thao tác trên CMS lên Sàn
+                            process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
+                            # BƯỚC 2: Quét Inbound với force=False (chỉ lấy các thay đổi thực sự mới trên Sàn, không ép ghi đè dữ liệu cũ về CMS)
+                            if is_inbound_product_sync_disabled():
+                                print("[INBOUND PRODUCT SYNC] Bypassed (SHOPEE_OUTBOX_DRY_RUN / SHOPEE_INBOUND_DISABLE active) to protect CMS stock.")
+                            else:
+                                detect_and_enqueue_inbound_products(curr_cookies, curr_spc_cds, curr_csrf, shopid, uname, force=False)
+                            detect_and_enqueue_inbound_orders(curr_cookies, curr_spc_cds, curr_csrf)
+                            flush_inbound_queue_to_cms()
+                    except Exception as e:
+                        print(f"[TRIGGER-SYNC BG ERR] {e}")
 
-            threading.Thread(target=_bg_trigger_pipeline, daemon=True).start()
+                threading.Thread(target=_bg_trigger_pipeline, daemon=True).start()
+
             self.send_response(200)
             self._send_cors()
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({
                 "ok": True,
-                "scheduled": True
+                "scheduled": not is_standby,
+                "standbyYieldedToLocal": is_standby,
             }).encode('utf-8'))
         elif self.path == '/shopee/retry-dlq':
-            requeued_dlq = requeue_dlq_to_inbound()
             with GLOBAL_STATE["lock"]:
+                is_standby = bool(GLOBAL_STATE.get("standbyYieldedToLocal", False))
                 GLOBAL_STATE["outboundRetries"].clear()
                 curr_cookies = dict(GLOBAL_STATE["cookies"])
                 curr_spc_cds = GLOBAL_STATE["spc_cds"]
                 curr_csrf = GLOBAL_STATE["csrf_token"]
                 is_alive = bool(GLOBAL_STATE.get("alive"))
+            requeued_dlq = 0 if is_standby else requeue_dlq_to_inbound()
 
-            def _bg_retry_dlq():
-                try:
-                    time.sleep(0.1)
-                    with PIPELINE_LOCK:
-                        if is_alive or is_outbox_dry_run():
-                            process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
-                        flush_inbound_queue_to_cms()
-                except Exception as e_dlq:
-                    print(f"[RETRY-DLQ BG ERR] {e_dlq}")
+            if not is_standby:
+                def _bg_retry_dlq():
+                    try:
+                        time.sleep(0.1)
+                        with PIPELINE_LOCK:
+                            if is_alive or is_outbox_dry_run():
+                                process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
+                            flush_inbound_queue_to_cms()
+                    except Exception as e_dlq:
+                        print(f"[RETRY-DLQ BG ERR] {e_dlq}")
 
-            threading.Thread(target=_bg_retry_dlq, daemon=True).start()
+                threading.Thread(target=_bg_retry_dlq, daemon=True).start()
+
             payload = json.dumps({
                 "ok": True,
                 "requeuedDlqCount": requeued_dlq,
                 "alive": is_alive,
-                "scheduled": True
+                "scheduled": not is_standby,
+                "standbyYieldedToLocal": is_standby,
             }).encode('utf-8')
             self.send_response(200)
             self._send_cors()
@@ -2981,14 +3014,23 @@ def sync_vault_and_lease(action="ACQUIRE_OR_RENEW", ttl_ms=None, timeout=8):
         GLOBAL_STATE["cmsBridgeOnline"] = True
         GLOBAL_STATE["leaderLease"] = lease_info
         GLOBAL_STATE["standbyYieldedToLocal"] = not lease_granted and action != "RELEASE"
+        GLOBAL_STATE["justHydratedFromVault"] = False
 
         if vault.get("hasSession") and isinstance(vault.get("cookies"), dict) and vault["cookies"]:
             vault_ms = int(vault.get("updatedAtMs") or 0)
             curr_ms = int(GLOBAL_STATE.get("vaultUpdatedAtMs") or 0)
+            last_checked_ms = int(GLOBAL_STATE.get("lastCheckedVaultUpdatedAtMs") or 0)
             has_local_cookies = bool(GLOBAL_STATE.get("cookies"))
             curr_alive = bool(GLOBAL_STATE.get("alive"))
 
-            if (not has_local_cookies) or (not curr_alive and vault.get("verifiedLive")) or (vault_ms > curr_ms):
+            is_newer_vault = vault_ms > curr_ms
+            is_unchecked_live_vault = (
+                (not curr_alive)
+                and bool(vault.get("verifiedLive"))
+                and (vault_ms > last_checked_ms)
+            )
+
+            if (not has_local_cookies) or is_newer_vault or is_unchecked_live_vault:
                 v_cookies = dict(vault["cookies"])
                 v_cds = str(vault.get("spc_cds") or v_cookies.get("SPC_CDS") or GLOBAL_STATE["spc_cds"])
                 v_csrf = str(vault.get("csrf_token") or v_cookies.get("csrftoken") or GLOBAL_STATE["csrf_token"])
@@ -2997,6 +3039,7 @@ def sync_vault_and_lease(action="ACQUIRE_OR_RENEW", ttl_ms=None, timeout=8):
                 GLOBAL_STATE["csrf_token"] = v_csrf
                 GLOBAL_STATE["vaultUpdatedAtMs"] = vault_ms
                 GLOBAL_STATE["vaultVersion"] = int(vault.get("version") or 1)
+                GLOBAL_STATE["justHydratedFromVault"] = True
                 if vault.get("shopId"):
                     GLOBAL_STATE["shopId"] = str(vault["shopId"])
                 if vault.get("username"):
@@ -3195,17 +3238,24 @@ def run_loop(interval_sec=20):
                 curr_csrf = GLOBAL_STATE["csrf_token"]
                 shopid = GLOBAL_STATE["shopId"]
                 uname = GLOBAL_STATE["username"]
+                just_hydrated = bool(GLOBAL_STATE.get("justHydratedFromVault", False))
+                hydrated_vault_ms = int(GLOBAL_STATE.get("vaultUpdatedAtMs") or 0)
 
             just_restored_session = False
+            checked_in_failover = False
 
             # Nếu Cloud vừa tiếp quản quyền Leader sau khi Máy bán hàng tắt: kiểm tra & kích hoạt ngay phiên từ Supabase Vault
             if was_standby:
                 was_standby = False
                 print(f"[{time.strftime('%H:%M:%S')}] [LEADER FAILOVER -> {NODE_ROLE}] Đã tiếp quản Leader Lease từ Supabase — kiểm tra phiên nuôi tự động...")
                 if curr_cookies:
+                    checked_in_failover = True
                     f_alive, f_sid, f_un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                    last_ping = time.time()
+                    should_alert_takeover_lost = False
                     with GLOBAL_STATE["lock"]:
                         GLOBAL_STATE["alive"] = bool(f_alive)
+                        GLOBAL_STATE["lastCheckedVaultUpdatedAtMs"] = hydrated_vault_ms
                         curr_alive = bool(f_alive)
                         if f_sid:
                             GLOBAL_STATE["shopId"] = str(f_sid)
@@ -3213,15 +3263,25 @@ def run_loop(interval_sec=20):
                         if f_un:
                             GLOBAL_STATE["username"] = str(f_un)
                             uname = str(f_un)
+                        if not f_alive and not GLOBAL_STATE.get("lastAlertedLost"):
+                            GLOBAL_STATE["lastAlertedLost"] = True
+                            GLOBAL_STATE["lastAlertReason"] = "Phiên trong Kho Mã Hóa đã hết hạn khi Cloud tiếp quản"
+                            should_alert_takeover_lost = True
                     if f_alive:
-                        last_ping = time.time()
                         just_restored_session = True
                         print(f"[{time.strftime('%H:%M:%S')}] [CLOUD TAKEOVER OK] Đang nuôi phiên Live cho {uname} (#{shopid}) trên {NODE_ROLE}!")
+                    elif should_alert_takeover_lost:
+                        notify_session_alert("SESSION_LOST", "Phiên Cookie trong Kho Phiên Cloud đã hết hạn — vui lòng đẩy lại Cookie mới.")
 
-            # Khi đang mất phiên (not curr_alive): chủ động thử khôi phục qua Chrome CDP (:9222) hoặc phiên mới nạp trên Vault mỗi chu kỳ 20s
+            # Khi đang mất phiên (not curr_alive):
+            # - Nếu vừa nhận bản cập nhật phiên mới từ Supabase Vault (just_hydrated): kích hoạt ngay trên CẢ LOCAL_VN lẫn CLOUD_RENDER (không spam lặp mỗi 20s nếu phiên cũ đã chết!)
+            # - Nếu chạy LOCAL_VN: thử khôi phục qua Chrome CDP (:9222)
             if not curr_alive:
-                if curr_cookies and NODE_ROLE == "CLOUD_RENDER":
+                if not checked_in_failover and just_hydrated and curr_cookies:
                     v_alive, v_sid, v_un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                    last_ping = time.time()
+                    with GLOBAL_STATE["lock"]:
+                        GLOBAL_STATE["lastCheckedVaultUpdatedAtMs"] = hydrated_vault_ms
                     if v_alive:
                         with GLOBAL_STATE["lock"]:
                             GLOBAL_STATE["alive"] = True
@@ -3235,10 +3295,9 @@ def run_loop(interval_sec=20):
                                 uname = str(v_un)
                         curr_alive = True
                         just_restored_session = True
-                        last_ping = time.time()
                         requeue_dlq_to_inbound()
-                        notify_session_alert("SESSION_RESTORED", "Trạm Cloud Render Singapore đã nhận phiên Cookie mới từ Kho Mã Hóa Supabase.")
-                if not curr_alive and try_cdp_recovery():
+                        notify_session_alert("SESSION_RESTORED", f"Trạm {NODE_ROLE} đã kích hoạt phiên Cookie mới từ Kho Mã Hóa Supabase.")
+                if not curr_alive and NODE_ROLE == "LOCAL_VN" and try_cdp_recovery():
                     with GLOBAL_STATE["lock"]:
                         curr_alive = bool(GLOBAL_STATE.get("alive"))
                         curr_cookies = dict(GLOBAL_STATE.get("cookies") or {})

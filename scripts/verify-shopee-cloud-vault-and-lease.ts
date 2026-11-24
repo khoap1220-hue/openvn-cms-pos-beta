@@ -28,8 +28,14 @@ import {
   saveEncryptedShopeeSessionToVault,
 } from '../src/lib/shopee-session-vault'
 import { generateShopeeExtensionFiles } from '../src/lib/shopee-extension-bundle'
-import { invalidateInboundSecretsCache, signPayload } from '../src/lib/webhook-service'
+import {
+  invalidateInboundSecretsCache,
+  resolveSafeProjectRoot,
+  signPayload,
+} from '../src/lib/webhook-service'
 import { GET as integrationsGet } from '../src/app/api/integrations/route'
+import { GET as apiKeysGet } from '../src/app/api/integrations/api-keys/route'
+import { proxy } from '../src/proxy'
 import {
   GET as credentialsGet,
   PATCH as credentialsPatch,
@@ -592,6 +598,362 @@ print("PYTHON_VAULT_LEASE_OK")
       bgTxt.includes('cfg.syncToCloud'),
     'S6-EXTENSION-CLOUD-SYNC',
     'Chrome Extension v2.1 nhúng sẵn quyền kết nối https://*.onrender.com/* và đẩy phiên thẳng lên Cloud 24/7'
+  )
+
+  // --------------------------------------------------------------------------
+  // SUITE 7: Adversarial Security, Concurrency, Anti-Conflict & Path Guard Suite
+  // --------------------------------------------------------------------------
+  console.log('\n--- SUITE 7: Adversarial Security, Concurrency & Anti-Conflict Regression ---')
+
+  // 7.1 GET /api/integrations/api-keys MUST mask key & secret
+  const akRes = await apiKeysGet()
+  const akJson = (await akRes.json()) as {
+    apiKeys?: Array<{ key?: string; secret?: string }>
+  }
+  assert(
+    Array.isArray(akJson.apiKeys) &&
+      akJson.apiKeys.every(
+        (k) => Boolean(k.key?.includes('••••')) && Boolean(k.secret?.includes('••••'))
+      ),
+    'S7-API-KEYS-MASKED',
+    'GET /api/integrations/api-keys che mờ 100% trường key và secret (0 lộ plaintext)'
+  )
+
+  // 7.2 External partner ApiKey MUST NEVER read decrypted Vault or hijack Lease (even non-demo secret)
+  const origShopeeCredS7 = await db.integrationCredential.findUnique({
+    where: { provider: 'SHOPEE' },
+  })
+  const origRoleS7 = process.env.SHOPEE_NODE_ROLE
+  const origPasscodeS7 = process.env.SHOPEE_CLOUD_SYNC_PASSCODE
+  const origVaultKeyS7 = process.env.SHOPEE_SESSION_VAULT_KEY
+  const tempPartnerKey = await db.apiKey.create({
+    data: {
+      name: 'PartnerKeyTempVerify',
+      key: `omni_partner_${crypto.randomBytes(6).toString('hex')}`,
+      secret: crypto.randomBytes(24).toString('hex'),
+      active: true,
+    },
+  })
+  invalidateInboundSecretsCache()
+  try {
+    process.env.SHOPEE_NODE_ROLE = 'CLOUD_RENDER'
+    const extVaultPullReq = new NextRequest(
+      'https://openvn-cms-pos-backend.onrender.com/api/webhooks/inbound',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '203.0.113.99',
+          Authorization: `Apikey ${tempPartnerKey.secret}`,
+        },
+        body: JSON.stringify({
+          event: 'OUTBOX_VAULT_PULL_AND_LEASE',
+          data: { nodeId: 'ext-partner', nodeRole: 'LOCAL_VN', action: 'PEEK' },
+        }),
+      }
+    )
+    const extVaultPullRes = await inboundWebhookPost(extVaultPullReq)
+    assert(
+      extVaultPullRes.status === 403,
+      'S7-BLOCK-PARTNER-KEY-VAULT-PULL',
+      `Chặn 403 khóa đối tác ngoài (ApiKey) cố gắng đọc Kho Phiên Mã Hóa (HTTP ${extVaultPullRes.status})`
+    )
+
+    const localPartnerPullReq = new NextRequest('http://127.0.0.1:3010/api/webhooks/inbound', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Apikey ${tempPartnerKey.secret}`,
+      },
+      body: JSON.stringify({
+        event: 'INBOUND_SHOPEE_SESSION_UPDATE',
+        data: {
+          cookies: sampleCookies,
+          syncVaultOnly: true,
+        },
+      }),
+    })
+    const localPartnerPullRes = await inboundWebhookPost(localPartnerPullReq)
+    assert(
+      localPartnerPullRes.status === 403,
+      'S7-BLOCK-PARTNER-KEY-SYNC-VAULT-ONLY',
+      `Chặn 403 khóa đối tác ngoài ghi trực tiếp syncVaultOnly (HTTP ${localPartnerPullRes.status})`
+    )
+
+    // 7.3 Missing Origin header MUST NOT bypass LOCAL_ACTION_ONLY or SHOPEE_CLOUD_SYNC_PASSCODE
+    process.env.SHOPEE_CLOUD_SYNC_PASSCODE = 'cloud-passcode-verify-2026'
+    const noOriginCdpReq = new NextRequest(
+      'https://openvn-cms-pos-backend.onrender.com/api/channels/shopee-session',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '203.0.113.99',
+        },
+        body: JSON.stringify({ action: 'SYNC_FROM_CDP', enforceShopLock: false }),
+      }
+    )
+    const noOriginCdpRes = await shopeeSessionPost(noOriginCdpReq)
+    const noOriginCdpJson = (await noOriginCdpRes.json()) as { code?: string }
+    assert(
+      noOriginCdpRes.status === 403 && noOriginCdpJson.code === 'LOCAL_ACTION_ONLY',
+      'S7-NO-ORIGIN-BLOCKS-REMOTE-CDP',
+      'Request không có Origin trên Cloud vẫn bị chặn cứng 403 LOCAL_ACTION_ONLY cho SYNC_FROM_CDP'
+    )
+
+    const noOriginImportReq = new NextRequest(
+      'https://openvn-cms-pos-backend.onrender.com/api/channels/shopee-session',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '203.0.113.99',
+        },
+        body: JSON.stringify({ action: 'CHECK_SESSION' }),
+      }
+    )
+    const noOriginImportRes = await shopeeSessionPost(noOriginImportReq)
+    const noOriginImportJson = (await noOriginImportRes.json()) as { code?: string }
+    assert(
+      noOriginImportRes.status === 401 && noOriginImportJson.code === 'CLOUD_PASSCODE_REQUIRED',
+      'S7-NO-ORIGIN-ENFORCES-PASSCODE',
+      'Request không có Origin không thể vượt rào SHOPEE_CLOUD_SYNC_PASSCODE (HTTP 401)'
+    )
+    delete process.env.SHOPEE_CLOUD_SYNC_PASSCODE
+
+    // 7.4 Cross-origin POST from untrusted Origin MUST return 403 ORIGIN_FORBIDDEN (CSRF protection)
+    const evilOriginReq = new NextRequest(
+      'https://openvn-cms-pos-backend.onrender.com/api/channels/shopee-session',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+          Origin: 'https://evil-attacker.example',
+        },
+        body: JSON.stringify({ action: 'CHECK_SESSION' }),
+      }
+    )
+    const evilProxyRes = await proxy(evilOriginReq, { waitUntil: () => {} } as never)
+    const evilRouteRes = await shopeeSessionPost(evilOriginReq)
+    assert(
+      evilProxyRes.status === 403 && evilRouteRes.status === 403,
+      'S7-CSRF-EVIL-ORIGIN-BLOCKED',
+      `Chặn đứng 403 CSRF từ Origin lạ trên cả Proxy (${evilProxyRes.status}) lẫn Route (${evilRouteRes.status})`
+    )
+
+    // 7.5 Safe project root resolution (never escapes to Y:\scripts)
+    assert(
+      path.resolve(resolveSafeProjectRoot()) === path.resolve(process.cwd()),
+      'S7-SAFE-PROJECT-ROOT',
+      `resolveSafeProjectRoot() khóa đúng thư mục gốc dự án (${resolveSafeProjectRoot()})`
+    )
+
+    // 7.6 Asymmetric SHOPEE_SESSION_VAULT_KEY preservation for DB_CREDENTIAL_HKDF
+    delete process.env.SHOPEE_SESSION_VAULT_KEY
+    await saveEncryptedShopeeSessionToVault({
+      cookies: sampleCookies,
+      spcCds: sampleCookies.SPC_CDS,
+      csrfToken: sampleCookies.csrftoken,
+      shopId: '197195817',
+      username: 'thaimy1605',
+      source: 'LOCAL_SEED',
+      updatedByRole: 'LOCAL_VN',
+      verifiedLive: true,
+    })
+    process.env.SHOPEE_SESSION_VAULT_KEY = 'asymmetric-render-only-key-99887766'
+    const rotatedOnCloud = await saveEncryptedShopeeSessionToVault({
+      cookies: { ...sampleCookies, SPC_ST: '.rotated_st_on_cloud_778899' },
+      spcCds: sampleCookies.SPC_CDS,
+      csrfToken: sampleCookies.csrftoken,
+      shopId: '197195817',
+      username: 'thaimy1605',
+      source: 'HEARTBEAT_KEEP_ALIVE',
+      updatedByRole: 'CLOUD_RENDER',
+      verifiedLive: true,
+    })
+    delete process.env.SHOPEE_SESSION_VAULT_KEY
+    const decryptedBackOnLocal = await readDecryptedShopeeSessionFromVault('197195817')
+    assert(
+      rotatedOnCloud.kd === 'DB_CREDENTIAL_HKDF' &&
+        decryptedBackOnLocal?.cookies.SPC_ST === '.rotated_st_on_cloud_778899',
+      'S7-ASYMMETRIC-VAULT-KEY-IMMUNITY',
+      'Bảo toàn kd=DB_CREDENTIAL_HKDF khi xoay vòng Cookie, chống khóa chéo giữa Local & Cloud'
+    )
+
+    // 7.7 Concurrent Leader Lease contention + Abrupt Power-Cut TTL Failover
+    const concurrentResults = await Promise.all([
+      acquireOrRenewShopeeLeaderLease({
+        nodeId: 'cloud-render-race-1',
+        nodeRole: 'CLOUD_RENDER',
+        ttlMs: 20_000,
+      }),
+      acquireOrRenewShopeeLeaderLease({
+        nodeId: 'local-vn-powercut-1',
+        nodeRole: 'LOCAL_VN',
+        ttlMs: 20_000,
+      }),
+      acquireOrRenewShopeeLeaderLease({
+        nodeId: 'cloud-render-race-2',
+        nodeRole: 'CLOUD_RENDER',
+        ttlMs: 20_000,
+      }),
+    ])
+    const finalLeaseAfterRace = await acquireOrRenewShopeeLeaderLease({
+      nodeId: 'cloud-render-race-1',
+      nodeRole: 'CLOUD_RENDER',
+      action: 'ACQUIRE_OR_RENEW',
+      ttlMs: 20_000,
+    })
+    assert(
+      concurrentResults[1].leaseGranted === true &&
+        finalLeaseAfterRace.leaseGranted === false &&
+        finalLeaseAfterRace.yieldedToLocal === true &&
+        finalLeaseAfterRace.lease.holderRole === 'LOCAL_VN',
+      'S7-CONCURRENT-CONTENTION-POWERCUT-HOLD',
+      'Dưới tranh chấp đồng thời & mất điện đột ngột (chưa hết TTL), CLOUD_RENDER nhường khóa tuyệt đối cho LOCAL_VN'
+    )
+
+    // Simulate TTL expiry in DB (power cut elapsed > TTL) and verify CLOUD_RENDER takes over cleanly
+    const rawRowExpired = await db.integrationCredential.findUnique({ where: { provider: 'SHOPEE' } })
+    const parsedExpiredCfg = JSON.parse(rawRowExpired!.config) as Record<string, unknown>
+    const prevLeaseObj = parsedExpiredCfg.__lease_v1 as Record<string, unknown>
+    parsedExpiredCfg.__lease_v1 = {
+      ...prevLeaseObj,
+      expiresAtMs: Date.now() - 1000,
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    }
+    await db.integrationCredential.update({
+      where: { provider: 'SHOPEE' },
+      data: { config: JSON.stringify(parsedExpiredCfg) },
+    })
+    const takeoverAfterTtl = await acquireOrRenewShopeeLeaderLease({
+      nodeId: 'cloud-render-race-1',
+      nodeRole: 'CLOUD_RENDER',
+      action: 'ACQUIRE_OR_RENEW',
+      ttlMs: 90_000,
+    })
+    assert(
+      takeoverAfterTtl.leaseGranted === true &&
+        takeoverAfterTtl.lease.holderRole === 'CLOUD_RENDER' &&
+        takeoverAfterTtl.lease.epoch > Number(prevLeaseObj.epoch || 0),
+      'S7-POWERCUT-TTL-EXPIRY-TAKEOVER',
+      `Sau khi hết hạn TTL do mất điện, CLOUD_RENDER tự động tiếp quản khóa (epoch=${takeoverAfterTtl.lease.epoch})`
+    )
+  } finally {
+    await db.apiKey.delete({ where: { id: tempPartnerKey.id } }).catch(() => null)
+    if (origRoleS7 !== undefined) process.env.SHOPEE_NODE_ROLE = origRoleS7
+    else delete process.env.SHOPEE_NODE_ROLE
+    if (origPasscodeS7 !== undefined) process.env.SHOPEE_CLOUD_SYNC_PASSCODE = origPasscodeS7
+    else delete process.env.SHOPEE_CLOUD_SYNC_PASSCODE
+    if (origVaultKeyS7 !== undefined) process.env.SHOPEE_SESSION_VAULT_KEY = origVaultKeyS7
+    else delete process.env.SHOPEE_SESSION_VAULT_KEY
+    invalidateInboundSecretsCache()
+    if (origShopeeCredS7) {
+      await db.integrationCredential.update({
+        where: { provider: 'SHOPEE' },
+        data: {
+          name: origShopeeCredS7.name,
+          config: origShopeeCredS7.config,
+          active: origShopeeCredS7.active,
+        },
+      })
+    }
+    invalidateApiCache()
+  }
+
+  // 7.8 Standby Python Daemon MUST NOT execute Shopee Inbound/Outbound pipelines & MUST NOT re-hydrate stale dead cookies
+  const pyStandbyGuardSuite = `
+import io, json, os, time
+os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+os.environ.pop('SHOPEE_OUTBOX_DRY_RUN', None)
+import scripts.shopee_seller_sync as sm
+
+pipeline_calls = []
+sm.GLOBAL_STATE["standbyYieldedToLocal"] = True
+orig_ping = sm.keep_alive_ping
+orig_save = sm.save_session
+orig_prod = sm.detect_and_enqueue_inbound_products
+orig_ord = sm.detect_and_enqueue_inbound_orders
+orig_out = sm.process_outbound_outbox_from_cms
+orig_call = sm.call_cms_webhook
+
+sm.keep_alive_ping = lambda c, s, t, allow_subsession_refresh=True: (True, "197195817", "thaimy1605")
+sm.save_session = lambda *a, **k: False
+sm.detect_and_enqueue_inbound_products = lambda *a, **k: (pipeline_calls.append("PROD"), (0, 0))[1]
+sm.detect_and_enqueue_inbound_orders = lambda *a, **k: (pipeline_calls.append("ORD"), 0)[1]
+sm.process_outbound_outbox_from_cms = lambda *a, **k: (pipeline_calls.append("OUTBOX"), 0)[1]
+
+class DummyBridge(sm.LocalBridgeHandler):
+    def __init__(self, path_str, body_dict):
+        raw = json.dumps(body_dict).encode("utf-8")
+        self.path = path_str
+        self.headers = {"Content-Length": str(len(raw))}
+        self.rfile = io.BytesIO(raw)
+        self.wfile = io.BytesIO()
+    def send_response(self, code): self.resp_code = code
+    def send_header(self, k, v): pass
+    def end_headers(self): pass
+
+try:
+    b1 = DummyBridge("/shopee/session", {"cookies": {"SPC_EC": "ec1", "SPC_ST": "st1"}, "expectedShopId": "197195817"})
+    b1.do_POST()
+    b2 = DummyBridge("/shopee/trigger-sync", {})
+    b2.do_POST()
+    b3 = DummyBridge("/shopee/retry-dlq", {})
+    b3.do_POST()
+    time.sleep(0.35)
+    assert len(pipeline_calls) == 0, f"Standby daemon ran pipeline: {pipeline_calls}"
+
+    # Dead cookie jar with already-checked updatedAtMs MUST NOT set justHydratedFromVault=True again
+    sm.GLOBAL_STATE["alive"] = False
+    sm.GLOBAL_STATE["cookies"] = {"SPC_EC": "dead_ec"}
+    sm.GLOBAL_STATE["vaultUpdatedAtMs"] = 1764000999000
+    sm.GLOBAL_STATE["lastCheckedVaultUpdatedAtMs"] = 1764000999000
+    sm.call_cms_webhook = lambda ev, data, timeout=12: (True, {
+        "ok": True,
+        "leaseGranted": True,
+        "yieldedToLocal": False,
+        "lease": {"active": True, "holderRole": "CLOUD_RENDER"},
+        "vault": {
+            "hasSession": True,
+            "verifiedLive": True,
+            "version": 5,
+            "updatedAtMs": 1764000999000,
+            "cookies": {"SPC_EC": "dead_ec"}
+        }
+    })
+    sm.sync_vault_and_lease("ACQUIRE_OR_RENEW")
+    assert sm.GLOBAL_STATE["justHydratedFromVault"] is False, "Re-hydrated already-checked dead cookie!"
+finally:
+    sm.keep_alive_ping = orig_ping
+    sm.save_session = orig_save
+    sm.detect_and_enqueue_inbound_products = orig_prod
+    sm.detect_and_enqueue_inbound_orders = orig_ord
+    sm.process_outbound_outbox_from_cms = orig_out
+    sm.call_cms_webhook = orig_call
+
+print("STANDBY_AND_DEAD_COOKIE_GUARD_OK")
+`
+  const pyStandbyOut = execSync('python -B -', {
+    input: pyStandbyGuardSuite,
+    encoding: 'utf-8',
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  })
+  assert(
+    pyStandbyOut.includes('STANDBY_AND_DEAD_COOKIE_GUARD_OK'),
+    'S7-STANDBY-NO-PIPELINE-NO-SPAM',
+    'Daemon Standby chặn 100% luồng đồng bộ song song với VN & chống lặp 20s trên Cookie đã hết hạn'
+  )
+
+  const dockerignoreTxt = fs.readFileSync(path.resolve('.dockerignore'), 'utf-8')
+  assert(
+    dockerignoreTxt.includes('scripts/.shopee_session.json') &&
+      dockerignoreTxt.includes('scripts/.cms_bridge_token') &&
+      dockerignoreTxt.includes('.env') &&
+      entrypoint.includes('graceful_shutdown') &&
+      renderYaml.includes('CMS_REQUIRE_AUTH'),
+    'S7-DOCKERIGNORE-AND-SIGTERM-LEASE-RELEASE',
+    '.dockerignore chặn rò rỉ .env/session/token, render.yaml bật CMS_REQUIRE_AUTH và docker-entrypoint.sh nhả khóa khi nhận SIGTERM'
   )
 
   const guardRes = await testGuardGet()

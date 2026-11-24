@@ -137,6 +137,7 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
 
     const bridgeUrl = `http://127.0.0.1:${cfg.bridgePort}/shopee/session`;
     let localPushed = false;
+    let localVaultSynced = false;
     let cloudPushed = false;
     const channelsSucceeded = [];
     let detectedShopId = '';
@@ -154,7 +155,11 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
 
       if (res.ok && data.ok) {
         localPushed = true;
+        localVaultSynced = Boolean(data.vaultSynced);
         channelsSucceeded.push(`Local Daemon (:${cfg.bridgePort})`);
+        if (localVaultSynced) {
+          channelsSucceeded.push('Supabase Vault (AES-256-GCM)');
+        }
         detectedShopId = String(data.shopId || '');
         detectedUsername = String(data.username || '');
       } else if (res.status === 409) {
@@ -196,6 +201,7 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
         const data2 = await res2.json().catch(() => ({}));
         if (res2.ok && data2.ok) {
           localPushed = true;
+          localVaultSynced = Boolean(data2.vaultSynced);
           channelsSucceeded.push(`CMS (${cfg.cmsOrigin})`);
           detectedShopId = String(data2.shopId || cfg.shopId || '');
           detectedUsername = String(data2.username || cfg.username || '');
@@ -241,6 +247,7 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
         const data3 = await res3.json().catch(() => ({}));
         if (res3.ok && data3.ok) {
           localPushed = true;
+          localVaultSynced = Boolean(data3.cloudVault && data3.cloudVault.hasEncryptedSession);
           channelsSucceeded.push(`CMS Phiên 1-Lần (${cfg.cmsOrigin})`);
           detectedShopId = String(data3.shopId || cfg.shopId || '');
           detectedUsername = String(data3.username || cfg.username || '');
@@ -262,7 +269,15 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
     }
 
     // 4. Đẩy thẳng lên Kho Phiên Mã Hóa Cloud 24/7 (Supabase AES-256-GCM + Render Singapore)
-    if (cfg.syncToCloud && cfg.cloudOrigin && cfg.cloudOrigin !== cfg.cmsOrigin) {
+    // Khi Máy bán hàng cục bộ đã xác thực trên mạng VN VÀ đã ghi thẳng vào Supabase Vault (localVaultSynced),
+    // không bắn lặp lên Render Singapore ở cùng thời điểm để chống xung đột 2 IP (VN + Singapore) trên Shopee!
+    const shouldPushDirectToCloud =
+      cfg.syncToCloud &&
+      cfg.cloudOrigin &&
+      cfg.cloudOrigin !== cfg.cmsOrigin &&
+      (!localPushed || !localVaultSynced);
+
+    if (shouldPushDirectToCloud) {
       try {
         const cloudEndpoint = `${cfg.cloudOrigin}/api/channels/shopee-session`;
         const cloudHeaders = { 'Content-Type': 'application/json' };
@@ -315,7 +330,10 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
         lastSyncStatus: 'DONG_BO_THANH_CONG',
         lastError: '',
         syncedVia: channelsSucceeded.join(' + '),
-        cloudSynced: cloudPushed || Boolean(localPushed && cfg.cmsOrigin === cfg.cloudOrigin),
+        cloudSynced:
+          cloudPushed ||
+          localVaultSynced ||
+          Boolean(localPushed && cfg.cmsOrigin === cfg.cloudOrigin),
         detectedShopId,
         detectedUsername,
         cookieCount,

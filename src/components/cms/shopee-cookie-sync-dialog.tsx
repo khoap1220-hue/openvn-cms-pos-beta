@@ -443,10 +443,11 @@ export function ShopeeCookieSyncDialog({
 
       if (isStaticHost) {
         let localOk = false
+        let localVaultSynced = false
         let localShopId = shopId
         let localUsername = username
 
-        // 1. Thử nạp song song vào Python Daemon cục bộ (:51898) nếu máy bán hàng đang bật
+        // 1. Thử nạp vào Python Daemon cục bộ (:51898) nếu máy bán hàng đang bật
         try {
           const bridgeRes = await fetch(`http://127.0.0.1:${bridgePort}/shopee/session`, {
             method: 'POST',
@@ -458,10 +459,11 @@ export function ShopeeCookieSyncDialog({
               source: 'MANUAL_CURL_IMPORT',
               expectedShopId: enforceShopLock ? shopId : '',
             }),
-            signal: AbortSignal.timeout(3000),
+            signal: AbortSignal.timeout(4500),
           })
           const bridgeData = (await bridgeRes.json().catch(() => ({}))) as {
             ok?: boolean
+            vaultSynced?: boolean
             shopId?: string
             username?: string
             error?: string
@@ -474,6 +476,7 @@ export function ShopeeCookieSyncDialog({
           }
           if (bridgeRes.ok && bridgeData.ok) {
             localOk = true
+            localVaultSynced = Boolean(bridgeData.vaultSynced)
             localShopId = bridgeData.shopId || shopId
             localUsername = bridgeData.username || username
           }
@@ -484,17 +487,21 @@ export function ShopeeCookieSyncDialog({
           // Máy cục bộ đang tắt -> tiếp tục đẩy thẳng lên Trạm Cloud 24/7 (Render Singapore)
         }
 
-        // 2. Luôn đẩy thẳng lên Kho Phiên Mã Hóa Cloud 24/7 (Supabase AES-256-GCM + Render Singapore)
-        const cloudRes = await fetch(`${cloudBackendOrigin}/api/channels/shopee-session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'IMPORT_CURL',
-            rawInput,
-            enforceShopLock,
-          }),
-          signal: AbortSignal.timeout(65000),
-        }).catch(() => null)
+        // 2. Khi Máy bán hàng chưa ghi lên Supabase Vault (hoặc đang tắt), đẩy thẳng lên Trạm Cloud 24/7 (Render Singapore)
+        // Tránh bắn 2 request xác thực đồng thời từ cả IP Việt Nam lẫn IP Singapore khi Local đã đồng bộ Vault thành công!
+        const cloudRes =
+          !localOk || !localVaultSynced
+            ? await fetch(`${cloudBackendOrigin}/api/channels/shopee-session`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'IMPORT_CURL',
+                  rawInput,
+                  enforceShopLock,
+                }),
+                signal: AbortSignal.timeout(65000),
+              }).catch(() => null)
+            : null
 
         if (cloudRes) {
           const cloudJson = (await cloudRes.json().catch(() => ({}))) as ShopeeSessionStatus & {

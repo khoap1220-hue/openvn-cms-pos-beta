@@ -13,6 +13,8 @@ services:
         value: "true"
       - key: NODE_ENV
         value: "production"
+      - key: CMS_REQUIRE_AUTH
+        value: "true"
       - key: SHOPEE_NODE_ROLE
         value: "CLOUD_RENDER"
       - key: DATABASE_URL
@@ -23,5 +25,5 @@ services:
         sync: false
       - key: CMS_API_KEY
         sync: false
-      - key: SHOPEE_SESSION_VAULT_KEY
-        sync: false
+      # Lưu ý: Khóa AES-256-GCM được dẫn xuất tự động 256-bit (HKDF-SHA256) từ thông tin xác thực DATABASE_URL
+      # đồng bộ 100% giữa Máy bán hàng & Cloud mà không cần nhập thêm SHOPEE_SESSION_VAULT_KEY thủ công.

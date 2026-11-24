@@ -44,6 +44,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/db ./db
 COPY --from=builder /app/scripts ./scripts
+RUN rm -rf ./scripts/.shopee_* ./scripts/.cms_bridge_token ./scripts/__pycache__ ./scripts/*.pyc
 COPY --from=builder /app/mini-services/realtime ./mini-services/realtime
 COPY --from=deps /app/mini-services/realtime/node_modules ./mini-services/realtime/node_modules
 
