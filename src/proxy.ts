@@ -58,6 +58,24 @@ const MAINTENANCE_EXEMPT_PREFIXES = [
 const STATIC_PUBLIC_ASSET_RE =
   /\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest|txt|xml|woff2?)$/i
 
+function isTrustedShopeeCloudBridgeOrigin(originHeader: string | null): boolean {
+  const origin = (originHeader || '').trim().replace(/\/+$/, '').toLowerCase()
+  if (!origin) return false
+  if (origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://')) {
+    return true
+  }
+  return (
+    origin === 'https://khoaphan.dev' ||
+    origin === 'https://www.khoaphan.dev' ||
+    origin === 'https://khoap1220-hue.github.io' ||
+    origin === 'https://openvn-cms-pos-backend.onrender.com' ||
+    origin === 'http://localhost:3010' ||
+    origin === 'http://127.0.0.1:3010' ||
+    origin === 'http://localhost:3000' ||
+    origin === 'http://127.0.0.1:3000'
+  )
+}
+
 // Bộ đệm ngắn hạn (4 giây) kiểm tra trạng thái thu hồi phiên & quyền mới nhất từ SQLite
 const sessionCache = new Map<
   string,
@@ -227,12 +245,13 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     }
   }
 
-  // 1. Cho phép tài nguyên tĩnh, trang công khai (/blog, /login), Socket.IO (?EIO=*) và health probe GET /api
+  // 1. Cho phép tài nguyên tĩnh, trang công khai (/blog, /login), Socket.IO (?EIO=*), CORS preflight cho Shopee Session Bridge và health probe GET /api
   if (
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
     STATIC_PUBLIC_ASSET_RE.test(pathname) ||
     req.nextUrl.searchParams.has('EIO') ||
-    (pathname === '/api' && req.method === 'GET')
+    (pathname === '/api' && req.method === 'GET') ||
+    (pathname === '/api/channels/shopee-session' && req.method.toUpperCase() === 'OPTIONS')
   ) {
     return NextResponse.next()
   }
@@ -589,7 +608,26 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
         })
       )
     }
+    if (pathname === '/api/channels/shopee-session') {
+      const originHdr = req.headers.get('origin')
+      const reqHost = req.nextUrl.origin
+      if (originHdr && originHdr !== reqHost) {
+        const bridgeHeaders = new Headers(req.headers)
+        bridgeHeaders.set('x-unauthenticated-public-bridge', '1')
+        return NextResponse.next({ request: { headers: bridgeHeaders } })
+      }
+    }
     return NextResponse.next()
+  }
+
+  // Cho phép Trang Beta chính chủ (khoaphan.dev / github.io) & Chrome Extension đẩy/kiểm tra phiên Shopee trực tiếp lên Cloud
+  if (
+    pathname === '/api/channels/shopee-session' &&
+    isTrustedShopeeCloudBridgeOrigin(req.headers.get('origin'))
+  ) {
+    const bridgeHeaders = new Headers(req.headers)
+    bridgeHeaders.set('x-unauthenticated-public-bridge', '1')
+    return NextResponse.next({ request: { headers: bridgeHeaders } })
   }
 
   if (pathname.startsWith('/api/')) {

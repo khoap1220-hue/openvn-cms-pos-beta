@@ -6,7 +6,7 @@
   <style>
     * { box-sizing: border-box; }
     body {
-      width: 340px;
+      width: 348px;
       margin: 0;
       padding: 14px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -138,7 +138,7 @@
 </head>
 <body>
   <div class="header">
-    <div class="brand">OPENVN Auto-Sync</div>
+    <div class="brand">OPENVN Auto-Sync 24/7</div>
     <div id="shopBadge" class="shop-pill">Shop #197195817</div>
   </div>
 
@@ -166,18 +166,26 @@
     <div id="errorBox" class="error-box"></div>
   </div>
 
-  <button id="syncBtn" class="btn btn-primary">Đồng bộ Cookie ngay</button>
+  <button id="syncBtn" class="btn btn-primary">Đồng bộ Cookie ngay (Local + Cloud)</button>
   <button id="copyBtn" class="btn btn-secondary">Sao chép chuỗi Cookie (dán thủ công)</button>
 
   <details>
-    <summary>Cấu hình liên kết Shop</summary>
+    <summary>Cấu hình Local & Cloud 24/7</summary>
     <div class="field">
-      <label for="cmsOriginInput">Địa chỉ OPENVN CMS</label>
+      <label for="cloudOriginInput">Trạm Cloud 24/7 (Render Singapore)</label>
+      <input id="cloudOriginInput" type="text" placeholder="https://openvn-cms-pos-backend.onrender.com" />
+    </div>
+    <label class="checkbox-row">
+      <input id="syncToCloudCheckbox" type="checkbox" checked />
+      <span>Tự động đẩy phiên lên Cloud 24/7 (Supabase AES-256-GCM)</span>
+    </label>
+    <div class="field">
+      <label for="cmsOriginInput">Địa chỉ OPENVN CMS cục bộ</label>
       <input id="cmsOriginInput" type="text" placeholder="http://127.0.0.1:3010" />
     </div>
     <div class="field">
-      <label for="pairingTokenInput">Mã liên kết API (Pairing Token)</label>
-      <input id="pairingTokenInput" type="password" placeholder="Tự động điền sẵn theo Shop" />
+      <label for="pairingTokenInput">Mã liên kết API tùy chọn</label>
+      <input id="pairingTokenInput" type="password" placeholder="Không bắt buộc (Zero-Secret)" />
     </div>
     <label class="checkbox-row">
       <input id="shopLockCheckbox" type="checkbox" checked />
@@ -187,7 +195,7 @@
   </details>
 
   <div class="hint">
-    Tự động gia hạn mỗi 10 phút hoặc ngay khi bạn mở <b>banhang.shopee.vn</b>.
+    Tự động đẩy phiên lên <b>Supabase + Render Singapore</b> để nuôi phiên ngay cả khi tắt máy.
   </div>
 
   <script src="popup.js"></script>

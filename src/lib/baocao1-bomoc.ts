@@ -582,16 +582,35 @@ export async function buildBaocao1Snapshot(
       const totalPlatformAndDiscount = platformFee + Math.round(ord.discountAmount || 0)
 
       const sh = ord.shipments[0]
+      const isMarketplaceShipment =
+        chKey === 'SHOPEE' ||
+        chKey === 'TIKTOK' ||
+        chKey === 'LAZADA' ||
+        chKey === 'TIKI' ||
+        sh?.carrier === 'SPX'
       let sellerShipPaid = 0
       if (sh) {
         const carrierFee =
-          sh.fee > 0 ? Math.round(sh.fee) : (CARRIER_FEE_ESTIMATES[sh.carrier] ?? 20_000)
+          sh.fee > 0
+            ? Math.round(sh.fee)
+            : isMarketplaceShipment
+              ? 0
+              : (CARRIER_FEE_ESTIMATES[sh.carrier] ?? 20_000)
         sellerShipPaid = Math.max(0, carrierFee - Math.round(ord.shippingFee || 0))
       }
 
       const itemsSubtotal = ord.items.reduce((s, it) => s + it.price * it.quantity, 0)
       let remainingFee = totalPlatformAndDiscount
       let remainingShip = sellerShipPaid
+      let lastAllocIdx = ord.items.length - 1
+      if (itemsSubtotal > 0) {
+        for (let k = ord.items.length - 1; k >= 0; k--) {
+          if (ord.items[k].price * ord.items[k].quantity > 0) {
+            lastAllocIdx = k
+            break
+          }
+        }
+      }
 
       ord.items.forEach((it, idx) => {
         const { mappedSku, variantNote } = resolveCanonicalSku(
@@ -610,11 +629,21 @@ export async function buildBaocao1Snapshot(
           channelLabel = 'Sỉ'
         }
 
-        const isLast = idx === ord.items.length - 1
+        const isLastAlloc = idx === lastAllocIdx
         const lineGross = Math.round(it.price * it.quantity)
         const share = itemsSubtotal > 0 ? lineGross / itemsSubtotal : 1 / ord.items.length
-        const allocFee = isLast ? remainingFee : Math.round(totalPlatformAndDiscount * share)
-        const allocShip = isLast ? remainingShip : Math.round(sellerShipPaid * share)
+        const allocFee =
+          itemsSubtotal > 0 && lineGross === 0
+            ? 0
+            : isLastAlloc
+              ? remainingFee
+              : Math.round(totalPlatformAndDiscount * share)
+        const allocShip =
+          itemsSubtotal > 0 && lineGross === 0
+            ? 0
+            : isLastAlloc
+              ? remainingShip
+              : Math.round(sellerShipPaid * share)
         remainingFee -= allocFee
         remainingShip -= allocShip
 

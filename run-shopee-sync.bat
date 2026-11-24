@@ -5,7 +5,8 @@ title Shopee Seller Center - Realtime Order Sync Daemon
 
 set BRIDGE_PORT=51898
 set CMS_WEBHOOK_URL=http://127.0.0.1:3010/api/webhooks/inbound
-set CMS_API_KEY=191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955
+set SHOPEE_NODE_ROLE=LOCAL_VN
+set PYTHONDONTWRITEBYTECODE=1
 
 if "%1"=="stop" goto do_stop
 if "%1"=="status" goto do_status

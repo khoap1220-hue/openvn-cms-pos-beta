@@ -226,22 +226,52 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const nextStockEffective = nextStockVal !== undefined ? nextStockVal : existing.stock
 
     // Tính toán trước thay đổi ChannelListing và Outbox Shopee để gộp vào 1 lần ghi DB duy nhất
+    // Bảo toàn 100% bảng giá riêng theo kênh: chuyển sang INACTIVE thay vì deleteMany, và không chạm kênh khác khi PATCH từng phần
+    const isFullChannelSync = Array.isArray(listingChannelIds) || req.method !== 'PATCH'
     const currentListings = existing.listings
     const currentIds = new Set(currentListings.map((l) => l.channelId))
     const priceTracks: Array<[string, number | null, number | null]> = []
-    const listingsToRemove: string[] = []
+    const listingsToDeactivate: string[] = []
     const listingsToCreate: Array<{ productId: string; channelId: string; price: number | null }> = []
-    const listingsToUpdate: Array<{ channelId: string; price: number | null }> = []
+    const listingsToUpdate: Array<{ channelId: string; price?: number | null; status?: string }> = []
+
+    let existingShopeeUnlisted = false
+    if (existing.attributes) {
+      try {
+        existingShopeeUnlisted = Boolean((JSON.parse(existing.attributes) as Record<string, unknown>).isUnlistedOnShopee)
+      } catch {
+        existingShopeeUnlisted = false
+      }
+    }
 
     if (hasListingsInput) {
-      for (const l of currentListings) {
-        if (!targetListings.has(l.channelId)) listingsToRemove.push(l.id)
+      if (isFullChannelSync) {
+        const allowedIds = Array.isArray(listingChannelIds)
+          ? new Set(listingChannelIds as string[])
+          : new Set(targetListings.keys())
+        for (const l of currentListings) {
+          if (!allowedIds.has(l.channelId) && l.status !== 'INACTIVE') {
+            listingsToDeactivate.push(l.id)
+          }
+        }
       }
       for (const [channelId, price] of targetListings) {
         const oldListing = currentListings.find((l) => l.channelId === channelId)
         if (currentIds.has(channelId)) {
-          if ((oldListing?.price ?? null) !== price) {
-            listingsToUpdate.push({ channelId, price })
+          const priceDiff = (oldListing?.price ?? null) !== price
+          const shouldReactivate =
+            oldListing?.status === 'INACTIVE' && oldListing.channel.connected !== false
+          const nextListingStatus = shouldReactivate
+            ? oldListing?.channel.key === 'SHOPEE' && existingShopeeUnlisted
+              ? 'UNLISTED'
+              : 'ACTIVE'
+            : undefined
+          if (priceDiff || nextListingStatus) {
+            listingsToUpdate.push({
+              channelId,
+              ...(priceDiff ? { price } : {}),
+              ...(nextListingStatus ? { status: nextListingStatus } : {}),
+            })
           }
         } else {
           listingsToCreate.push({ productId: targetId, channelId, price })
@@ -255,7 +285,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     } else if (Array.isArray(listingChannelIds)) {
       const targetIds = new Set(listingChannelIds as string[])
       for (const l of currentListings) {
-        if (!targetIds.has(l.channelId)) listingsToRemove.push(l.id)
+        if (!targetIds.has(l.channelId) && l.status !== 'INACTIVE') {
+          listingsToDeactivate.push(l.id)
+        } else if (targetIds.has(l.channelId) && l.status === 'INACTIVE' && l.channel.connected !== false) {
+          listingsToUpdate.push({
+            channelId: l.channelId,
+            status: l.channel.key === 'SHOPEE' && existingShopeeUnlisted ? 'UNLISTED' : 'ACTIVE',
+          })
+        }
       }
       for (const cid of targetIds) {
         if (!currentIds.has(cid)) listingsToCreate.push({ productId: targetId, channelId: cid, price: null })
@@ -266,15 +303,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     let nextAttributesJson: string | undefined
     let outboxLogInput: Parameters<typeof logLedger>[0] | null = null
     let shopeeListingAutoPriceUpdateId: string | null = null
+    const nameChanged =
+      name !== undefined && typeof name === 'string' && Boolean(name.trim()) && name.trim() !== existing.name
     const imageChanged = imageInput !== undefined && imageInput !== (existing.image || null)
     const syncImageToShopee = body.syncImageToShopee !== false
 
-    if (existing.attributes || imageChanged) {
+    if (existing.attributes || imageChanged || nameChanged) {
       try {
         const latestAttrs = existing.attributes
           ? (JSON.parse(existing.attributes) as Record<string, unknown>)
           : ({} as Record<string, unknown>)
         let attrsMutated = false
+
+        if (nameChanged) {
+          if (!latestAttrs.lastSyncedShopeeName && latestAttrs.shopeeItemId && existing.name) {
+            latestAttrs.lastSyncedShopeeName = existing.name
+          }
+          latestAttrs.cmsCustomName = true
+          latestAttrs.lastCmsNameUpdatedAt = new Date().toISOString()
+          attrsMutated = true
+        }
 
         if (imageChanged) {
           latestAttrs.cmsCustomImage = Boolean(imageInput)
@@ -287,20 +335,35 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         const shopeeModelId = String(latestAttrs.shopeeModelId || '').trim()
         if (shopeeItemId) {
           const shopeeListing = currentListings.find((l) => l.channel.key === 'SHOPEE')
+          const currentShopeePrice = shopeeListing?.price ?? null
+          const hadCustomShopeePriceSplit =
+            currentShopeePrice != null && currentShopeePrice !== existing.sellPrice
           const hasExplicitShopeeTrack = priceTracks.some(([f]) => f === 'price_shopee')
-          if (existing.sellPrice !== nextSellPrice && !hasExplicitShopeeTrack && shopeeListing) {
+          if (
+            existing.sellPrice !== nextSellPrice &&
+            !hasExplicitShopeeTrack &&
+            shopeeListing &&
+            !hadCustomShopeePriceSplit
+          ) {
             shopeeListingAutoPriceUpdateId = shopeeListing.id
           }
-          const explicitShopeePrice = hasListingsInput && shopeeListing ? targetListings.get(shopeeListing.channelId) : undefined
+          const explicitShopeePrice =
+            hasListingsInput && shopeeListing
+              ? targetListings.get(shopeeListing.channelId)
+              : undefined
           const targetShopeePrice =
-            hasExplicitShopeeTrack && explicitShopeePrice != null
+            explicitShopeePrice != null
               ? explicitShopeePrice
-              : nextSellPrice
+              : hadCustomShopeePriceSplit && currentShopeePrice != null
+                ? currentShopeePrice
+                : nextSellPrice
           const targetShopeeStock = Math.max(0, nextStockEffective)
           const stockChanged = existing.stock !== nextStockEffective
           const shouldSyncStockToShopee =
             stockChanged && inventoryPolicy.syncMode === 'SYNC_CMS_TO_MARKETPLACE'
-          const priceChanged = existing.sellPrice !== nextSellPrice || hasExplicitShopeeTrack
+          const priceChanged =
+            hasExplicitShopeeTrack ||
+            (!hadCustomShopeePriceSplit && existing.sellPrice !== nextSellPrice)
           const shouldPushImage = imageChanged && Boolean(imageInput) && syncImageToShopee
 
           if (stockChanged && typeof latestAttrs.mode1HoldBaselineStock === 'number') {
@@ -315,7 +378,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
               latestAttrs.cmsTargetStock = targetShopeeStock
               latestAttrs.cmsTargetStockOrigin = 'CMS_SYNC_POLICY'
             }
-            latestAttrs.cmsTargetPrice = targetShopeePrice
+            if (priceChanged) {
+              latestAttrs.cmsTargetPrice = targetShopeePrice
+            }
             if (shouldPushImage && imageInput) {
               latestAttrs.cmsTargetImage = imageInput
             }
@@ -332,7 +397,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
               entityType: 'Product',
               entityId: targetId,
               entityCode: sku ? sku.trim() : existing.sku,
-              title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: Đẩy cập nhật [${sku ? sku.trim() : existing.sku}] (${shouldSyncStockToShopee ? `Tồn: ${effectiveOutboxStock}, ` : ''}Giá: ${targetShopeePrice.toLocaleString('vi-VN')}đ${shouldPushImage ? ', Ảnh mới' : ''}) lên Shopee`,
+              title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: Đẩy cập nhật [${sku ? sku.trim() : existing.sku}] (${shouldSyncStockToShopee ? `Tồn: ${effectiveOutboxStock}${priceChanged || shouldPushImage ? ', ' : ''}` : ''}${priceChanged ? `Giá: ${targetShopeePrice.toLocaleString('vi-VN')}đ${shouldPushImage ? ', ' : ''}` : ''}${shouldPushImage ? 'Ảnh mới' : ''}) lên Shopee`,
               detail: {
                 direction: 'CMS_TO_SHOPEE',
                 source: 'OPENVN_CMS',
@@ -341,7 +406,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
                 shopeeItemId,
                 shopeeModelId,
                 ...(shouldSyncStockToShopee ? { targetStock: targetShopeeStock } : {}),
-                targetPrice: targetShopeePrice,
+                ...(priceChanged ? { targetPrice: targetShopeePrice } : {}),
                 targetImage: shouldPushImage ? imageInput : undefined,
                 targetUnlisted: Boolean(latestAttrs.isUnlistedOnShopee),
                 reason: 'CMS_PRODUCT_EDIT',
@@ -442,8 +507,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
               data: { status: 'INACTIVE' },
             })
         : Promise.resolve(),
-      listingsToRemove.length > 0
-        ? db.channelListing.deleteMany({ where: { id: { in: listingsToRemove } } })
+      listingsToDeactivate.length > 0
+        ? db.channelListing.updateMany({
+            where: { id: { in: listingsToDeactivate } },
+            data: { status: 'INACTIVE' },
+          })
         : Promise.resolve(),
       listingsToCreate.length > 0
         ? db.channelListing.createMany({ data: listingsToCreate })
@@ -451,7 +519,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...listingsToUpdate.map((u) =>
         db.channelListing.update({
           where: { productId_channelId: { productId: targetId, channelId: u.channelId } },
-          data: { price: u.price },
+          data: {
+            ...(u.price !== undefined ? { price: u.price } : {}),
+            ...(u.status !== undefined ? { status: u.status } : {}),
+          },
         })
       ),
       shopeeListingAutoPriceUpdateId &&

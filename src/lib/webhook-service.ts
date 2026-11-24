@@ -4,7 +4,13 @@
 // Sự kiện INBOUND_* là nội bộ — không bao giờ dispatch ra endpoint bên ngoài.
 
 import crypto from 'crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 import { db } from '@/lib/db'
+import {
+  isCloudRenderRuntime,
+  stripInternalCredentialFields,
+} from '@/lib/shopee-session-vault'
 
 // 12 sự kiện outbound chuẩn của hệ thống (bao gồm Đa Kho & Liên kết Shop Bán chéo)
 export const WEBHOOK_EVENTS = [
@@ -51,7 +57,7 @@ export const INTEGRATION_PROVIDERS: Array<{
     defaultConfig: {
       partnerId: '2008912',
       partnerKey: 'shpk_live_uudam_shopee_2026',
-      shopId: '881920341',
+      shopId: '197195817',
       accessToken: 'shopee_access_token_2026',
       refreshToken: 'shopee_refresh_token_2026',
       webhookSecret: 'whsec_shopee_uudam_2026',
@@ -290,7 +296,7 @@ export async function ensureIntegrationsSeeded(): Promise<void> {
             {
               name: 'Shopee Seller Sync & Inbound Webhook Key',
               key: 'omni_shopee_inbound_2026',
-              secret: '191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955',
+              secret: randomSecret(),
               active: true,
             },
           ],
@@ -336,9 +342,7 @@ export function parseCredentialConfig(raw: string | null | undefined): Record<st
   try {
     const parsed = JSON.parse(raw) as unknown
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return Object.keys(parsed as Record<string, unknown>).length > 0
-        ? (parsed as Record<string, unknown>)
-        : null
+      return stripInternalCredentialFields(parsed as Record<string, unknown>)
     }
     return null
   } catch {
@@ -526,6 +530,57 @@ export function dispatchWebhook(event: WebhookEvent, payload: unknown): void {
   }
 }
 
+const LEGACY_DEMO_KEY_SHA256 = 'f3b1390fff08b5732c6388dcdacc694932c044fa4bd3c9604c6bcfc5ef8778f9'
+let cachedLocalBridgeToken: string | null = null
+
+export function isPublicDemoSecret(secret: string): boolean {
+  const s = secret.trim()
+  if (!s) return true
+  if (/^(?:whsec|sec)_[a-z0-9_]+_2026$/i.test(s)) return true
+  if (/^[a-z0-9_]+_(?:token|secret|key)_2026$/i.test(s)) return true
+  const digest = crypto.createHash('sha256').update(s).digest('hex')
+  return digest === LEGACY_DEMO_KEY_SHA256
+}
+
+export function getOrCreateLocalBridgeToken(): string | null {
+  const envInternal = process.env.CMS_INTERNAL_BRIDGE_SECRET?.trim()
+  if (envInternal && envInternal.length >= 24) return envInternal
+  if (cachedLocalBridgeToken) return cachedLocalBridgeToken
+
+  try {
+    const envRoot = process.env.OPENVN_PROJECT_ROOT?.trim()
+    const cwd = process.cwd()
+    const twoUp = path.resolve(/* turbopackIgnore: true */ cwd, '..', '..')
+    const baseRoot =
+      envRoot && fs.existsSync(/* turbopackIgnore: true */ envRoot)
+        ? envRoot
+        : fs.existsSync(
+              /* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ twoUp, 'scripts')
+            )
+          ? twoUp
+          : cwd
+    const scriptsDir = path.join(/* turbopackIgnore: true */ baseRoot, 'scripts')
+    if (!fs.existsSync(/* turbopackIgnore: true */ scriptsDir)) return null
+    const tokenPath = path.join(/* turbopackIgnore: true */ scriptsDir, '.cms_bridge_token')
+    if (fs.existsSync(/* turbopackIgnore: true */ tokenPath)) {
+      const existing = fs.readFileSync(/* turbopackIgnore: true */ tokenPath, 'utf-8').trim()
+      if (existing.length >= 32) {
+        cachedLocalBridgeToken = existing
+        return existing
+      }
+    }
+    const generated = crypto.randomBytes(32).toString('hex')
+    fs.writeFileSync(/* turbopackIgnore: true */ tokenPath, generated, {
+      encoding: 'utf-8',
+      mode: 0o600,
+    })
+    cachedLocalBridgeToken = generated
+    return generated
+  } catch {
+    return null
+  }
+}
+
 export async function getActiveInboundSecrets(): Promise<string[]> {
   const now = Date.now()
   if (cachedInboundSecrets && cachedInboundSecrets.expiresAt > now) {
@@ -538,7 +593,14 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
     db.apiKey.findMany({ where: { active: true } }),
   ])
 
-  const secrets = new Set<string>(['191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955'])
+  const secrets = new Set<string>()
+  const envCmsApiKey = process.env.CMS_API_KEY?.trim()
+  if (envCmsApiKey) secrets.add(envCmsApiKey)
+  const envBridgeSecret = process.env.CMS_INTERNAL_BRIDGE_SECRET?.trim()
+  if (envBridgeSecret) secrets.add(envBridgeSecret)
+  const localBridgeToken = getOrCreateLocalBridgeToken()
+  if (localBridgeToken) secrets.add(localBridgeToken)
+
   for (const c of credentials) {
     try {
       const parsed = JSON.parse(c.config) as {
@@ -573,10 +635,6 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
   for (const k of apiKeys) {
     if (k.secret?.trim()) secrets.add(k.secret.trim())
   }
-  // Fallback mặc định để đảm bảo luồng tích hợp luôn sẵn sàng
-  if (secrets.size === 0) {
-    secrets.add('whsec_openvn_uudam_2026')
-  }
   const result = Array.from(secrets)
   cachedInboundSecrets = { secrets: result, expiresAt: now + 60_000 }
   return result
@@ -584,27 +642,39 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
 
 /**
  * Xác thực inbound webhook từ hệ thống ngoài (hỗ trợ cả HMAC-SHA256 X-Signature và SePay Authorization: Apikey <token>).
- * Trả về payload đã parse, hoặc lỗi nếu chữ ký không hợp lệ.
+ * Trên môi trường Cloud (Render) hoặc request qua reverse proxy internet (`hasForwardedFor`), tự động chặn toàn bộ
+ * các khóa mẫu công khai (`PUBLIC_DEMO_SECRETS`) để bảo vệ tuyệt đối Kho Phiên & dữ liệu vận hành.
  */
 export async function verifyInboundWebhook(
   rawBody: string,
   signature: string | null,
   authorizationHeader?: string | null,
-): Promise<{ ok: true; payload: Record<string, unknown> } | { ok: false; reason: string }> {
-  const secrets = await getActiveInboundSecrets()
-  let valid = false
+  options?: { hasForwardedFor?: boolean }
+): Promise<
+  | { ok: true; payload: Record<string, unknown>; isTrustedNonDemoSecret: boolean }
+  | { ok: false; reason: string }
+> {
+  const allSecrets = await getActiveInboundSecrets()
+  const rejectPublicDemoSecrets = Boolean(options?.hasForwardedFor) || isCloudRenderRuntime()
+  const allowedSecrets = rejectPublicDemoSecrets
+    ? allSecrets.filter((s) => !isPublicDemoSecret(s))
+    : allSecrets
+
+  let matchedSecret: string | null = null
 
   if (signature && signature.trim()) {
     const cleanSig = signature.trim().replace(/^sha256=/i, '')
-    valid = secrets.some((s) => signPayload(s, rawBody) === cleanSig)
+    matchedSecret = allowedSecrets.find((s) => signPayload(s, rawBody) === cleanSig) ?? null
   } else if (authorizationHeader && /^(Apikey|Bearer)\s+/i.test(authorizationHeader.trim())) {
     const token = authorizationHeader.trim().replace(/^(Apikey|Bearer)\s+/i, '').trim()
-    valid = secrets.includes(token)
+    matchedSecret = allowedSecrets.find((s) => s === token) ?? null
   } else {
     return { ok: false, reason: 'Thiếu header X-Signature (hoặc Authorization: Apikey cho SePay)' }
   }
 
-  if (!valid) return { ok: false, reason: 'Chữ ký HMAC hoặc Apikey không hợp lệ' }
+  if (!matchedSecret) return { ok: false, reason: 'Chữ ký HMAC hoặc Apikey không hợp lệ' }
+  const isTrustedNonDemoSecret = !isPublicDemoSecret(matchedSecret)
+
   try {
     const payload = JSON.parse(rawBody) as Record<string, unknown>
     // Tự động chuẩn hóa payload gốc của SePay ({ gateway, transferAmount, content, referenceCode }) thành INBOUND_SEPAY_TRANSACTION
@@ -615,6 +685,7 @@ export async function verifyInboundWebhook(
           event: 'INBOUND_SEPAY_TRANSACTION',
           data: payload,
         },
+        isTrustedNonDemoSecret,
       }
     }
     if (
@@ -624,7 +695,7 @@ export async function verifyInboundWebhook(
     ) {
       return { ok: false, reason: 'Sự kiện phải có tiền tố INBOUND_ hoặc OUTBOX_' }
     }
-    return { ok: true, payload }
+    return { ok: true, payload, isTrustedNonDemoSecret }
   } catch {
     return { ok: false, reason: 'Body không phải JSON hợp lệ' }
   }

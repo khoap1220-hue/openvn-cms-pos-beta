@@ -5,6 +5,7 @@ import {
   buildStoreZip,
   generateShopeeExtensionFiles,
 } from '@/lib/shopee-extension-bundle'
+import { resolvePublicCloudBackendOrigin } from '@/lib/shopee-session-vault'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,29 +30,21 @@ export async function GET(req: NextRequest) {
     // Giữ cấu hình mặc định của shop
   }
 
-  let pairingToken = ''
-  try {
-    const activeKey = await db.apiKey.findFirst({
-      where: { active: true },
-      orderBy: { createdAt: 'asc' },
-    })
-    if (activeKey?.secret) {
-      pairingToken = activeKey.secret
-    }
-  } catch {
-    // Không chặn tải nếu chưa cấu hình khóa
-  }
-
   const rawOrigin = req.nextUrl.origin.replace('0.0.0.0', '127.0.0.1')
+  const cloudOrigin = resolvePublicCloudBackendOrigin()
   const bridgePort = Number(process.env.SHOPEE_SYNC_PORT || DEFAULT_SHOPEE_SHOP_BINDING.bridgePort)
 
+  // Zero-Secret Leak: Không nhúng khóa bí mật DB vào gói ZIP tải về;
+  // Extension tự động xác thực qua Local Bridge (:51898) và Cloud Session Gate (/api/channels/shopee-session) khóa cứng Shop ID #197195817.
   const files = generateShopeeExtensionFiles({
     shopId,
     username,
     shopLabel,
     cmsOrigin: rawOrigin,
+    cloudOrigin,
+    syncToCloud: true,
     bridgePort,
-    pairingToken,
+    pairingToken: '',
     enforceShopLock: true,
     generatedAt: new Date().toISOString(),
   })

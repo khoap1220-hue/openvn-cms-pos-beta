@@ -11,6 +11,10 @@ export const db: PrismaClient = isBrowser
   ? (new Proxy({}, { get: () => () => Promise.resolve(null) }) as unknown as PrismaClient)
   : (globalForPrisma.prisma ??
       new PrismaClient({
+        transactionOptions: {
+          maxWait: 15_000,
+          timeout: 30_000,
+        },
         log:
           process.env.PRISMA_LOG_QUERIES === 'true'
             ? ['query', 'error', 'warn']

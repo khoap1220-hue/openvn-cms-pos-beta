@@ -14,8 +14,10 @@ const CARRIER_FEE_ESTIMATES: Record<string, number> = {
   GHN: 22_000,
   GHTK: 22_000,
   JT: 20_000,
+  SPX: 20_000,
   VIETTEL: 15_000,
   NINJA: 18_000,
+  VNPOST: 18_000,
 }
 const DEFAULT_CARRIER_FEE = 20_000 // hãng lạ / không khớp bảng ước tính
 const POINT_VALUE_VND = 1_000 // chi phí quy đổi ước tính 1 điểm thưởng
@@ -128,13 +130,25 @@ export async function GET(req: NextRequest) {
       // đơn THIẾU snapshot (platformFee = 0) → ước tính theo % phí kênh HIỆN TẠI trên subtotal
       const platformFee = o.platformFee > 0 ? o.platformFee : (o.subtotal * (o.channel?.feePercent ?? 0)) / 100
 
-      // Tầng 3b — Vận chuyển shop hỗ trợ = cước DVVC (thực tế, thiếu thì ước tính theo hãng) − phí ship thu khách.
+      // Tầng 3b — Vận chuyển shop hỗ trợ = cước DVVC (thực tế; đơn sàn TMĐT/SPX có fee=0 không trừ khống 20k) − phí ship thu khách.
       // Shipment.orderId unique → tối đa 1 vận đơn/đơn; kênh POS không có vận đơn → 0.
       const shipment = o.shipments[0]
+      const oChKey = (o.channel?.key || '').toUpperCase()
+      const isMarketplaceShipment =
+        oChKey === 'SHOPEE' ||
+        oChKey === 'TIKTOK' ||
+        oChKey === 'LAZADA' ||
+        oChKey === 'TIKI' ||
+        shipment?.carrier === 'SPX'
       let shippingSubsidy = 0
       if (shipment) {
-        const carrierFee = shipment.fee > 0 ? shipment.fee : (CARRIER_FEE_ESTIMATES[shipment.carrier] ?? DEFAULT_CARRIER_FEE)
-        shippingSubsidy = Math.max(0, carrierFee - o.shippingFee) // đơn freeship ≥500k (shippingFee=0) sẽ lộ rõ phần shop đền
+        const carrierFee =
+          shipment.fee > 0
+            ? shipment.fee
+            : isMarketplaceShipment
+              ? 0
+              : (CARRIER_FEE_ESTIMATES[shipment.carrier] ?? DEFAULT_CARRIER_FEE)
+        shippingSubsidy = Math.max(0, carrierFee - o.shippingFee)
       }
 
       // Tầng 4 — Điểm thưởng/hoa hồng Affiliate (ước tính): chỉ phát sinh trên đơn COMPLETED

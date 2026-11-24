@@ -1,17 +1,20 @@
-# Blueprint Render Free Tier - OPENVN CMS & Shopee 24/7 Backend Service
+# Blueprint Render Free Tier (Singapore) - OPENVN CMS & Shopee 24/7 Session Vault Service
 services:
   - type: web
     name: openvn-cms-pos-backend
     runtime: docker
+    region: singapore
     plan: free
     branch: main
-    autoDeployTrigger: "off"
+    autoDeployTrigger: commit
     healthCheckPath: /api/health
     envVars:
       - key: BETA_MODE
         value: "true"
       - key: NODE_ENV
         value: "production"
+      - key: SHOPEE_NODE_ROLE
+        value: "CLOUD_RENDER"
       - key: DATABASE_URL
         sync: false
       - key: DIRECT_URL
@@ -19,4 +22,6 @@ services:
       - key: CMS_ADMIN_PASSWORD
         sync: false
       - key: CMS_API_KEY
+        sync: false
+      - key: SHOPEE_SESSION_VAULT_KEY
         sync: false

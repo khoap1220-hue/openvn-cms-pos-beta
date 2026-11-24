@@ -58,16 +58,19 @@ export const PROTECTED_REAL_VOUCHERS = new Set([
 export const PROTECTED_ORDER_CODES = new Set([
   'DH261106-7120',
   'DH261106-9997',
+  'DH261109-8411',
 ])
 
 export const PROTECTED_INVOICE_CODES = new Set([
   'PXK261106-0001',
   'PXK261106-0002',
+  'PXK261109-0001',
 ])
 
 export const PROTECTED_CUSTOMER_IDS = new Set([
   'cmw4uy4gq003gvehs016ywg5y',
   'cmw4qdvja002evexkplhadee2',
+  'cmw97oj5n00tdveyg9zihnewz',
 ])
 
 export const PROTECTED_STAFF_USERNAMES = new Set([
@@ -655,7 +658,16 @@ export async function detectSyntheticTestArtifacts() {
           { code: { contains: 'TEST', mode: 'insensitive' } },
           { note: { contains: '[TEST', mode: 'insensitive' } },
           { note: { contains: '[QA', mode: 'insensitive' } },
-          { note: { contains: 'Shopee Order #', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #[TEST', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #TEST', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #QA', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #STRESS', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #R1_', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #R2_', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #M2_', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #SP-TEST', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #261114', mode: 'insensitive' } },
+          { note: { contains: 'Shopee Order #261115', mode: 'insensitive' } },
           { note: { contains: 'R2_TEST', mode: 'insensitive' } },
           { note: { contains: 'TEST_', mode: 'insensitive' } },
           { note: { contains: 'TEST', mode: 'insensitive' } },
@@ -670,14 +682,21 @@ export async function detectSyntheticTestArtifacts() {
           { customer: { name: { contains: 'Khách Thử Nghiệm', mode: 'insensitive' } } },
           { customer: { name: { contains: 'Người mua Alpha', mode: 'insensitive' } } },
           { customer: { name: { contains: 'Người mua Beta', mode: 'insensitive' } } },
-          { customer: { name: { contains: 'Khách Shopee #', mode: 'insensitive' } } },
+          { customer: { name: { contains: 'Khách Shopee #[TEST', mode: 'insensitive' } } },
+          { customer: { name: { contains: 'Khách Shopee #TEST', mode: 'insensitive' } } },
+          { customer: { name: { contains: 'Khách Shopee #QA', mode: 'insensitive' } } },
+          { customer: { name: { contains: 'Khách Shopee #STRESS', mode: 'insensitive' } } },
           { customer: { name: { contains: 'Khách Hủy Trước Khi Sync', mode: 'insensitive' } } },
           { customer: { name: { contains: 'Khách Test', mode: 'insensitive' } } },
           { customer: { name: { contains: 'Khách Vận Đơn', mode: 'insensitive' } } },
-          { customer: { name: { contains: 'Khách Shopee Adv', mode: 'insensitive' } } },
           { customer: { name: { contains: 'Khách Stress', mode: 'insensitive' } } },
           { customer: { name: { contains: 'Khách COD Lifecycle', mode: 'insensitive' } } },
-          { customer: { email: { startsWith: 'shopee:', mode: 'insensitive' } } },
+          { customer: { email: { startsWith: 'shopee:test', mode: 'insensitive' } } },
+          { customer: { email: { startsWith: 'shopee:qa', mode: 'insensitive' } } },
+          { customer: { email: { startsWith: 'shopee:stress', mode: 'insensitive' } } },
+          { customer: { email: { startsWith: 'shopee:buyer_alpha', mode: 'insensitive' } } },
+          { customer: { email: { startsWith: 'shopee:buyer_beta', mode: 'insensitive' } } },
+          { customer: { email: { startsWith: 'shopee:mock', mode: 'insensitive' } } },
           {
             customer: {
               phone: {
@@ -727,14 +746,26 @@ export async function detectSyntheticTestArtifacts() {
           { name: { contains: 'Khách Kiểm Thử', mode: 'insensitive' } },
           { name: { contains: 'Người mua Alpha', mode: 'insensitive' } },
           { name: { contains: 'Người mua Beta', mode: 'insensitive' } },
-          { name: { contains: 'Khách Shopee #', mode: 'insensitive' } },
+          { name: { contains: 'Khách Shopee #[TEST', mode: 'insensitive' } },
+          { name: { contains: 'Khách Shopee #TEST', mode: 'insensitive' } },
+          { name: { contains: 'Khách Shopee #QA', mode: 'insensitive' } },
+          { name: { contains: 'Khách Shopee #STRESS', mode: 'insensitive' } },
           { name: { contains: 'Khách Hủy Trước Khi Sync', mode: 'insensitive' } },
           { name: { contains: 'Khách Vận Đơn', mode: 'insensitive' } },
-          { name: { contains: 'Khách Shopee Adv', mode: 'insensitive' } },
           { name: { contains: 'Khách Stress', mode: 'insensitive' } },
           { name: { contains: 'Khách COD Lifecycle', mode: 'insensitive' } },
-          { email: { startsWith: 'shopee:', mode: 'insensitive' } },
-          { inferredProfile: { contains: 'shopee:', mode: 'insensitive' } },
+          { email: { startsWith: 'shopee:test', mode: 'insensitive' } },
+          { email: { startsWith: 'shopee:qa', mode: 'insensitive' } },
+          { email: { startsWith: 'shopee:stress', mode: 'insensitive' } },
+          { email: { startsWith: 'shopee:buyer_alpha', mode: 'insensitive' } } ,
+          { email: { startsWith: 'shopee:buyer_beta', mode: 'insensitive' } },
+          { email: { startsWith: 'shopee:mock', mode: 'insensitive' } },
+          { inferredProfile: { contains: 'shopee:test', mode: 'insensitive' } },
+          { inferredProfile: { contains: 'shopee:qa', mode: 'insensitive' } },
+          { inferredProfile: { contains: 'shopee:stress', mode: 'insensitive' } },
+          { inferredProfile: { contains: 'shopee:buyer_alpha', mode: 'insensitive' } },
+          { inferredProfile: { contains: 'shopee:buyer_beta', mode: 'insensitive' } },
+          { inferredProfile: { contains: 'shopee:mock', mode: 'insensitive' } },
           {
             phone: {
               in: [
@@ -1211,8 +1242,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       action?: 'SNAPSHOT' | 'RESTORE_AND_CLEAN'
+      mode?: 'SNAPSHOT' | 'RESTORE_AND_CLEAN'
+      preserveLiveCatalog?: boolean
     }
-    const action = body.action || 'RESTORE_AND_CLEAN'
+    const action = body.action || body.mode || 'RESTORE_AND_CLEAN'
+    const preserveLiveCatalog = body.preserveLiveCatalog === true
 
     // ------------------------------------------------------------------------
     // 1. ACTION: SNAPSHOT (Đóng băng dữ liệu nguyên trạng trước kiểm thử)
@@ -1228,13 +1262,15 @@ export async function POST(req: NextRequest) {
         db.agentActivity.findMany({ select: { id: true } }),
       ])
 
-      // Bản đồ tra cứu định lượng chuẩn 13 sản phẩm thật để snapshot không bao giờ đóng băng tồn kho suy hao
+      // Bản đồ tra cứu định lượng chuẩn 13 sản phẩm thật để snapshot mặc định không bao giờ đóng băng tồn kho suy hao;
+      // khi bật preserveLiveCatalog = true (vận hành thực tế sau khi đổi giá/tên trên Sàn), bảo toàn giá & tên thực tế đang bán!
       const canonicalSkuMap = new Map(
         THAIMY1605_CANONICAL_BASELINE.map((c) => [c.sku.toUpperCase().trim(), c])
       )
 
       const snapshot = {
         createdAt: new Date().toISOString(),
+        preserveLiveCatalog,
         products: products.map((p) => {
           const canonical = canonicalSkuMap.get(p.sku?.toUpperCase()?.trim())
           return {
@@ -1243,9 +1279,9 @@ export async function POST(req: NextRequest) {
             name: p.name,
             description: p.description,
             categoryId: p.categoryId,
-            costPrice: canonical ? canonical.costPrice : p.costPrice,
-            sellPrice: canonical ? canonical.sellPrice : p.sellPrice,
-            stock: canonical ? canonical.stock : p.stock,
+            costPrice: canonical && !preserveLiveCatalog ? canonical.costPrice : p.costPrice,
+            sellPrice: canonical && !preserveLiveCatalog ? canonical.sellPrice : p.sellPrice,
+            stock: canonical && !preserveLiveCatalog ? canonical.stock : p.stock,
             lowStockThreshold: p.lowStockThreshold,
             image: p.image,
             status: canonical ? 'ACTIVE' : p.status,
@@ -1322,6 +1358,17 @@ export async function POST(req: NextRequest) {
     let snapshotStockMovementIds: string[] = []
     let hasSnapshotLedger = false
     let hasSnapshotMovements = false
+    const liveSnapProductMap = new Map<
+      string,
+      {
+        name?: string
+        sellPrice?: number
+        costPrice?: number
+        stock?: number
+        attributes?: string | null
+        listings?: Array<{ channelId: string; price: number | null; status: string }>
+      }
+    >()
     if (sessionSetting?.value) {
       try {
         const snap = JSON.parse(sessionSetting.value)
@@ -1333,29 +1380,71 @@ export async function POST(req: NextRequest) {
           snapshotStockMovementIds = snap.stockMovementIds
           hasSnapshotMovements = true
         }
+        if (snap.preserveLiveCatalog === true && Array.isArray(snap.products)) {
+          for (const item of snap.products) {
+            if (item && typeof item.id === 'string') {
+              liveSnapProductMap.set(item.id, item)
+            }
+          }
+        }
       } catch {}
     }
 
-    // 2.2 Phục hồi VÔ ĐIỀU KIỆN toàn bộ 13 sản phẩm thật từ THAIMY1605_CANONICAL_BASELINE (Delta = 0)
+    // 2.2 Phục hồi toàn bộ sản phẩm thật (ưu tiên Snapshot Vận hành Live khi preserveLiveCatalog = true, mặc định THAIMY1605_CANONICAL_BASELINE)
     const defaultWh = await db.warehouse.findFirst({ where: { isDefault: true } })
     const targetWhId = defaultWh?.id || DEFAULT_CENTRAL_WAREHOUSE_ID
 
+    const effectiveRestoreTargets = THAIMY1605_CANONICAL_BASELINE.map((sp) => {
+      const liveItem = liveSnapProductMap.get(sp.id)
+      if (!liveItem) return sp
+      return {
+        ...sp,
+        name: typeof liveItem.name === 'string' && liveItem.name.trim() ? liveItem.name : sp.name,
+        sellPrice: typeof liveItem.sellPrice === 'number' ? liveItem.sellPrice : sp.sellPrice,
+        costPrice: typeof liveItem.costPrice === 'number' ? liveItem.costPrice : sp.costPrice,
+        stock: typeof liveItem.stock === 'number' ? liveItem.stock : sp.stock,
+      }
+    })
+
     await Promise.all(
-      THAIMY1605_CANONICAL_BASELINE.map(async (sp) => {
+      effectiveRestoreTargets.map(async (sp) => {
+        const liveItem = liveSnapProductMap.get(sp.id)
         const existingProd = await db.product.findUnique({
           where: { id: sp.id },
-          select: { attributes: true },
+          select: {
+            attributes: true,
+            listings: { include: { channel: { select: { key: true } } } },
+          },
         })
-        let nextAttrsJson: string | undefined = undefined
-        if (existingProd?.attributes) {
+        const existingShopeeListing = existingProd?.listings?.find((l) => l.channel.key === 'SHOPEE')
+        const preservedShopeeChannelPrice =
+          typeof existingShopeeListing?.price === 'number' && existingShopeeListing.price > 0
+            ? existingShopeeListing.price
+            : sp.sellPrice
+        let nextAttrsJson: string | undefined =
+          typeof liveItem?.attributes === 'string' ? liveItem.attributes : undefined
+        if (!nextAttrsJson && existingProd?.attributes) {
           try {
             const parsedAttrs = JSON.parse(existingProd.attributes) as Record<string, unknown>
             parsedAttrs.lastSyncedShopeeStock = sp.stock
             parsedAttrs.liveShopeeStock = sp.stock
-            parsedAttrs.lastSyncedShopeePrice = sp.sellPrice
+            parsedAttrs.lastSyncedShopeePrice = preservedShopeeChannelPrice
+            parsedAttrs.lastSyncedShopeeName = sp.name
             parsedAttrs.openingStockQty = sp.sku === 'BM-COMBO-SEN-01-TRANG' ? 16 : sp.stock
             parsedAttrs.reconciliationStatus = 'RECONCILED_OK'
             parsedAttrs.unreconciledShopeeDelta = 0
+            parsedAttrs.pendingOutboxSync = false
+            delete parsedAttrs.cmsCustomName
+            delete parsedAttrs.lastCmsNameUpdatedAt
+            delete parsedAttrs.cmsTargetStock
+            delete parsedAttrs.cmsTargetStockOrigin
+            delete parsedAttrs.cmsTargetPrice
+            delete parsedAttrs.cmsTargetUnlisted
+            delete parsedAttrs.cmsTargetImage
+            if (parsedAttrs.outboxState !== 'BROKEN_LINK') {
+              delete parsedAttrs.outboxState
+              delete parsedAttrs.outboxError
+            }
             if (typeof parsedAttrs.shopeeModelName === 'string') {
               const parts = parsedAttrs.shopeeModelName.split(' - ').map((s) => s.trim())
               if (parts.length === 2 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
@@ -1403,6 +1492,19 @@ export async function POST(req: NextRequest) {
           },
         })
 
+        if (Array.isArray(liveItem?.listings) && liveItem.listings.length > 0) {
+          await Promise.all(
+            liveItem.listings.map((l) =>
+              db.channelListing
+                .update({
+                  where: { productId_channelId: { productId: sp.id, channelId: l.channelId } },
+                  data: { price: l.price, status: l.status },
+                })
+                .catch(() => null)
+            )
+          )
+        }
+
         // Đảm bảo WarehouseStock tại kho trung tâm khớp 100% với Product.stock
         await db.warehouseStock.upsert({
           where: { warehouseId_productId: { warehouseId: targetWhId, productId: sp.id } },
@@ -1412,10 +1514,10 @@ export async function POST(req: NextRequest) {
         await syncProductWarehouseStock(sp.id, targetWhId)
       })
     )
-    restoredProductsCount = THAIMY1605_CANONICAL_BASELINE.length
+    restoredProductsCount = effectiveRestoreTargets.length
 
     // 2.3 Đồng bộ trực tiếp 18 sản phẩm sang SQLite (db/custom.db)
-    syncBaselineToSqlite(THAIMY1605_CANONICAL_BASELINE)
+    syncBaselineToSqlite(effectiveRestoreTargets)
 
     // 2.4 Dọn dẹp các bản ghi sổ cái & thẻ kho phát sinh sau snapshot (kể cả khi snapshot có 0 bản ghi)
     if (hasSnapshotLedger) {
@@ -1836,11 +1938,11 @@ export async function POST(req: NextRequest) {
 
     // 2.8 Tái khẳng định bất biến 100% nguyên trạng cho toàn bộ sản phẩm thật sau khi dọn sạch mọi bảng
     await Promise.all(
-      THAIMY1605_CANONICAL_BASELINE.map(async (sp) => {
+      effectiveRestoreTargets.map(async (sp) => {
         await Promise.all([
           db.product.update({
             where: { id: sp.id },
-            data: { stock: sp.stock, sellPrice: sp.sellPrice, costPrice: sp.costPrice, status: 'ACTIVE' },
+            data: { name: sp.name, stock: sp.stock, sellPrice: sp.sellPrice, costPrice: sp.costPrice, status: 'ACTIVE' },
           }).catch(() => null),
           db.warehouseStock.upsert({
             where: { warehouseId_productId: { warehouseId: targetWhId, productId: sp.id } },
@@ -1850,7 +1952,7 @@ export async function POST(req: NextRequest) {
         ])
       })
     )
-    syncBaselineToSqlite(THAIMY1605_CANONICAL_BASELINE)
+    syncBaselineToSqlite(effectiveRestoreTargets)
 
     invalidateApiCache()
     broadcast('ledger.new', { restored: true })

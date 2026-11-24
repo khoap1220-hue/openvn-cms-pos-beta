@@ -30,6 +30,8 @@ import hashlib
 import uuid
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 import asyncio
+import atexit
+import signal
 import socket
 
 if hasattr(sys.stdout, 'reconfigure'):
@@ -43,11 +45,102 @@ try:
 except ImportError:
     HAS_WEBSOCKETS = False
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+DEFAULT_SESSION_FILE = os.path.join(BASE_DIR, ".shopee_session.json")
+SESSION_FILE = DEFAULT_SESSION_FILE
+CACHE_FILE = os.path.join(BASE_DIR, ".shopee_synced_orders.json")
+INBOUND_QUEUE_FILE = os.path.join(BASE_DIR, ".shopee_inbound_queue.json")
+DLQ_FILE = os.path.join(BASE_DIR, ".shopee_dlq.json")
+SYNC_STATE_FILE = os.path.join(BASE_DIR, ".shopee_synced_state.json")
+BRIDGE_TOKEN_FILE = os.path.join(BASE_DIR, ".cms_bridge_token")
+NODE_ID_FILE = os.path.join(BASE_DIR, ".shopee_node_id")
+
 CMS_WEBHOOK_URL = os.environ.get("CMS_WEBHOOK_URL", "http://127.0.0.1:3010/api/webhooks/inbound")
-CMS_API_KEY = os.environ.get("CMS_API_KEY", "191a5ab9fd0c1e392c51b3e9fbe7df57694c2098b78b4955")
 BRIDGE_PORT = int(os.environ.get("SHOPEE_SYNC_PORT") or os.environ.get("BRIDGE_PORT") or 51898)
 FALLBACK_BRIDGE_PORT = 3018
 MAX_RETRY_ATTEMPTS = 5
+LEADER_LEASE_TTL_MS = int(os.environ.get("SHOPEE_LEADER_LEASE_TTL_MS") or 90000)
+
+def _read_dotenv_value(var_name):
+    env_path = os.path.join(PROJECT_ROOT, ".env")
+    if not os.path.exists(env_path):
+        return ""
+    try:
+        with open(env_path, "r", encoding="utf-8", errors="ignore") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == var_name:
+                    return v.strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return ""
+
+def resolve_cms_api_key():
+    """Giải quyết khóa xác thực nội bộ Zero-Secret (không hardcode khóa tĩnh trong mã nguồn)."""
+    for env_key in ("CMS_INTERNAL_BRIDGE_SECRET", "CMS_API_KEY"):
+        val = os.environ.get(env_key, "").strip()
+        if val:
+            return val
+    dotenv_val = _read_dotenv_value("CMS_API_KEY")
+    if dotenv_val:
+        return dotenv_val
+    try:
+        if os.path.exists(BRIDGE_TOKEN_FILE):
+            with open(BRIDGE_TOKEN_FILE, "r", encoding="utf-8") as tf:
+                existing = tf.read().strip()
+                if len(existing) >= 32:
+                    return existing
+        generated = os.urandom(32).hex()
+        with open(BRIDGE_TOKEN_FILE, "w", encoding="utf-8") as tf:
+            tf.write(generated)
+        try:
+            os.chmod(BRIDGE_TOKEN_FILE, 0o600)
+        except Exception:
+            pass
+        return generated
+    except Exception:
+        return ""
+
+CMS_API_KEY = resolve_cms_api_key()
+
+def detect_node_role():
+    explicit = os.environ.get("SHOPEE_NODE_ROLE", "").strip().upper()
+    if explicit in ("CLOUD", "CLOUD_RENDER", "RENDER"):
+        return "CLOUD_RENDER"
+    if explicit in ("LOCAL", "LOCAL_VN"):
+        return "LOCAL_VN"
+    if (
+        os.environ.get("RENDER", "").strip().lower() == "true"
+        or bool(os.environ.get("RENDER_SERVICE_ID", "").strip())
+        or bool(os.environ.get("RENDER_EXTERNAL_URL", "").strip())
+    ):
+        return "CLOUD_RENDER"
+    return "LOCAL_VN"
+
+def get_or_create_node_id(role):
+    host = re.sub(r"[^a-zA-Z0-9._-]+", "-", socket.gethostname() or "host")[:48] if 're' in globals() else (socket.gethostname() or "host")[:48]
+    if role == "CLOUD_RENDER":
+        inst = os.environ.get("RENDER_INSTANCE_ID", "").strip() or host
+        return f"cloud-render-{inst}"
+    try:
+        if os.path.exists(NODE_ID_FILE):
+            with open(NODE_ID_FILE, "r", encoding="utf-8") as nf:
+                saved = nf.read().strip()
+                if saved.startswith("local-vn-"):
+                    return saved
+        created = f"local-vn-{host}-{uuid.uuid4().hex[:8]}"
+        with open(NODE_ID_FILE, "w", encoding="utf-8") as nf:
+            nf.write(created)
+        return created
+    except Exception:
+        return f"local-vn-{host}-{uuid.uuid4().hex[:8]}"
+
+NODE_ROLE = detect_node_role()
+NODE_ID = get_or_create_node_id(NODE_ROLE)
 
 def is_outbox_dry_run():
     """Kiem tra che do DRY_RUN cua Outbox de tranh mutate du lieu Shopee that khi test."""
@@ -65,13 +158,6 @@ def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
 
-BASE_DIR = os.path.dirname(__file__)
-SESSION_FILE = os.path.join(BASE_DIR, ".shopee_session.json")
-CACHE_FILE = os.path.join(BASE_DIR, ".shopee_synced_orders.json")
-INBOUND_QUEUE_FILE = os.path.join(BASE_DIR, ".shopee_inbound_queue.json")
-DLQ_FILE = os.path.join(BASE_DIR, ".shopee_dlq.json")
-SYNC_STATE_FILE = os.path.join(BASE_DIR, ".shopee_synced_state.json")
-
 INITIAL_COOKIE_STR = os.environ.get("SHOPEE_INITIAL_COOKIES", "").strip()
 
 GLOBAL_STATE = {
@@ -80,8 +166,15 @@ GLOBAL_STATE = {
     "csrf_token": "0BQKllKGsakrP1WMZnz4ZKeXdP3neixB",
     "shopId": "197195817",
     "username": "thaimy1605",
+    "nodeRole": NODE_ROLE,
+    "nodeId": NODE_ID,
     "alive": False,
     "paused": False,
+    "standbyYieldedToLocal": False,
+    "leaderLease": None,
+    "vaultVersion": 0,
+    "vaultUpdatedAtMs": 0,
+    "cmsBridgeOnline": False,
     "lastAlertedLost": False,
     "lastAlertReason": "",
     "deferredOutboxCount": 0,
@@ -172,12 +265,15 @@ def _classify_shopee_error(err_val):
         "http 403",
         "not login",
         "login required",
+        "login_required",
         "please login",
         "unauthorized",
         "invalid session",
+        "session_invalid",
         "session expired",
         "token expired",
         "100010005",
+        "100010004",
         "error_auth",
         "forbidden",
     )
@@ -194,10 +290,23 @@ def _classify_shopee_error(err_val):
         "item_not_exist",
         "model_not_exist",
         "item is deleted",
+        "item_deleted",
+        "deleted_item",
         "product has been deleted",
     )
     if any(m in low for m in broken_markers):
         return "BROKEN_LINK"
+
+    promo_lock_markers = (
+        "price_lock",
+        "promotion_lock",
+        "cannot update price",
+        "in promotion",
+        "ongoing promotion",
+        "flash_sale",
+    )
+    if any(m in low for m in promo_lock_markers):
+        return "PRICE_LOCKED_PROMOTION"
 
     return "TRANSIENT"
 
@@ -245,10 +354,13 @@ def load_session():
             with open(SESSION_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 cookies = data.get("cookies", {})
+                has_session_key = bool(
+                    isinstance(cookies, dict)
+                    and (cookies.get("SPC_ST") or cookies.get("SPC_SC_SESSION") or cookies.get("SPC_EC"))
+                )
                 # Enforce canonical shop thaimy1605 (SPC_U=197198798), reject legacy mock SPC_U=3813970 or dummy test tokens
                 if (
-                    isinstance(cookies, dict)
-                    and len(cookies) >= 10
+                    has_session_key
                     and str(cookies.get("SPC_U", "")) != "3813970"
                     and cookies.get("SPC_ST") != "test_token"
                 ):
@@ -264,6 +376,41 @@ def load_session():
         save_session(cookies, spc_cds, csrf_token, source="INITIAL_FALLBACK")
     return cookies, spc_cds, csrf_token
 
+def _push_session_to_vault_bg(cookies_copy, spc_cds, csrf_token, source):
+    try:
+        if not isinstance(cookies_copy, dict) or not (
+            cookies_copy.get("SPC_ST") or cookies_copy.get("SPC_SC_SESSION") or cookies_copy.get("SPC_EC")
+        ):
+            return
+        if str(cookies_copy.get("SPC_U", "")) == "3813970" or cookies_copy.get("SPC_ST") == "test_token":
+            return
+        with GLOBAL_STATE["lock"]:
+            sid = str(GLOBAL_STATE.get("shopId") or "197195817")
+            uname = str(GLOBAL_STATE.get("username") or "thaimy1605")
+        ok, resp = call_cms_webhook(
+            "INBOUND_SHOPEE_SESSION_UPDATE",
+            {
+                "cookies": cookies_copy,
+                "spc_cds": spc_cds,
+                "csrf_token": csrf_token,
+                "source": source,
+                "shopId": sid,
+                "username": uname,
+                "expectedShopId": sid,
+                "syncVaultOnly": True,
+                "updatedByRole": NODE_ROLE,
+            },
+            timeout=8,
+        )
+        if ok and isinstance(resp, dict) and resp.get("ok"):
+            with GLOBAL_STATE["lock"]:
+                if resp.get("vaultVersion"):
+                    GLOBAL_STATE["vaultVersion"] = int(resp["vaultVersion"])
+                if resp.get("updatedAtMs"):
+                    GLOBAL_STATE["vaultUpdatedAtMs"] = int(resp["updatedAtMs"])
+    except Exception:
+        pass
+
 def save_session(cookies, spc_cds, csrf_token, source="AUTO_SLIDING_SESSION"):
     _write_json_file(SESSION_FILE, {
         "cookies": cookies,
@@ -272,23 +419,83 @@ def save_session(cookies, spc_cds, csrf_token, source="AUTO_SLIDING_SESSION"):
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "source": source
     })
+    if (
+        source != "VAULT_HYDRATE"
+        and SESSION_FILE == DEFAULT_SESSION_FILE
+        and not is_outbox_dry_run()
+        and isinstance(cookies, dict)
+        and (cookies.get("SPC_ST") or cookies.get("SPC_SC_SESSION") or cookies.get("SPC_EC"))
+    ):
+        threading.Thread(
+            target=_push_session_to_vault_bg,
+            args=(dict(cookies), spc_cds, csrf_token, source),
+            daemon=True,
+        ).start()
 
 def update_cookies_from_headers(cookies, headers):
     updated = False
     for k, v in headers:
         if k.lower() == "set-cookie":
+            low_v = v.lower()
+            if "max-age=0" in low_v or "max-age=-" in low_v:
+                continue
             cookie_part = v.split(";")[0]
             if "=" in cookie_part:
                 ck, cv = cookie_part.strip().split("=", 1)
-                if ck in cookies and cookies[ck] != cv:
+                ck = ck.strip()
+                cv = cv.strip()
+                if not ck or not cv or cv in ('""', "''", "deleted", "DELETED"):
+                    continue
+                if cookies.get(ck) != cv:
                     cookies[ck] = cv
                     updated = True
-                elif ck not in cookies:
-                    cookies[ck] = cv
-                    updated = True
+    if updated:
+        with GLOBAL_STATE["lock"]:
+            if isinstance(GLOBAL_STATE.get("cookies"), dict):
+                GLOBAL_STATE["cookies"].update(cookies)
+            if cookies.get("SPC_CDS"):
+                GLOBAL_STATE["spc_cds"] = cookies["SPC_CDS"]
+            if cookies.get("csrftoken"):
+                GLOBAL_STATE["csrf_token"] = cookies["csrftoken"]
     return updated
 
-def keep_alive_ping(cookies, spc_cds, csrf_token):
+def try_refresh_seller_subsession(cookies, spc_cds, csrf_token):
+    """Tự động đổi SPC_EC / SPC_ST còn hạn lấy SPC_SC_SESSION mới trên Kênh Người Bán (không cần Partner ID)."""
+    if is_outbox_dry_run():
+        return False
+    if not isinstance(cookies, dict) or not (cookies.get("SPC_EC") or cookies.get("SPC_ST")):
+        return False
+    refresh_urls = [
+        f"https://banhang.shopee.vn/api/selleraccount/login/?SPC_CDS={spc_cds}&SPC_CDS_VER=2",
+        "https://banhang.shopee.vn/portal/sale/order",
+    ]
+    ctx = ssl.create_default_context()
+    got_new_cookie = False
+    for r_url in refresh_urls:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Cookie": dict_to_cookie_str(cookies),
+            "Accept": "application/json, text/html, */*",
+            "Referer": "https://banhang.shopee.vn/",
+            "X-CSRFToken": csrf_token,
+        }
+        try:
+            req = urllib.request.Request(r_url, headers=headers, method="GET")
+            with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
+                if update_cookies_from_headers(cookies, resp.getheaders()):
+                    got_new_cookie = True
+        except urllib.error.HTTPError as he:
+            if he.headers and update_cookies_from_headers(cookies, he.headers.items()):
+                got_new_cookie = True
+        except Exception:
+            pass
+    if got_new_cookie:
+        eff_cds = cookies.get("SPC_CDS") or spc_cds
+        eff_csrf = cookies.get("csrftoken") or csrf_token
+        save_session(cookies, eff_cds, eff_csrf, source="SUBSESSION_AUTO_REFRESH")
+    return got_new_cookie
+
+def keep_alive_ping(cookies, spc_cds, csrf_token, allow_subsession_refresh=True):
     url = f"https://banhang.shopee.vn/api/v2/login/?SPC_CDS={spc_cds}&SPC_CDS_VER=2"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -304,108 +511,290 @@ def keep_alive_ping(cookies, spc_cds, csrf_token):
             data = json.loads(resp.read().decode('utf-8'))
             if data.get("shopid"):
                 if update_cookies_from_headers(cookies, resp.getheaders()):
-                    save_session(cookies, spc_cds, csrf_token, source="HEARTBEAT_KEEP_ALIVE")
+                    save_session(cookies, cookies.get("SPC_CDS") or spc_cds, cookies.get("csrftoken") or csrf_token, source="HEARTBEAT_KEEP_ALIVE")
                 return True, data.get("shopid"), data.get("username")
-            return False, None, None
     except Exception as e:
-        return False, None, str(e)
+        if not allow_subsession_refresh:
+            return False, None, str(e)
+
+    if allow_subsession_refresh and try_refresh_seller_subsession(cookies, spc_cds, csrf_token):
+        return keep_alive_ping(
+            cookies,
+            cookies.get("SPC_CDS") or spc_cds,
+            cookies.get("csrftoken") or csrf_token,
+            allow_subsession_refresh=False,
+        )
+    return False, None, None
+
+async def _send_cdp_cmd(ws, req_id, method, params):
+    await ws.send(json.dumps({"id": req_id, "method": method, "params": params}))
+    while True:
+        raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+        msg = json.loads(raw)
+        if isinstance(msg, dict) and msg.get("id") == req_id:
+            return msg
 
 async def async_cdp_extract(port=9222):
     if not HAS_WEBSOCKETS:
         return None
+    ws_url = None
+    # 1. Ưu tiên Browser-level WebSocket từ /json/version (lấy đủ httpOnly cookie ngay cả khi 0 tab hoặc chỉ còn service_worker)
     try:
-        url = f"http://127.0.0.1:{port}/json"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            targets = json.loads(resp.read().decode('utf-8'))
-        ws_url = None
-        for t in targets:
-            if "shopee.vn" in t.get("url", ""):
-                ws_url = t.get("webSocketDebuggerUrl")
-                break
-        if not ws_url and targets:
-            ws_url = targets[0].get("webSocketDebuggerUrl")
-        if not ws_url:
+        req_ver = urllib.request.Request(f"http://127.0.0.1:{port}/json/version")
+        with urllib.request.urlopen(req_ver, timeout=2) as resp:
+            ws_url = json.loads(resp.read().decode('utf-8')).get("webSocketDebuggerUrl")
+    except Exception:
+        pass
+
+    # 2. Dự phòng Page-level target từ /json (chỉ lọc type == 'page', bỏ qua service_worker / background_page)
+    if not ws_url:
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/json")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                targets = json.loads(resp.read().decode('utf-8'))
+            page_targets = [
+                t for t in (targets if isinstance(targets, list) else [])
+                if isinstance(t, dict) and t.get("type") == "page" and t.get("webSocketDebuggerUrl")
+            ]
+            for t in page_targets:
+                if "shopee.vn" in str(t.get("url", "")):
+                    ws_url = t.get("webSocketDebuggerUrl")
+                    break
+            if not ws_url and page_targets:
+                ws_url = page_targets[0].get("webSocketDebuggerUrl")
+        except Exception:
             return None
+
+    if not ws_url:
+        return None
+
+    try:
         async with websockets.connect(ws_url, max_size=10*1024*1024) as ws:
-            msg = {
-                "id": 2001,
-                "method": "Network.getCookies",
-                "params": {"urls": ["https://banhang.shopee.vn", "https://shopee.vn"]}
-            }
-            await ws.send(json.dumps(msg))
-            resp = await ws.recv()
-            data = json.loads(resp)
-            cookies_list = data.get("result", {}).get("cookies", [])
-            cd = {c["name"]: c["value"] for c in cookies_list}
-            if cd.get("SPC_ST") or cd.get("SPC_SC_SESSION"):
+            cd = {}
+            st_resp = await _send_cdp_cmd(ws, 2000, "Storage.getCookies", {})
+            for c in (st_resp.get("result") or {}).get("cookies") or []:
+                dom = str(c.get("domain") or "").lower()
+                cname = str(c.get("name") or "").strip()
+                cval = str(c.get("value") or "")
+                if cname and cval and "shopee.vn" in dom:
+                    cd[cname] = cval
+
+            if not (cd.get("SPC_ST") or cd.get("SPC_SC_SESSION") or cd.get("SPC_EC")):
+                data = await _send_cdp_cmd(
+                    ws,
+                    2001,
+                    "Network.getCookies",
+                    {"urls": ["https://banhang.shopee.vn", "https://shopee.vn"]},
+                )
+                cookies_list = (data.get("result") or {}).get("cookies") or []
+                for c in cookies_list:
+                    if c.get("name") and c.get("value"):
+                        cd[c["name"]] = c["value"]
+
+            if (cd.get("SPC_ST") or cd.get("SPC_SC_SESSION") or cd.get("SPC_EC")) and str(cd.get("SPC_U", "")) != "3813970":
                 return cd
             return None
     except Exception:
         return None
 
-def try_cdp_recovery():
+def try_cdp_recovery(expected_shop_id=None, return_detail=False):
+    detail = {}
     try:
         new_cookies = asyncio.run(async_cdp_extract(9222))
         if new_cookies:
             spc_cds = new_cookies.get("SPC_CDS", GLOBAL_STATE["spc_cds"])
             csrf_token = new_cookies.get("csrftoken", GLOBAL_STATE["csrf_token"])
+            alive, sid, un = keep_alive_ping(new_cookies, spc_cds, csrf_token)
+            if not alive:
+                detail = {"code": "SESSION_EXPIRED"}
+                return (False, detail) if return_detail else False
+
+            with GLOBAL_STATE["lock"]:
+                default_bound_shop = str(GLOBAL_STATE.get("shopId") or "").strip()
+            eff_expected = (
+                str(expected_shop_id).strip()
+                if expected_shop_id is not None
+                else default_bound_shop
+            )
+            if eff_expected and sid and str(sid) != eff_expected:
+                err_txt = f"Tài khoản Shopee trên trình duyệt ({un or '?'} · #{sid}) không khớp với shop liên kết (#{eff_expected})."
+                print(f"[CDP RECOVERY BLOCKED] {err_txt}")
+                detail = {
+                    "code": "SHOP_MISMATCH",
+                    "shopId": str(sid),
+                    "username": str(un or ""),
+                    "expectedShopId": eff_expected,
+                    "error": err_txt,
+                }
+                return (False, detail) if return_detail else False
+
             with GLOBAL_STATE["lock"]:
                 GLOBAL_STATE["cookies"] = new_cookies
                 GLOBAL_STATE["spc_cds"] = spc_cds
                 GLOBAL_STATE["csrf_token"] = csrf_token
+                GLOBAL_STATE["alive"] = True
+                GLOBAL_STATE["lastAlertedLost"] = False
+                GLOBAL_STATE["lastAlertReason"] = ""
+                GLOBAL_STATE["outboundRetries"].clear()
+                if sid:
+                    GLOBAL_STATE["shopId"] = str(sid)
+                if un:
+                    GLOBAL_STATE["username"] = str(un)
             save_session(new_cookies, spc_cds, csrf_token, source="CDP_RECOVERY")
-            print("[CDP RECOVERY] Đã tự động hồi phục Cookie thành công từ Chrome!")
-            return True
+            print("[CDP RECOVERY] Đã tự động hồi phục & xác thực Cookie thành công từ Hồ sơ Bền vững Chrome!")
+            detail = {
+                "code": "OK",
+                "shopId": str(sid or ""),
+                "username": str(un or ""),
+                "cookieCount": len(new_cookies),
+            }
+            return (True, detail) if return_detail else True
     except Exception as e:
         print(f"[CDP RECOVERY] Thất bại: {e}")
+        detail = {"code": "CDP_ERROR", "error": str(e)}
+    return (False, detail) if return_detail else False
+
+def _is_auth_error_payload(res_obj):
+    if not isinstance(res_obj, dict):
+        return False
+    code_val = res_obj.get("code")
+    errcode_val = res_obj.get("errcode")
+    if code_val in (100010005, 100010004) or errcode_val in (1, 2, 401, 403):
+        return True
+    combined_msg = f"{res_obj.get('message') or ''} {res_obj.get('user_message') or ''}"
+    return _classify_shopee_error(combined_msg) == "AUTH_EXPIRED"
+
+def _handle_runtime_auth_loss(cookies, spc_cds, csrf_token, context_label):
+    """Tự chữa lành ngay lập tức khi API đọc Sản phẩm/Đơn hàng gặp hết hạn phiên giữa chu kỳ."""
+    if is_outbox_dry_run():
+        return False
+    if try_refresh_seller_subsession(cookies, spc_cds, csrf_token):
+        alive, sid, un = keep_alive_ping(
+            cookies,
+            cookies.get("SPC_CDS") or spc_cds,
+            cookies.get("csrftoken") or csrf_token,
+            allow_subsession_refresh=False,
+        )
+        if alive:
+            with GLOBAL_STATE["lock"]:
+                GLOBAL_STATE["alive"] = True
+                GLOBAL_STATE["cookies"] = dict(cookies)
+                if sid:
+                    GLOBAL_STATE["shopId"] = str(sid)
+                if un:
+                    GLOBAL_STATE["username"] = str(un)
+            return True
+
+    if try_cdp_recovery():
+        with GLOBAL_STATE["lock"]:
+            cookies.clear()
+            cookies.update(GLOBAL_STATE.get("cookies") or {})
+        return True
+
+    should_alert = False
+    with GLOBAL_STATE["lock"]:
+        GLOBAL_STATE["alive"] = False
+        if not GLOBAL_STATE.get("lastAlertedLost"):
+            GLOBAL_STATE["lastAlertedLost"] = True
+            GLOBAL_STATE["lastAlertReason"] = f"Phiên Cookie Shopee hết hạn khi quét {context_label}"
+            should_alert = True
+    if should_alert:
+        threading.Thread(
+            target=lambda: notify_session_alert(
+                "SESSION_LOST",
+                f"Phiên Cookie Shopee vừa hết hạn khi đồng bộ {context_label} — Hệ thống đã chuyển sang Hàng đợi Bất đồng bộ an toàn.",
+            ),
+            daemon=True,
+        ).start()
     return False
 
 # =============================================================================
 # SHOPEE SELLER CENTER API (READ & WRITE)
 # =============================================================================
-def fetch_shopee_products(cookies, spc_cds, csrf_token, list_type="all", page_size=24):
-    url = f"https://banhang.shopee.vn/api/v3/mpsku/list/get_product_list?SPC_CDS={spc_cds}&SPC_CDS_VER=2&page_number=1&page_size={page_size}&list_type={list_type}"
+def fetch_shopee_products(cookies, spc_cds, csrf_token, list_type="all", page_size=48):
+    all_products = []
+    seen_ids = set()
+    total = 0
+    page_number = 1
+    max_pages = 10
+    ctx = ssl.create_default_context()
+    recovered_once = False
+
+    while page_number <= max_pages:
+        eff_cds = cookies.get("SPC_CDS") or spc_cds
+        eff_csrf = cookies.get("csrftoken") or csrf_token
+        url = f"https://banhang.shopee.vn/api/v3/mpsku/list/get_product_list?SPC_CDS={eff_cds}&SPC_CDS_VER=2&page_number={page_number}&page_size={page_size}&list_type={list_type}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Cookie": dict_to_cookie_str(cookies),
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://banhang.shopee.vn/portal/product/list/live/all?operationSortBy=recommend_v2",
+            "X-CSRFToken": eff_csrf
+        }
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+                if update_cookies_from_headers(cookies, resp.getheaders()):
+                    save_session(cookies, cookies.get("SPC_CDS") or eff_cds, cookies.get("csrftoken") or eff_csrf, source="PRODUCT_LIST_RESPONSE")
+                res = json.loads(resp.read().decode('utf-8'))
+                if res.get("code") == 0:
+                    data = res.get("data", {})
+                    products = data.get("products", []) or data.get("list", [])
+                    total = int(data.get("page_info", {}).get("total", len(products)) or 0)
+                    for item in products:
+                        iid = str(item.get("id") or "")
+                        if iid and iid not in seen_ids:
+                            seen_ids.add(iid)
+                            all_products.append(item)
+                    if not products or len(all_products) >= total or len(products) < page_size:
+                        return all_products, total
+                    page_number += 1
+                    continue
+                if _is_auth_error_payload(res) and not recovered_once:
+                    recovered_once = True
+                    if _handle_runtime_auth_loss(cookies, eff_cds, eff_csrf, "danh sách sản phẩm"):
+                        continue
+                return all_products, -1
+        except urllib.error.HTTPError as he:
+            if he.code in (401, 403) and not recovered_once:
+                recovered_once = True
+                if _handle_runtime_auth_loss(cookies, eff_cds, eff_csrf, "danh sách sản phẩm"):
+                    continue
+            print(f"[ERR] fetch_shopee_products HTTP {he.code}: {he}")
+            return all_products, -1
+        except Exception as e:
+            print(f"[ERR] fetch_shopee_products: {e}")
+            return all_products, -1
+
+    return all_products, total
+
+def fetch_shopee_product_info(cookies, spc_cds, csrf_token, product_id):
+    eff_cds = cookies.get("SPC_CDS") or spc_cds
+    eff_csrf = cookies.get("csrftoken") or csrf_token
+    url = f"https://banhang.shopee.vn/api/v3/product/get_product_info?SPC_CDS={eff_cds}&SPC_CDS_VER=2&product_id={product_id}&is_draft=false"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Cookie": dict_to_cookie_str(cookies),
         "Accept": "application/json, text/plain, */*",
         "Referer": "https://banhang.shopee.vn/portal/product/list/live/all?operationSortBy=recommend_v2",
-        "X-CSRFToken": csrf_token
+        "X-CSRFToken": eff_csrf
     }
     req = urllib.request.Request(url, headers=headers, method="GET")
     ctx = ssl.create_default_context()
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
             if update_cookies_from_headers(cookies, resp.getheaders()):
-                save_session(cookies, spc_cds, csrf_token, source="PRODUCT_LIST_RESPONSE")
-            res = json.loads(resp.read().decode('utf-8'))
-            if res.get("code") == 0:
-                data = res.get("data", {})
-                products = data.get("products", []) or data.get("list", [])
-                total = data.get("page_info", {}).get("total", len(products))
-                return products, total
-            return [], 0
-    except Exception as e:
-        print(f"[ERR] fetch_shopee_products: {e}")
-        return [], 0
-
-def fetch_shopee_product_info(cookies, spc_cds, csrf_token, product_id):
-    url = f"https://banhang.shopee.vn/api/v3/product/get_product_info?SPC_CDS={spc_cds}&SPC_CDS_VER=2&product_id={product_id}&is_draft=false"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Cookie": dict_to_cookie_str(cookies),
-        "Accept": "application/json, text/plain, */*",
-        "Referer": "https://banhang.shopee.vn/portal/product/list/live/all?operationSortBy=recommend_v2",
-        "X-CSRFToken": csrf_token
-    }
-    req = urllib.request.Request(url, headers=headers, method="GET")
-    ctx = ssl.create_default_context()
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+                save_session(cookies, cookies.get("SPC_CDS") or eff_cds, cookies.get("csrftoken") or eff_csrf, source="PRODUCT_INFO_RESPONSE")
             res = json.loads(resp.read().decode('utf-8'))
             if res.get("code") == 0:
                 return res.get("data", {}).get("product_info", {})
+            if _is_auth_error_payload(res):
+                _handle_runtime_auth_loss(cookies, eff_cds, eff_csrf, f"chi tiết SP #{product_id}")
+    except urllib.error.HTTPError as he:
+        if he.code in (401, 403):
+            _handle_runtime_auth_loss(cookies, eff_cds, eff_csrf, f"chi tiết SP #{product_id}")
+        else:
+            print(f"[ERR] fetch_shopee_product_info({product_id}): {he}")
     except Exception as e:
         print(f"[ERR] fetch_shopee_product_info({product_id}): {e}")
     return {}
@@ -427,68 +816,97 @@ def update_shopee_product_stock(cookies, spc_cds, csrf_token, item_id, model_id,
         return True, {"code": 0, "message": "success", "dry_run": True}
 
     prod_info = fetch_shopee_product_info(cookies, spc_cds, csrf_token, item_id)
+    if not prod_info or not isinstance(prod_info, dict):
+        p_alive, _, _ = keep_alive_ping(cookies, spc_cds, csrf_token)
+        if not p_alive:
+            return False, f"AUTH_EXPIRED: Không thể đọc thông tin sản phẩm {item_id} do phiên Cookie hết hạn."
+        return False, f"PRODUCT_INFO_UNAVAILABLE: Không thể đọc thông tin sản phẩm {item_id} từ Shopee (lỗi mạng tạm thời hoặc sản phẩm không tồn tại), chặn cập nhật riêng lẻ để bảo vệ các phân loại khác."
+
     existing_models = prod_info.get("model_list") or []
+    has_tiers = any(
+        isinstance(tv, dict) and (tv.get("options") or tv.get("name"))
+        for tv in (prod_info.get("tier_variation") or [])
+    )
+    try:
+        req_mid = int(model_id or 0)
+    except Exception:
+        req_mid = 0
     full_model_list = []
     target_matched = False
 
     if existing_models:
-        for m in existing_models:
-            mid = int(m.get("id") or 0)
-            if mid <= 0:
-                return False, f"UNINITIALIZED_VARIATION_GUARD: Item {item_id} có phân loại chưa khởi tạo (id=0) trên Shopee, chặn gửi update_product_stock riêng lẻ."
-            if mid == int(model_id):
-                target_matched = True
-                full_model_list.append({
-                    "id": mid,
+        if len(existing_models) == 1 and not has_tiers and int(existing_models[0].get("id") or 0) <= 0:
+            if req_mid > 0:
+                return False, f"MODEL_ID_MISMATCH_GUARD: Model {model_id} không khớp với sản phẩm đơn (id=0) của Item {item_id}."
+            full_model_list = [
+                {
+                    "id": 0,
                     "stock_setting_list": [
                         {
                             "location_id": str(location_id or "VNZ"),
                             "sellable_stock": max(0, int(sellable_stock))
                         }
                     ]
-                })
-            else:
-                seller_stocks = (m.get("stock_detail") or {}).get("seller_stock_info") or m.get("stock_setting_list") or []
-                if seller_stocks:
-                    sibling_stock_list = [
-                        {
-                            "location_id": str(s.get("location_id") or location_id or "VNZ"),
-                            "sellable_stock": max(0, int(s.get("sellable_stock") or 0))
-                        }
-                        for s in seller_stocks
-                    ]
-                else:
-                    fallback_stk = int((m.get("stock_detail") or {}).get("total_seller_stock") or 0)
-                    sibling_stock_list = [
-                        {
-                            "location_id": str(location_id or "VNZ"),
-                            "sellable_stock": max(0, fallback_stk)
-                        }
-                    ]
-                full_model_list.append({
-                    "id": mid,
-                    "stock_setting_list": sibling_stock_list
-                })
-        if not target_matched:
-            if len(existing_models) == 1:
-                only_mid = int(existing_models[0].get("id") or 0)
-                full_model_list = [
-                    {
-                        "id": only_mid,
+                }
+            ]
+        else:
+            for m in existing_models:
+                mid = int(m.get("id") or 0)
+                if mid <= 0:
+                    return False, f"UNINITIALIZED_VARIATION_GUARD: Item {item_id} có phân loại chưa khởi tạo (id=0) trên Shopee, chặn gửi update_product_stock riêng lẻ."
+                if mid == req_mid:
+                    target_matched = True
+                    full_model_list.append({
+                        "id": mid,
                         "stock_setting_list": [
                             {
                                 "location_id": str(location_id or "VNZ"),
                                 "sellable_stock": max(0, int(sellable_stock))
                             }
                         ]
-                    }
-                ]
-            else:
-                return False, f"MODEL_ID_MISMATCH_GUARD: Model {model_id} không khớp với danh sách phân loại của Item {item_id}, chặn cập nhật để bảo vệ các phân loại khác."
-    else:
+                    })
+                else:
+                    seller_stocks = (m.get("stock_detail") or {}).get("seller_stock_info") or m.get("stock_setting_list") or []
+                    if seller_stocks:
+                        sibling_stock_list = [
+                            {
+                                "location_id": str(s.get("location_id") or location_id or "VNZ"),
+                                "sellable_stock": max(0, int(s.get("sellable_stock") or 0))
+                            }
+                            for s in seller_stocks
+                        ]
+                    else:
+                        fallback_stk = int((m.get("stock_detail") or {}).get("total_seller_stock") or 0)
+                        sibling_stock_list = [
+                            {
+                                "location_id": str(location_id or "VNZ"),
+                                "sellable_stock": max(0, fallback_stk)
+                            }
+                        ]
+                    full_model_list.append({
+                        "id": mid,
+                        "stock_setting_list": sibling_stock_list
+                    })
+            if not target_matched:
+                if len(existing_models) == 1 and not has_tiers and req_mid <= 0:
+                    only_mid = int(existing_models[0].get("id") or 0)
+                    full_model_list = [
+                        {
+                            "id": only_mid,
+                            "stock_setting_list": [
+                                {
+                                    "location_id": str(location_id or "VNZ"),
+                                    "sellable_stock": max(0, int(sellable_stock))
+                                }
+                            ]
+                        }
+                    ]
+                else:
+                    return False, f"MODEL_ID_MISMATCH_GUARD: Model {model_id} không khớp với danh sách phân loại của Item {item_id}, chặn cập nhật để bảo vệ các phân loại khác."
+    elif not has_tiers and req_mid <= 0:
         full_model_list = [
             {
-                "id": int(model_id),
+                "id": 0,
                 "stock_setting_list": [
                     {
                         "location_id": str(location_id or "VNZ"),
@@ -497,6 +915,8 @@ def update_shopee_product_stock(cookies, spc_cds, csrf_token, item_id, model_id,
                 ]
             }
         ]
+    else:
+        return False, f"MULTI_VARIATION_GUARD: Item {item_id} thiếu danh sách model_list hợp lệ trên Shopee, chặn cập nhật tồn riêng lẻ để bảo vệ dữ liệu phân loại."
 
     url = f"https://banhang.shopee.vn/api/v3/product/update_product_stock?SPC_CDS={spc_cds}&SPC_CDS_VER=2"
     headers = {
@@ -545,56 +965,82 @@ def update_shopee_product_price(cookies, spc_cds, csrf_token, item_id, model_id,
         return True, {"code": 0, "message": "success", "dry_run": True}
 
     prod_info = fetch_shopee_product_info(cookies, spc_cds, csrf_token, item_id)
+    if not prod_info or not isinstance(prod_info, dict):
+        p_alive, _, _ = keep_alive_ping(cookies, spc_cds, csrf_token)
+        if not p_alive:
+            return False, f"AUTH_EXPIRED: Không thể đọc thông tin sản phẩm {item_id} do phiên Cookie hết hạn."
+        return False, f"PRODUCT_INFO_UNAVAILABLE: Không thể đọc thông tin sản phẩm {item_id} từ Shopee (lỗi mạng tạm thời hoặc sản phẩm không tồn tại), chặn cập nhật giá riêng lẻ để bảo vệ các phân loại khác."
+
     existing_models = prod_info.get("model_list") or []
+    has_tiers = any(
+        isinstance(tv, dict) and (tv.get("options") or tv.get("name"))
+        for tv in (prod_info.get("tier_variation") or [])
+    )
+    try:
+        req_mid = int(model_id or 0)
+    except Exception:
+        req_mid = 0
     full_model_list = []
     target_matched = False
 
     if existing_models:
-        for m in existing_models:
-            mid = int(m.get("id") or 0)
-            if mid <= 0:
-                return False, f"UNINITIALIZED_VARIATION_GUARD: Item {item_id} có phân loại chưa khởi tạo (id=0) trên Shopee, chặn gửi update_product_price riêng lẻ."
-            if mid == int(model_id):
-                target_matched = True
-                full_model_list.append({
-                    "id": mid,
+        if len(existing_models) == 1 and not has_tiers and int(existing_models[0].get("id") or 0) <= 0:
+            if req_mid > 0:
+                return False, f"MODEL_ID_MISMATCH_GUARD: Model {model_id} không khớp với sản phẩm đơn (id=0) của Item {item_id}."
+            full_model_list = [
+                {
+                    "id": 0,
                     "price": str(max(1000, int(price)))
-                })
-            else:
-                p_info = m.get("price_info") or {}
-                sib_price_raw = (
-                    p_info.get("input_normal_price")
-                    or m.get("price")
-                    or p_info.get("normal_price")
-                )
-                try:
-                    sib_price_val = int(float(sib_price_raw)) if sib_price_raw else 0
-                except Exception:
-                    sib_price_val = 0
-                if sib_price_val <= 0:
-                    return False, f"SIBLING_PRICE_MISSING_GUARD: Phân loại {mid} của Item {item_id} chưa có giá hợp lệ trên Shopee, chặn cập nhật riêng lẻ."
-                full_model_list.append({
-                    "id": mid,
-                    "price": str(sib_price_val)
-                })
-        if not target_matched:
-            if len(existing_models) == 1:
-                only_mid = int(existing_models[0].get("id") or 0)
-                full_model_list = [
-                    {
-                        "id": only_mid,
+                }
+            ]
+        else:
+            for m in existing_models:
+                mid = int(m.get("id") or 0)
+                if mid <= 0:
+                    return False, f"UNINITIALIZED_VARIATION_GUARD: Item {item_id} có phân loại chưa khởi tạo (id=0) trên Shopee, chặn gửi update_product_price riêng lẻ."
+                if mid == req_mid:
+                    target_matched = True
+                    full_model_list.append({
+                        "id": mid,
                         "price": str(max(1000, int(price)))
-                    }
-                ]
-            else:
-                return False, f"MODEL_ID_MISMATCH_GUARD: Model {model_id} không khớp với danh sách phân loại của Item {item_id}, chặn cập nhật để bảo vệ giá các phân loại khác."
-    else:
+                    })
+                else:
+                    p_info = m.get("price_info") or {}
+                    sib_price_raw = (
+                        p_info.get("input_normal_price")
+                        or m.get("price")
+                        or p_info.get("normal_price")
+                    )
+                    try:
+                        sib_price_val = int(float(sib_price_raw)) if sib_price_raw else 0
+                    except Exception:
+                        sib_price_val = 0
+                    if sib_price_val <= 0:
+                        return False, f"SIBLING_PRICE_MISSING_GUARD: Phân loại {mid} của Item {item_id} chưa có giá hợp lệ trên Shopee, chặn cập nhật riêng lẻ."
+                    full_model_list.append({
+                        "id": mid,
+                        "price": str(sib_price_val)
+                    })
+            if not target_matched:
+                if len(existing_models) == 1 and not has_tiers and req_mid <= 0:
+                    only_mid = int(existing_models[0].get("id") or 0)
+                    full_model_list = [
+                        {
+                            "id": only_mid,
+                            "price": str(max(1000, int(price)))
+                        }
+                    ]
+                else:
+                    return False, f"MODEL_ID_MISMATCH_GUARD: Model {model_id} không khớp với danh sách phân loại của Item {item_id}, chặn cập nhật để bảo vệ giá các phân loại khác."
+    elif not has_tiers and req_mid <= 0:
         full_model_list = [
             {
-                "id": int(model_id),
+                "id": 0,
                 "price": str(max(1000, int(price)))
             }
         ]
+    else:
+        return False, f"MULTI_VARIATION_GUARD: Item {item_id} thiếu danh sách model_list hợp lệ trên Shopee, chặn cập nhật giá riêng lẻ để bảo vệ dữ liệu phân loại."
 
     url = f"https://banhang.shopee.vn/api/v3/product/update_product_price?SPC_CDS={spc_cds}&SPC_CDS_VER=2"
     headers = {
@@ -884,14 +1330,16 @@ def update_shopee_product_image(cookies, spc_cds, csrf_token, item_id, model_id,
         return True, cdn_url, {"imageId": img_id, "cdnUrl": cdn_url, "warning": str(e)}
 
 def fetch_shopee_orders(cookies, spc_cds, csrf_token, tab=302, page_size=20):
-    url = f"https://banhang.shopee.vn/api/v3/order/search_order_list_index?SPC_CDS={spc_cds}&SPC_CDS_VER=2"
+    eff_cds = cookies.get("SPC_CDS") or spc_cds
+    eff_csrf = cookies.get("csrftoken") or csrf_token
+    url = f"https://banhang.shopee.vn/api/v3/order/search_order_list_index?SPC_CDS={eff_cds}&SPC_CDS_VER=2"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Cookie": dict_to_cookie_str(cookies),
         "Content-Type": "application/json;charset=UTF-8",
         "Accept": "application/json, text/plain, */*",
         "Referer": "https://banhang.shopee.vn/portal/sale/order",
-        "X-CSRFToken": csrf_token
+        "X-CSRFToken": eff_csrf
     }
     body = {
         "order_list_tab": tab,
@@ -906,17 +1354,19 @@ def fetch_shopee_orders(cookies, spc_cds, csrf_token, tab=302, page_size=20):
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
             if update_cookies_from_headers(cookies, resp.getheaders()):
-                save_session(cookies, spc_cds, csrf_token, source="SEARCH_ORDER_RESPONSE")
+                save_session(cookies, cookies.get("SPC_CDS") or eff_cds, cookies.get("csrftoken") or eff_csrf, source="SEARCH_ORDER_RESPONSE")
             res = json.loads(resp.read().decode('utf-8'))
             if res.get("code") == 0:
                 data = res.get("data", {})
                 total = data.get("pagination", {}).get("total", 0)
                 index_list = data.get("index_list", [])
                 return index_list, total
+            if _is_auth_error_payload(res):
+                _handle_runtime_auth_loss(cookies, eff_cds, eff_csrf, f"đơn hàng tab {tab}")
             return [], 0
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            try_cdp_recovery()
+            _handle_runtime_auth_loss(cookies, eff_cds, eff_csrf, f"đơn hàng tab {tab}")
         return [], 0
     except Exception as e:
         print(f"[ERR] fetch_shopee_orders: {e}")
@@ -951,9 +1401,10 @@ def fetch_order_details(cookies, spc_cds, csrf_token, order_list):
 # GIAO TIẾP WEBHOOK CMS & BỘ XỬ LÝ BẤT ĐỒNG BỘ 2 CHIỀU
 # =============================================================================
 def call_cms_webhook(event_name, data_obj, timeout=12):
+    eff_key = CMS_API_KEY or resolve_cms_api_key()
     payload = {"event": event_name, "data": data_obj}
     headers = {
-        "Authorization": f"Apikey {CMS_API_KEY}",
+        "Authorization": f"Apikey {eff_key}",
         "Content-Type": "application/json"
     }
     req = urllib.request.Request(
@@ -975,34 +1426,89 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
     """
     LUỒNG 1A (INBOUND PRODUCER - TỐI ƯU HÓA DELTA & CACHE META):
     Quét danh sách sản phẩm & phân loại (variations) trên Shopee.
-    - Kiểm tra Idempotency Key ngay trên prod_summary (Zero-Detail-Call khi không có thay đổi).
-    - Cache metadata chi tiết (mô tả, bộ ảnh, kích thước) theo modify_time để tránh gọi lặp get_product_info.
+    - Kiểm tra Idempotency Key ngay trên prod_summary (băm đủ Tên SP, Tên Phân loại, SKU, Giá, Tồn, Ảnh đại diện).
+    - Tự động nhận diện Phân loại bị xóa (itemActiveModelIds) và Sản phẩm bị xóa (deletedShopeeItemIds).
     """
     prods, prod_total = fetch_shopee_products(cookies, spc_cds, csrf_token, list_type="all")
+    if prod_total < 0:
+        return 0, 0
+
     sync_state = load_sync_state()
     prod_state = sync_state.setdefault("products", {})
     item_meta_cache = sync_state.setdefault("itemMeta", {})
     enqueued_count = 0
     meta_dirty = False
 
+    # Kiểm tra sản phẩm cấp Item bị xóa hoàn toàn khỏi Shopee khi quét trọn vẹn danh mục
+    # (bao gồm cả lần quét đầu tiên khi chưa có catalogItemIds trong .shopee_synced_state.json)
+    if prod_total > 0 and len(prods) >= prod_total:
+        curr_catalog_ids = sorted({str(p.get("id")) for p in prods if p.get("id")})
+        raw_prev_catalog = sync_state.get("catalogItemIds")
+        has_prev_catalog = isinstance(raw_prev_catalog, list) and len(raw_prev_catalog) > 0
+        prev_catalog_ids = set(raw_prev_catalog or [])
+        deleted_item_ids = sorted(prev_catalog_ids - set(curr_catalog_ids)) if has_prev_catalog else []
+        if deleted_item_ids or not has_prev_catalog:
+            reconcile_suffix = "_".join(deleted_item_ids) if deleted_item_ids else f"INIT_{len(curr_catalog_ids)}"
+            reconcile_idem = f"SHOPEE_CAT_DEL_{reconcile_suffix}_{int(time.time())}"
+            enqueue_inbound_event(
+                "INBOUND_SHOPEE_CATALOG_RECONCILE",
+                {
+                    "deletedShopeeItemIds": deleted_item_ids,
+                    "fullCatalogItemIds": curr_catalog_ids,
+                    "shopId": str(shop_id),
+                    "shopUsername": str(username),
+                },
+                reconcile_idem,
+            )
+            enqueued_count += 1
+        if sync_state.get("catalogItemIds") != curr_catalog_ids:
+            sync_state["catalogItemIds"] = curr_catalog_ids
+            meta_dirty = True
+
     for prod_summary in prods:
         item_id = str(prod_summary.get("id", ""))
         modify_time = int(prod_summary.get("modify_time") or 0)
         parent_sku = (prod_summary.get("parent_sku") or "").strip()
         base_name = (prod_summary.get("name") or f"Shopee Product #{item_id}").strip()
+        summary_cover = str(prod_summary.get("cover_image") or "").strip()
         summary_models = prod_summary.get("model_list") or []
         valid_models = [m for m in summary_models if m.get("id") and str(m.get("id")) != "0"]
+        if valid_models:
+            effective_models = valid_models
+            active_model_ids = [str(m.get("id")) for m in valid_models]
+        else:
+            # Sản phẩm đơn (không chia phân loại hoặc vừa xóa hết phân loại về model_id=0)
+            raw_m0 = summary_models[0] if (summary_models and isinstance(summary_models[0], dict)) else {}
+            effective_models = [
+                {
+                    "id": "0",
+                    "sku": (raw_m0.get("sku") or parent_sku or "").strip(),
+                    "name": "",
+                    "price_info": raw_m0.get("price_info") or prod_summary.get("price_info") or {},
+                    "price": raw_m0.get("price") or prod_summary.get("price"),
+                    "stock_detail": raw_m0.get("stock_detail") or prod_summary.get("stock_detail") or {},
+                    "stock_setting_list": raw_m0.get("stock_setting_list") or prod_summary.get("stock_setting_list") or [],
+                }
+            ]
+            active_model_ids = ["0"]
+
+        cached_meta = item_meta_cache.get(item_id)
+        prev_active_model_ids = (cached_meta or {}).get("activeModelIds")
+        variation_deleted_on_item = bool(
+            isinstance(prev_active_model_ids, list)
+            and len(set(prev_active_model_ids) - set(active_model_ids)) > 0
+        )
 
         # Pre-check nhanh trên summary: nếu không force và mọi model đều trùng idempotencyKey -> bỏ qua ngay (0 HTTP call phụ)
         parsed_models = []
         any_model_changed = False
-        for m in valid_models:
+        for m in effective_models:
             model_id = str(m.get("id") or "")
             model_sku = (m.get("sku") or "").strip()
             raw_model_name = (m.get("name") or "").strip()
             name_parts = [pt.strip() for pt in raw_model_name.split(" - ") if pt.strip()]
             model_name = name_parts[0] if (len(name_parts) == 2 and name_parts[0].lower() == name_parts[1].lower()) else raw_model_name
-            cms_sku = (model_sku or parent_sku) if len(summary_models) == 1 else model_sku
+            cms_sku = (model_sku or parent_sku) if len(effective_models) == 1 else model_sku
             model_state_key = f"MODEL_{item_id}_{model_id}"
             state_key = cms_sku or model_state_key
 
@@ -1012,10 +1518,21 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
                 or m.get("price")
                 or price_info_obj.get("normal_price")
             )
+            promo_price_str = (
+                price_info_obj.get("promotion_price")
+                or price_info_obj.get("current_price")
+                or price_info_obj.get("discounted_price")
+            )
             try:
                 sell_price = int(float(price_str)) if price_str else 0
             except Exception:
                 sell_price = 0
+            try:
+                promo_price = int(float(promo_price_str)) if promo_price_str else 0
+            except Exception:
+                promo_price = 0
+            if sell_price <= 0 and promo_price > 0:
+                sell_price = promo_price
             if sell_price <= 0:
                 print(f"[INBOUND GUARD] Bỏ qua đồng bộ giá trống từ Shopee cho Model {model_id} (Item {item_id}) để bảo vệ giá CMS.")
                 continue
@@ -1032,7 +1549,10 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
                 or prod_summary.get("tag", {}).get("unlist")
                 or str(prod_summary.get("status", "")).lower() in ("unlisted", "banned", "deleted")
             )
-            idem_key = f"SHOPEE_PROD_{item_id}_{model_id}_{modify_time}_{sell_price}_{stock}_{1 if is_summary_unlisted else 0}"
+            meta_sig = hashlib.sha1(
+                f"{base_name}|{model_name}|{model_sku}|{parent_sku}|{summary_cover}".encode("utf-8")
+            ).hexdigest()[:10]
+            idem_key = f"SHOPEE_PROD_{item_id}_{model_id}_{modify_time}_{sell_price}_{stock}_{1 if is_summary_unlisted else 0}_{meta_sig}"
             prev_entry = prod_state.get(state_key, {}) or prod_state.get(model_state_key, {})
             prev_idem = prev_entry.get("idempotencyKey")
             prev_unlisted = prev_entry.get("isUnlisted")
@@ -1048,25 +1568,31 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
                 "state_key": state_key,
                 "model_state_key": model_state_key,
                 "sell_price": sell_price,
+                "promo_price": promo_price if (0 < promo_price < sell_price) else None,
                 "stock": stock,
                 "idem_key": idem_key,
                 "is_changed": is_changed,
             })
 
-        if valid_models and not any_model_changed:
+        if variation_deleted_on_item and parsed_models and not any_model_changed:
+            parsed_models[0]["is_changed"] = True
+            any_model_changed = True
+
+        if not parsed_models or not any_model_changed:
             continue
 
-        # Chỉ gọi get_product_info khi chưa có cache theo modify_time
+        # Chỉ gọi get_product_info khi chưa có cache theo modify_time & baseName
         is_summary_unlisted_item = bool(
             prod_summary.get("is_unlisted")
             or prod_summary.get("tag", {}).get("unlist")
             or str(prod_summary.get("status", "")).lower() in ("unlisted", "banned", "deleted")
         )
-        cached_meta = item_meta_cache.get(item_id)
         if (
             not force
+            and not variation_deleted_on_item
             and cached_meta
             and cached_meta.get("modifyTime") == modify_time
+            and cached_meta.get("baseName") == base_name
             and cached_meta.get("imagesUrls")
             and "variantImagesMap" in cached_meta
             and "modelDetailsMap" in cached_meta
@@ -1126,6 +1652,8 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
 
             item_meta_cache[item_id] = {
                 "modifyTime": modify_time,
+                "baseName": base_name,
+                "activeModelIds": active_model_ids,
                 "imagesUrls": images_urls,
                 "description": desc,
                 "isUnlisted": is_unlisted,
@@ -1141,6 +1669,10 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
             }
             meta_dirty = True
 
+        if cached_meta and cached_meta.get("activeModelIds") != active_model_ids:
+            cached_meta["activeModelIds"] = active_model_ids
+            meta_dirty = True
+
         for pm in parsed_models:
             if not pm["is_changed"]:
                 continue
@@ -1150,6 +1682,7 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
             model_name = pm["model_name"]
             cms_sku = pm["cms_sku"]
             sell_price = pm["sell_price"]
+            promo_price = pm.get("promo_price")
             stock = pm["stock"]
             idem_key = pm["idem_key"]
             full_name = base_name if not model_name else f"{base_name} — Phân loại: {model_name}"
@@ -1162,6 +1695,7 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
                 "idempotencyKey": idem_key,
                 "shopeeItemId": item_id,
                 "shopeeModelId": model_id,
+                "itemActiveModelIds": active_model_ids,
                 "shopeeModifyTime": modify_time,
                 "sku": cms_sku,
                 "modelSku": model_sku,
@@ -1190,6 +1724,8 @@ def detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shop_id, u
                     "preOrderInfo": pre_order_info,
                     "shopeeBrand": brand_info,
                     "condition": condition_val,
+                    "shopeeNormalPrice": sell_price,
+                    "shopeePromotionPrice": promo_price,
                 }
             }
             if enqueue_inbound_event("INBOUND_SHOPEE_PRODUCT_SYNC", payload_data, idem_key):
@@ -1246,6 +1782,53 @@ def extract_tracking_and_carrier(card):
             carrier = logistics.get("shipping_carrier") or logistics.get("logistic_channel_name") or logistics.get("carrier_name") or logistics.get("channel_name") or ""
 
     return str(tracking_no).strip(), str(carrier).strip()
+
+def _extract_shopee_order_item_unit_price(it):
+    """
+    Trích xuất đơn giá thực thu trên từng dòng đơn hàng Shopee v3, bảo toàn quà tặng mua kèm 0đ
+    (tránh lỗi toán tử `or` của Python bỏ qua số 0 / 0.0 và rơi về giá niêm yết `item_price`).
+    """
+    if not isinstance(it, dict):
+        return 0
+
+    def _parse_non_neg_num(val):
+        if val is None or isinstance(val, bool):
+            return None
+        s = str(val).strip()
+        if not s:
+            return None
+        try:
+            f = float(s)
+            if f >= 0:
+                return int(round(f))
+        except (ValueError, TypeError):
+            pass
+        return None
+
+    # 1. order_price là đơn giá chốt thực tế trên đơn (kể cả 0đ cho quà tặng / mua kèm deal sốc 0đ)
+    ord_p = _parse_non_neg_num(it.get("order_price"))
+    if ord_p is not None:
+        return ord_p
+
+    # 2. Nếu có cờ quà tặng / add-on sub-item 0đ hoặc model_discounted_price > 0
+    disc_p = _parse_non_neg_num(it.get("model_discounted_price"))
+    promo_type = str(it.get("promotion_type") or "").strip().lower()
+    is_gift_line = bool(
+        it.get("is_gift")
+        or it.get("is_free_gift")
+        or promo_type in ("free_gift", "gift", "add_on_deal_gift")
+        or (it.get("is_add_on_sub_item") and disc_p == 0)
+    )
+    if disc_p is not None:
+        if disc_p > 0 or is_gift_line:
+            return disc_p
+
+    # 3. Fallback theo thứ tự item_price -> price (chấp nhận cả 0 nếu dòng chỉ có item_price=0)
+    for k in ("item_price", "price"):
+        cand = _parse_non_neg_num(it.get(k))
+        if cand is not None:
+            return cand
+    return 0
 
 def detect_and_enqueue_inbound_orders(cookies, spc_cds, csrf_token):
     """
@@ -1325,11 +1908,7 @@ def detect_and_enqueue_inbound_orders(cookies, spc_cds, csrf_token):
             items = []
             item_list = card.get("item_list", []) or card.get("order_items", [])
             for it in item_list:
-                raw_price = it.get("item_price") or it.get("order_price") or it.get("model_discounted_price") or it.get("price") or 0
-                try:
-                    unit_price = int(round(float(raw_price)))
-                except (ValueError, TypeError):
-                    unit_price = 0
+                unit_price = _extract_shopee_order_item_unit_price(it)
                 items.append({
                     "sku": str(it.get("item_sku") or it.get("sku") or "").strip(),
                     "modelSku": str(it.get("model_sku") or "").strip(),
@@ -1538,6 +2117,7 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
 
     completed_count = 0
     sync_state = load_sync_state()
+    sync_state_dirty = False
     handled_status_items = {}
 
     for job in jobs:
@@ -1564,6 +2144,7 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
 
         all_ok = True
         errors = []
+        stock_pushed_ok = False
 
         has_shopee_link = bool(item_id and str(item_id) not in ("0", ""))
         pushed_stock = bool(has_shopee_link and (stock_drifted or (not price_drifted and not unlisted_drifted and not image_drifted)))
@@ -1578,12 +2159,16 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                 sellable_stock=target_stock,
                 location_id=location_id
             )
-            if not s_ok:
+            if s_ok:
+                stock_pushed_ok = True
+            else:
                 all_ok = False
                 errors.append(f"Stock: {s_res}")
 
         # 2. Đẩy giá bán nếu có thay đổi
-        if has_shopee_link and price_drifted and target_price > 0:
+        price_pushed_ok = False
+        pushed_price = bool(has_shopee_link and price_drifted and target_price > 0)
+        if pushed_price:
             print(f"[OUTBOUND CMS -> SHOPEE] Đang đẩy giá bán [{sku}] (Item: {item_id}, Model: {model_id}) -> Giá mới = {target_price}...")
             p_ok, p_res = update_shopee_product_price(
                 cookies, spc_cds, csrf_token,
@@ -1591,7 +2176,9 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                 model_id=model_id,
                 price=target_price
             )
-            if not p_ok:
+            if p_ok:
+                price_pushed_ok = True
+            else:
                 all_ok = False
                 errors.append(f"Price: {p_res}")
 
@@ -1639,20 +2226,22 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                 if pushed_stock
                 else int(job.get("lastSyncedStock", target_stock))
             )
-            # Gửi ACK COMPLETED về CMS
-            call_cms_webhook("OUTBOX_ACK_RESULT", {
+            ack_payload = {
                 "outboxId": outbox_id,
                 "productId": job.get("productId"),
                 "sku": sku,
                 "shopeeItemId": item_id,
                 "shopeeModelId": model_id,
                 "syncedStock": effective_synced_stock,
-                "syncedPrice": target_price,
                 "syncedUnlisted": target_unlisted,
                 "syncedImage": synced_cdn_image or None,
                 "status": "COMPLETED",
                 "idempotencyKey": idem_key
-            })
+            }
+            if pushed_price and price_pushed_ok:
+                ack_payload["syncedPrice"] = target_price
+            # Gửi ACK COMPLETED về CMS (chỉ đính kèm syncedPrice khi thực sự đẩy giá lên Shopee)
+            call_cms_webhook("OUTBOX_ACK_RESULT", ack_payload)
 
             # Cập nhật sync_state để tránh vòng lặp echo khi Inbound quét lại
             prod_map = sync_state.setdefault("products", {})
@@ -1662,15 +2251,19 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                 if k in prod_map:
                     if pushed_stock:
                         prod_map[k]["stock"] = target_stock
-                    prod_map[k]["sellPrice"] = target_price
+                    if pushed_price:
+                        prod_map[k]["sellPrice"] = target_price
                     prod_map[k]["isUnlisted"] = target_unlisted
                     prod_map[k]["syncedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                    sync_state_dirty = True
             if unlisted_drifted:
                 if str(item_id) in item_meta_map:
                     item_meta_map[str(item_id)]["isUnlisted"] = target_unlisted
+                    sync_state_dirty = True
                 for k, v in prod_map.items():
                     if str(v.get("shopeeItemId") or v.get("itemId") or "") == str(item_id):
                         v["isUnlisted"] = target_unlisted
+                        sync_state_dirty = True
             if has_shopee_link:
                 print(f"[OUTBOUND -> SHOPEE OK] Đã đồng bộ [{sku}] (Tồn={target_stock}, Giá={target_price}, Unlisted={target_unlisted}) lên Sàn Shopee & ACK Sổ Cái CMS!")
             else:
@@ -1678,6 +2271,14 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
         else:
             err_msg = " | ".join(errors)
             err_kind = _classify_shopee_error(err_msg)
+            partial_stock_ack = {"syncedStock": target_stock} if stock_pushed_ok else {}
+            if stock_pushed_ok:
+                prod_map = sync_state.setdefault("products", {})
+                model_state_key = f"MODEL_{item_id}_{model_id}"
+                for k in (sku, model_state_key):
+                    if k in prod_map:
+                        prod_map[k]["stock"] = target_stock
+                        sync_state_dirty = True
             if err_kind == "AUTH_EXPIRED":
                 should_alert = False
                 with GLOBAL_STATE["lock"]:
@@ -1693,6 +2294,7 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                     "sku": sku,
                     "shopeeItemId": item_id,
                     "shopeeModelId": model_id,
+                    **partial_stock_ack,
                     "status": "DEFERRED_SESSION_LOST",
                     "error": err_msg,
                     "idempotencyKey": idem_key
@@ -1714,6 +2316,23 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                     "idempotencyKey": idem_key
                 })
                 print(f"[OUTBOUND BROKEN_LINK] [{sku}] mất liên kết Item/Model trên Shopee: {err_msg}")
+            elif err_kind == "PRICE_LOCKED_PROMOTION":
+                GLOBAL_STATE["outboundRetries"].pop(outbox_id, None)
+                promo_note = f"[KHÓA GIÁ KHUYẾN MÃI SHOPEE] Sàn tạm khóa đổi giá gốc do sản phẩm đang chạy Flash Sale / Chương trình khuyến mãi: {err_msg}"
+                append_to_dlq(job, promo_note)
+                call_cms_webhook("OUTBOX_ACK_RESULT", {
+                    "outboxId": outbox_id,
+                    "productId": job.get("productId"),
+                    "sku": sku,
+                    "shopeeItemId": item_id,
+                    "shopeeModelId": model_id,
+                    **partial_stock_ack,
+                    "status": "DEAD_LETTER",
+                    "attempt": 1,
+                    "error": promo_note,
+                    "idempotencyKey": idem_key
+                })
+                print(f"[OUTBOUND PROMO LOCK -> DLQ] [{sku}]: {promo_note}")
             else:
                 attempts = retry_info["attempts"] + 1
                 if attempts >= MAX_RETRY_ATTEMPTS:
@@ -1725,6 +2344,7 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                         "sku": sku,
                         "shopeeItemId": item_id,
                         "shopeeModelId": model_id,
+                        **partial_stock_ack,
                         "status": "DEAD_LETTER",
                         "attempt": attempts,
                         "error": err_msg,
@@ -1743,6 +2363,7 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                         "sku": sku,
                         "shopeeItemId": item_id,
                         "shopeeModelId": model_id,
+                        **partial_stock_ack,
                         "status": "RETRY",
                         "attempt": attempts,
                         "error": err_msg,
@@ -1750,6 +2371,8 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
                     })
                     print(f"[OUTBOUND RETRY #{attempts}] [{sku}] sẽ thử lại sau {backoff}s. Lỗi: {err_msg}")
 
+    if sync_state_dirty:
+        save_sync_state(sync_state)
     with GLOBAL_STATE["lock"]:
         if GLOBAL_STATE.get("alive"):
             GLOBAL_STATE["deferredOutboxCount"] = max(0, len(jobs) - completed_count)
@@ -1764,7 +2387,8 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
         self.send_header('Connection', 'close')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key')
+        self.send_header('Access-Control-Allow-Private-Network', 'true')
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -1783,6 +2407,10 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "alive": GLOBAL_STATE["alive"],
                     "paused": GLOBAL_STATE.get("paused", False),
+                    "nodeRole": NODE_ROLE,
+                    "nodeId": NODE_ID,
+                    "standbyYieldedToLocal": bool(GLOBAL_STATE.get("standbyYieldedToLocal", False)),
+                    "leaderLease": GLOBAL_STATE.get("leaderLease"),
                     "shopId": GLOBAL_STATE["shopId"],
                     "username": GLOBAL_STATE["username"],
                     "cookieCount": len(mem_cookies),
@@ -1884,12 +2512,13 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                         notify_session_alert("SESSION_RESTORED", f"Đã nạp lại Cookie qua {source}")
                         time.sleep(0.2)
                         with PIPELINE_LOCK:
-                            # Xả toàn bộ hàng đợi Outbox bất đồng bộ từ CMS lên Shopee TRƯỚC khi quét Inbound
-                            process_outbound_outbox_from_cms(incoming_cookies, spc_cds, csrf_token)
+                            # BƯỚC 1: Quét & đối soát Inbound từ Shopee về CMS TRƯỚC để cập nhật giá/tồn/phân loại thực tế mới nhất trên Sàn
                             if not is_inbound_product_sync_disabled():
                                 detect_and_enqueue_inbound_products(incoming_cookies, spc_cds, csrf_token, str(shopid), str(uname), force=False)
                             detect_and_enqueue_inbound_orders(incoming_cookies, spc_cds, csrf_token)
                             flush_inbound_queue_to_cms()
+                            # BƯỚC 2: Sau khi đã đối soát Inbound, mới xả các job Outbox có chủ đích từ CMS lên Shopee
+                            process_outbound_outbox_from_cms(incoming_cookies, spc_cds, csrf_token)
                     except Exception as e_rep:
                         print(f"[SESSION-RESTORE REPLAY ERR] {e_rep}")
 
@@ -2011,20 +2640,135 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode('utf-8'))
 
+    def _handle_post_sync_cdp(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0) or 0)
+            req_expected_shop = None
+            if content_length > 0:
+                try:
+                    req_body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+                    if isinstance(req_body, dict) and "expectedShopId" in req_body:
+                        req_expected_shop = str(req_body.get("expectedShopId") or "").strip()
+                except Exception:
+                    req_expected_shop = None
+
+            recovered, cdp_detail = try_cdp_recovery(
+                expected_shop_id=req_expected_shop,
+                return_detail=True,
+            )
+            if not recovered and cdp_detail.get("code") == "SHOP_MISMATCH":
+                payload = json.dumps({
+                    "ok": False,
+                    "alive": False,
+                    "code": "SHOP_MISMATCH",
+                    "shopId": cdp_detail.get("shopId"),
+                    "username": cdp_detail.get("username"),
+                    "expectedShopId": cdp_detail.get("expectedShopId"),
+                    "error": cdp_detail.get("error"),
+                }).encode('utf-8')
+                self.send_response(409)
+                self._send_cors()
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+
+            with GLOBAL_STATE["lock"]:
+                alive = bool(GLOBAL_STATE.get("alive"))
+                shopid = GLOBAL_STATE.get("shopId")
+                uname = GLOBAL_STATE.get("username")
+                curr_cookies = dict(GLOBAL_STATE.get("cookies") or {})
+                curr_cds = GLOBAL_STATE.get("spc_cds")
+                curr_csrf = GLOBAL_STATE.get("csrf_token")
+            if recovered and alive:
+                requeued_dlq = requeue_dlq_to_inbound()
+
+                def _bg_replay_after_cdp():
+                    try:
+                        notify_session_alert("SESSION_RESTORED", "Đồng bộ tự động từ Hồ sơ Bền vững Chrome CDP")
+                        time.sleep(0.15)
+                        with PIPELINE_LOCK:
+                            # BƯỚC 1: Quét & đối soát Inbound từ Shopee về CMS TRƯỚC khi xả các job Outbox tự động
+                            if not is_inbound_product_sync_disabled():
+                                detect_and_enqueue_inbound_products(curr_cookies, curr_cds, curr_csrf, str(shopid), str(uname), force=False)
+                            detect_and_enqueue_inbound_orders(curr_cookies, curr_cds, curr_csrf)
+                            flush_inbound_queue_to_cms()
+                            # BƯỚC 2: Xả hàng đợi Outbox từ CMS lên Shopee sau khi Inbound đã đồng bộ
+                            process_outbound_outbox_from_cms(curr_cookies, curr_cds, curr_csrf)
+                    except Exception as e_cdp:
+                        print(f"[CDP-RESTORE REPLAY ERR] {e_cdp}")
+
+                threading.Thread(target=_bg_replay_after_cdp, daemon=True).start()
+                payload = json.dumps({
+                    "ok": True,
+                    "alive": True,
+                    "shopId": str(shopid),
+                    "username": str(uname),
+                    "cookieCount": len(curr_cookies),
+                    "requeuedDlqCount": requeued_dlq,
+                    "autoReplayScheduled": True,
+                    "source": "CDP_RECOVERY",
+                }).encode('utf-8')
+                self.send_response(200)
+            else:
+                payload = json.dumps({
+                    "ok": False,
+                    "alive": False,
+                    "error": "Chưa tìm thấy phiên đăng nhập Shopee trên Trình duyệt Hồ sơ Bền vững (CDP :9222).",
+                }).encode('utf-8')
+                self.send_response(400)
+            self._send_cors()
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except Exception as e:
+            payload = json.dumps({"ok": False, "error": str(e)}).encode('utf-8')
+            self.send_response(500)
+            self._send_cors()
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
     def do_POST(self):
         if self.path == '/shopee/session':
             return self._handle_post_session()
+        elif self.path == '/shopee/sync-cdp':
+            return self._handle_post_sync_cdp()
         elif self.path == '/shopee/check-session':
             try:
+                content_length = int(self.headers.get('Content-Length', 0) or 0)
+                req_expected_shop = None
+                if content_length > 0:
+                    try:
+                        req_body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+                        if isinstance(req_body, dict) and "expectedShopId" in req_body:
+                            req_expected_shop = str(req_body.get("expectedShopId") or "").strip()
+                    except Exception:
+                        req_expected_shop = None
+
                 disk_cookies, disk_cds, disk_csrf = load_session()
                 with GLOBAL_STATE["lock"]:
+                    was_lost_before = (not bool(GLOBAL_STATE.get("alive"))) or bool(GLOBAL_STATE.get("lastAlertedLost"))
                     curr_cookies = dict(GLOBAL_STATE["cookies"]) if GLOBAL_STATE.get("cookies") else dict(disk_cookies)
                     curr_spc_cds = GLOBAL_STATE["spc_cds"] or disk_cds
                     curr_csrf = GLOBAL_STATE["csrf_token"] or disk_csrf
                 alive, shopid, uname = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                recovered_via_cdp = False
+                if not alive and try_cdp_recovery(expected_shop_id=req_expected_shop):
+                    recovered_via_cdp = True
+                    with GLOBAL_STATE["lock"]:
+                        curr_cookies = dict(GLOBAL_STATE["cookies"] or {})
+                        curr_spc_cds = GLOBAL_STATE["spc_cds"] or disk_cds
+                        curr_csrf = GLOBAL_STATE["csrf_token"] or disk_csrf
+                        alive = bool(GLOBAL_STATE["alive"])
+                        shopid = GLOBAL_STATE["shopId"]
+                        uname = GLOBAL_STATE["username"]
                 alert_to_send = None
                 with GLOBAL_STATE["lock"]:
-                    was_lost = bool(GLOBAL_STATE.get("lastAlertedLost"))
+                    was_lost = was_lost_before or bool(GLOBAL_STATE.get("lastAlertedLost"))
                     GLOBAL_STATE["alive"] = bool(alive)
                     if alive and shopid:
                         GLOBAL_STATE["shopId"] = str(shopid)
@@ -2034,17 +2778,35 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                         GLOBAL_STATE["lastAlertedLost"] = True
                         GLOBAL_STATE["lastAlertReason"] = "Kiểm tra phiên phát hiện Cookie Shopee đã hết hạn"
                         alert_to_send = ("SESSION_LOST", GLOBAL_STATE["lastAlertReason"])
-                    elif alive and was_lost:
+                    elif alive and (was_lost or recovered_via_cdp):
                         GLOBAL_STATE["lastAlertedLost"] = False
                         GLOBAL_STATE["lastAlertReason"] = ""
                         alert_to_send = ("SESSION_RESTORED", "Phiên Cookie Shopee đã hoạt động trở lại")
                     eff_shop = GLOBAL_STATE["shopId"]
                     eff_user = GLOBAL_STATE["username"]
                 if alert_to_send:
-                    threading.Thread(
-                        target=lambda: notify_session_alert(alert_to_send[0], alert_to_send[1]),
-                        daemon=True,
-                    ).start()
+                    if alert_to_send[0] == "SESSION_RESTORED":
+                        requeue_dlq_to_inbound()
+
+                        def _bg_replay_after_check():
+                            try:
+                                notify_session_alert(alert_to_send[0], alert_to_send[1])
+                                time.sleep(0.15)
+                                with PIPELINE_LOCK:
+                                    if not is_inbound_product_sync_disabled():
+                                        detect_and_enqueue_inbound_products(curr_cookies, curr_spc_cds, curr_csrf, str(eff_shop), str(eff_user), force=False)
+                                    detect_and_enqueue_inbound_orders(curr_cookies, curr_spc_cds, curr_csrf)
+                                    flush_inbound_queue_to_cms()
+                                    process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
+                            except Exception as e_chk:
+                                print(f"[CHECK-SESSION REPLAY ERR] {e_chk}")
+
+                        threading.Thread(target=_bg_replay_after_check, daemon=True).start()
+                    else:
+                        threading.Thread(
+                            target=lambda: notify_session_alert(alert_to_send[0], alert_to_send[1]),
+                            daemon=True,
+                        ).start()
                 payload = json.dumps({
                     "ok": True,
                     "alive": bool(alive),
@@ -2153,12 +2915,108 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             return self._handle_post_upload_image()
         else:
             self.send_response(404)
+            self._send_cors()
+            self.send_header('Content-Length', '0')
             self.end_headers()
 
     def log_message(self, format, *args):
         return
 
 PIPELINE_LOCK = threading.Lock()
+
+def wait_for_cms_ready(max_wait_sec=20):
+    """Đợi máy chủ Next.js nội bộ sẵn sàng (đặc biệt khi khởi động container Docker trên Render)."""
+    health_url = CMS_WEBHOOK_URL.replace("/api/webhooks/inbound", "/api/health")
+    deadline = time.time() + max(1, max_wait_sec)
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(health_url, timeout=2) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.8)
+    return False
+
+def sync_vault_and_lease(action="ACQUIRE_OR_RENEW", ttl_ms=None, timeout=8):
+    """
+    Đồng bộ Kho Phiên Mã Hóa AES-256-GCM từ Supabase & thương lượng Khóa Chống Xung Đột (Leader Lease):
+    - LOCAL_VN (Máy bán hàng mạng VN): Luôn được ưu tiên cấp quyền Leader ngay khi bật máy (preempt CLOUD_RENDER).
+    - CLOUD_RENDER (Render Singapore): Tự động nhường quyền (Standby) khi LOCAL_VN đang chạy, và tự động tiếp quản
+      nuôi phiên 24/7 ngay khi LOCAL_VN tắt máy hoặc hết hạn khóa!
+    """
+    if is_outbox_dry_run():
+        return True, {"dryRun": True, "leaseGranted": True}
+
+    eff_ttl = int(ttl_ms or LEADER_LEASE_TTL_MS)
+    with GLOBAL_STATE["lock"]:
+        expected_shop = str(GLOBAL_STATE.get("shopId") or "197195817")
+
+    ok, resp = call_cms_webhook(
+        "OUTBOX_VAULT_PULL_AND_LEASE",
+        {
+            "nodeId": NODE_ID,
+            "nodeRole": NODE_ROLE,
+            "hostname": socket.gethostname() or NODE_ROLE,
+            "action": action,
+            "ttlMs": eff_ttl,
+            "expectedShopId": expected_shop,
+        },
+        timeout=timeout,
+    )
+    if not ok or not isinstance(resp, dict) or not resp.get("ok"):
+        with GLOBAL_STATE["lock"]:
+            GLOBAL_STATE["cmsBridgeOnline"] = False
+        # Nếu chạy LOCAL_VN độc lập khi server CMS cục bộ đang tắt, vẫn cho phép Daemon cục bộ hoạt động bình thường
+        if NODE_ROLE == "LOCAL_VN":
+            return True, {"fallbackLocal": True, "leaseGranted": True}
+        return False, {"cmsOffline": True, "leaseGranted": False}
+
+    lease_granted = bool(resp.get("leaseGranted"))
+    lease_info = resp.get("lease")
+    vault = resp.get("vault") if isinstance(resp.get("vault"), dict) else {}
+
+    hydrated_from_vault = False
+    with GLOBAL_STATE["lock"]:
+        GLOBAL_STATE["cmsBridgeOnline"] = True
+        GLOBAL_STATE["leaderLease"] = lease_info
+        GLOBAL_STATE["standbyYieldedToLocal"] = not lease_granted and action != "RELEASE"
+
+        if vault.get("hasSession") and isinstance(vault.get("cookies"), dict) and vault["cookies"]:
+            vault_ms = int(vault.get("updatedAtMs") or 0)
+            curr_ms = int(GLOBAL_STATE.get("vaultUpdatedAtMs") or 0)
+            has_local_cookies = bool(GLOBAL_STATE.get("cookies"))
+            curr_alive = bool(GLOBAL_STATE.get("alive"))
+
+            if (not has_local_cookies) or (not curr_alive and vault.get("verifiedLive")) or (vault_ms > curr_ms):
+                v_cookies = dict(vault["cookies"])
+                v_cds = str(vault.get("spc_cds") or v_cookies.get("SPC_CDS") or GLOBAL_STATE["spc_cds"])
+                v_csrf = str(vault.get("csrf_token") or v_cookies.get("csrftoken") or GLOBAL_STATE["csrf_token"])
+                GLOBAL_STATE["cookies"] = v_cookies
+                GLOBAL_STATE["spc_cds"] = v_cds
+                GLOBAL_STATE["csrf_token"] = v_csrf
+                GLOBAL_STATE["vaultUpdatedAtMs"] = vault_ms
+                GLOBAL_STATE["vaultVersion"] = int(vault.get("version") or 1)
+                if vault.get("shopId"):
+                    GLOBAL_STATE["shopId"] = str(vault["shopId"])
+                if vault.get("username"):
+                    GLOBAL_STATE["username"] = str(vault["username"])
+                hydrated_from_vault = True
+
+    if hydrated_from_vault and SESSION_FILE == DEFAULT_SESSION_FILE:
+        with GLOBAL_STATE["lock"]:
+            h_cookies = dict(GLOBAL_STATE["cookies"])
+            h_cds = GLOBAL_STATE["spc_cds"]
+            h_csrf = GLOBAL_STATE["csrf_token"]
+        save_session(h_cookies, h_cds, h_csrf, source="VAULT_HYDRATE")
+
+    return lease_granted, resp
+
+def release_leader_lease_gracefully():
+    try:
+        sync_vault_and_lease(action="RELEASE", timeout=2)
+    except Exception:
+        pass
 
 def start_http_bridge():
     global BRIDGE_PORT
@@ -2182,10 +3040,15 @@ def run_async_cycle_once(force_products=False):
             return True
 
     cookies, spc_cds, csrf_token = load_session()
+    if not cookies:
+        sync_vault_and_lease(action="ACQUIRE_OR_RENEW")
+        cookies, spc_cds, csrf_token = load_session()
     alive, shopid, uname = keep_alive_ping(cookies, spc_cds, csrf_token)
     print(f"[SESSION CHECK] alive={alive}, shopId={shopid}, username={uname}")
+    recovered_in_once = False
     if not alive:
         if try_cdp_recovery():
+            recovered_in_once = True
             cookies, spc_cds, csrf_token = load_session()
             alive, shopid, uname = keep_alive_ping(cookies, spc_cds, csrf_token)
 
@@ -2207,8 +3070,8 @@ def run_async_cycle_once(force_products=False):
         if uname:
             GLOBAL_STATE["username"] = str(uname)
 
-    # Bước 1: Outbound Outbox (CMS -> Shopee) chạy trước để đẩy mọi thay đổi tồn kho từ CMS/POS lên Shopee
-    out_cnt = process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
+    # Nếu vừa khôi phục phiên qua CDP, quét Inbound trước rồi mới xả Outbox ở Bước 4
+    out_cnt = 0 if recovered_in_once else process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
 
     # Bước 2: Inbound Producer (Shopee -> Spool Queue) phát hiện sản phẩm & đơn hàng mới/thay đổi
     if is_inbound_product_sync_disabled():
@@ -2236,6 +3099,8 @@ def run_async_cycle_once(force_products=False):
 def run_loop(interval_sec=20):
     print("======================================================================")
     print("   OPENVN CMS/POS <=> SHOPEE ASYNC BIDIRECTIONAL PIPELINE DAEMON")
+    print(f"   - Node:     {NODE_ROLE} ({NODE_ID})")
+    print("   - Vault:    Supabase AES-256-GCM + Preemptive Leader Lease")
     print("   - Inbound:  Shopee -> Spool Queue -> CMS (Idempotent + Backoff)")
     print("   - Outbound: CMS Transactional Outbox -> Shopee v3 Stock API -> ACK")
     if is_outbox_dry_run():
@@ -2247,48 +3112,83 @@ def run_loop(interval_sec=20):
     t = threading.Thread(target=start_http_bridge, daemon=True)
     t.start()
 
+    # Đợi máy chủ Next.js khởi động xong để đồng bộ Kho Phiên Mã Hóa Supabase ngay từ giây đầu
+    wait_for_cms_ready(max_wait_sec=25 if NODE_ROLE == "CLOUD_RENDER" else 3)
+
     cookies, spc_cds, csrf_token = load_session()
     with GLOBAL_STATE["lock"]:
         GLOBAL_STATE["cookies"] = cookies
         GLOBAL_STATE["spc_cds"] = spc_cds
         GLOBAL_STATE["csrf_token"] = csrf_token
 
-    alive, shopid, uname = keep_alive_ping(cookies, spc_cds, csrf_token)
-    if not alive:
-        try_cdp_recovery()
-        cookies, spc_cds, csrf_token = load_session()
-        alive, shopid, uname = keep_alive_ping(cookies, spc_cds, csrf_token)
+    lease_granted, init_lease_resp = sync_vault_and_lease("ACQUIRE_OR_RENEW")
+    with GLOBAL_STATE["lock"]:
+        if GLOBAL_STATE.get("cookies"):
+            cookies = dict(GLOBAL_STATE["cookies"])
+            spc_cds = GLOBAL_STATE["spc_cds"]
+            csrf_token = GLOBAL_STATE["csrf_token"]
 
-    if alive:
-        with GLOBAL_STATE["lock"]:
-            GLOBAL_STATE["alive"] = True
-            GLOBAL_STATE["lastAlertedLost"] = False
-            GLOBAL_STATE["lastAlertReason"] = ""
-            GLOBAL_STATE["shopId"] = str(shopid)
-            GLOBAL_STATE["username"] = str(uname)
-        print(f"[OK] Phiên Shopee hoạt động: Shop ID {shopid} ({uname})")
-        with PIPELINE_LOCK:
-            process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
-            if not is_inbound_product_sync_disabled():
-                detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shopid, uname, force=False)
-            flush_inbound_queue_to_cms()
+    if not lease_granted:
+        holder_lbl = ((init_lease_resp or {}).get("lease") or {}).get("holderLabel") or "LOCAL_VN"
+        print(f"[STANDBY CLOUD] {holder_lbl} đang hoạt động -> Trạm {NODE_ROLE} trực chiến thụ động (0 xung đột phiên).")
     else:
-        with GLOBAL_STATE["lock"]:
-            GLOBAL_STATE["alive"] = False
-            GLOBAL_STATE["lastAlertedLost"] = True
-            GLOBAL_STATE["lastAlertReason"] = "Phiên Cookie Shopee đã hết hạn — hệ thống đang giữ hàng đợi đồng bộ bất đồng bộ"
-        print("[WARN] Phiên Cookie Shopee hiện đã hết hạn — Đã bật chế độ Hàng đợi Bất đồng bộ (0 đốt retry / 0 mất dữ liệu).")
-        with PIPELINE_LOCK:
-            process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
-            flush_inbound_queue_to_cms()
-        notify_session_alert("SESSION_LOST", "Phiên Cookie Shopee đã hết hạn — mọi thay đổi giá/tồn được giữ an toàn trong hàng đợi bất đồng bộ.")
+        alive, shopid, uname = keep_alive_ping(cookies, spc_cds, csrf_token)
+        if not alive and NODE_ROLE == "LOCAL_VN":
+            try_cdp_recovery()
+            cookies, spc_cds, csrf_token = load_session()
+            alive, shopid, uname = keep_alive_ping(cookies, spc_cds, csrf_token)
+
+        if alive:
+            with GLOBAL_STATE["lock"]:
+                GLOBAL_STATE["alive"] = True
+                GLOBAL_STATE["lastAlertedLost"] = False
+                GLOBAL_STATE["lastAlertReason"] = ""
+                GLOBAL_STATE["shopId"] = str(shopid)
+                GLOBAL_STATE["username"] = str(uname)
+            # Đảm bảo phiên đang sống được đồng bộ lên Kho Phiên Mã Hóa Supabase
+            save_session(cookies, spc_cds, csrf_token, source="DAEMON_STARTUP_VERIFIED")
+            print(f"[OK] Phiên Shopee hoạt động ({NODE_ROLE}): Shop ID {shopid} ({uname})")
+            with PIPELINE_LOCK:
+                if not is_inbound_product_sync_disabled():
+                    detect_and_enqueue_inbound_products(cookies, spc_cds, csrf_token, shopid, uname, force=False)
+                detect_and_enqueue_inbound_orders(cookies, spc_cds, csrf_token)
+                flush_inbound_queue_to_cms()
+                process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
+        else:
+            with GLOBAL_STATE["lock"]:
+                GLOBAL_STATE["alive"] = False
+                GLOBAL_STATE["lastAlertedLost"] = True
+                GLOBAL_STATE["lastAlertReason"] = "Phiên Cookie Shopee đã hết hạn — hệ thống đang giữ hàng đợi đồng bộ bất đồng bộ"
+            print("[WARN] Phiên Cookie Shopee hiện chưa kết nối hoặc đã hết hạn — Đã bật chế độ Hàng đợi Bất đồng bộ (0 đốt retry / 0 mất dữ liệu).")
+            with PIPELINE_LOCK:
+                process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token)
+                flush_inbound_queue_to_cms()
+            if cookies:
+                notify_session_alert("SESSION_LOST", "Phiên Cookie Shopee đã hết hạn — mọi thay đổi giá/tồn được giữ an toàn trong hàng đợi bất đồng bộ.")
 
     last_ping = time.time()
+    was_standby = not lease_granted
 
     while True:
         try:
             with GLOBAL_STATE["lock"]:
                 is_paused = bool(GLOBAL_STATE.get("paused"))
+
+            if is_paused:
+                time.sleep(min(interval_sec, 2))
+                continue
+
+            # Thương lượng khóa Leader Lease & kéo phiên mới nhất từ Kho Mã Hóa Supabase mỗi chu kỳ 20s
+            lease_granted, lease_resp = sync_vault_and_lease("ACQUIRE_OR_RENEW")
+            if not lease_granted:
+                if not was_standby:
+                    holder_lbl = ((lease_resp or {}).get("lease") or {}).get("holderLabel") or "Máy bán hàng VN"
+                    print(f"[{time.strftime('%H:%M:%S')}] [STANDBY YIELD] Nhường quyền điều phối cho {holder_lbl} để chống xung đột IP Shopee.")
+                was_standby = True
+                time.sleep(interval_sec)
+                continue
+
+            with GLOBAL_STATE["lock"]:
                 curr_alive = bool(GLOBAL_STATE.get("alive"))
                 curr_cookies = dict(GLOBAL_STATE["cookies"])
                 curr_spc_cds = GLOBAL_STATE["spc_cds"]
@@ -2296,21 +3196,83 @@ def run_loop(interval_sec=20):
                 shopid = GLOBAL_STATE["shopId"]
                 uname = GLOBAL_STATE["username"]
 
-            if is_paused:
-                time.sleep(min(interval_sec, 2))
-                continue
+            just_restored_session = False
+
+            # Nếu Cloud vừa tiếp quản quyền Leader sau khi Máy bán hàng tắt: kiểm tra & kích hoạt ngay phiên từ Supabase Vault
+            if was_standby:
+                was_standby = False
+                print(f"[{time.strftime('%H:%M:%S')}] [LEADER FAILOVER -> {NODE_ROLE}] Đã tiếp quản Leader Lease từ Supabase — kiểm tra phiên nuôi tự động...")
+                if curr_cookies:
+                    f_alive, f_sid, f_un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                    with GLOBAL_STATE["lock"]:
+                        GLOBAL_STATE["alive"] = bool(f_alive)
+                        curr_alive = bool(f_alive)
+                        if f_sid:
+                            GLOBAL_STATE["shopId"] = str(f_sid)
+                            shopid = str(f_sid)
+                        if f_un:
+                            GLOBAL_STATE["username"] = str(f_un)
+                            uname = str(f_un)
+                    if f_alive:
+                        last_ping = time.time()
+                        just_restored_session = True
+                        print(f"[{time.strftime('%H:%M:%S')}] [CLOUD TAKEOVER OK] Đang nuôi phiên Live cho {uname} (#{shopid}) trên {NODE_ROLE}!")
+
+            # Khi đang mất phiên (not curr_alive): chủ động thử khôi phục qua Chrome CDP (:9222) hoặc phiên mới nạp trên Vault mỗi chu kỳ 20s
+            if not curr_alive:
+                if curr_cookies and NODE_ROLE == "CLOUD_RENDER":
+                    v_alive, v_sid, v_un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                    if v_alive:
+                        with GLOBAL_STATE["lock"]:
+                            GLOBAL_STATE["alive"] = True
+                            GLOBAL_STATE["lastAlertedLost"] = False
+                            GLOBAL_STATE["lastAlertReason"] = ""
+                            if v_sid:
+                                GLOBAL_STATE["shopId"] = str(v_sid)
+                                shopid = str(v_sid)
+                            if v_un:
+                                GLOBAL_STATE["username"] = str(v_un)
+                                uname = str(v_un)
+                        curr_alive = True
+                        just_restored_session = True
+                        last_ping = time.time()
+                        requeue_dlq_to_inbound()
+                        notify_session_alert("SESSION_RESTORED", "Trạm Cloud Render Singapore đã nhận phiên Cookie mới từ Kho Mã Hóa Supabase.")
+                if not curr_alive and try_cdp_recovery():
+                    with GLOBAL_STATE["lock"]:
+                        curr_alive = bool(GLOBAL_STATE.get("alive"))
+                        curr_cookies = dict(GLOBAL_STATE.get("cookies") or {})
+                        curr_spc_cds = GLOBAL_STATE.get("spc_cds")
+                        curr_csrf = GLOBAL_STATE.get("csrf_token")
+                        shopid = GLOBAL_STATE.get("shopId")
+                        uname = GLOBAL_STATE.get("username")
+                    if curr_alive:
+                        just_restored_session = True
+                        last_ping = time.time()
+                        requeue_dlq_to_inbound()
+                        print(f"[{time.strftime('%H:%M:%S')}] [CDP AUTO-RECOVER] Đã tự động khôi phục phiên Cookie Shopee từ Chrome CDP (:9222).")
+                        notify_session_alert("SESSION_RESTORED", "Đã tự động khôi phục phiên Cookie Shopee từ Chrome CDP (:9222).")
 
             ping_interval = 600 if curr_alive else 180
-            if time.time() - last_ping > ping_interval:
+            if not just_restored_session and time.time() - last_ping > ping_interval:
+                with GLOBAL_STATE["lock"]:
+                    was_lost_before_ping = (not bool(GLOBAL_STATE.get("alive"))) or bool(GLOBAL_STATE.get("lastAlertedLost"))
                 p_alive, sid, un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
+                recovered_in_ping = False
                 if not p_alive:
                     if try_cdp_recovery():
+                        recovered_in_ping = True
                         curr_cookies, curr_spc_cds, curr_csrf = load_session()
                         p_alive, sid, un = keep_alive_ping(curr_cookies, curr_spc_cds, curr_csrf)
                 if p_alive:
                     was_lost = False
                     with GLOBAL_STATE["lock"]:
-                        was_lost = not bool(GLOBAL_STATE.get("alive")) or bool(GLOBAL_STATE.get("lastAlertedLost"))
+                        was_lost = (
+                            was_lost_before_ping
+                            or recovered_in_ping
+                            or not bool(GLOBAL_STATE.get("alive"))
+                            or bool(GLOBAL_STATE.get("lastAlertedLost"))
+                        )
                         GLOBAL_STATE["alive"] = True
                         GLOBAL_STATE["cookies"] = curr_cookies
                         GLOBAL_STATE["spc_cds"] = curr_spc_cds
@@ -2326,6 +3288,8 @@ def run_loop(interval_sec=20):
                     curr_alive = True
                     print(f"[{time.strftime('%H:%M:%S')}] [HEARTBEAT] Đã gia hạn / khôi phục phiên trượt Shopee thành công.")
                     if was_lost:
+                        just_restored_session = True
+                        requeue_dlq_to_inbound()
                         notify_session_alert("SESSION_RESTORED", "Đã tự động khôi phục phiên Cookie Shopee.")
                 else:
                     should_alert = False
@@ -2341,17 +3305,25 @@ def run_loop(interval_sec=20):
                 last_ping = time.time()
 
             with PIPELINE_LOCK:
-                # 1. Xử lý hàng đợi Outbound Outbox (CMS -> Sàn Shopee; nếu mất phiên sẽ tự giữ WAITING_SESSION)
-                process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
-
-                # 2. Quét biến động Sản phẩm & Đơn hàng từ Sàn Shopee -> Spool Queue (chỉ khi phiên đang sống)
-                if curr_alive:
+                if just_restored_session and curr_alive:
+                    # Khi vừa khôi phục phiên: quét & đối soát Inbound TRƯỚC khi xả các job Outbox tự động
                     if not is_inbound_product_sync_disabled():
                         detect_and_enqueue_inbound_products(curr_cookies, curr_spc_cds, curr_csrf, shopid, uname, force=False)
                     detect_and_enqueue_inbound_orders(curr_cookies, curr_spc_cds, curr_csrf)
+                    flush_inbound_queue_to_cms()
+                    process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
+                else:
+                    # 1. Xử lý hàng đợi Outbound Outbox (CMS -> Sàn Shopee; nếu mất phiên sẽ tự giữ WAITING_SESSION)
+                    process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
 
-                # 3. Xả hàng đợi Inbound Spool Queue (nếu còn tồn trên đĩa) -> CMS
-                flush_inbound_queue_to_cms()
+                    # 2. Quét biến động Sản phẩm & Đơn hàng từ Sàn Shopee -> Spool Queue (chỉ khi phiên đang sống)
+                    if curr_alive:
+                        if not is_inbound_product_sync_disabled():
+                            detect_and_enqueue_inbound_products(curr_cookies, curr_spc_cds, curr_csrf, shopid, uname, force=False)
+                        detect_and_enqueue_inbound_orders(curr_cookies, curr_spc_cds, curr_csrf)
+
+                    # 3. Xả hàng đợi Inbound Spool Queue (nếu còn tồn trên đĩa) -> CMS
+                    flush_inbound_queue_to_cms()
 
             with GLOBAL_STATE["lock"]:
                 GLOBAL_STATE["lastSync"] = int(time.time())
@@ -2378,4 +3350,11 @@ if __name__ == "__main__":
             print(f"[WARN] Port {BRIDGE_PORT} is already in use by another Shopee sync daemon process!")
             print(f"[TIP] Run 'run-shopee-sync.bat stop' or terminate the existing process first.")
             sys.exit(1)
+        atexit.register(release_leader_lease_gracefully)
+        for _sig in (getattr(signal, "SIGINT", None), getattr(signal, "SIGTERM", None)):
+            if _sig is not None:
+                try:
+                    signal.signal(_sig, lambda *_: (release_leader_lease_gracefully(), sys.exit(0)))
+                except Exception:
+                    pass
         run_loop(interval_sec=20)

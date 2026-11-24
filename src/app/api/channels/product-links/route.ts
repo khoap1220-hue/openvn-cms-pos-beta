@@ -1,10 +1,49 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { syncCombosUsingComponents } from '@/lib/combo'
 import { logLedger } from '@/lib/ledger'
-import { broadcast, getApiCache, getProductFromApiCache, invalidateApiCache, patchProductInApiCache, setApiCache } from '@/lib/realtime'
+import { broadcast, getApiCache, invalidateApiCache, patchProductInApiCache, setApiCache } from '@/lib/realtime'
 import { ensureWarehousesAndVouchersSeeded, syncProductWarehouseStock } from '@/lib/warehouse-service'
 import { getInventorySyncPolicy } from '@/lib/inventory-policy'
+
+function loadKnownActiveShopeeModelsByItemId(): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>()
+  try {
+    const statePath = path.join(process.cwd(), 'scripts', '.shopee_synced_state.json')
+    if (!fs.existsSync(statePath)) return result
+    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
+      itemMeta?: Record<
+        string,
+        {
+          activeModelIds?: Array<string | number>
+          modelDetailsMap?: Record<string, unknown>
+        }
+      >
+    }
+    const itemMeta = parsed.itemMeta ?? {}
+    for (const [rawItemId, meta] of Object.entries(itemMeta)) {
+      const itemId = String(rawItemId || '').trim()
+      if (!itemId || !meta || typeof meta !== 'object') continue
+      const rawIds =
+        Array.isArray(meta.activeModelIds) && meta.activeModelIds.length > 0
+          ? meta.activeModelIds.map((m) => String(m ?? '').trim()).filter(Boolean)
+          : meta.modelDetailsMap && typeof meta.modelDetailsMap === 'object'
+            ? Object.keys(meta.modelDetailsMap).map((m) => String(m || '').trim()).filter(Boolean)
+            : []
+      if (rawIds.length > 0) {
+        result.set(
+          itemId,
+          new Set(rawIds.map((m) => (m && m !== '0' ? m : '0')))
+        )
+      }
+    }
+  } catch {
+    // ignore missing/corrupt state file
+  }
+  return result
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -213,6 +252,9 @@ export async function GET() {
 
     const [allProducts, unlinkedLedgers, activeOrders, allStockMovements, outboxLedgers, inventoryPolicy] = await Promise.all([
       db.product.findMany({
+        include: {
+          listings: { include: { channel: { select: { key: true } } } },
+        },
         orderBy: { updatedAt: 'desc' },
       }),
       db.ledgerEntry.findMany({
@@ -346,10 +388,12 @@ export async function GET() {
       const modelKey = `${shopeeItemId}_${shopeeModelId}`
       linkedModelKeys.add(modelKey)
 
+      const shopeeListing = p.listings.find((l) => l.channel.key === 'SHOPEE') ?? null
+      const effectiveShopeeSellPrice = shopeeListing?.price ?? p.sellPrice
       const lastSyncedStock =
         typeof attrs.lastSyncedShopeeStock === 'number' ? attrs.lastSyncedShopeeStock : p.stock
       const lastSyncedPrice =
-        typeof attrs.lastSyncedShopeePrice === 'number' ? attrs.lastSyncedShopeePrice : p.sellPrice
+        typeof attrs.lastSyncedShopeePrice === 'number' ? attrs.lastSyncedShopeePrice : effectiveShopeeSellPrice
       const liveShopeeStock =
         typeof attrs.liveShopeeStock === 'number' ? attrs.liveShopeeStock : lastSyncedStock
 
@@ -423,7 +467,7 @@ export async function GET() {
           (lastSyncedStock !== clampedCmsStock || liveShopeeStock !== clampedCmsStock)
         ) {
           syncStatus = 'STOCK_DRIFT'
-        } else if (lastSyncedPrice !== p.sellPrice) {
+        } else if (lastSyncedPrice !== effectiveShopeeSellPrice) {
           syncStatus = 'PRICE_DRIFT'
         }
       } else {
@@ -435,7 +479,7 @@ export async function GET() {
           liveShopeeStock !== inventoryPolicy.virtualStockQty
         ) {
           syncStatus = 'STOCK_DRIFT'
-        } else if (lastSyncedPrice !== p.sellPrice) {
+        } else if (lastSyncedPrice !== effectiveShopeeSellPrice) {
           syncStatus = 'PRICE_DRIFT'
         }
       }
@@ -460,7 +504,7 @@ export async function GET() {
         cmsSku: p.sku,
         cmsName: p.name,
         cmsStock: p.stock,
-        cmsSellPrice: p.sellPrice,
+        cmsSellPrice: effectiveShopeeSellPrice,
         cmsImage: p.image,
         channelKey: 'SHOPEE',
         shopeeItemId,
@@ -502,8 +546,32 @@ export async function GET() {
       })
     }
 
-    // Lọc danh sách sản phẩm Sàn chưa liên kết (deduplicate theo shopeeItemId_shopeeModelId)
+    // Lọc danh sách sản phẩm Sàn chưa liên kết (deduplicate theo shopeeItemId_shopeeModelId & loại bỏ phân loại cũ đã xóa trên cùng shopeeItemId)
+    const activeModelsByItemId = loadKnownActiveShopeeModelsByItemId()
+    const seenFreshMetaItems = new Set<string>()
+    for (const entry of unlinkedLedgers) {
+      if (!entry.detail) continue
+      try {
+        const d = JSON.parse(entry.detail) as Record<string, unknown>
+        const sItemId = String(d.shopeeItemId || '').trim()
+        if (!sItemId || seenFreshMetaItems.has(sItemId)) continue
+        if (Array.isArray(d.itemActiveModelIds) && d.itemActiveModelIds.length > 0) {
+          const ids = d.itemActiveModelIds
+            .map((m) => String(m ?? '').trim())
+            .filter(Boolean)
+            .map((m) => (m !== '0' ? m : '0'))
+          if (ids.length > 0) {
+            activeModelsByItemId.set(sItemId, new Set(ids))
+            seenFreshMetaItems.add(sItemId)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     const seenUnlinkedKeys = new Set<string>()
+    const staleUnlinkedLedgerIds: string[] = []
     const unlinkedItems: UnlinkedMarketplaceItem[] = []
 
     for (const entry of unlinkedLedgers) {
@@ -517,6 +585,13 @@ export async function GET() {
       const shopeeItemId = String(d.shopeeItemId || '').trim()
       const shopeeModelId = String(d.shopeeModelId || '').trim()
       if (!shopeeItemId) continue
+
+      const normModelId = shopeeModelId && shopeeModelId !== '0' ? shopeeModelId : '0'
+      const activeSetForItem = activeModelsByItemId.get(shopeeItemId)
+      if (activeSetForItem && activeSetForItem.size > 0 && !activeSetForItem.has(normModelId)) {
+        staleUnlinkedLedgerIds.push(entry.id)
+        continue
+      }
 
       const modelKey = `${shopeeItemId}_${shopeeModelId}`
       // Nếu sản phẩm sàn này đã được liên kết với 1 hàng hóa CMS thì bỏ qua
@@ -582,6 +657,15 @@ export async function GET() {
         detectedAt: entry.createdAt.toISOString(),
         suggestedCmsProducts: suggestions,
       })
+    }
+
+    if (staleUnlinkedLedgerIds.length > 0) {
+      await db.ledgerEntry
+        .updateMany({
+          where: { id: { in: staleUnlinkedLedgerIds } },
+          data: { action: 'UNLINKED_STALE_MODEL_REMOVED' },
+        })
+        .catch(() => null)
     }
 
     const cmsProducts = allProducts
@@ -810,10 +894,12 @@ export async function POST(req: NextRequest) {
       }
 
       // Bảo vệ bất biến CMS = Dữ liệu thật: Chỉ ghi đè kho CMS khi người vận hành xác nhận tường minh confirmRealPhysicalStock
+      const isShopeeToCmsDirection = body.syncDirection === 'SHOPEE_TO_CMS'
       const takeFromMarketplace =
         Boolean(body.confirmRealPhysicalStock) &&
-        (body.stockInitMode === 'TAKE_FROM_MARKETPLACE' || body.syncDirection === 'SHOPEE_TO_CMS')
-      const syncDir: 'SHOPEE_TO_CMS' | 'CMS_TO_SHOPEE' = takeFromMarketplace ? 'SHOPEE_TO_CMS' : 'CMS_TO_SHOPEE'
+        (body.stockInitMode === 'TAKE_FROM_MARKETPLACE' || isShopeeToCmsDirection)
+      const syncDir: 'SHOPEE_TO_CMS' | 'CMS_TO_SHOPEE' =
+        takeFromMarketplace || isShopeeToCmsDirection ? 'SHOPEE_TO_CMS' : 'CMS_TO_SHOPEE'
       const shopeeStock = Number.isFinite(Number(body.stock)) ? Math.max(0, Number(body.stock)) : Math.max(0, product.stock)
       const shopeePrice = Number(body.sellPrice) > 0 ? Number(body.sellPrice) : product.sellPrice
       const prevWarehouseStock = product.stock
@@ -826,6 +912,19 @@ export async function POST(req: NextRequest) {
       const openingStockOriginLabel = takeFromMarketplace
         ? `Gốc tồn đầu từ Sàn Shopee (${shopUsername} · Item #${shopeeItemId})`
         : `Gốc tồn đầu tại Kho CMS (KHO-TRUNG-TAM · Tồn kho: ${prevWarehouseStock} bộ)`
+
+      const rawShopeeTitle = String(body.name || '').trim()
+      const rawShopeeModel = String(body.modelName || '').trim()
+      const fullShopeeName =
+        rawShopeeModel && rawShopeeTitle && !rawShopeeTitle.includes(rawShopeeModel)
+          ? `${rawShopeeTitle} — Phân loại: ${rawShopeeModel}`
+          : rawShopeeTitle
+      const hasCustomCmsNameOnLink = Boolean(
+        fullShopeeName && product.name.trim() && product.name.trim() !== fullShopeeName.trim()
+      )
+      const hasCustomCmsImageOnLink = Boolean(
+        product.image && body.image && product.image !== body.image
+      )
 
       const nextAttrs = {
         ...prevAttrs,
@@ -847,6 +946,10 @@ export async function POST(req: NextRequest) {
         reconciliationStatus: 'RECONCILED_OK',
         lastSyncedShopeeStock: takeFromMarketplace ? nextStock : shopeeStock,
         lastSyncedShopeePrice: shopeePrice,
+        lastSyncedShopeeName: fullShopeeName || prevAttrs.lastSyncedShopeeName || product.name,
+        cmsCustomName: hasCustomCmsNameOnLink ? true : Boolean(prevAttrs.cmsCustomName),
+        lastSyncedShopeeImage: body.image || prevAttrs.lastSyncedShopeeImage || product.image || null,
+        ...(hasCustomCmsImageOnLink ? { cmsCustomImage: true } : {}),
         brokenMarketplaceLink: false,
         brokenLinkReason: undefined,
         brokenLinkDetectedAt: undefined,
@@ -907,6 +1010,7 @@ export async function POST(req: NextRequest) {
       }
 
       const shopeeChannel = await db.channel.findUnique({ where: { key: 'SHOPEE' } })
+      const resolvedShopeeListingPrice = syncDir === 'SHOPEE_TO_CMS' ? shopeePrice : updated.sellPrice
       if (shopeeChannel) {
         await db.channelListing.upsert({
           where: {
@@ -916,14 +1020,14 @@ export async function POST(req: NextRequest) {
             },
           },
           update: {
-            price: updated.sellPrice,
+            price: resolvedShopeeListingPrice,
             status: body.isUnlisted ? 'UNLISTED' : 'ACTIVE',
             descriptionSyncedAt: new Date(),
           },
           create: {
             productId: updated.id,
             channelId: shopeeChannel.id,
-            price: updated.sellPrice,
+            price: resolvedShopeeListingPrice,
             status: body.isUnlisted ? 'UNLISTED' : 'ACTIVE',
             description: updated.description || updated.name,
             descriptionSyncedAt: new Date(),
@@ -1090,6 +1194,8 @@ export async function POST(req: NextRequest) {
         ? `Gốc tồn đầu từ Sàn Shopee (${shopUsername} · Item #${shopeeItemId})`
         : 'Gốc tồn đầu tại Kho CMS (Kho trống = 0 bộ)'
 
+      const fullImportedShopeeName =
+        body.modelName && !name.includes(body.modelName) ? `${name} — Phân loại: ${body.modelName}` : name
       const attrs = {
         brandLine: 'An Nhiên Thạch · Shopee Linked',
         shopeeItemId,
@@ -1110,6 +1216,9 @@ export async function POST(req: NextRequest) {
         reconciliationStatus: 'RECONCILED_OK',
         lastSyncedShopeeStock: takeFromMarketplace ? stock : shopeeStock,
         lastSyncedShopeePrice: sellPrice,
+        lastSyncedShopeeName: fullImportedShopeeName,
+        cmsCustomName: false,
+        lastSyncedShopeeImage: body.image || null,
         gallery: body.images || [],
       }
 
@@ -1407,16 +1516,12 @@ export async function POST(req: NextRequest) {
       const channelId = String(body.channelId || '').trim()
       if (!productId) return NextResponse.json({ error: 'Thiếu productId' }, { status: 400 })
 
-      type ProductWithListings = NonNullable<
-        Awaited<ReturnType<typeof db.product.findUnique<{ where: { id: string }; include: { listings: true } }>>>
-      >
-      let product = getProductFromApiCache<ProductWithListings>(productId)
-      if (!product || !Array.isArray(product.listings)) {
-        product = await db.product.findUnique({
-          where: { id: productId },
-          include: { listings: true },
-        })
-      }
+      const product = await db.product.findUnique({
+        where: { id: productId },
+        include: {
+          listings: { include: { channel: { select: { key: true } } } },
+        },
+      })
       if (!product) return NextResponse.json({ error: 'Không tìm thấy sản phẩm' }, { status: 404 })
 
       let attrs: Record<string, unknown> = {}
@@ -1432,7 +1537,7 @@ export async function POST(req: NextRequest) {
 
       const listing = channelId
         ? product.listings.find((l) => l.channelId === channelId)
-        : product.listings.find((l) => l.channelId)
+        : product.listings.find((l) => l.channel?.key === 'SHOPEE')
       const targetPrice = listing?.price ?? product.sellPrice
       const targetStock = Math.max(0, product.stock)
 
@@ -1445,7 +1550,9 @@ export async function POST(req: NextRequest) {
       delete attrs.outboxSuppressedKey
       delete attrs.brokenMarketplaceLink
       delete attrs.brokenLinkReason
+      delete attrs.brokenLinkDetectedAt
       attrs.cmsTargetStock = targetStock
+      attrs.cmsTargetStockOrigin = 'MANUAL_OVERRIDE'
       attrs.cmsTargetPrice = targetPrice
       attrs.cmsTargetUnlisted = Boolean(attrs.isUnlistedOnShopee)
       attrs.lastOutboxSyncAt = new Date().toISOString()
@@ -1941,7 +2048,9 @@ export async function POST(req: NextRequest) {
             if (shouldPushBulkStock) {
               attrs.cmsTargetStock = clampedBulkStock
             }
-            attrs.cmsTargetPrice = nextPrice
+            if (priceChanged) {
+              attrs.cmsTargetPrice = nextPrice
+            }
             attrs.lastCmsEditAt = nowIso
           }
 
@@ -1984,7 +2093,7 @@ export async function POST(req: NextRequest) {
               entityType: 'Product',
               entityId: p.id,
               entityCode: p.sku,
-              title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox (Hàng loạt): Cập nhật [${p.sku}] (${shouldPushBulkStock ? `Tồn: ${clampedBulkStock}, ` : ''}Giá: ${nextPrice.toLocaleString('vi-VN')}đ) lên Shopee`,
+              title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox (Hàng loạt): Cập nhật [${p.sku}] (${shouldPushBulkStock ? `Tồn: ${clampedBulkStock}${priceChanged ? ', ' : ''}` : ''}${priceChanged ? `Giá: ${nextPrice.toLocaleString('vi-VN')}đ` : ''}) lên Shopee`,
               detail: {
                 direction: 'CMS_TO_SHOPEE',
                 source: 'OPENVN_CMS',
@@ -1993,7 +2102,7 @@ export async function POST(req: NextRequest) {
                 shopeeItemId: sItemId,
                 shopeeModelId: sModelId,
                 ...(shouldPushBulkStock ? { targetStock: clampedBulkStock } : {}),
-                targetPrice: nextPrice,
+                ...(priceChanged ? { targetPrice: nextPrice } : {}),
                 targetUnlisted: Boolean(attrs.isUnlistedOnShopee),
                 reason: 'BULK_PRICE_OR_STOCK_EDIT',
               },

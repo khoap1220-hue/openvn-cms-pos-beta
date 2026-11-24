@@ -10,6 +10,7 @@ import { ChannelBadge, ConnectedDot, SyncInfo } from '@/components/cms/channel-b
 import { ConfirmDialog } from '@/components/cms/confirm-dialog'
 import {
   ShopeeCookieSyncDialog,
+  isStaticBetaRuntime,
   type ShopeeSessionStatus,
 } from '@/components/cms/shopee-cookie-sync-dialog'
 import {
@@ -262,6 +263,72 @@ export function ChannelsView({
   const loadShopeeSession = useCallback(async () => {
     try {
       const res = await apiGet<ShopeeSessionStatus>('/api/channels/shopee-session')
+      if (isStaticBetaRuntime()) {
+        try {
+          const bridgePort = res?.extensionInfo?.bridgePort || 51898
+          const localStRes = await fetch(`http://127.0.0.1:${bridgePort}/shopee/status`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(1200),
+            cache: 'no-store',
+          })
+          if (localStRes.ok) {
+            const localSt = (await localStRes.json()) as {
+              ok?: boolean
+              alive?: boolean
+              paused?: boolean
+              shopId?: string
+              username?: string
+              cookieCount?: number
+              hasSpcSt?: boolean
+              hasSpcScSession?: boolean
+              lastSync?: number
+              asyncQueue?: { trackedProducts?: number; dlqCount?: number }
+            }
+            if (localSt.ok) {
+              setShopeeSession({
+                ...res,
+                daemonOnline: true,
+                alive: Boolean(localSt.alive),
+                paused: Boolean(localSt.paused),
+                shopId: localSt.shopId || res.shopId,
+                username: localSt.username || res.username,
+                cookieCount: typeof localSt.cookieCount === 'number' ? localSt.cookieCount : res.cookieCount,
+                hasSpcSt: typeof localSt.hasSpcSt === 'boolean' ? localSt.hasSpcSt : res.hasSpcSt,
+                hasSpcScSession:
+                  typeof localSt.hasSpcScSession === 'boolean'
+                    ? localSt.hasSpcScSession
+                    : res.hasSpcScSession,
+                lastSync: localSt.lastSync ? new Date(localSt.lastSync * 1000).toISOString() : res.lastSync,
+                trackedProducts: localSt.asyncQueue?.trackedProducts ?? res.trackedProducts,
+                dlqCount: localSt.asyncQueue?.dlqCount ?? res.dlqCount,
+              })
+              return
+            }
+          }
+        } catch {
+          // Local daemon not running on static host -> fallback to live Cloud 24/7 status (non-blocking)
+        }
+
+        setShopeeSession(res)
+        const cloudOrigin = (
+          res?.cloudVault?.cloudBackendOrigin ||
+          res?.extensionInfo?.cloudOrigin ||
+          'https://openvn-cms-pos-backend.onrender.com'
+        ).replace(/\/+$/, '')
+        fetch(`${cloudOrigin}/api/channels/shopee-session`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(25000),
+          cache: 'no-store',
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((cloudJson: ShopeeSessionStatus | null) => {
+            if (cloudJson && cloudJson.ok) {
+              setShopeeSession(cloudJson)
+            }
+          })
+          .catch(() => null)
+        return
+      }
       setShopeeSession(res)
     } catch {
       // ignore silent error when offline

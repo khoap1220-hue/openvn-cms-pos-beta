@@ -268,12 +268,17 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('bom:')
       invalidateApiCache('channels')
       invalidateApiCache('dashboard:')
+      invalidateApiCache('reports:')
       invalidateApiCache('reconciliation:')
       break
     }
     case 'channel.updated':
     case 'channel.unlinked_item':
     case 'channel.product_linked':
+    case 'channel.session_lost':
+    case 'channel.session_restored':
+    case 'channel.link_lost':
+    case 'outbox.updated':
     case 'marketplace.unlisted_alert':
       invalidateApiCache('channels')
       invalidateApiCache('products:')

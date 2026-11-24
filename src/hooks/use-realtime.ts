@@ -88,9 +88,21 @@ function resolveSocketUrl(): string {
   return '/?XTransformPort=3003'
 }
 
+function isStaticBetaHost(): boolean {
+  if (typeof window === 'undefined') return false
+  const win = window as unknown as { __BETA_SUBPATH_SHIM__?: unknown }
+  const host = window.location.hostname.toLowerCase()
+  return (
+    Boolean(win.__BETA_SUBPATH_SHIM__) ||
+    host.endsWith('.github.io') ||
+    host === 'khoaphan.dev' ||
+    host.endsWith('.khoaphan.dev')
+  )
+}
+
 function ensureSocket() {
   if (socket) return
-  if (typeof window !== 'undefined' && (window.location.hostname.endsWith('.github.io') || isRemoteTunnel())) {
+  if (typeof window !== 'undefined' && (isStaticBetaHost() || isRemoteTunnel())) {
     startPolling()
     setMode('polling')
     return

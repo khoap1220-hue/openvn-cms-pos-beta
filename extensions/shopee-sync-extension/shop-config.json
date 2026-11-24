@@ -3,8 +3,10 @@
   "username": "thaimy1605",
   "shopLabel": "OPENVN · Ưu Đàm (thaimy1605)",
   "cmsOrigin": "http://127.0.0.1:3010",
+  "cloudOrigin": "https://openvn-cms-pos-backend.onrender.com",
+  "syncToCloud": true,
   "bridgePort": 51898,
   "pairingToken": "",
   "enforceShopLock": true,
-  "generatedAt": "2026-11-14T13:00:00.000Z"
+  "generatedAt": "2026-11-24T10:45:00.000Z"
 }

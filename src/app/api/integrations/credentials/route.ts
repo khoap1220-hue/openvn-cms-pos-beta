@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
+import { invalidateApiCache } from '@/lib/realtime'
+import {
+  mergePreservingInternalVaultFields,
+  stripInternalCredentialFields,
+} from '@/lib/shopee-session-vault'
 import {
   BASE_DB_PROVIDER_KEYS,
   INTEGRATION_PROVIDERS,
   getNormalizedCredentials,
+  invalidateInboundSecretsCache,
 } from '@/lib/webhook-service'
 
 export const dynamic = 'force-dynamic'
@@ -41,20 +47,30 @@ async function upsertCredential(req: NextRequest) {
   const nextName = body.name?.trim() || label
 
   if (BASE_DB_PROVIDER_KEYS.has(provider)) {
+    const existingRow = await db.integrationCredential.findUnique({
+      where: { provider },
+      select: { config: true },
+    })
+    const safePublicConfig = stripInternalCredentialFields(body.config) ?? {}
+    const mergedDbConfig = mergePreservingInternalVaultFields(existingRow?.config, safePublicConfig)
+
     const credential = await db.integrationCredential.upsert({
       where: { provider },
       update: {
         name: nextName,
-        config: JSON.stringify(body.config),
+        config: JSON.stringify(mergedDbConfig),
         active: nextActive,
       },
       create: {
         provider,
         name: nextName,
-        config: JSON.stringify(body.config),
+        config: JSON.stringify(mergedDbConfig),
         active: nextActive,
       },
     })
+
+    invalidateInboundSecretsCache()
+    invalidateApiCache('integrations:')
 
     await logLedger({
       scope: 'SETTINGS',
@@ -63,11 +79,17 @@ async function upsertCredential(req: NextRequest) {
       entityId: credential.id,
       entityCode: provider,
       title: `Credential ${provider}`,
-      detail: { provider, fields: Object.keys(body.config), active: credential.active },
+      detail: { provider, fields: Object.keys(safePublicConfig), active: credential.active },
       actor: 'OPERATOR',
     })
 
-    return { credential, status: 200 as const }
+    return {
+      credential: {
+        ...credential,
+        config: JSON.stringify(safePublicConfig),
+      },
+      status: 200 as const,
+    }
   }
 
   // Với các provider mở rộng (SEPAY, INSTAGRAM, THREADS, TIKTOK_CONTENT, EXTERNAL_CMS, SOCIAL_WEBHOOK_HUB)

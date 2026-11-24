@@ -2,8 +2,8 @@
  * Bộ đóng gói Chrome Extension (Manifest V3) liên kết riêng cho từng Shop Shopee
  * của hệ thống OPENVN · Ưu Đàm Suite.
  *
- * Hỗ trợ chạy đồng nhất trên cả Server Node.js (/api/channels/shopee-extension)
- * và trình duyệt Client (Fallback tải trực tiếp trên bản Beta tĩnh) không cần thư viện nén ngoài.
+ * Hỗ trợ đồng bộ KÉP: Máy bán hàng cục bộ (Local :51898 / :3010) + Đẩy thẳng lên Cloud 24/7
+ * (Render Singapore + Kho Phiên Mã Hóa AES-256-GCM trên Supabase).
  */
 
 export interface ShopeeExtensionShopConfig {
@@ -11,6 +11,8 @@ export interface ShopeeExtensionShopConfig {
   username: string
   shopLabel: string
   cmsOrigin: string
+  cloudOrigin: string
+  syncToCloud: boolean
   bridgePort: number
   pairingToken: string
   enforceShopLock: boolean
@@ -22,11 +24,14 @@ export interface ZipEntryFile {
   content: string | Uint8Array
 }
 
+export const DEFAULT_SHOPEE_CLOUD_ORIGIN = 'https://openvn-cms-pos-backend.onrender.com'
+
 export const DEFAULT_SHOPEE_SHOP_BINDING = {
   shopId: '197195817',
   username: 'thaimy1605',
   shopLabel: 'OPENVN · Ưu Đàm (thaimy1605)',
   bridgePort: 51898,
+  cloudOrigin: DEFAULT_SHOPEE_CLOUD_ORIGIN,
 } as const
 
 // Bảng tra cứu CRC-32 chuẩn IEEE 802.3 (0xEDB88320)
@@ -160,12 +165,52 @@ export function buildStoreZip(files: ZipEntryFile[], timestamp = new Date()): Ui
   return out
 }
 
-function normalizeCmsOrigin(origin: string): string {
+export function normalizeCmsOrigin(origin: string): string {
   const clean = (origin || '').trim().replace(/\/+$/, '')
-  if (!clean || clean.includes('github.io')) {
+  if (!clean) {
     return 'http://127.0.0.1:3010'
   }
-  return clean
+  try {
+    const parsed = new URL(clean)
+    const host = parsed.hostname.toLowerCase()
+    if (
+      host === 'github.io' ||
+      host.endsWith('.github.io') ||
+      host === 'khoaphan.dev' ||
+      host.endsWith('.khoaphan.dev')
+    ) {
+      return 'http://127.0.0.1:3010'
+    }
+    return `${parsed.protocol}//${parsed.host}`
+  } catch {
+    const lower = clean.toLowerCase()
+    if (lower.includes('github.io') || lower.includes('khoaphan.dev')) {
+      return 'http://127.0.0.1:3010'
+    }
+    return clean
+  }
+}
+
+export function normalizeCloudOrigin(origin?: string): string {
+  const clean = (origin || '').trim().replace(/\/+$/, '')
+  if (!clean) return DEFAULT_SHOPEE_CLOUD_ORIGIN
+  try {
+    const parsed = new URL(clean)
+    const host = parsed.hostname.toLowerCase()
+    if (
+      host === 'github.io' ||
+      host.endsWith('.github.io') ||
+      host === 'khoaphan.dev' ||
+      host.endsWith('.khoaphan.dev') ||
+      host === '127.0.0.1' ||
+      host === 'localhost'
+    ) {
+      return DEFAULT_SHOPEE_CLOUD_ORIGIN
+    }
+    return `${parsed.protocol}//${parsed.host}`
+  } catch {
+    return DEFAULT_SHOPEE_CLOUD_ORIGIN
+  }
 }
 
 export function generateShopeeExtensionFiles(
@@ -176,6 +221,8 @@ export function generateShopeeExtensionFiles(
     username: rawConfig.username || DEFAULT_SHOPEE_SHOP_BINDING.username,
     shopLabel: rawConfig.shopLabel || DEFAULT_SHOPEE_SHOP_BINDING.shopLabel,
     cmsOrigin: normalizeCmsOrigin(rawConfig.cmsOrigin || 'http://127.0.0.1:3010'),
+    cloudOrigin: normalizeCloudOrigin(rawConfig.cloudOrigin),
+    syncToCloud: rawConfig.syncToCloud ?? true,
     bridgePort: rawConfig.bridgePort || DEFAULT_SHOPEE_SHOP_BINDING.bridgePort,
     pairingToken: rawConfig.pairingToken || '',
     enforceShopLock: rawConfig.enforceShopLock ?? true,
@@ -187,26 +234,29 @@ export function generateShopeeExtensionFiles(
     '*://banhang.shopee.vn/*',
     'http://127.0.0.1/*',
     'http://localhost/*',
+    'https://*.onrender.com/*',
   ])
 
-  try {
-    const parsedOrigin = new URL(config.cmsOrigin)
-    if (
-      parsedOrigin.hostname !== '127.0.0.1' &&
-      parsedOrigin.hostname !== 'localhost'
-    ) {
-      hostPermissions.add(`${parsedOrigin.protocol}//${parsedOrigin.host}/*`)
+  for (const candidateOrigin of [config.cmsOrigin, config.cloudOrigin]) {
+    try {
+      const parsedOrigin = new URL(candidateOrigin)
+      if (
+        parsedOrigin.hostname !== '127.0.0.1' &&
+        parsedOrigin.hostname !== 'localhost'
+      ) {
+        hostPermissions.add(`${parsedOrigin.protocol}//${parsedOrigin.host}/*`)
+      }
+    } catch {
+      // Bỏ qua nếu URL tùy chỉnh không hợp lệ
     }
-  } catch {
-    // Bỏ qua nếu URL tùy chỉnh không hợp lệ
   }
 
   const manifestJson = JSON.stringify(
     {
       manifest_version: 3,
       name: `OPENVN Shopee Auto-Sync — ${config.username} (#${config.shopId})`,
-      version: '2.0.0',
-      description: `Tiện ích liên kết riêng cho shop ${config.username} (#${config.shopId}) — tự động đồng bộ Cookie Kênh Người Bán Shopee về OPENVN CMS.`,
+      version: '2.1.0',
+      description: `Tiện ích liên kết riêng cho shop ${config.username} (#${config.shopId}) — đồng bộ kép Cookie Shopee về Máy bán hàng & Cloud 24/7 (Supabase + Render Singapore).`,
       permissions: ['cookies', 'alarms', 'storage', 'tabs'],
       host_permissions: Array.from(hostPermissions),
       background: {
@@ -224,8 +274,8 @@ export function generateShopeeExtensionFiles(
   const shopConfigJson = JSON.stringify(config, null, 2)
 
   const backgroundJs = `// ============================================================================
-// OPENVN SHOPEE AUTO-SYNC EXTENSION v2.0 (LIÊN KẾT RIÊNG CHO SHOP)
-// Tự động trích xuất & đồng bộ Cookie phiên Kênh Người Bán Shopee về CMS
+// OPENVN SHOPEE AUTO-SYNC EXTENSION v2.1 (LOCAL + CLOUD 24/7 RENDER SINGAPORE)
+// Tự động trích xuất & đồng bộ Cookie phiên Kênh Người Bán Shopee về CMS & Cloud Vault
 // ============================================================================
 
 const SESSION_WATCH_COOKIES = new Set([
@@ -235,6 +285,8 @@ const SESSION_WATCH_COOKIES = new Set([
   'SPC_CDS',
   'csrftoken',
 ]);
+
+const DEFAULT_CLOUD_ORIGIN = 'https://openvn-cms-pos-backend.onrender.com';
 
 let cachedBaseConfig = null;
 let cookieDebounceTimer = null;
@@ -250,6 +302,8 @@ async function loadEffectiveConfig() {
         username: 'thaimy1605',
         shopLabel: 'OPENVN · Ưu Đàm (thaimy1605)',
         cmsOrigin: 'http://127.0.0.1:3010',
+        cloudOrigin: DEFAULT_CLOUD_ORIGIN,
+        syncToCloud: true,
         bridgePort: 51898,
         pairingToken: '',
         enforceShopLock: true,
@@ -259,14 +313,41 @@ async function loadEffectiveConfig() {
 
   const stored = await chrome.storage.local.get([
     'cmsOrigin',
+    'cloudOrigin',
+    'syncToCloud',
     'bridgePort',
     'pairingToken',
     'enforceShopLock',
   ]);
 
+  const rawOrigin = String(stored.cmsOrigin || cachedBaseConfig.cmsOrigin || 'http://127.0.0.1:3010')
+    .trim()
+    .replace(/\\/+$/, '');
+  const lowerOrigin = rawOrigin.toLowerCase();
+  const safeCmsOrigin =
+    !rawOrigin || lowerOrigin.includes('github.io') || lowerOrigin.includes('khoaphan.dev')
+      ? 'http://127.0.0.1:3010'
+      : rawOrigin;
+
+  const rawCloud = String(
+    stored.cloudOrigin || cachedBaseConfig.cloudOrigin || DEFAULT_CLOUD_ORIGIN
+  )
+    .trim()
+    .replace(/\\/+$/, '');
+  const lowerCloud = rawCloud.toLowerCase();
+  const safeCloudOrigin =
+    !rawCloud || lowerCloud.includes('github.io') || lowerCloud.includes('khoaphan.dev')
+      ? DEFAULT_CLOUD_ORIGIN
+      : rawCloud;
+
   return {
     ...cachedBaseConfig,
-    cmsOrigin: (stored.cmsOrigin || cachedBaseConfig.cmsOrigin || 'http://127.0.0.1:3010').replace(/\\/+$/, ''),
+    cmsOrigin: safeCmsOrigin,
+    cloudOrigin: safeCloudOrigin,
+    syncToCloud:
+      typeof stored.syncToCloud === 'boolean'
+        ? stored.syncToCloud
+        : Boolean(cachedBaseConfig.syncToCloud ?? true),
     bridgePort: Number(stored.bridgePort || cachedBaseConfig.bridgePort || 51898),
     pairingToken:
       stored.pairingToken !== undefined ? stored.pairingToken : (cachedBaseConfig.pairingToken || ''),
@@ -330,13 +411,14 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
     };
 
     const bridgeUrl = \`http://127.0.0.1:\${cfg.bridgePort}/shopee/session\`;
-    let pushed = false;
-    let syncedVia = '';
+    let localPushed = false;
+    let cloudPushed = false;
+    const channelsSucceeded = [];
     let detectedShopId = '';
     let detectedUsername = '';
     let lastError = '';
 
-    // 1. Ưu tiên đẩy thẳng tới Python Shopee Daemon (:51898) để xác thực tức thì với Shopee
+    // 1. Ưu tiên đẩy thẳng tới Python Shopee Daemon (:51898) cục bộ (nếu đang bật)
     try {
       const res = await fetch(bridgeUrl, {
         method: 'POST',
@@ -346,8 +428,8 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.ok) {
-        pushed = true;
-        syncedVia = \`Python Daemon (:\${cfg.bridgePort})\`;
+        localPushed = true;
+        channelsSucceeded.push(\`Local Daemon (:\${cfg.bridgePort})\`);
         detectedShopId = String(data.shopId || '');
         detectedUsername = String(data.username || '');
       } else if (res.status === 409) {
@@ -367,55 +449,148 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
         lastError = data.error || \`Python Bridge trả mã HTTP \${res.status}\`;
       }
     } catch {
-      // Daemon :51898 chưa bật -> chuyển sang cổng dự phòng CMS Webhook (:3010)
+      // Daemon :51898 chưa bật -> chuyển sang cổng dự phòng CMS (:3010) & Cloud 24/7
     }
 
-    // 2. Dự phòng đẩy vào cổng Webhook của CMS (:3010)
-    if (!pushed) {
-      const cmsWebhookUrl = \`\${cfg.cmsOrigin}/api/webhooks/inbound\`;
-      const headers = { 'Content-Type': 'application/json' };
-      if (cfg.pairingToken) {
-        headers['Authorization'] = \`Apikey \${cfg.pairingToken}\`;
-      }
-      const res2 = await fetch(cmsWebhookUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          event: 'INBOUND_SHOPEE_SESSION_UPDATE',
-          data: payload,
-        }),
-      });
-      const data2 = await res2.json().catch(() => ({}));
-      if (res2.ok && data2.ok) {
-        pushed = true;
-        syncedVia = data2.verifiedLive
-          ? \`CMS + Daemon (\${cfg.cmsOrigin})\`
-          : \`CMS Dự phòng (\${cfg.cmsOrigin})\`;
-        detectedShopId = String(data2.shopId || cfg.shopId || '');
-        detectedUsername = String(data2.username || cfg.username || '');
-      } else if (res2.status === 409) {
-        const mismatchState = {
-          lastSyncStatus: 'SAI_TAI_KHOAN_SHOP',
-          lastError: data2.error || 'Tài khoản Shopee không khớp với shop liên kết.',
-          cookieCount,
-          triggerReason,
+    // 2. Dự phòng đẩy vào cổng Webhook của CMS cục bộ (:3010) nếu có Pairing Token
+    if (!localPushed && cfg.pairingToken) {
+      try {
+        const cmsWebhookUrl = \`\${cfg.cmsOrigin}/api/webhooks/inbound\`;
+        const headers = {
+          'Content-Type': 'application/json',
+          Authorization: \`Apikey \${cfg.pairingToken}\`,
         };
-        await chrome.storage.local.set(mismatchState);
-        return { ok: false, ...mismatchState };
-      } else {
-        lastError =
-          data2.error ||
-          lastError ||
-          \`Không kết nối được CMS (\${cfg.cmsOrigin}) hoặc thiếu Pairing Token.\`;
+        const res2 = await fetch(cmsWebhookUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            event: 'INBOUND_SHOPEE_SESSION_UPDATE',
+            data: payload,
+          }),
+        });
+        const data2 = await res2.json().catch(() => ({}));
+        if (res2.ok && data2.ok) {
+          localPushed = true;
+          channelsSucceeded.push(\`CMS (\${cfg.cmsOrigin})\`);
+          detectedShopId = String(data2.shopId || cfg.shopId || '');
+          detectedUsername = String(data2.username || cfg.username || '');
+        } else if (res2.status === 409) {
+          const mismatchState = {
+            lastSyncStatus: 'SAI_TAI_KHOAN_SHOP',
+            lastError: data2.error || 'Tài khoản Shopee không khớp với shop liên kết.',
+            cookieCount,
+            triggerReason,
+          };
+          await chrome.storage.local.set(mismatchState);
+          return { ok: false, ...mismatchState };
+        } else {
+          lastError = data2.error || lastError;
+        }
+      } catch {
+        // Chuyển sang kênh dự phòng phiên nội bộ (:3010/api/channels/shopee-session)
       }
     }
 
-    if (pushed) {
+    // 3. Kênh dự phòng Zero-Secret tới CMS cục bộ (:3010/api/channels/shopee-session)
+    if (!localPushed) {
+      try {
+        const sessionEndpoint = \`\${cfg.cmsOrigin}/api/channels/shopee-session\`;
+        const tier3Headers = { 'Content-Type': 'application/json' };
+        if (cfg.pairingToken) {
+          tier3Headers['x-api-key'] = cfg.pairingToken;
+        }
+        const res3 = await fetch(sessionEndpoint, {
+          method: 'POST',
+          credentials: 'include',
+          headers: tier3Headers,
+          body: JSON.stringify({
+            action: 'IMPORT_CURL',
+            rawInput: JSON.stringify({
+              cookies: cookieDict,
+              spc_cds: cookieDict['SPC_CDS'] || '',
+              csrf_token: cookieDict['csrftoken'] || '',
+            }),
+            enforceShopLock: Boolean(cfg.enforceShopLock),
+          }),
+        });
+        const data3 = await res3.json().catch(() => ({}));
+        if (res3.ok && data3.ok) {
+          localPushed = true;
+          channelsSucceeded.push(\`CMS Phiên 1-Lần (\${cfg.cmsOrigin})\`);
+          detectedShopId = String(data3.shopId || cfg.shopId || '');
+          detectedUsername = String(data3.username || cfg.username || '');
+        } else if (res3.status === 409) {
+          const mismatchState = {
+            lastSyncStatus: 'SAI_TAI_KHOAN_SHOP',
+            lastError: data3.error || 'Tài khoản Shopee không khớp với shop liên kết.',
+            cookieCount,
+            triggerReason,
+          };
+          await chrome.storage.local.set(mismatchState);
+          return { ok: false, ...mismatchState };
+        } else {
+          lastError = data3.error || lastError;
+        }
+      } catch {
+        // Máy cục bộ đang tắt server -> tiếp tục đẩy thẳng lên Cloud 24/7 ở Bước 4
+      }
+    }
+
+    // 4. Đẩy thẳng lên Kho Phiên Mã Hóa Cloud 24/7 (Supabase AES-256-GCM + Render Singapore)
+    if (cfg.syncToCloud && cfg.cloudOrigin && cfg.cloudOrigin !== cfg.cmsOrigin) {
+      try {
+        const cloudEndpoint = \`\${cfg.cloudOrigin}/api/channels/shopee-session\`;
+        const cloudHeaders = { 'Content-Type': 'application/json' };
+        if (cfg.pairingToken) {
+          cloudHeaders['x-api-key'] = cfg.pairingToken;
+        }
+        const resCloud = await fetch(cloudEndpoint, {
+          method: 'POST',
+          headers: cloudHeaders,
+          body: JSON.stringify({
+            action: 'IMPORT_CURL',
+            rawInput: JSON.stringify({
+              cookies: cookieDict,
+              spc_cds: cookieDict['SPC_CDS'] || '',
+              csrf_token: cookieDict['csrftoken'] || '',
+            }),
+            enforceShopLock: Boolean(cfg.enforceShopLock),
+          }),
+        });
+        const dataCloud = await resCloud.json().catch(() => ({}));
+        if (resCloud.ok && dataCloud.ok) {
+          cloudPushed = true;
+          channelsSucceeded.push('Cloud 24/7 (Render SG · AES-256-GCM)');
+          detectedShopId = String(dataCloud.shopId || detectedShopId || cfg.shopId || '');
+          detectedUsername = String(dataCloud.username || detectedUsername || cfg.username || '');
+        } else if (resCloud.status === 409) {
+          const mismatchState = {
+            lastSyncStatus: 'SAI_TAI_KHOAN_SHOP',
+            lastError: dataCloud.error || 'Tài khoản Shopee không khớp với shop liên kết.',
+            cookieCount,
+            triggerReason,
+          };
+          await chrome.storage.local.set(mismatchState);
+          return { ok: false, ...mismatchState };
+        } else if (!localPushed) {
+          lastError = dataCloud.error || lastError;
+        }
+      } catch {
+        if (!localPushed) {
+          lastError =
+            lastError ||
+            \`Không kết nối được cả CMS cục bộ (\${cfg.cmsOrigin}) lẫn Trạm Cloud (\${cfg.cloudOrigin}).\`;
+        }
+      }
+    }
+
+    if (localPushed || cloudPushed) {
       const okState = {
         lastSyncTime: new Date().toLocaleString('vi-VN'),
         lastSyncStatus: 'DONG_BO_THANH_CONG',
         lastError: '',
-        syncedVia,
+        syncedVia: channelsSucceeded.join(' + '),
+        cloudSynced: cloudPushed || Boolean(localPushed && cfg.cmsOrigin === cfg.cloudOrigin),
         detectedShopId,
         detectedUsername,
         cookieCount,
@@ -427,7 +602,9 @@ async function extractAndPushCookies(triggerReason = 'AUTO') {
 
     const failState = {
       lastSyncStatus: 'LOI_KET_NOI_CMS',
-      lastError,
+      lastError:
+        lastError ||
+        \`Không kết nối được CMS (\${cfg.cmsOrigin}), Daemon (:\${cfg.bridgePort}) hay Cloud (\${cfg.cloudOrigin}).\`,
       cookieCount,
       triggerReason,
     };
@@ -498,6 +675,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         'lastSyncStatus',
         'lastError',
         'syncedVia',
+        'cloudSynced',
         'detectedShopId',
         'detectedUsername',
         'cookieCount',
@@ -512,6 +690,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const updates = {};
     if (typeof msg.cmsOrigin === 'string') {
       updates.cmsOrigin = msg.cmsOrigin.trim().replace(/\\/+$/, '');
+    }
+    if (typeof msg.cloudOrigin === 'string') {
+      updates.cloudOrigin = msg.cloudOrigin.trim().replace(/\\/+$/, '');
+    }
+    if (typeof msg.syncToCloud === 'boolean') {
+      updates.syncToCloud = msg.syncToCloud;
     }
     if (typeof msg.pairingToken === 'string') {
       updates.pairingToken = msg.pairingToken.trim();
@@ -552,7 +736,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   <style>
     * { box-sizing: border-box; }
     body {
-      width: 340px;
+      width: 348px;
       margin: 0;
       padding: 14px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -684,7 +868,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 </head>
 <body>
   <div class="header">
-    <div class="brand">OPENVN Auto-Sync</div>
+    <div class="brand">OPENVN Auto-Sync 24/7</div>
     <div id="shopBadge" class="shop-pill">Shop #197195817</div>
   </div>
 
@@ -712,18 +896,26 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     <div id="errorBox" class="error-box"></div>
   </div>
 
-  <button id="syncBtn" class="btn btn-primary">Đồng bộ Cookie ngay</button>
+  <button id="syncBtn" class="btn btn-primary">Đồng bộ Cookie ngay (Local + Cloud)</button>
   <button id="copyBtn" class="btn btn-secondary">Sao chép chuỗi Cookie (dán thủ công)</button>
 
   <details>
-    <summary>Cấu hình liên kết Shop</summary>
+    <summary>Cấu hình Local & Cloud 24/7</summary>
     <div class="field">
-      <label for="cmsOriginInput">Địa chỉ OPENVN CMS</label>
+      <label for="cloudOriginInput">Trạm Cloud 24/7 (Render Singapore)</label>
+      <input id="cloudOriginInput" type="text" placeholder="https://openvn-cms-pos-backend.onrender.com" />
+    </div>
+    <label class="checkbox-row">
+      <input id="syncToCloudCheckbox" type="checkbox" checked />
+      <span>Tự động đẩy phiên lên Cloud 24/7 (Supabase AES-256-GCM)</span>
+    </label>
+    <div class="field">
+      <label for="cmsOriginInput">Địa chỉ OPENVN CMS cục bộ</label>
       <input id="cmsOriginInput" type="text" placeholder="http://127.0.0.1:3010" />
     </div>
     <div class="field">
-      <label for="pairingTokenInput">Mã liên kết API (Pairing Token)</label>
-      <input id="pairingTokenInput" type="password" placeholder="Tự động điền sẵn theo Shop" />
+      <label for="pairingTokenInput">Mã liên kết API tùy chọn</label>
+      <input id="pairingTokenInput" type="password" placeholder="Không bắt buộc (Zero-Secret)" />
     </div>
     <label class="checkbox-row">
       <input id="shopLockCheckbox" type="checkbox" checked />
@@ -733,7 +925,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   </details>
 
   <div class="hint">
-    Tự động gia hạn mỗi 10 phút hoặc ngay khi bạn mở <b>banhang.shopee.vn</b>.
+    Tự động đẩy phiên lên <b>Supabase + Render Singapore</b> để nuôi phiên ngay cả khi tắt máy.
   </div>
 
   <script src="popup.js"></script>
@@ -753,6 +945,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (config) {
     shopBadge.textContent = \`\${config.username} · #\${config.shopId}\`;
     document.getElementById('cmsOriginInput').value = config.cmsOrigin || 'http://127.0.0.1:3010';
+    document.getElementById('cloudOriginInput').value =
+      config.cloudOrigin || 'https://openvn-cms-pos-backend.onrender.com';
+    document.getElementById('syncToCloudCheckbox').checked = Boolean(config.syncToCloud ?? true);
     document.getElementById('pairingTokenInput').value = config.pairingToken || '';
     document.getElementById('shopLockCheckbox').checked = Boolean(config.enforceShopLock);
     document.getElementById('shopLockLabel').textContent = \`Chỉ nhận đúng shop \${config.username} (#\${config.shopId})\`;
@@ -770,7 +965,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (st.lastSyncStatus === 'DONG_BO_THANH_CONG') {
-    statusEl.textContent = 'Đang kết nối Live';
+    statusEl.textContent = st.cloudSynced ? 'Đang kết nối Live + Cloud 24/7' : 'Đang kết nối Live';
     statusEl.className = 'val ok';
   } else if (st.lastSyncStatus === 'SAI_TAI_KHOAN_SHOP') {
     statusEl.textContent = 'Sai tài khoản Shop';
@@ -779,7 +974,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     statusEl.textContent = 'Chưa đăng nhập Shopee';
     statusEl.className = 'val warn';
   } else if (st.lastSyncStatus) {
-    statusEl.textContent = 'Chờ kết nối CMS';
+    statusEl.textContent = 'Chờ kết nối CMS / Cloud';
     statusEl.className = 'val err';
   } else {
     statusEl.textContent = 'Sẵn sàng';
@@ -805,11 +1000,11 @@ function refreshPopup() {
 
 document.getElementById('syncBtn').addEventListener('click', () => {
   const btn = document.getElementById('syncBtn');
-  btn.textContent = 'Đang đồng bộ...';
+  btn.textContent = 'Đang đồng bộ Local & Cloud...';
   btn.disabled = true;
   chrome.runtime.sendMessage({ action: 'FORCE_SYNC' }, () => {
     refreshPopup();
-    btn.textContent = 'Đồng bộ Cookie ngay';
+    btn.textContent = 'Đồng bộ Cookie ngay (Local + Cloud)';
     btn.disabled = false;
   });
 });
@@ -835,13 +1030,15 @@ document.getElementById('copyBtn').addEventListener('click', () => {
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   const btn = document.getElementById('saveSettingsBtn');
   const cmsOrigin = document.getElementById('cmsOriginInput').value;
+  const cloudOrigin = document.getElementById('cloudOriginInput').value;
+  const syncToCloud = document.getElementById('syncToCloudCheckbox').checked;
   const pairingToken = document.getElementById('pairingTokenInput').value;
   const enforceShopLock = document.getElementById('shopLockCheckbox').checked;
 
   btn.textContent = 'Đang lưu...';
   btn.disabled = true;
   chrome.runtime.sendMessage(
-    { action: 'SAVE_SETTINGS', cmsOrigin, pairingToken, enforceShopLock },
+    { action: 'SAVE_SETTINGS', cmsOrigin, cloudOrigin, syncToCloud, pairingToken, enforceShopLock },
     () => {
       refreshPopup();
       btn.textContent = 'Đã lưu & Đồng bộ!';
@@ -858,7 +1055,7 @@ refreshPopup();
 
   const readmeMd = `# Tiện Ích Đồng Bộ Cookie Shopee Liên Kết Riêng — ${config.username} (#${config.shopId})
 
-Gói Chrome Extension này đã được cấu hình sẵn thông tin liên kết riêng cho gian hàng **${config.shopLabel}** (Shop ID: \`${config.shopId}\`).
+Gói Chrome Extension này đã được cấu hình sẵn thông tin liên kết riêng cho gian hàng **${config.shopLabel}** (Shop ID: \`${config.shopId}\`) kèm kết nối trực tiếp tới **Kho Phiên Mã Hóa Cloud 24/7 (Supabase AES-256-GCM + Render Singapore)**.
 
 ## Hướng dẫn cài đặt (30 giây)
 1. Giải nén file \`.zip\` vừa tải về ra một thư mục cố định trên máy tính.
@@ -866,11 +1063,11 @@ Gói Chrome Extension này đã được cấu hình sẵn thông tin liên kế
    \`chrome://extensions\` (hoặc \`edge://extensions\`).
 3. Bật công tắc **Chế độ dành cho nhà phát triển (Developer mode)** ở góc trên bên phải.
 4. Nhấn nút **Tải tiện ích đã giải nén (Load unpacked)** và chọn thư mục vừa giải nén ở Bước 1.
-5. Mở trang \`https://banhang.shopee.vn\` — Extension sẽ tự động nhận diện phiên Cookie của shop \`${config.username}\` và đồng bộ thẳng về OPENVN CMS.
+5. Mở trang \`https://banhang.shopee.vn\` — Extension sẽ tự động nhận diện phiên Cookie của shop \`${config.username}\` và đồng bộ song song về **OPENVN CMS cục bộ** lẫn **Trạm Cloud 24/7 (\`${config.cloudOrigin}\`)**.
 
 ## Cơ chế bảo vệ an toàn
 - **Khóa cứng Shop ID (\`${config.shopId}\`)**: Ngăn đồng bộ nhầm nếu trình duyệt đăng nhập tài khoản Shopee khác.
-- **Tự động gia hạn ngầm**: Tự động làm mới mỗi 10 phút hoặc ngay khi Shopee cấp lại \`SPC_ST\` / \`SPC_SC_SESSION\`.
+- **Kho Phiên Mã Hóa \`AES-256-GCM\` + \`Leader Lease\`**: Máy bán hàng tại tiệm giữ quyền ưu tiên khi bật máy; khi tắt máy, Cloud Render Singapore tự động tiếp quản nuôi phiên 24/7 không xung đột.
 `
 
   return [

@@ -78,6 +78,8 @@ scripts/.shopee_inbound_queue.json
 scripts/.shopee_dlq.json
 scripts/.shopee_synced_state.json
 scripts/.shopee_sync.log
+scripts/.cms_bridge_token
+scripts/.shopee_node_id
 __pycache__/
 *.pyc
 .github/*.bak

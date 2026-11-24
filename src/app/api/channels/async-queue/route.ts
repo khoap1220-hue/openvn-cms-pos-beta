@@ -4,6 +4,7 @@ import { logLedger } from '@/lib/ledger'
 import { broadcast, invalidateApiCache, patchProductInApiCache } from '@/lib/realtime'
 import { DEFAULT_SHOPEE_SHOP_BINDING } from '@/lib/shopee-extension-bundle'
 import { getInventorySyncPolicy, resolveMarketplaceTargetStock } from '@/lib/inventory-policy'
+import { readShopeeSessionVaultMetadata } from '@/lib/shopee-session-vault'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,7 @@ interface DaemonBridgeStatus {
   alive?: boolean
   paused?: boolean
   dryRun?: boolean
+  standbyYieldedToLocal?: boolean
   shopId?: string
   username?: string
   lastSync?: number | string | null
@@ -77,10 +79,11 @@ async function fetchBridgeStatus(bridgePort: string): Promise<DaemonBridgeStatus
 
 async function buildAsyncQueueSnapshot() {
   const bridgePort = process.env.SHOPEE_SYNC_PORT || '51898'
-  const [shopeeChannel, shopeeCred, daemon, activeProducts, ledgerRows, inventoryPolicy] = await Promise.all([
+  const [shopeeChannel, shopeeCred, daemon, vaultMeta, activeProducts, ledgerRows, inventoryPolicy] = await Promise.all([
     db.channel.findUnique({ where: { key: 'SHOPEE' } }),
     db.integrationCredential.findUnique({ where: { provider: 'SHOPEE' } }),
     fetchBridgeStatus(bridgePort),
+    readShopeeSessionVaultMetadata(),
     db.product.findMany({
       where: { status: { not: 'INACTIVE' } },
       include: { listings: { include: { channel: true } } },
@@ -120,7 +123,11 @@ async function buildAsyncQueueSnapshot() {
   const username = String(daemon?.username || configuredUsername)
   const shopeeChannelEnabled = Boolean(shopeeChannel?.connected ?? true)
   const daemonOnline = Boolean(daemon)
-  const sessionAlive = Boolean(daemon?.alive || daemon?.dryRun)
+  const sessionAlive = Boolean(
+    daemon?.alive ||
+      daemon?.dryRun ||
+      (daemon?.standbyYieldedToLocal && vaultMeta.hasEncryptedSession && vaultMeta.verifiedLive)
+  )
 
   const connectionState: 'CONNECTED' | 'SESSION_EXPIRED' | 'DAEMON_OFFLINE' | 'CHANNEL_DISABLED' =
     !shopeeChannelEnabled

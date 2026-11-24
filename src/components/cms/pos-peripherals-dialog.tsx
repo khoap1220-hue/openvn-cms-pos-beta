@@ -197,8 +197,14 @@ export function PosPeripheralsDialog({
     const list: string[] = []
     if (typeof window !== 'undefined') {
       const currentHost = window.location.hostname
-      // Trên Cloud / GitHub Pages ưu tiên domain HTTPS hiện tại lên đầu để quét QR không lỗi 404
-      if (currentHost && currentHost.endsWith('.github.io')) {
+      const hasSubpathShim = Boolean((window as unknown as { __BETA_SUBPATH_SHIM__?: unknown }).__BETA_SUBPATH_SHIM__)
+      const isStaticHost =
+        hasSubpathShim ||
+        currentHost.endsWith('.github.io') ||
+        currentHost === 'khoaphan.dev' ||
+        currentHost.endsWith('.khoaphan.dev')
+      // Trên Cloud / GitHub Pages / khoaphan.dev ưu tiên domain HTTPS hiện tại lên đầu để quét QR không lỗi 404
+      if (currentHost && isStaticHost) {
         list.push(currentHost)
       }
     }
@@ -221,18 +227,29 @@ export function PosPeripheralsDialog({
   const mobileScannerUrl = useMemo(() => {
     if (typeof window === 'undefined' || !station) return ''
     const qs = `s=${encodeURIComponent(station.stationId)}&t=${encodeURIComponent(station.pairToken)}`
-    if (effectiveHost.endsWith('.github.io')) {
+    const hasSubpathShim = Boolean((window as unknown as { __BETA_SUBPATH_SHIM__?: unknown }).__BETA_SUBPATH_SHIM__)
+    const isEffectiveStaticHost =
+      (hasSubpathShim && effectiveHost === window.location.hostname) ||
+      effectiveHost.endsWith('.github.io') ||
+      effectiveHost === 'khoaphan.dev' ||
+      effectiveHost.endsWith('.khoaphan.dev')
+    if (isEffectiveStaticHost) {
       const cleanBasePath = window.location.pathname
         .replace(/\/pos(\/.*)?$/, '')
         .replace(/\/$/, '')
       return `${window.location.origin}${cleanBasePath}/pos/scanner?${qs}`
     }
+    const windowIsStatic =
+      hasSubpathShim ||
+      window.location.hostname.endsWith('.github.io') ||
+      window.location.hostname === 'khoaphan.dev' ||
+      window.location.hostname.endsWith('.khoaphan.dev')
     const portPart = window.location.port
       ? `:${window.location.port}`
-      : window.location.hostname.endsWith('.github.io')
+      : windowIsStatic
         ? ':3010'
         : ''
-    const proto = effectiveHost.endsWith('.github.io') ? 'https:' : 'http:'
+    const proto = isEffectiveStaticHost ? 'https:' : 'http:'
     return `${proto}//${effectiveHost}${portPart}/pos/scanner?${qs}`
   }, [effectiveHost, station])
 

@@ -571,10 +571,12 @@ export const DEFAULT_VT_OPENING: Record<string, { qty: number; status: string; n
 }
 
 export const CARRIER_FEE_ESTIMATES: Record<string, number> = {
+  SPX: 20_000,
   GHN: 22_000,
   GHTK: 22_000,
   JT: 20_000,
   VIETTEL: 15_000,
+  VNPOST: 18_000,
   NINJA: 18_000,
 }
 
@@ -632,23 +634,53 @@ export function resolveCanonicalSku(
   }
 
   let parentSku = ''
+  let attrModelName = ''
   if (rawAttrs) {
     try {
       const parsed = JSON.parse(rawAttrs) as Record<string, unknown>
       if (typeof parsed.parentSku === 'string') parentSku = parsed.parentSku.trim().toUpperCase()
+      if (typeof parsed.shopeeModelName === 'string') {
+        attrModelName = parsed.shopeeModelName.trim()
+      } else if (typeof parsed.modelName === 'string') {
+        attrModelName = parsed.modelName.trim()
+      }
     } catch {
       // ignore invalid JSON
     }
   }
 
+  const lowerName = rawName.toLowerCase()
+  const lowerModelName = attrModelName.toLowerCase()
+
   // `BM-DEC-SEN-TRANG / KEM / XANHSAGE` in shop `thaimy1605` is "Hũ Thạch Cao Búp Sen Có Nắp" -> `BM-DEC-BUPSEN`
-  if (clean.startsWith('BM-DEC-SEN-') && rawName.toLowerCase().includes('búp sen')) {
+  // Bảo toàn ánh xạ BOM 300g kể cả khi chủ shop đổi tiêu đề sản phẩm trên Shopee (không còn chữ "búp sen"),
+  // đồng thời không lấn sang dòng `BM-DEC-SEN-L-*` (Đế Nến Hoa Sen Size Lớn).
+  if (
+    parentSku === 'BM-DEC-BUPSEN' ||
+    (clean.startsWith('BM-DEC-SEN-') &&
+      !clean.startsWith('BM-DEC-SEN-L-') &&
+      (lowerName.includes('búp sen') ||
+        lowerName.includes('hũ') ||
+        (!lowerName.includes('chân nến') && !lowerName.includes('đế nến'))))
+  ) {
     return { mappedSku: 'BM-DEC-BUPSEN', variantNote: `Phân loại gốc: ${rawSku}` }
   }
-  // `BM-SEN-01-*` is "Chân Nến Hoa Sen & Chum Sọc" -> distinguish Chum Sọc vs Chân Sen
+  // `BM-SEN-01-*` is "Chân Nến Hoa Sen, Chum Sọc & Đế Trái Tim" -> distinguish Trái Tim vs Chum Sọc vs Chân Sen (kể cả khi đổi tên sản phẩm trên Shopee)
   if (clean.startsWith('BM-SEN-01')) {
-    const lowerName = rawName.toLowerCase()
-    if (clean.includes('CHUM') || lowerName.includes('phân loại: chum')) {
+    if (
+      /(^|-)TIM(-|$)|TRAITIM|TRAI-TIM/.test(clean) ||
+      lowerName.includes('phân loại: trái tim') ||
+      lowerName.includes('phân loại: tim') ||
+      lowerModelName.includes('trái tim') ||
+      lowerModelName.includes('trai tim')
+    ) {
+      return { mappedSku: 'BM-DEC-TRAITIM', variantNote: `Phân loại gốc: ${rawSku}` }
+    }
+    if (
+      clean.includes('CHUM') ||
+      lowerName.includes('phân loại: chum') ||
+      lowerModelName.includes('chum')
+    ) {
       return { mappedSku: 'BM-KD-CHUMSOC', variantNote: `Phân loại gốc: ${rawSku}` }
     }
     return { mappedSku: 'BM-DEC-SEN', variantNote: `Phân loại gốc: ${rawSku}` }
@@ -662,7 +694,8 @@ export function resolveCanonicalSku(
     return { mappedSku: parentSku, variantNote: `Phân loại gốc: ${rawSku}` }
   }
 
-  for (const candidate of knownSkus) {
+  const sortedCandidates = Array.from(knownSkus).sort((a, b) => b.length - a.length)
+  for (const candidate of sortedCandidates) {
     if (clean.startsWith(`${candidate}-`)) {
       return { mappedSku: candidate, variantNote: `Phân loại gốc: ${rawSku}` }
     }

@@ -81,6 +81,8 @@ export interface CreateOrderInput {
   items: Array<{
     productId: string
     quantity: number
+    /** Đơn giá ghi đè trên từng dòng (hỗ trợ cả sản phẩm quà tặng mua kèm 0đ từ Sàn) */
+    priceOverride?: number
     /** Định lượng quy đổi trừ kho cho 1 đơn vị bán (VD: 500 = 500gr, 1000 = 1kg) */
     unitMultiplier?: number
     /** Nhãn đơn vị bán (VD: '500gr', '1kg') */
@@ -231,9 +233,12 @@ export async function createOrder(input: CreateOrderInput) {
     const listing = await db.channelListing.findUnique({
       where: { productId_channelId: { productId: product.id, channelId: channel.id } },
     })
-    const overridePrice = input.itemPriceOverrides?.[product.id]
+    const overridePrice =
+      typeof it.priceOverride === 'number' && Number.isFinite(it.priceOverride)
+        ? it.priceOverride
+        : input.itemPriceOverrides?.[product.id]
     const basePrice =
-      typeof overridePrice === 'number' && Number.isFinite(overridePrice) && overridePrice > 0
+      typeof overridePrice === 'number' && Number.isFinite(overridePrice) && overridePrice >= 0
         ? Math.round(overridePrice)
         : (listing?.price ?? product.sellPrice)
     const price =
@@ -875,6 +880,8 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
     throw new Error(`Không thể hủy đơn hàng đã hoàn tất (${targetOrder.code})`)
   }
 
+  const unitConfigs = await getAllUnitConfigs().catch(() => ({} as Record<string, { sellRate?: number; linkedBaseProductId?: string | null }>))
+
   const result = await db.$transaction(async (tx) => {
     // 1. Atomic CAS check to prevent concurrent double-cancellation
     const updateCheck = await tx.order.updateMany({
@@ -897,167 +904,193 @@ export async function cancelOrder(input: CancelOrderInput): Promise<CancelOrderR
     const comboIdsToSync = new Set<string>()
     const targetWhId = targetOrder.warehouseId
 
-    // 2. Iterate items and restock according to product type
+    // 2. Gom nhóm theo productId / componentProductId để KHÔNG hoàn kho trùng gấp đôi khi cùng 1 SKU xuất hiện ở >= 2 dòng (VD: 1 dòng mua giá thường + 1 dòng quà tặng 0đ)
+    const comboCompDemands = new Map<string, { compQty: number; labels: string[] }>()
+    const simpleProdDemands = new Map<string, number>()
+
     for (const item of targetOrder.items) {
       const product = await tx.product.findUnique({ where: { id: item.productId } })
       if (!product) continue
 
       if (product.type === 'COMBO') {
-        // Restock individual BOM components
         const bomRows = await tx.bomComponent.findMany({
           where: { productId: product.id },
-          include: { componentProduct: { select: { id: true, name: true, stock: true } } },
         })
         for (const row of bomRows) {
           const compQty = Math.round(row.quantity * item.quantity)
           if (compQty <= 0) continue
-
-          const comp = await tx.product.findUnique({ where: { id: row.componentProductId } })
-          if (!comp) continue
-
-          const compMovs = priorMovements.filter(
-            (m) => m.type === 'COMBO_ISSUE' && m.productId === comp.id
-          )
-          const actualCompRestock =
-            compMovs.length > 0
-              ? compMovs.reduce((s, m) => s + Math.max(0, -m.quantity), 0)
-              : compQty
-
-          if (actualCompRestock > 0) {
-            const updatedComp = await tx.product.update({
-              where: { id: comp.id },
-              data: {
-                stock: { increment: actualCompRestock },
-                status: 'ACTIVE',
-              },
-            })
-            const afterStock = updatedComp.stock
-
-            const effectiveWhId = targetWhId || comp.ownerWarehouseId
-            if (effectiveWhId) {
-              await tx.warehouseStock.updateMany({
-                where: { warehouseId: effectiveWhId, productId: comp.id },
-                data: { quantity: { increment: actualCompRestock } },
-              })
-            }
-
-            await tx.stockMovement.create({
-              data: {
-                productId: comp.id,
-                warehouseId: effectiveWhId ?? null,
-                type: 'RETURN',
-                quantity: actualCompRestock,
-                stockAfter: afterStock,
-                note: `Hoàn thành phần combo "${product.name}" × ${item.quantity} do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
-              },
-            })
-            restockedProductIds.push(comp.id)
-          } else {
-            const effectiveWhId = targetWhId || comp.ownerWarehouseId
-            await tx.stockMovement.create({
-              data: {
-                productId: comp.id,
-                warehouseId: effectiveWhId ?? null,
-                type: 'RETURN',
-                quantity: 0,
-                stockAfter: comp.stock,
-                note: `Hủy đơn combo "${product.name}" (${targetOrder.code}) — giữ nguyên kho thành phần = ${comp.stock} (đơn trước đó nhận khi kho CMS = 0, chưa trừ tồn vật lý)`,
-              },
-            })
-          }
+          const prev = comboCompDemands.get(row.componentProductId) ?? { compQty: 0, labels: [] }
+          prev.compQty += compQty
+          prev.labels.push(`"${product.name}" × ${item.quantity}`)
+          comboCompDemands.set(row.componentProductId, prev)
         }
         comboIdsToSync.add(product.id)
       } else {
-        // Restock simple product according to exact previously deducted quantity
-        const prodMovs = priorMovements.filter(
-          (m) => m.type === 'EXPORT' && m.productId === product.id
-        )
-        const actualRestockQty =
-          prodMovs.length > 0
-            ? prodMovs.reduce((s, m) => s + Math.max(0, -m.quantity), 0)
-            : item.quantity
-        const cancelledShortage = Math.max(0, item.quantity - actualRestockQty)
+        const uCfg = unitConfigs[product.id] ?? null
+        const sellRate = Math.max(1, Number(uCfg?.sellRate) || 1)
+        let stockProdId = product.id
+        if (uCfg?.linkedBaseProductId) {
+          const baseExists = await tx.product.findUnique({
+            where: { id: uCfg.linkedBaseProductId },
+            select: { id: true },
+          })
+          if (baseExists) stockProdId = baseExists.id
+        }
+        const expectedBaseQty = Math.round(item.quantity * sellRate)
+        simpleProdDemands.set(stockProdId, (simpleProdDemands.get(stockProdId) ?? 0) + expectedBaseQty)
+      }
+    }
 
-        let nextAttrJson: string | undefined
-        if (product.attributes && (cancelledShortage > 0 || actualRestockQty > 0)) {
-          try {
-            const attrs = JSON.parse(product.attributes) as Record<string, unknown>
-            let mutatedAttrs = false
-            if (actualRestockQty > 0 && typeof attrs.mode1HoldBaselineStock === 'number') {
-              delete attrs.mode1HoldBaselineStock
-              delete attrs.mode1HoldSetAt
-              mutatedAttrs = true
-            }
-            if (cancelledShortage > 0) {
-              const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
-              const nextShortage = Math.max(0, prevShortage - cancelledShortage)
-              attrs.pendingOrderShortageQty = nextShortage
-              const afterCandidate = product.stock + actualRestockQty
-              const liveSp =
-                typeof attrs.liveShopeeStock === 'number' ? attrs.liveShopeeStock : afterCandidate
-              if (nextShortage === 0 && afterCandidate === liveSp) {
-                attrs.reconciliationStatus = 'RECONCILED_OK'
-                attrs.unreconciledShopeeDelta = 0
-              }
-              mutatedAttrs = true
-            }
-            if (mutatedAttrs) {
-              nextAttrJson = JSON.stringify(attrs)
-            }
-          } catch {
-            nextAttrJson = undefined
-          }
+    for (const [compId, demand] of comboCompDemands.entries()) {
+      const comp = await tx.product.findUnique({ where: { id: compId } })
+      if (!comp) continue
+
+      const compMovs = priorMovements.filter(
+        (m) => m.type === 'COMBO_ISSUE' && m.productId === comp.id
+      )
+      const actualCompRestock =
+        compMovs.length > 0
+          ? compMovs.reduce((s, m) => s + Math.max(0, -m.quantity), 0)
+          : demand.compQty
+      const comboSummary = demand.labels.join(', ')
+
+      if (actualCompRestock > 0) {
+        const updatedComp = await tx.product.update({
+          where: { id: comp.id },
+          data: {
+            stock: { increment: actualCompRestock },
+            status: 'ACTIVE',
+          },
+        })
+        const afterStock = updatedComp.stock
+
+        const effectiveWhId = targetWhId || comp.ownerWarehouseId
+        if (effectiveWhId) {
+          await tx.warehouseStock.updateMany({
+            where: { warehouseId: effectiveWhId, productId: comp.id },
+            data: { quantity: { increment: actualCompRestock } },
+          })
         }
 
-        if (actualRestockQty > 0) {
-          const updatedProduct = await tx.product.update({
+        await tx.stockMovement.create({
+          data: {
+            productId: comp.id,
+            warehouseId: effectiveWhId ?? null,
+            type: 'RETURN',
+            quantity: actualCompRestock,
+            stockAfter: afterStock,
+            note: `Hoàn thành phần combo ${comboSummary} do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
+          },
+        })
+        restockedProductIds.push(comp.id)
+      } else {
+        const effectiveWhId = targetWhId || comp.ownerWarehouseId
+        await tx.stockMovement.create({
+          data: {
+            productId: comp.id,
+            warehouseId: effectiveWhId ?? null,
+            type: 'RETURN',
+            quantity: 0,
+            stockAfter: comp.stock,
+            note: `Hủy đơn combo ${comboSummary} (${targetOrder.code}) — giữ nguyên kho thành phần = ${comp.stock} (đơn trước đó nhận khi kho CMS = 0, chưa trừ tồn vật lý)`,
+          },
+        })
+      }
+    }
+
+    for (const [stockProdId, totalExpectedQty] of simpleProdDemands.entries()) {
+      const product = await tx.product.findUnique({ where: { id: stockProdId } })
+      if (!product) continue
+
+      // Restock simple product according to exact previously deducted quantity across all order lines of this SKU
+      const prodMovs = priorMovements.filter(
+        (m) => m.type === 'EXPORT' && m.productId === product.id
+      )
+      const actualRestockQty =
+        prodMovs.length > 0
+          ? prodMovs.reduce((s, m) => s + Math.max(0, -m.quantity), 0)
+          : totalExpectedQty
+      const cancelledShortage = Math.max(0, totalExpectedQty - actualRestockQty)
+
+      let nextAttrJson: string | undefined
+      if (product.attributes && (cancelledShortage > 0 || actualRestockQty > 0)) {
+        try {
+          const attrs = JSON.parse(product.attributes) as Record<string, unknown>
+          let mutatedAttrs = false
+          if (actualRestockQty > 0 && typeof attrs.mode1HoldBaselineStock === 'number') {
+            delete attrs.mode1HoldBaselineStock
+            delete attrs.mode1HoldSetAt
+            mutatedAttrs = true
+          }
+          if (cancelledShortage > 0) {
+            const prevShortage = Math.max(0, Number(attrs.pendingOrderShortageQty) || 0)
+            const nextShortage = Math.max(0, prevShortage - cancelledShortage)
+            attrs.pendingOrderShortageQty = nextShortage
+            const afterCandidate = product.stock + actualRestockQty
+            const liveSp =
+              typeof attrs.liveShopeeStock === 'number' ? attrs.liveShopeeStock : afterCandidate
+            if (nextShortage === 0 && afterCandidate === liveSp) {
+              attrs.reconciliationStatus = 'RECONCILED_OK'
+              attrs.unreconciledShopeeDelta = 0
+            }
+            mutatedAttrs = true
+          }
+          if (mutatedAttrs) {
+            nextAttrJson = JSON.stringify(attrs)
+          }
+        } catch {
+          nextAttrJson = undefined
+        }
+      }
+
+      if (actualRestockQty > 0) {
+        const updatedProduct = await tx.product.update({
+          where: { id: product.id },
+          data: {
+            stock: { increment: actualRestockQty },
+            status: 'ACTIVE',
+            ...(nextAttrJson ? { attributes: nextAttrJson } : {}),
+          },
+        })
+        const afterStock = updatedProduct.stock
+
+        const effectiveWhId = targetWhId || product.ownerWarehouseId
+        if (effectiveWhId) {
+          await tx.warehouseStock.updateMany({
+            where: { warehouseId: effectiveWhId, productId: product.id },
+            data: { quantity: { increment: actualRestockQty } },
+          })
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            warehouseId: effectiveWhId ?? null,
+            type: 'RETURN',
+            quantity: actualRestockQty,
+            stockAfter: afterStock,
+            note: `Hoàn kho do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
+          },
+        })
+        restockedProductIds.push(product.id)
+      } else {
+        if (nextAttrJson) {
+          await tx.product.update({
             where: { id: product.id },
-            data: {
-              stock: { increment: actualRestockQty },
-              status: 'ACTIVE',
-              ...(nextAttrJson ? { attributes: nextAttrJson } : {}),
-            },
-          })
-          const afterStock = updatedProduct.stock
-
-          const effectiveWhId = targetWhId || product.ownerWarehouseId
-          if (effectiveWhId) {
-            await tx.warehouseStock.updateMany({
-              where: { warehouseId: effectiveWhId, productId: product.id },
-              data: { quantity: { increment: actualRestockQty } },
-            })
-          }
-
-          await tx.stockMovement.create({
-            data: {
-              productId: product.id,
-              warehouseId: effectiveWhId ?? null,
-              type: 'RETURN',
-              quantity: actualRestockQty,
-              stockAfter: afterStock,
-              note: `Hoàn kho do hủy đơn ${targetOrder.code}${reason ? ` (${reason})` : ''}`,
-            },
-          })
-          restockedProductIds.push(product.id)
-        } else {
-          if (nextAttrJson) {
-            await tx.product.update({
-              where: { id: product.id },
-              data: { attributes: nextAttrJson },
-            })
-          }
-          const effectiveWhId = targetWhId || product.ownerWarehouseId
-          await tx.stockMovement.create({
-            data: {
-              productId: product.id,
-              warehouseId: effectiveWhId ?? null,
-              type: 'RETURN',
-              quantity: 0,
-              stockAfter: product.stock,
-              note: `Hủy đơn ${targetOrder.code} — giữ nguyên kho CMS = ${product.stock} (đơn Live trước đó nhận khi kho CMS = 0, chưa trừ tồn vật lý)${reason ? ` · ${reason}` : ''}`,
-            },
+            data: { attributes: nextAttrJson },
           })
         }
+        const effectiveWhId = targetWhId || product.ownerWarehouseId
+        await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            warehouseId: effectiveWhId ?? null,
+            type: 'RETURN',
+            quantity: 0,
+            stockAfter: product.stock,
+            note: `Hủy đơn ${targetOrder.code} — giữ nguyên kho CMS = ${product.stock} (đơn Live trước đó nhận khi kho CMS = 0, chưa trừ tồn vật lý)${reason ? ` · ${reason}` : ''}`,
+          },
+        })
       }
     }
 

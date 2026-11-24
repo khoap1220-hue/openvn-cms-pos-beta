@@ -10,6 +10,9 @@ function renderView(config, state) {
   if (config) {
     shopBadge.textContent = `${config.username} · #${config.shopId}`;
     document.getElementById('cmsOriginInput').value = config.cmsOrigin || 'http://127.0.0.1:3010';
+    document.getElementById('cloudOriginInput').value =
+      config.cloudOrigin || 'https://openvn-cms-pos-backend.onrender.com';
+    document.getElementById('syncToCloudCheckbox').checked = Boolean(config.syncToCloud ?? true);
     document.getElementById('pairingTokenInput').value = config.pairingToken || '';
     document.getElementById('shopLockCheckbox').checked = Boolean(config.enforceShopLock);
     document.getElementById('shopLockLabel').textContent = `Chỉ nhận đúng shop ${config.username} (#${config.shopId})`;
@@ -27,7 +30,7 @@ function renderView(config, state) {
   }
 
   if (st.lastSyncStatus === 'DONG_BO_THANH_CONG') {
-    statusEl.textContent = 'Đang kết nối Live';
+    statusEl.textContent = st.cloudSynced ? 'Đang kết nối Live + Cloud 24/7' : 'Đang kết nối Live';
     statusEl.className = 'val ok';
   } else if (st.lastSyncStatus === 'SAI_TAI_KHOAN_SHOP') {
     statusEl.textContent = 'Sai tài khoản Shop';
@@ -36,7 +39,7 @@ function renderView(config, state) {
     statusEl.textContent = 'Chưa đăng nhập Shopee';
     statusEl.className = 'val warn';
   } else if (st.lastSyncStatus) {
-    statusEl.textContent = 'Chờ kết nối CMS';
+    statusEl.textContent = 'Chờ kết nối CMS / Cloud';
     statusEl.className = 'val err';
   } else {
     statusEl.textContent = 'Sẵn sàng';
@@ -62,11 +65,11 @@ function refreshPopup() {
 
 document.getElementById('syncBtn').addEventListener('click', () => {
   const btn = document.getElementById('syncBtn');
-  btn.textContent = 'Đang đồng bộ...';
+  btn.textContent = 'Đang đồng bộ Local & Cloud...';
   btn.disabled = true;
   chrome.runtime.sendMessage({ action: 'FORCE_SYNC' }, () => {
     refreshPopup();
-    btn.textContent = 'Đồng bộ Cookie ngay';
+    btn.textContent = 'Đồng bộ Cookie ngay (Local + Cloud)';
     btn.disabled = false;
   });
 });
@@ -92,13 +95,15 @@ document.getElementById('copyBtn').addEventListener('click', () => {
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   const btn = document.getElementById('saveSettingsBtn');
   const cmsOrigin = document.getElementById('cmsOriginInput').value;
+  const cloudOrigin = document.getElementById('cloudOriginInput').value;
+  const syncToCloud = document.getElementById('syncToCloudCheckbox').checked;
   const pairingToken = document.getElementById('pairingTokenInput').value;
   const enforceShopLock = document.getElementById('shopLockCheckbox').checked;
 
   btn.textContent = 'Đang lưu...';
   btn.disabled = true;
   chrome.runtime.sendMessage(
-    { action: 'SAVE_SETTINGS', cmsOrigin, pairingToken, enforceShopLock },
+    { action: 'SAVE_SETTINGS', cmsOrigin, cloudOrigin, syncToCloud, pairingToken, enforceShopLock },
     () => {
       refreshPopup();
       btn.textContent = 'Đã lưu & Đồng bộ!';

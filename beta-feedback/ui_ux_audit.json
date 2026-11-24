@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updated_at": "2026-11-23T12:46:23Z",
+  "updated_at": "2026-11-24T11:39:45Z",
   "agent": {
     "contract_id": "CONTRACT-UIUX-PRO-WORKSPAC-15VIEWS",
     "agent_id": "UIUX-AGENT-PRO",
@@ -13,8 +13,8 @@
       "design-system"
     ],
     "status": "SIGNED_AND_ENFORCED",
-    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-B8EC64470D4F345F82E7",
-    "signed_at": "2026-11-23T12:46:23Z",
+    "digital_signature_hmac_sha256": "SIG-UIUX-AGENT-PRO-DDA0878F3209C2D41F6C",
+    "signed_at": "2026-11-24T11:39:45Z",
     "pre_fix_acceptance": {
       "status": "PRE_FIX_BASELINE_LOCKED",
       "screens_inspected": 15,
