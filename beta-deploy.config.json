@@ -23,7 +23,7 @@
     "health_path": "/api/health",
     "health_url": "https://openvn-cms-pos-backend.onrender.com/api/health",
     "python_version": "3.12",
-    "node_version": "20",
+    "node_version": "22",
     "start_command": "",
     "lint_command": "npm run lint",
     "test_command": "npx tsc --noEmit",
@@ -36,6 +36,6 @@
     ],
     "optional_vars": [],
     "workflow": ".github/workflows/beta-cicd.yml",
-    "updated_at": "2026-11-11T02:48:44Z"
+    "updated_at": "2026-11-24T16:38:29Z"
   }
 }

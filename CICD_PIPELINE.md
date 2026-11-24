@@ -1,6 +1,6 @@
-# CI/CD Pipeline Chuẩn — `openvn-cms-pos-beta`
+# CI/CD Pipeline Chuẩn — `openvn-cms-pos-backend`
 
-> Sinh bởi `free-beta-deploy-mcp` • template `v1` • cập nhật `2026-11-11T02:48:44Z`
+> Sinh bởi `free-beta-deploy-mcp` • template `v1` • cập nhật `2026-11-24T16:38:29Z`
 
 | Thuộc tính | Giá trị |
 | :--- | :--- |

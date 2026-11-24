@@ -1,0 +1,100 @@
+# beta-cicd-template: v1 (managed by free-beta-deploy-mcp — xoá dòng này nếu muốn tự quản lý file)
+name: Beta CI/CD (openvn-cms-pos-backend -> render)
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "beta-feedback/**"
+      - "**/*.md"
+      - ".beta_stage/**"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beta-cicd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  BETA_HEALTH_URL: ${{ vars.BETA_HEALTH_URL || 'https://openvn-cms-pos-backend.onrender.com/api/health' }}
+
+jobs:
+  ci:
+    name: CI - Secret scan, lint, test
+    if: github.event_name != 'page_build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zero-Secret Leak scan
+        run: python3 .github/scripts/beta_secret_scan.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: |
+          npm ci || npm install --legacy-peer-deps --no-audit --no-fund
+          if [ -f prisma/schema.prisma ]; then npx prisma generate; fi
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npx tsc --noEmit
+      - name: Build check
+        env:
+          DATABASE_URL: postgresql://localhost:5432/postgres
+        run: npm run build --if-present || npm run build --if-present
+
+  deploy:
+    name: CD - Deploy to render
+    needs: ci
+    if: github.event_name != 'pull_request' && github.event_name != 'page_build' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: beta
+    steps:
+      - name: Trigger Render Deploy (Hook or REST API)
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+        run: |
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RENDER_DEPLOY_HOOK_URL")
+            echo "Render deploy hook -> HTTP $code"
+            case "$code" in 2*) exit 0;; *) echo "::error::Render hook trả về HTTP $code"; exit 1;; esac
+          fi
+          if [ -n "$RENDER_API_KEY" ] && [ -n "$RENDER_SERVICE_ID" ]; then
+            code=$(curl -s -o /tmp/render_dep.json -w '%{http_code}' -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json" \
+              -d '{"clearCache":"do_not_clear"}')
+            echo "Render REST API deploy (${RENDER_SERVICE_ID}) -> HTTP $code"
+            case "$code" in 2*) exit 0;; *) echo "::error::Render API trả về HTTP $code"; exit 1;; esac
+          fi
+          echo "::error::Thiếu RENDER_DEPLOY_HOOK_URL hoặc (RENDER_API_KEY + RENDER_SERVICE_ID)"; exit 1
+
+  verify:
+    name: Verify live (HTTP 200)
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Health probe with retry
+        run: |
+          if [ -z "$BETA_HEALTH_URL" ]; then echo "::warning::Chưa cấu hình BETA_HEALTH_URL — bỏ qua nghiệm thu"; exit 0; fi
+          sleep 90
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BETA_HEALTH_URL" || echo 000)
+            echo "Attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "### ✅ Live OK: $BETA_HEALTH_URL (HTTP 200)" >> "$GITHUB_STEP_SUMMARY"; exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Health check thất bại: $BETA_HEALTH_URL"; exit 1

@@ -19,7 +19,7 @@ ENV CI=true
 ENV DATABASE_URL=postgresql://localhost:5432/postgres
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate && npm run build
+RUN npx prisma generate && (npm run build || npm run build)
 
 # 3. Production runner (Node.js 22 + Python 3 Multi-Runtime for Shopee 24/7 Cloud Vault)
 FROM node:22-alpine AS runner
