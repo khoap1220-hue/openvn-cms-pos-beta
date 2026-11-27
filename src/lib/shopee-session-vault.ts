@@ -1,7 +1,13 @@
 import crypto from 'node:crypto'
 import { db } from '@/lib/db'
+import {
+  hasNonLoopbackForwardedClient,
+  isLoopbackIpOrHost,
+} from '@/lib/domain-routing'
 import { maskSecretValue, type MaskedCookiePreview } from '@/lib/shopee-curl-parser'
 import { DEFAULT_SHOPEE_SHOP_BINDING } from '@/lib/shopee-extension-bundle'
+
+export { hasNonLoopbackForwardedClient, isLoopbackIpOrHost }
 
 export const DEFAULT_CLOUD_BACKEND_ORIGIN = 'https://openvn-cms-pos-backend.onrender.com'
 
@@ -121,6 +127,8 @@ export function isCloudRenderRuntime(): boolean {
 }
 
 const TRUSTED_SHOPEE_BRIDGE_EXACT_ORIGINS = new Set([
+  'https://bomocdecor.vn',
+  'https://www.bomocdecor.vn',
   'https://khoaphan.dev',
   'https://www.khoaphan.dev',
   'https://khoap1220-hue.github.io',

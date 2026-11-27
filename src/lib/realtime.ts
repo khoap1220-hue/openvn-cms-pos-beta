@@ -270,6 +270,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('dashboard:')
       invalidateApiCache('reports:')
       invalidateApiCache('reconciliation:')
+      invalidateApiCache('storefront:')
       break
     }
     case 'channel.updated':
@@ -284,6 +285,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('products:')
       invalidateApiCache('dashboard:')
       invalidateApiCache('integrations:')
+      invalidateApiCache('storefront:')
       break
     case 'order.created':
     case 'order.updated':
@@ -312,6 +314,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('liveops:')
       invalidateApiCache('periods:')
       invalidateApiCache('integrations:')
+      invalidateApiCache('storefront:')
       break
     case 'review.received':
       invalidateApiCache('dashboard:')

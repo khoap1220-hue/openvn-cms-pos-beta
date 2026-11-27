@@ -20,15 +20,19 @@ export async function GET(req: NextRequest) {
     }
 
     if (customerId && channelKey) {
+      const isWebThread = customerId.startsWith('web:')
+      const whereClause = isWebThread
+        ? { relatedOrderId: customerId, channelKey }
+        : { customerId, channelKey }
       const messages = await db.directMessage.findMany({
-        where: { customerId, channelKey },
+        where: whereClause,
         orderBy: { createdAt: 'asc' },
         take: 200,
         include: { customer: { select: { id: true, name: true, phone: true } } },
       })
       void db.directMessage
         .updateMany({
-          where: { customerId, channelKey, sender: 'CUSTOMER', readAt: null },
+          where: { ...whereClause, sender: 'CUSTOMER', readAt: null },
           data: { readAt: new Date() },
         })
         .catch(() => null)
@@ -55,15 +59,31 @@ export async function GET(req: NextRequest) {
     >()
 
     for (const m of recent) {
-      if (!m.customerId) continue
-      const key = `${m.customerId}|${m.channelKey}`
+      const virtualThreadId =
+        !m.customerId && m.relatedOrderId?.startsWith('web:') ? m.relatedOrderId : null
+      const effCustomerId = m.customerId || virtualThreadId
+      if (!effCustomerId) continue
+      const key = `${effCustomerId}|${m.channelKey}`
       const entry = map.get(key)
       if (!entry) {
+        let resolvedCustomer = m.customer ?? {
+          id: effCustomerId,
+          name: 'Khách hàng',
+          phone: null as string | null,
+        }
+        if (virtualThreadId) {
+          const [rawName, rawPhone] = (m.agentName || '').split('|')
+          resolvedCustomer = {
+            id: virtualThreadId,
+            name: rawName?.trim() || 'Khách Website',
+            phone: rawPhone?.trim() || virtualThreadId.slice(4) || null,
+          }
+        }
         map.set(key, {
           key,
-          customerId: m.customerId,
+          customerId: effCustomerId,
           channelKey: m.channelKey,
-          customer: m.customer ?? { id: m.customerId, name: 'Khách hàng', phone: null },
+          customer: resolvedCustomer,
           lastMessage: { content: m.content, createdAt: m.createdAt, sender: m.sender, agentName: m.agentName, isAuto: m.isAuto },
           unread: m.sender === 'CUSTOMER' && !m.readAt ? 1 : 0,
           total: 1,
@@ -114,7 +134,17 @@ export async function POST(req: NextRequest) {
     }
 
     const sender = body.sender === 'CUSTOMER' ? 'CUSTOMER' : 'OPERATOR'
-    const customer = await db.customer.findUnique({ where: { id: body.customerId }, select: { id: true, name: true, phone: true } })
+    const isWebThread = body.customerId.startsWith('web:')
+    const customer = isWebThread
+      ? {
+          id: body.customerId,
+          name: `Khách Website (${body.customerId.slice(4)})`,
+          phone: body.customerId.slice(4) || null,
+        }
+      : await db.customer.findUnique({
+          where: { id: body.customerId },
+          select: { id: true, name: true, phone: true },
+        })
     if (!customer) return NextResponse.json({ error: 'Không tìm thấy khách hàng' }, { status: 404 })
 
     // Ảnh khách gửi → AI đọc ảnh (Vision). Ưu tiên analysis gửi sẵn (kịch bản test), nếu không thì gọi VLM.
@@ -129,7 +159,8 @@ export async function POST(req: NextRequest) {
 
     const message = await db.directMessage.create({
       data: {
-        customerId: body.customerId,
+        customerId: isWebThread ? null : body.customerId,
+        relatedOrderId: isWebThread ? body.customerId : null,
         channelKey: body.channelKey,
         sender,
         content: body.content?.trim() || '[Ảnh khách gửi]',
@@ -142,7 +173,7 @@ export async function POST(req: NextRequest) {
     broadcast('message.new', message)
 
     // Tin nhắn khách → chắt lọc trí nhớ dài hạn (pain point từ lời nhắn/ảnh)
-    if (sender === 'CUSTOMER') {
+    if (sender === 'CUSTOMER' && !isWebThread) {
       const { refreshCustomerMemory } = await import('@/lib/memory-engine')
       refreshCustomerMemory(body.customerId, 'MESSAGE', (body.content || imageAnalysis || '').slice(0, 140)).catch(() => null)
     }

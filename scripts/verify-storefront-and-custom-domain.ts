@@ -1,0 +1,567 @@
+/**
+ * Kiểm thử Toàn diện:
+ * 1. Sửa lỗi Loopback `x-forwarded-for: 127.0.0.1` / `::ffff:127.0.0.1` của Next.js 16 base-server.js
+ *    trên Render Singapore (`OUTBOX_VAULT_PULL_AND_LEASE` -> 200 OK) đồng thời chặn giả mạo `127.0.0.1, 203.0.113.99` (403/401)
+ * 2. API Cửa hàng Công khai (`/api/public/storefront`): đủ 18 sản phẩm Bơ Mộc, bảng giá sỉ chính xác từng đồng,
+ *    thông tin liên hệ, CORS tên miền riêng & ẩn tuyệt đối 100% `costPrice` / secret
+ * 3. Kiến trúc Đa CMS Độc lập & Cấu hình Tên miền Riêng (`/api/storefront-config` + `src/proxy.ts` Host-header rewrite)
+ * 4. Luồng Khách hàng Đặt đơn sỉ/lẻ, Yêu cầu Báo giá Sỉ, Gửi Liên hệ, Tra cứu mã đơn & hiển thị Hộp thư CSKH (`/api/inbox`)
+ *    mà bảo toàn tuyệt đối 24/24 bảng CSDL chuẩn (`AppSetting = 21`, `IntegrationCredential = 14`, `Order = 3`, `Customer = 3`)
+ */
+
+import crypto from 'node:crypto'
+import { NextRequest } from 'next/server'
+import { db } from '../src/lib/db'
+import {
+  hasNonLoopbackForwardedClient,
+  isLoopbackIpOrHost,
+  matchesConfiguredStorefrontDomain,
+  normalizeDomainHostname,
+} from '../src/lib/domain-routing'
+import { invalidateApiCache } from '../src/lib/realtime'
+import {
+  computeWholesaleUnitPrice,
+  getStorefrontConfigForCurrentCms,
+  saveStorefrontConfigForCurrentCms,
+} from '../src/lib/storefront-config'
+import { invalidateInboundSecretsCache } from '../src/lib/webhook-service'
+import { GET as inboxGet } from '../src/app/api/inbox/route'
+import { GET as testGuardGet } from '../src/app/api/ledger/test-guard/route'
+import {
+  GET as publicStorefrontGet,
+  OPTIONS as publicStorefrontOptions,
+  POST as publicStorefrontPost,
+} from '../src/app/api/public/storefront/route'
+import {
+  GET as storefrontConfigGet,
+  PATCH as storefrontConfigPatch,
+} from '../src/app/api/storefront-config/route'
+import { POST as inboundWebhookPost } from '../src/app/api/webhooks/inbound/route'
+import { clearProxyStorefrontDomainCache, proxy } from '../src/proxy'
+
+let passed = 0
+
+function assert(cond: unknown, suite: string, label: string, detail?: string): asserts cond {
+  if (!cond) {
+    throw new Error(`[FAIL][${suite}] ${label}${detail ? ` — ${detail}` : ''}`)
+  }
+  passed += 1
+  console.log(`✅ [PASS #${passed}][${suite}] ${label}`)
+}
+
+async function main() {
+  console.log('=== VERIFY: STOREFRONT, WHOLESALE, MULTI-CMS CUSTOM DOMAIN & RENDER DAEMON LOOPBACK ===')
+
+  // --------------------------------------------------------------------------
+  // SUITE 1: Loopback vs External Proxy Detection & Render Daemon Lease Fix
+  // --------------------------------------------------------------------------
+  console.log('\n--- SUITE 1: Loopback X-Forwarded-For Detection & Render Daemon Lease ---')
+  assert(
+    isLoopbackIpOrHost('127.0.0.1') &&
+      isLoopbackIpOrHost('::1') &&
+      isLoopbackIpOrHost('::ffff:127.0.0.1') &&
+      isLoopbackIpOrHost('127.0.0.1:10000') &&
+      isLoopbackIpOrHost('[::1]:3000') &&
+      !isLoopbackIpOrHost('203.0.113.99'),
+    'S1-LOOPBACK-IP',
+    'Nhận diện chuẩn xác IPv4/IPv6 Loopback (kèm port) vs IP Internet'
+  )
+
+  const loopHeaders = new Headers({
+    host: '127.0.0.1:10000',
+    'x-forwarded-for': '::ffff:127.0.0.1',
+  })
+  const spoofedChainHeaders = new Headers({
+    host: 'openvn-cms-pos-backend.onrender.com',
+    'x-forwarded-for': '127.0.0.1, 203.0.113.55',
+  })
+  const fwdHostHeaders = new Headers({
+    host: '127.0.0.1:10000',
+    'x-forwarded-for': '127.0.0.1',
+    'x-forwarded-host': 'openvn-cms-pos-backend.onrender.com',
+  })
+
+  assert(
+    hasNonLoopbackForwardedClient(loopHeaders) === false &&
+      hasNonLoopbackForwardedClient(spoofedChainHeaders) === true &&
+      hasNonLoopbackForwardedClient(fwdHostHeaders) === true,
+    'S1-XFF-GUARD',
+    'Cho phép Next.js 16 base-server.js loopback (::ffff:127.0.0.1) nhưng chặn chuỗi XFF giả mạo & x-forwarded-host ngoài'
+  )
+
+  const origShopeeCred = await db.integrationCredential.findUnique({ where: { provider: 'SHOPEE' } })
+  const origBridgeSecret = process.env.CMS_INTERNAL_BRIDGE_SECRET
+  const origNodeRole = process.env.SHOPEE_NODE_ROLE
+  const ephemeralSecret = crypto.randomBytes(32).toString('hex')
+  process.env.CMS_INTERNAL_BRIDGE_SECRET = ephemeralSecret
+  process.env.SHOPEE_NODE_ROLE = 'CLOUD_RENDER'
+  invalidateInboundSecretsCache()
+
+  try {
+    // Real Next.js 16 standalone server behavior: sets x-forwarded-for: ::ffff:127.0.0.1
+    const renderLoopbackReq = new NextRequest('http://127.0.0.1:10000/api/webhooks/inbound', {
+      method: 'POST',
+      headers: {
+        host: '127.0.0.1:10000',
+        'x-forwarded-for': '::ffff:127.0.0.1',
+        'Content-Type': 'application/json',
+        Authorization: `Apikey ${ephemeralSecret}`,
+      },
+      body: JSON.stringify({
+        event: 'OUTBOX_VAULT_PULL_AND_LEASE',
+        data: {
+          nodeId: 'cloud-render-loopback-verify',
+          nodeRole: 'CLOUD_RENDER',
+          hostname: 'render-sg-node',
+          action: 'ACQUIRE_OR_RENEW',
+          ttlMs: 60_000,
+          expectedShopId: '197195817',
+        },
+      }),
+    })
+    const renderLoopbackRes = await inboundWebhookPost(renderLoopbackReq)
+    const renderLoopbackJson = (await renderLoopbackRes.json()) as {
+      ok?: boolean
+      leaseGranted?: boolean
+    }
+    assert(
+      renderLoopbackRes.status === 200 &&
+        renderLoopbackJson.ok === true &&
+        renderLoopbackJson.leaseGranted === true,
+      'S1-RENDER-DAEMON-LEASE-OK',
+      'Daemon nội bộ trên Render nhận được Leader Lease (HTTP 200) ngay cả khi Next.js gán x-forwarded-for: ::ffff:127.0.0.1'
+    )
+
+    // Spoofed X-Forwarded-For chain from internet MUST still be blocked 403
+    const spoofedInternetReq = new NextRequest(
+      'https://openvn-cms-pos-backend.onrender.com/api/webhooks/inbound',
+      {
+        method: 'POST',
+        headers: {
+          'x-forwarded-for': '127.0.0.1, 198.51.100.77',
+          'Content-Type': 'application/json',
+          Authorization: `Apikey ${ephemeralSecret}`,
+        },
+        body: JSON.stringify({
+          event: 'OUTBOX_VAULT_PULL_AND_LEASE',
+          data: { nodeId: 'attacker', nodeRole: 'CLOUD_RENDER' },
+        }),
+      }
+    )
+    const spoofedInternetRes = await inboundWebhookPost(spoofedInternetReq)
+    assert(
+      spoofedInternetRes.status === 403,
+      'S1-SPOOFED-XFF-BLOCKED',
+      `Chặn cứng 403 khi chuỗi X-Forwarded-For có hop Internet ngoài (HTTP ${spoofedInternetRes.status})`
+    )
+  } finally {
+    if (origBridgeSecret !== undefined) process.env.CMS_INTERNAL_BRIDGE_SECRET = origBridgeSecret
+    else delete process.env.CMS_INTERNAL_BRIDGE_SECRET
+    if (origNodeRole !== undefined) process.env.SHOPEE_NODE_ROLE = origNodeRole
+    else delete process.env.SHOPEE_NODE_ROLE
+    invalidateInboundSecretsCache()
+    if (origShopeeCred) {
+      await db.integrationCredential.update({
+        where: { provider: 'SHOPEE' },
+        data: { config: origShopeeCred.config },
+      })
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // SUITE 2: Domain Normalization, Multi-CMS Independence & Custom Domain Config
+  // --------------------------------------------------------------------------
+  console.log('\n--- SUITE 2: Multi-CMS Custom Domain Configuration & Proxy Routing ---')
+  assert(
+    normalizeDomainHostname('https://www.BoMocDecor.vn/store?ref=1', { stripWww: true }) ===
+      'bomocdecor.vn' &&
+      normalizeDomainHostname('invalid domain space', { stripWww: true }) === '' &&
+      matchesConfiguredStorefrontDomain('www.bomocdecor.vn', ['bomocdecor.vn']) === true &&
+      matchesConfiguredStorefrontDomain('openvn-cms-pos-backend.onrender.com', ['bomocdecor.vn']) ===
+        false,
+    'S2-DOMAIN-NORMALIZE',
+    'Chuẩn hóa & so khớp tên miền riêng hỗ trợ cả apex lẫn www, loại trừ *.onrender.com & *.github.io'
+  )
+
+  const origWebCred = await db.integrationCredential.findUnique({ where: { provider: 'WEBSITE' } })
+  const origWebChannel = await db.channel.findUnique({ where: { key: 'WEBSITE' } })
+  const origStorefrontUrlSetting = await db.appSetting.findUnique({
+    where: { key: 'shop_storefront_url' },
+  })
+  const createdLedgerIds: string[] = []
+  const createdMsgIds: string[] = []
+  const createdActivityIds: string[] = []
+
+  try {
+    // Reject invalid domain syntax
+    const badPatchReq = new NextRequest('http://localhost:3010/api/storefront-config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customDomain: 'not a valid domain!!' }),
+    })
+    const badPatchRes = await storefrontConfigPatch(badPatchReq)
+    assert(badPatchRes.status === 400, 'S2-REJECT-BAD-DOMAIN', 'Từ chối tên miền sai cú pháp (HTTP 400)')
+
+    // Save custom domain for CMS B (simulating independent CMS #2) then restore to bomocdecor.vn
+    const patchCms2Req = new NextRequest('http://localhost:3010/api/storefront-config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customDomain: 'https://www.annhienthach.vn/',
+        cmsBackendOrigin: 'https://annhien-cms.onrender.com',
+      }),
+    })
+    const patchCms2Res = await storefrontConfigPatch(patchCms2Req)
+    const patchCms2Json = (await patchCms2Res.json()) as {
+      ok?: boolean
+      config?: { customDomain?: string; cmsBackendOrigin?: string }
+    }
+    assert(
+      patchCms2Res.status === 200 &&
+        patchCms2Json.config?.customDomain === 'annhienthach.vn' &&
+        patchCms2Json.config?.cmsBackendOrigin === 'https://annhien-cms.onrender.com',
+      'S2-INDEPENDENT-CMS-DOMAIN',
+      'Mỗi CMS lưu độc lập tên miền riêng & cổng Backend API riêng trong CSDL của chính nó'
+    )
+
+    // Restore / set canonical bomocdecor.vn config
+    await saveStorefrontConfigForCurrentCms({
+      enabled: true,
+      customDomain: 'bomocdecor.vn',
+      cmsBackendOrigin: 'https://openvn-cms-pos-backend.onrender.com',
+    })
+
+    const cfgGetRes = await storefrontConfigGet(
+      new NextRequest('http://localhost:3010/api/storefront-config?verifyDns=1')
+    )
+    const cfgGetJson = (await cfgGetRes.json()) as {
+      ok?: boolean
+      cmsInstanceId?: string
+      config?: { customDomain?: string }
+    }
+    assert(
+      cfgGetRes.status === 200 &&
+        Boolean(cfgGetJson.cmsInstanceId?.startsWith('cms_')) &&
+        cfgGetJson.config?.customDomain === 'bomocdecor.vn',
+      'S2-BOMOCDECOR-CONFIG-ACTIVE',
+      `CMS hiện tại gắn thành công tên miền riêng bomocdecor.vn (${cfgGetJson.cmsInstanceId})`
+    )
+
+    // Test Proxy Host-aware routing under CMS_REQUIRE_AUTH=true
+    const origRequireAuth = process.env.CMS_REQUIRE_AUTH
+    const origEnvDomains = process.env.STOREFRONT_CUSTOM_DOMAINS
+    process.env.CMS_REQUIRE_AUTH = 'true'
+    process.env.STOREFRONT_CUSTOM_DOMAINS = 'bomocdecor.vn'
+    clearProxyStorefrontDomainCache()
+    try {
+      const customDomainRootReq = new NextRequest('https://bomocdecor.vn/', {
+        method: 'GET',
+        headers: { host: 'bomocdecor.vn' },
+      })
+      const customDomainRootRes = await proxy(customDomainRootReq, {
+        waitUntil: () => {},
+      } as never)
+      assert(
+        customDomainRootRes.status === 200 &&
+          customDomainRootRes.headers.get('x-middleware-rewrite')?.endsWith('/store'),
+        'S2-PROXY-CUSTOM-DOMAIN-REWRITE',
+        'Truy cập https://bomocdecor.vn/ tự động rewrite về /store công khai mà không bắt đăng nhập CMS'
+      )
+
+      const publicStorePathReq = new NextRequest(
+        'https://openvn-cms-pos-backend.onrender.com/store',
+        { method: 'GET' }
+      )
+      const publicStorePathRes = await proxy(publicStorePathReq, {
+        waitUntil: () => {},
+      } as never)
+      assert(
+        publicStorePathRes.status === 200 && !publicStorePathRes.headers.get('location'),
+        'S2-PUBLIC-STORE-PATH-OPEN',
+        'Đường dẫn /store mở công khai cho khách vãng lai ngay cả khi CMS_REQUIRE_AUTH=true'
+      )
+
+      const adminRootReq = new NextRequest('https://openvn-cms-pos-backend.onrender.com/', {
+        method: 'GET',
+        headers: { host: 'openvn-cms-pos-backend.onrender.com' },
+      })
+      const adminRootRes = await proxy(adminRootReq, { waitUntil: () => {} } as never)
+      assert(
+        adminRootRes.status === 307 &&
+          Boolean(adminRootRes.headers.get('location')?.includes('/login')),
+        'S2-ADMIN-ROOT-STILL-PROTECTED',
+        'Trang quản trị gốc trên *.onrender.com vẫn bảo vệ đăng nhập nhân sự nghiêm ngặt (307 -> /login)'
+      )
+    } finally {
+      if (origRequireAuth !== undefined) process.env.CMS_REQUIRE_AUTH = origRequireAuth
+      else delete process.env.CMS_REQUIRE_AUTH
+      if (origEnvDomains !== undefined) process.env.STOREFRONT_CUSTOM_DOMAINS = origEnvDomains
+      else delete process.env.STOREFRONT_CUSTOM_DOMAINS
+      clearProxyStorefrontDomainCache()
+    }
+
+    // ------------------------------------------------------------------------
+    // SUITE 3: Public Storefront Catalog, Wholesale Math & Zero CostPrice Leak
+    // ------------------------------------------------------------------------
+    console.log('\n--- SUITE 3: Public Storefront Catalog, Wholesale Tiers & Zero CostPrice Leak ---')
+    invalidateApiCache('storefront:')
+    const corsOptRes = await publicStorefrontOptions(
+      new NextRequest('https://openvn-cms-pos-backend.onrender.com/api/public/storefront', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://bomocdecor.vn' },
+      })
+    )
+    assert(
+      corsOptRes.status === 204 &&
+        corsOptRes.headers.get('access-control-allow-origin') === 'https://bomocdecor.vn',
+      'S3-CORS-PREFLIGHT',
+      'CORS Preflight cho phép https://bomocdecor.vn gọi trực tiếp sang CMS Backend'
+    )
+
+    const sfRes = await publicStorefrontGet(
+      new NextRequest('http://localhost:3010/api/public/storefront', {
+        headers: { Origin: 'https://bomocdecor.vn' },
+      })
+    )
+    const sfJson = (await sfRes.json()) as {
+      ok?: boolean
+      products?: Array<{
+        id: string
+        sku: string
+        retailPrice: number
+        wholesalePrices: Array<{ minQty: number; discountPercent: number; unitPrice: number }>
+      }>
+      config?: { wholesaleTiers?: Array<{ minQty: number }> }
+    }
+    const rawSfText = JSON.stringify(sfJson)
+    assert(
+      sfRes.status === 200 &&
+        sfJson.ok === true &&
+        Array.isArray(sfJson.products) &&
+        sfJson.products.length === 18 &&
+        !rawSfText.includes('costPrice') &&
+        !rawSfText.includes('webhookSecret') &&
+        !rawSfText.includes('storefrontApiKey') &&
+        !rawSfText.includes('__vault_v1'),
+      'S3-18-PRODUCTS-ZERO-SECRET',
+      `API công khai trả đủ ${sfJson.products?.length}/18 sản phẩm Bơ Mộc, ẩn tuyệt đối 100% costPrice & secret`
+    )
+
+    const sampleProd = sfJson.products!.find((p) => p.sku === 'BM-TEA-10') || sfJson.products![0]
+    assert(
+      sampleProd.wholesalePrices.length === 3 &&
+        sampleProd.wholesalePrices[0].unitPrice ===
+          computeWholesaleUnitPrice(sampleProd.retailPrice, 15) &&
+        sampleProd.wholesalePrices[1].unitPrice ===
+          computeWholesaleUnitPrice(sampleProd.retailPrice, 25) &&
+        sampleProd.wholesalePrices[2].unitPrice ===
+          computeWholesaleUnitPrice(sampleProd.retailPrice, 35),
+      'S3-WHOLESALE-MATH',
+      `Tính toán chính xác 3 bậc giá sỉ cho ${sampleProd.sku} (${sampleProd.retailPrice} -> ${sampleProd.wholesalePrices.map((w) => w.unitPrice).join(' / ')})`
+    )
+
+    // ------------------------------------------------------------------------
+    // SUITE 4: Wholesale Quote, Contact, Web Order, Lookup & Inbox Integration
+    // ------------------------------------------------------------------------
+    console.log('\n--- SUITE 4: Wholesale Inquiry, Contact, Web Order & Order Lookup ---')
+    const orderPostRes = await publicStorefrontPost(
+      new NextRequest('http://localhost:3010/api/public/storefront', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '113.161.72.10',
+        },
+        body: JSON.stringify({
+          action: 'SUBMIT_WEB_ORDER',
+          customerName: 'Chị Lan Hương',
+          customerPhone: '0938123987',
+          address: '88 Nguyễn Huệ, Quận 1, TP.HCM',
+          note: 'Đơn đặt sỉ 10 sản phẩm từ Website bomocdecor.vn',
+          paymentMethod: 'COD',
+          items: [{ productId: sampleProd.id, sku: sampleProd.sku, quantity: 10 }],
+        }),
+      })
+    )
+    const orderPostJson = (await orderPostRes.json()) as {
+      ok?: boolean
+      refCode?: string
+      totalQty?: number
+      wholesaleSaved?: number
+      grandTotal?: number
+    }
+    assert(
+      orderPostRes.status === 200 &&
+        orderPostJson.ok === true &&
+        Boolean(orderPostJson.refCode?.startsWith('BM-WEB-')) &&
+        orderPostJson.totalQty === 10 &&
+        (orderPostJson.wholesaleSaved ?? 0) > 0,
+      'S4-WEB-WHOLESALE-ORDER',
+      `Đặt 10 SP trên Web tự kích hoạt chiết khấu sỉ (${orderPostJson.refCode}, tiết kiệm ${orderPostJson.wholesaleSaved}đ)`
+    )
+
+    const wsPostRes = await publicStorefrontPost(
+      new NextRequest('http://localhost:3010/api/public/storefront', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '113.161.72.11',
+        },
+        body: JSON.stringify({
+          action: 'SUBMIT_WHOLESALE_INQUIRY',
+          customerName: 'Anh Minh Quân',
+          companyOrShopName: 'An Yên Spa',
+          customerPhone: '0938123988',
+          estimatedQty: 50,
+          note: 'Xin báo giá sỉ 50 hũ thạch cao Búp Sen',
+        }),
+      })
+    )
+    const wsPostJson = (await wsPostRes.json()) as { ok?: boolean; refCode?: string }
+    assert(
+      wsPostRes.status === 200 && Boolean(wsPostJson.refCode?.startsWith('BM-SI-')),
+      'S4-WHOLESALE-INQUIRY',
+      `Tiếp nhận yêu cầu báo giá sỉ 50 SP (${wsPostJson.refCode})`
+    )
+
+    // Lookup with wrong phone -> 404; right phone -> 200
+    const wrongLookupRes = await publicStorefrontGet(
+      new NextRequest(
+        `http://localhost:3010/api/public/storefront?lookupCode=${orderPostJson.refCode}&phone=0000`
+      )
+    )
+    const rightLookupRes = await publicStorefrontGet(
+      new NextRequest(
+        `http://localhost:3010/api/public/storefront?lookupCode=${orderPostJson.refCode}&phone=3987`
+      )
+    )
+    const rightLookupJson = (await rightLookupRes.json()) as { ok?: boolean; total?: number }
+    assert(
+      wrongLookupRes.status === 404 &&
+        rightLookupRes.status === 200 &&
+        rightLookupJson.ok === true &&
+        rightLookupJson.total === orderPostJson.grandTotal,
+      'S4-ORDER-LOOKUP-PRIVACY',
+      'Tra cứu đơn hàng xác thực đúng 4 số cuối SĐT & chặn SĐT sai (HTTP 404)'
+    )
+
+    // Verify CMS Inbox lists the virtual Website thread without touching Customer baseline count!
+    invalidateApiCache('inbox:')
+    const inboxRes = await inboxGet(new NextRequest('http://localhost:3010/api/inbox'))
+    const inboxJson = (await inboxRes.json()) as {
+      conversations?: Array<{ customerId: string; channelKey: string }>
+    }
+    assert(
+      Array.isArray(inboxJson.conversations) &&
+        inboxJson.conversations.some(
+          (c) => c.customerId === 'web:0938123987' && c.channelKey === 'WEBSITE'
+        ),
+      'S4-CMS-INBOX-VISIBILITY',
+      'Đơn đặt & tin nhắn từ Website hiển thị ngay trong Hộp thư CSKH CMS (/api/inbox)'
+    )
+
+    // Verify 24-table baseline counts were NOT altered even BEFORE cleanup!
+    const [appSettingCnt, credCnt, orderCnt, custCnt] = await Promise.all([
+      db.appSetting.count(),
+      db.integrationCredential.count(),
+      db.order.count(),
+      db.customer.count(),
+    ])
+    assert(
+      appSettingCnt === 21 && credCnt === 14 && orderCnt === 3 && custCnt === 3,
+      'S4-BASELINE-COUNTS-PRESERVED',
+      `Bảo toàn 100% số dòng chuẩn: AppSetting=${appSettingCnt}/21, IntegrationCredential=${credCnt}/14, Order=${orderCnt}/3, Customer=${custCnt}/3`
+    )
+
+    // Collect test operational rows for clean teardown
+    const [msgs, acts, ledgers] = await Promise.all([
+      db.directMessage.findMany({
+        where: { relatedOrderId: { in: ['web:0938123987', 'web:0938123988'] } },
+        select: { id: true },
+      }),
+      db.agentActivity.findMany({
+        where: {
+          targetLabel: {
+            in: [orderPostJson.refCode || '', wsPostJson.refCode || ''].filter(Boolean),
+          },
+        },
+        select: { id: true },
+      }),
+      db.ledgerEntry.findMany({
+        where: {
+          OR: [
+            {
+              entityCode: {
+                in: [orderPostJson.refCode || '', wsPostJson.refCode || ''].filter(Boolean),
+              },
+            },
+            {
+              action: 'STOREFRONT_CONFIG_UPDATED',
+              createdAt: { gte: new Date(Date.now() - 30_000) },
+            },
+          ],
+        },
+        select: { id: true },
+      }),
+    ])
+    createdMsgIds.push(...msgs.map((m) => m.id))
+    createdActivityIds.push(...acts.map((a) => a.id))
+    createdLedgerIds.push(...ledgers.map((l) => l.id))
+  } finally {
+    if (createdMsgIds.length > 0) {
+      await db.directMessage.deleteMany({ where: { id: { in: createdMsgIds } } })
+    }
+    if (createdActivityIds.length > 0) {
+      await db.agentActivity.deleteMany({ where: { id: { in: createdActivityIds } } })
+    }
+    if (createdLedgerIds.length > 0) {
+      await db.ledgerEntry.deleteMany({ where: { id: { in: createdLedgerIds } } })
+    }
+    if (origWebCred) {
+      await db.integrationCredential.update({
+        where: { provider: 'WEBSITE' },
+        data: {
+          name: origWebCred.name,
+          config: origWebCred.config,
+          active: origWebCred.active,
+        },
+      })
+    }
+    if (origWebChannel) {
+      await db.channel.update({
+        where: { key: 'WEBSITE' },
+        data: { connected: origWebChannel.connected },
+      })
+    }
+    if (origStorefrontUrlSetting) {
+      await db.appSetting.update({
+        where: { key: 'shop_storefront_url' },
+        data: { value: origStorefrontUrlSetting.value },
+      })
+    }
+    invalidateApiCache()
+  }
+
+  const currentSf = await getStorefrontConfigForCurrentCms()
+  assert(
+    Boolean(currentSf.config.customDomain),
+    'S5-FINAL-STATE',
+    `Trạng thái cấu hình Website hiện tại ổn định (domain=${currentSf.config.customDomain})`
+  )
+
+  const guardRes = await testGuardGet()
+  const guardJson = (await guardRes.json()) as { clean?: boolean; leftoverCount?: number }
+  assert(
+    guardJson.clean === true && guardJson.leftoverCount === 0,
+    'S5-TEST-GUARD-CLEAN',
+    `CSDL sạch 100% sau kiểm thử (leftoverCount=${guardJson.leftoverCount})`
+  )
+
+  await db.$disconnect()
+  console.log(`\n🎉 ALL ${passed} STOREFRONT, WHOLESALE & CUSTOM DOMAIN ASSERTIONS PASSED!`)
+}
+
+main().catch(async (err) => {
+  console.error(err)
+  await db.$disconnect().catch(() => null)
+  process.exit(1)
+})

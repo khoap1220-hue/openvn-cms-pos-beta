@@ -74,6 +74,7 @@ import { cn } from '@/lib/utils'
 import { SystemCatalogSettings, type CatalogSettingsSubTab } from '@/components/cms/views/system-catalog-settings'
 import { InventoryPolicyCard } from '@/components/cms/inventory-policy-card'
 import { PwaSettingsCard } from '@/components/cms/pwa-app-center'
+import { StorefrontDomainCard } from '@/components/cms/storefront-domain-card'
 import {
   DEFAULT_SHOP_PROFILE,
   SHOP_PROFILE_PRESETS,
@@ -1087,6 +1088,9 @@ export function SystemView({
               )}
             </CardContent>
           </Card>
+
+          {/* Cấu hình Website Khách hàng, Bảng Giá Sỉ & Tên miền Riêng (Độc lập từng CMS) */}
+          <StorefrontDomainCard />
 
           {/* Thông tin đơn vị */}
           <Card className="border-border/70 shadow-sm">

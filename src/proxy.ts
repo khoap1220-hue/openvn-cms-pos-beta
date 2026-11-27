@@ -1,5 +1,11 @@
 import { type NextFetchEvent, NextRequest, NextResponse } from 'next/server'
 import {
+  hasNonLoopbackForwardedClient,
+  isLoopbackIpOrHost,
+  matchesConfiguredStorefrontDomain,
+  normalizeDomainHostname,
+} from '@/lib/domain-routing'
+import {
   getApiCacheRawJson,
   getMaintenanceMemoryState,
   resolveL1CacheKey,
@@ -26,8 +32,10 @@ import {
 
 const PUBLIC_PREFIXES = [
   '/login',
+  '/store',
   '/blog',
   '/pos/scanner',
+  '/api/public/',
   '/api/health',
   '/api/auth',
   '/api/webhooks/',
@@ -87,6 +95,8 @@ function isTrustedShopeeCloudBridgeOrigin(originHeader: string | null): boolean 
     return true
   }
   return (
+    origin === 'https://bomocdecor.vn' ||
+    origin === 'https://www.bomocdecor.vn' ||
     origin === 'https://khoaphan.dev' ||
     origin === 'https://www.khoaphan.dev' ||
     origin === 'https://khoap1220-hue.github.io' ||
@@ -251,6 +261,80 @@ function shouldAutoAuditApiMutation(pathname: string, method: string): boolean {
   return true
 }
 
+let proxyStorefrontDomainCache: {
+  checkedAt: number
+  domains: string[]
+  routingMode: string
+} | null = null
+
+export function clearProxyStorefrontDomainCache(): void {
+  proxyStorefrontDomainCache = null
+}
+
+async function shouldRewriteRootToCustomDomainStorefront(req: NextRequest): Promise<boolean> {
+  if (req.nextUrl.searchParams.get('cms') === '1' || req.nextUrl.searchParams.has('view')) {
+    return false
+  }
+  const rawHost =
+    req.headers.get('x-storefront-domain')?.trim() ||
+    req.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    req.headers.get('host')?.trim() ||
+    ''
+  const normHost = normalizeDomainHostname(rawHost, { stripWww: false })
+  if (!normHost || isLoopbackIpOrHost(normHost)) return false
+  if (normHost.endsWith('.onrender.com') || normHost.endsWith('.github.io')) return false
+  if (normHost === 'khoaphan.dev' || normHost === 'www.khoaphan.dev') return false
+
+  const envDomains = (process.env.STOREFRONT_CUSTOM_DOMAINS || '')
+    .split(/[,;\s]+/)
+    .map((d) => normalizeDomainHostname(d, { stripWww: false }))
+    .filter(Boolean)
+  if (envDomains.length > 0 && matchesConfiguredStorefrontDomain(normHost, envDomains)) {
+    return true
+  }
+
+  const now = Date.now()
+  if (!proxyStorefrontDomainCache || now - proxyStorefrontDomainCache.checkedAt > 30_000) {
+    try {
+      const sfUrl = buildInternalLoopbackUrl(req, '/api/public/storefront')
+      const sfRes = await fetch(sfUrl, { cache: 'no-store' })
+      if (sfRes.ok) {
+        const sfData = (await sfRes.json()) as {
+          config?: {
+            enabled?: boolean
+            customDomain?: string
+            additionalDomains?: string[]
+            domainRoutingMode?: string
+          }
+        }
+        const cfg = sfData.config
+        const domains =
+          cfg?.enabled === false
+            ? []
+            : [cfg?.customDomain || '', ...(cfg?.additionalDomains || [])].filter(Boolean)
+        proxyStorefrontDomainCache = {
+          checkedAt: now,
+          domains,
+          routingMode: cfg?.domainRoutingMode || 'STOREFRONT_ON_CUSTOM_DOMAIN',
+        }
+      }
+    } catch {
+      // Bỏ qua nếu đang khởi động máy chủ nội bộ
+    }
+  }
+
+  if (
+    proxyStorefrontDomainCache &&
+    proxyStorefrontDomainCache.routingMode === 'STOREFRONT_ON_CUSTOM_DOMAIN'
+  ) {
+    return matchesConfiguredStorefrontDomain(normHost, proxyStorefrontDomainCache.domains, [
+      'khoaphan.dev',
+      'www.khoaphan.dev',
+    ])
+  }
+  return false
+}
+
 export async function proxy(req: NextRequest, event: NextFetchEvent) {
   const { pathname } = req.nextUrl
 
@@ -261,6 +345,24 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     (pathname.startsWith('/api/auth') || pathname.startsWith('/api/iam'))
   ) {
     sessionCache.clear()
+  }
+
+  if (
+    req.method !== 'GET' &&
+    req.method !== 'HEAD' &&
+    (pathname.startsWith('/api/storefront-config') ||
+      pathname.startsWith('/api/settings') ||
+      pathname.startsWith('/api/integrations'))
+  ) {
+    proxyStorefrontDomainCache = null
+  }
+
+  // Định tuyến Tên miền Riêng (Custom Domain) cho từng CMS độc lập:
+  // Khách truy cập trang chủ `/` qua tên miền riêng (VD: bomocdecor.vn) sẽ xem ngay Website Khách hàng (/store)
+  if (pathname === '/' && req.method === 'GET') {
+    if (await shouldRewriteRootToCustomDomainStorefront(req)) {
+      return NextResponse.rewrite(new URL('/store', req.url))
+    }
   }
 
   // L1 Pre-Serialized Cache Fast-Path cho GET /api/auth (< 2ms)
@@ -445,8 +547,8 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
       return res
     }
 
-    // 3A. Kiểm tra quyền RBAC đối với trang Quầy POS độc lập (/pos, /store)
-    if ((pathname === '/pos' || pathname.startsWith('/store')) && !canAccessView(livePermissions, 'pos')) {
+    // 3A. Kiểm tra quyền RBAC đối với trang Quầy POS độc lập (/pos)
+    if (pathname === '/pos' && !canAccessView(livePermissions, 'pos')) {
       event.waitUntil(
         emitInternalBehaviorLog(req, {
           userId: claims.uid === 'admin' ? null : claims.uid,
@@ -667,7 +769,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
       if (
         isCrossOrigin ||
         isProxyCloudRenderRuntime() ||
-        Boolean(req.headers.get('x-forwarded-for')?.trim())
+        hasNonLoopbackForwardedClient(req.headers)
       ) {
         openHeaders.set('x-unauthenticated-public-bridge', '1')
       }

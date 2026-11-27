@@ -55,7 +55,7 @@ export const SHOP_PROFILE_PRESETS: ShopProfilePreset[] = [
         'Tổ hoàn thiện & đóng gói',
       ],
       defaultWarehouseLabel: 'Kho Trung Tâm Bơ Mộc',
-      storefrontUrl: '/store',
+      storefrontUrl: 'https://bomocdecor.vn',
     },
   },
   {

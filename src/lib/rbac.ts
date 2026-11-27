@@ -440,6 +440,7 @@ export function resolveApiRoutePermission(
   // Các endpoint xác thực, tự đổi mật khẩu cá nhân, beacon ghi nhận hành vi UI, webhook & mã vạch
   if (
     pathname === '/api' ||
+    pathname.startsWith('/api/public/') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/webhooks/') ||
     pathname.startsWith('/api/barcode') ||
@@ -493,6 +494,17 @@ export function resolveApiRoutePermission(
       anyOf: [{ domain: 'system_iam', level: 'FULL' }],
       module: 'system',
       description: 'Sao lưu Database, Bảo trì nâng cấp & Khởi tạo Go-Live hệ thống',
+    }
+  }
+  if (pathname.startsWith('/api/storefront-config')) {
+    return {
+      anyOf: [
+        { domain: 'system_iam', level: isRead ? 'READ' : writeLevel },
+        { domain: 'crm_marketing', level: isRead ? 'READ' : writeLevel },
+        { domain: 'catalog', level: isRead ? 'READ' : writeLevel },
+      ],
+      module: 'system',
+      description: 'Cấu hình Website Khách hàng & Tên miền riêng',
     }
   }
   if (

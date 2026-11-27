@@ -28,6 +28,7 @@ import {
 } from '@/lib/inventory-policy'
 import {
   acquireOrRenewShopeeLeaderLease,
+  hasNonLoopbackForwardedClient,
   isCloudRenderRuntime,
   markVaultSessionExpiredInMeta,
   readDecryptedShopeeSessionFromVault,
@@ -280,7 +281,7 @@ export async function OPTIONS() {
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text()
-    const hasForwardedFor = Boolean(req.headers.get('x-forwarded-for')?.trim())
+    const hasForwardedFor = hasNonLoopbackForwardedClient(req.headers)
     const verified = await verifyInboundWebhook(
       rawBody,
       req.headers.get('x-signature'),

@@ -12,6 +12,7 @@ import {
   generateShopeeExtensionFiles,
 } from '@/lib/shopee-extension-bundle'
 import {
+  hasNonLoopbackForwardedClient,
   isCloudRenderRuntime,
   isTrustedShopeeCloudBridgeOrigin,
   markVaultSessionExpiredInMeta,
@@ -589,7 +590,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const hasForwardedFor = Boolean(req.headers.get('x-forwarded-for')?.trim())
+    const hasForwardedFor = hasNonLoopbackForwardedClient(req.headers)
     const isAuthenticatedCmsCaller = req.headers.get('x-cms-authenticated-caller') === '1'
     const isRemoteOrCloudRequest = isCloudRenderRuntime() || hasForwardedFor
     const requiredPasscode = process.env.SHOPEE_CLOUD_SYNC_PASSCODE?.trim()
