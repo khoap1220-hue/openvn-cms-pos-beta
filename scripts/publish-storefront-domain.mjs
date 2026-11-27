@@ -507,41 +507,236 @@ async function buildCmsStorefrontSnapshot() {
   }
 }
 
-function formatHeroShortLabelMjs(cleanTitleOrName) {
+const SVG_ICON_FLAME =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>'
+const SVG_ICON_SPARKLES =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>'
+const SVG_ICON_BADGE_PCT =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><path d="M9 9h.01"/><path d="M15 15h.01"/></svg>'
+const SVG_ICON_TRUCK =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>'
+
+function formatHeroShortLabelMjs(cleanTitleOrName, maxChars = 26) {
+  const limit = Math.max(12, Math.min(48, Math.floor(Number(maxChars) || 26)))
   const raw = String(cleanTitleOrName || '')
     .split('— Phân loại:')[0]
     .replace(/\s*\([^)]*\)\s*$/g, '')
     .trim()
-  if (!raw) return 'Sản phẩm thủ công'
-  const firstPart = raw.split(/\s+[-–—]\s+/)[0]?.trim() || raw
+  if (!raw) return 'Sản phẩm tiêu biểu'
+  const firstPart = raw.split(/\s+[-–—|/]\s+|:\s+/)[0]?.trim() || raw
   const base = firstPart.length >= 6 ? firstPart : raw
-  if (base.length <= 26) return base
-  const stopRx = /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi)$/i
+  if (base.length <= limit) return base
+  const stopRx = /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi|dùng|phối)$/i
+  const danglingRx = /^(nắp|thạch|xi|màu|size|cỡ|dùng|đựng|cho|kèm|và|với|tặng|loại|mẫu|bộ|set)$/i
   const kept = []
-  for (const w of base.split(/\s+/)) {
+  for (const w of base.split(/\s+/).filter(Boolean)) {
     const cw = w.replace(/[,.;:!?]+$/g, '')
-    if (kept.join(' ').length >= 14 && stopRx.test(cw)) break
+    if (!cw) continue
+    const curLen = kept.join(' ').length
+    if (curLen >= 14 && stopRx.test(cw)) break
+    const nextLen = curLen === 0 ? cw.length : curLen + 1 + cw.length
+    if (kept.length >= 2 && nextLen > limit) break
     kept.push(cw)
-    if (kept.join(' ').length >= 26) break
+    if (nextLen >= limit) break
   }
-  return kept.length >= 2 ? kept.join(' ') : base.slice(0, 26).trim()
+  while (kept.length > 2 && danglingRx.test(kept[kept.length - 1])) {
+    kept.pop()
+  }
+  return kept.length >= 2 ? kept.join(' ') : base.slice(0, limit).trim()
 }
 
-function formatWholesaleSummaryMjs(tiers, hasOemNote) {
+function formatWholesaleSummaryMjs(tiers, oemCustomNote) {
+  const oemText = typeof oemCustomNote === 'string' ? oemCustomNote.trim() : ''
+  const hasOem = typeof oemCustomNote === 'boolean' ? oemCustomNote : oemText.length > 0
+  const mentionsGiftBox =
+    typeof oemCustomNote === 'boolean'
+      ? oemCustomNote
+      : /hộp quà|khắc|in logo|oem/i.test(oemText)
+  const oemSuffix = !hasOem
+    ? '.'
+    : mentionsGiftBox
+      ? ' + Khắc/in hộp quà OEM.'
+      : ' + Hỗ trợ gia công theo yêu cầu.'
   if (!Array.isArray(tiers) || tiers.length === 0) {
-    return hasOemNote
-      ? 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng + Hỗ trợ gia công hộp quà OEM.'
-      : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ tại xưởng.'
+    return hasOem
+      ? `Chiết khấu trực tiếp theo mốc số lượng sỉ${oemSuffix}`
+      : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ.'
   }
   const sorted = [...tiers]
     .filter((t) => Number(t?.minQty) > 0 && Number(t?.discountPercent) > 0)
     .sort((a, b) => a.minQty - b.minQty)
     .slice(0, 4)
-  if (!sorted.length) return 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng.'
+  if (!sorted.length) return 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ.'
   const parts = sorted.map(
     (t) => `Từ ${Math.floor(t.minQty)} SP giảm ${Math.round(t.discountPercent * 10) / 10}%`
   )
-  return `${parts.join(' · ')}${hasOemNote ? ' + Khắc/in hộp quà OEM.' : '.'}`
+  return `${parts.join(' · ')}${oemSuffix}`
+}
+
+function resolveHeroCopyMjs(ctx) {
+  const dom = String(ctx.customDomain || '').trim().toLowerCase()
+  const corpus = [
+    ctx.brandName || '',
+    ctx.heroBadge || '',
+    ctx.heroTitle || '',
+    ctx.heroSubtitle || '',
+    ...(ctx.sampleTexts || []).slice(0, 6),
+  ]
+    .join(' ')
+    .toLowerCase()
+  const isCandleAtelier =
+    dom.startsWith('bomoc') || /nến\s*bơ|sáp\s*bơ|thạch\s*cao|bơ\s*mộc|tealight/i.test(corpus)
+  const returnDays =
+    typeof ctx.returnDays === 'number' && Number.isFinite(ctx.returnDays)
+      ? Math.max(0, Math.floor(ctx.returnDays))
+      : 7
+  const brandClean = String(ctx.brandName || 'Cửa hàng Chính hãng').trim() || 'Cửa hàng Chính hãng'
+  const rawWorkshop = String(ctx.workshopName || '').trim()
+  const hasCustomWorkshop =
+    Boolean(rawWorkshop) &&
+    !/xưởng đúc thủ công|bơ mộc/i.test(rawWorkshop) &&
+    rawWorkshop.toLowerCase() !== brandClean.toLowerCase()
+
+  const highlight3 = ctx.isStorefrontClosed
+    ? 'Hỗ trợ tra cứu đơn & CSKH trực tuyến'
+    : ctx.isWholesaleAllowed
+      ? `Sỉ gộp mẫu tự do từ ${Math.max(1, Math.floor(ctx.minWholesaleQty || 10))} SP`
+      : `Freeship đơn từ ${ctx.freeShipFormatted}`
+
+  const rawAnnounce = String(ctx.announcementBar || '').trim()
+  const isDefaultWsAnnounce =
+    !rawAnnounce ||
+    (rawAnnounce.startsWith('Miễn phí vận chuyển toàn quốc đơn lẻ từ 500.000') &&
+      rawAnnounce.includes('Chiết khấu Giá Sỉ'))
+  let effectiveAnnouncementBar = rawAnnounce
+  if (ctx.isStorefrontClosed && isDefaultWsAnnounce) {
+    effectiveAnnouncementBar = `Thông báo: ${brandClean} hiện tạm ngưng nhận đơn trực tuyến để cập nhật danh mục · Hỗ trợ tra cứu đơn đã đặt & tư vấn trực tiếp.`
+  } else if (!ctx.isWholesaleAllowed && isDefaultWsAnnounce) {
+    effectiveAnnouncementBar =
+      returnDays > 0
+        ? `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Kiểm hàng & đổi mới miễn phí trong ${returnDays} ngày`
+        : `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Đồng kiểm sản phẩm trước khi thanh toán`
+  } else if (!effectiveAnnouncementBar) {
+    effectiveAnnouncementBar = `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Chiết khấu Giá Sỉ từ ${Math.max(1, Math.floor(ctx.minWholesaleQty || 10))} sản phẩm`
+  }
+
+  const totalCount = Math.max(0, Math.floor(Number(ctx.totalProductsCount) || 0))
+  if (isCandleAtelier) {
+    return {
+      isCandleAtelier: true,
+      effectiveAnnouncementBar,
+      highlight1: '100% Sáp bơ thực vật không khói',
+      highlight2: 'Cốt thạch cao khoáng kháng dầu',
+      highlight3,
+      showcaseHeading: 'Tác phẩm tiêu biểu tại xưởng',
+      showcaseActionLabel: `Xem trọn bộ ${totalCount} mẫu →`,
+      craftIcon: 'FLAME',
+      craftPromiseTitle: 'Đúc Thủ Công & Sáp Bơ Thực Vật Thuần Chay',
+      craftPromiseDesc:
+        'Không khói đen, an toàn cho phòng thiền, bàn trà, spa; bề mặt thạch cao kháng dầu mịn đẹp.',
+      wsPromiseTitle: ctx.isWholesaleAllowed
+        ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
+        : 'Ưu Đãi Vận Chuyển Toàn Quốc',
+      safePromiseTitle:
+        returnDays > 0
+          ? 'Đóng Gói Chống Sốc — Bảo Hành Bể Vỡ 1 Đổi 1'
+          : 'Đóng Gói Chống Sốc Nhiều Lớp Chuyên Dụng',
+      safePromiseDesc:
+        returnDays > 0
+          ? `Xốp định hình nhiều lớp chuyên dụng, kiểm hàng và đổi mới miễn phí trong ${returnDays} ngày.`
+          : 'Xốp định hình nhiều lớp chuyên dụng, hỗ trợ kiểm tra sản phẩm ngay khi nhận hàng.',
+    }
+  }
+  return {
+    isCandleAtelier: false,
+    effectiveAnnouncementBar,
+    highlight1: 'Sản phẩm chính hãng tuyển chọn',
+    highlight2:
+      returnDays > 0
+        ? `Đồng kiểm & đổi trả trong ${returnDays} ngày`
+        : 'Đồng kiểm hàng trước khi nhận',
+    highlight3,
+    showcaseHeading: 'Sản phẩm tiêu biểu',
+    showcaseActionLabel: `Xem tất cả ${totalCount} SP →`,
+    craftIcon: 'SPARKLES',
+    craftPromiseTitle: hasCustomWorkshop
+      ? `${rawWorkshop} — Cam Kết Chất Lượng`
+      : `${brandClean} — Tuyển Chọn Chính Hãng`,
+    craftPromiseDesc:
+      'Kiểm định chất lượng kỹ lưỡng từng sản phẩm trước khi xuất kho, hình ảnh và thông số minh bạch.',
+    wsPromiseTitle: ctx.isWholesaleAllowed
+      ? 'Chính Sách Chiết Khấu Sỉ Linh Hoạt (Gộp Mẫu)'
+      : 'Ưu Đãi Vận Chuyển Toàn Quốc',
+    safePromiseTitle:
+      returnDays > 0
+        ? `Đóng Gói Chuẩn — Đổi Trả Trong ${returnDays} Ngày`
+        : 'Đóng Gói An Toàn — Đồng Kiểm Khi Nhận',
+    safePromiseDesc:
+      returnDays > 0
+        ? `Đóng gói tiêu chuẩn giao toàn quốc, kiểm hàng khi nhận và hỗ trợ đổi mới trong ${returnDays} ngày.`
+        : 'Đóng gói tiêu chuẩn giao toàn quốc, quý khách được kiểm tra sản phẩm trước khi thanh toán.',
+  }
+}
+
+function resolveHeroStageMjs(opts) {
+  if (opts.isClosed) {
+    return {
+      hasStageImage: false,
+      imageUrl: '',
+      mobileImageUrl: '',
+      alt: '',
+      isProductFallback: false,
+      stageProduct: null,
+      stripProducts: [],
+    }
+  }
+  const coverUrl = opts.showBanners ? String(opts.banners?.coverBannerUrl || '').trim() : ''
+  if (coverUrl) {
+    return {
+      hasStageImage: true,
+      imageUrl: coverUrl,
+      mobileImageUrl: String(opts.banners?.mobileCoverBannerUrl || '').trim(),
+      alt: `${opts.brandName} — Không gian trưng bày chính thức`,
+      isProductFallback: false,
+      stageProduct: null,
+      stripProducts: opts.showcaseProducts,
+    }
+  }
+  const firstCar = opts.showBanners ? opts.banners?.carouselBanners?.[0] : null
+  const carUrl = firstCar ? String(firstCar.imageUrl || '').trim() : ''
+  if (carUrl) {
+    return {
+      hasStageImage: true,
+      imageUrl: carUrl,
+      mobileImageUrl: String(firstCar.mobileImageUrl || '').trim(),
+      alt: firstCar.title || `${opts.brandName} — Bộ sưu tập nổi bật`,
+      isProductFallback: false,
+      stageProduct: null,
+      stripProducts: opts.showcaseProducts,
+    }
+  }
+  const lead = opts.showcaseProducts[0] || null
+  const leadImg = lead && typeof lead.image === 'string' ? lead.image.trim() : ''
+  if (lead && leadImg) {
+    return {
+      hasStageImage: true,
+      imageUrl: leadImg,
+      mobileImageUrl: '',
+      alt: lead.cleanTitle || lead.name,
+      isProductFallback: true,
+      stageProduct: lead,
+      stripProducts: opts.showcaseProducts.length >= 2 ? opts.showcaseProducts : [],
+    }
+  }
+  return {
+    hasStageImage: false,
+    imageUrl: '',
+    mobileImageUrl: '',
+    alt: '',
+    isProductFallback: false,
+    stageProduct: null,
+    stripProducts: opts.showcaseProducts,
+  }
 }
 
 function selectHeroProductsMjs(products, maxItems = 3) {
@@ -645,34 +840,60 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       ? Math.min(...tiers.map((t) => Math.max(1, Math.floor(Number(t.minQty) || 10))))
       : 10
   const freeShipInitFmt = `${Math.max(0, Math.round(Number(snapshot.config.freeShipThreshold) || 500_000)).toLocaleString('vi-VN')} ₫`
-  const wsSummaryInit = escapeHtml(
-    formatWholesaleSummaryMjs(tiers, Boolean(snapshot.config.oemCustomNote))
-  )
-  const heroHighlight3Init = escapeHtml(
-    wsAllowedInit
-      ? `Sỉ gộp mẫu tự do từ ${minWsQtyInit} SP`
-      : `Freeship đơn từ ${freeShipInitFmt}`
-  )
-  const hasCoverInit = Boolean(
-    !isClosedInit &&
-      snapshot.config.banners?.enabled !== false &&
-      snapshot.config.banners?.coverBannerUrl
-  )
+  const wsSummaryInit = escapeHtml(formatWholesaleSummaryMjs(tiers, snapshot.config.oemCustomNote))
+  const heroCopyInit = resolveHeroCopyMjs({
+    brandName: snapshot.brand.brandName,
+    workshopName: snapshot.brand.workshopName,
+    customDomain: snapshot.config.customDomain,
+    heroBadge: snapshot.config.heroBadge,
+    heroTitle: snapshot.config.heroTitle,
+    heroSubtitle: snapshot.config.heroSubtitle,
+    announcementBar: snapshot.config.announcementBar,
+    returnDays: snapshot.config.returnDays,
+    freeShipFormatted: freeShipInitFmt,
+    minWholesaleQty: minWsQtyInit,
+    isWholesaleAllowed: wsAllowedInit,
+    isStorefrontClosed: isClosedInit,
+    totalProductsCount: (snapshot.products || []).length,
+    sampleTexts: (snapshot.products || []).slice(0, 6).map((p) => p.cleanTitle || p.name),
+  })
+  const showBannersInit = Boolean(!isClosedInit && snapshot.config.banners?.enabled !== false)
   const heroShowcaseInit = isClosedInit ? [] : selectHeroProductsMjs(snapshot.products || [], 3)
-  const hasHeroVisualInit = hasCoverInit || heroShowcaseInit.length > 0
-  const heroCoverMediaHtml = hasCoverInit
-    ? `<div class="hero-cover-media"><picture>${
-        snapshot.config.banners.mobileCoverBannerUrl
-          ? `<source media="(max-width: 640px)" srcset="${escapeHtml(snapshot.config.banners.mobileCoverBannerUrl)}" />`
+  const heroStageInit = resolveHeroStageMjs({
+    isClosed: isClosedInit,
+    showBanners: showBannersInit,
+    brandName: snapshot.brand.brandName || 'Cửa hàng',
+    banners: snapshot.config.banners,
+    showcaseProducts: heroShowcaseInit,
+  })
+  const hasHeroVisualInit =
+    heroStageInit.hasStageImage || heroStageInit.stripProducts.length > 0
+  const stageCaptionHtml =
+    heroStageInit.isProductFallback && heroStageInit.stageProduct
+      ? `<span class="hero-stage-caption fallback"><span class="hero-stage-cap-name">${escapeHtml(
+          formatHeroShortLabelMjs(
+            heroStageInit.stageProduct.cleanTitle || heroStageInit.stageProduct.name,
+            36
+          )
+        )}</span><span class="hero-stage-cap-price">${Math.max(
+          0,
+          Math.round(Number(heroStageInit.stageProduct.retailPrice) || 0)
+        ).toLocaleString('vi-VN')} ₫ · Xem →</span></span>`
+      : `<span class="hero-stage-caption">Khám phá bộ sưu tập ›</span>`
+  const heroCoverMediaHtml = heroStageInit.hasStageImage
+    ? `<button type="button" class="hero-cover-media" onclick="onHeroStageClick()" aria-label="${escapeHtml(heroStageInit.alt)}"><picture>${
+        heroStageInit.mobileImageUrl
+          ? `<source media="(max-width: 640px)" srcset="${escapeHtml(heroStageInit.mobileImageUrl)}" />`
           : ''
-      }<img src="${escapeHtml(snapshot.config.banners.coverBannerUrl)}" alt="${brandName} — Không gian chế tác thủ công" referrerpolicy="no-referrer" /></picture></div>`
+      }<img src="${escapeHtml(heroStageInit.imageUrl)}" alt="${escapeHtml(heroStageInit.alt)}" referrerpolicy="no-referrer" /></picture>${stageCaptionHtml}</button>`
     : ''
+  const stripColsInit = Math.min(3, Math.max(1, heroStageInit.stripProducts.length || 3))
   const heroFeaturedStripHtml =
-    heroShowcaseInit.length > 0
-      ? `<div class="hero-featured-strip${hasCoverInit ? ' with-cover' : ''}">` +
-        `<div class="hero-featured-head"><span>Tác phẩm tiêu biểu tại xưởng</span><button type="button" class="hero-featured-more" onclick="scrollToCatalog()">Xem trọn bộ ${(snapshot.products || []).length} mẫu →</button></div>` +
-        `<div class="hero-featured-grid">` +
-        heroShowcaseInit
+    heroStageInit.stripProducts.length > 0
+      ? `<div class="hero-featured-strip${heroStageInit.hasStageImage ? ' with-cover' : ''}">` +
+        `<div class="hero-featured-head"><span id="heroShowcaseHeading">${escapeHtml(heroCopyInit.showcaseHeading)}</span><button type="button" class="hero-featured-more" onclick="scrollToCatalog()">${escapeHtml(heroCopyInit.showcaseActionLabel)}</button></div>` +
+        `<div class="hero-featured-grid cols-${stripColsInit}">` +
+        heroStageInit.stripProducts
           .map(
             (item, idx) =>
               `<button type="button" class="hero-mini-item" onclick="openHeroShowcaseIdx(${idx})">` +
@@ -930,14 +1151,28 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       box-shadow: 0 20px 44px -20px rgba(45, 33, 20, 0.18), 0 2px 8px rgba(28, 25, 23, 0.04);
     }
     .hero-cover-media {
+      position: relative; display: block; width: 100%; padding: 0; text-align: left; cursor: pointer;
       border-radius: 15px; overflow: hidden; border: 1px solid rgba(28, 25, 23, 0.07);
       background: #efeae2;
     }
+    .hero-cover-media:focus-visible { outline: 2px solid #b45309; outline-offset: 2px; }
     .hero-cover-media img {
       width: 100%; aspect-ratio: 1196 / 518; object-fit: cover; display: block;
       transition: transform 0.45s ease;
     }
-    .hero-cover-media:hover img { transform: scale(1.015); }
+    .hero-cover-media:hover img { transform: scale(1.018); }
+    .hero-stage-caption {
+      position: absolute; right: 10px; bottom: 10px; padding: 4px 10px; border-radius: 999px;
+      background: rgba(28, 25, 23, 0.72); color: #fff; font-size: 10.5px; font-weight: 700;
+      backdrop-filter: blur(4px); pointer-events: none; transition: background 0.18s ease;
+    }
+    .hero-cover-media:hover .hero-stage-caption { background: #783f12; }
+    .hero-stage-caption.fallback {
+      left: 10px; border-radius: 11px; padding: 6px 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px;
+    }
+    .hero-stage-cap-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 750; }
+    .hero-stage-cap-price { flex-shrink: 0; color: #fcd34d; font-weight: 800; }
     .hero-featured-strip.with-cover { margin-top: 10px; }
     .hero-featured-head {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -952,8 +1187,11 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     .hero-featured-grid {
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
     }
+    .hero-featured-grid.cols-1 { grid-template-columns: minmax(0, 1fr); }
+    .hero-featured-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero-featured-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .hero-mini-item {
-      min-height: 54px; padding: 7px 8px; border-radius: 12px;
+      min-height: 58px; padding: 7px 8px; border-radius: 12px;
       border: 1px solid #e8e0d5; background: #faf8f4; text-align: left; cursor: pointer;
       display: flex; align-items: center; gap: 8px; transition: all 0.18s ease;
     }
@@ -962,15 +1200,16 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       box-shadow: 0 6px 14px rgba(28, 25, 23, 0.06);
     }
     .hero-mini-item img {
-      width: 40px; height: 40px; border-radius: 9px; object-fit: cover;
+      width: 44px; height: 44px; border-radius: 9px; object-fit: cover;
       flex-shrink: 0; border: 1px solid rgba(28, 25, 23, 0.07);
     }
     .hero-mini-meta { min-width: 0; flex: 1; }
     .hero-mini-name {
-      font-size: 11.5px; font-weight: 750; color: #1c1917;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-size: 11.5px; font-weight: 750; color: #1c1917; line-height: 1.24;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; white-space: normal;
     }
-    .hero-mini-price { font-size: 11px; font-weight: 800; color: #8c4f1e; margin-top: 1px; }
+    .hero-mini-price { font-size: 11px; font-weight: 800; color: #8c4f1e; margin-top: 2px; }
     @media (max-width: 559px) {
       .hero-mini-item { flex-direction: column; align-items: stretch; padding: 6px; gap: 5px; }
       .hero-mini-item img { width: 100%; height: auto; aspect-ratio: 4 / 3; }
@@ -1192,7 +1431,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
   </style>
 </head>
 <body>
-  <div class="topbar" id="announcementBar">${escapeHtml(snapshot.config.announcementBar)}</div>
+  <div class="topbar" id="announcementBar">${escapeHtml(heroCopyInit.effectiveAnnouncementBar)}</div>
 
   <header>
     <div class="container nav-wrap">
@@ -1246,22 +1485,30 @@ export function generateStandaloneStorefrontHtml(snapshot) {
           <div class="hero-highlights">
             <span class="hero-hl-item">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-              <span>100% Sáp bơ thực vật không khói</span>
+              <span id="heroHighlight1">${escapeHtml(heroCopyInit.highlight1)}</span>
             </span>
             <span class="hero-hl-item">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-              <span>Cốt thạch cao khoáng kháng dầu</span>
+              <span id="heroHighlight2">${escapeHtml(heroCopyInit.highlight2)}</span>
             </span>
             <span class="hero-hl-item">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-              <span id="heroHighlightWs">${heroHighlight3Init}</span>
+              <span id="heroHighlightWs">${escapeHtml(heroCopyInit.highlight3)}</span>
             </span>
           </div>
 
           <div class="hero-actions">
-            <button type="button" class="btn-primary" onclick="scrollToCatalog()">
+            <button type="button" id="heroOpenExploreBtn" class="btn-primary${isClosedInit ? ' hidden' : ''}" onclick="scrollToCatalog()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
               <span>Khám Phá Sản Phẩm</span>
+            </button>
+            <button type="button" id="heroClosedContactBtn" class="btn-primary${isClosedInit ? '' : ' hidden'}" onclick="switchTab('CONTACT')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              <span>Liên Hệ Cửa Hàng</span>
+            </button>
+            <button type="button" id="heroClosedTrackBtn" class="btn-ws${isClosedInit ? '' : ' hidden'}" onclick="switchTab('TRACKING')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="M13.3 16.3 15 18"/></svg>
+              <span>Tra Cứu Đơn Hàng</span>
             </button>
             <button type="button" id="heroWsBtn" class="btn-ws${wsAllowedInit ? '' : ' hidden'}" onclick="switchTab('WHOLESALE')">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><path d="M9 9h.01"/><path d="M15 15h.01"/></svg>
@@ -1279,25 +1526,21 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 
       <div class="hero-promise-grid">
         <div class="promise-card">
-          <div class="promise-icon craft">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
-          </div>
+          <div class="promise-icon craft" id="heroCraftIconWrap">${
+            heroCopyInit.craftIcon === 'FLAME' ? SVG_ICON_FLAME : SVG_ICON_SPARKLES
+          }</div>
           <div>
-            <h3>Đúc Thủ Công &amp; Sáp Bơ Thực Vật Thuần Chay</h3>
-            <p>Không khói đen, an toàn cho phòng thiền, bàn trà, spa; bề mặt thạch cao kháng dầu mịn đẹp.</p>
+            <h3 id="heroCraftPromiseTitle">${escapeHtml(heroCopyInit.craftPromiseTitle)}</h3>
+            <p id="heroCraftPromiseDesc">${escapeHtml(heroCopyInit.craftPromiseDesc)}</p>
           </div>
         </div>
 
         <div class="promise-card">
-          <div class="promise-icon ws">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><path d="M9 9h.01"/><path d="M15 15h.01"/></svg>
-          </div>
+          <div class="promise-icon ws" id="heroWsIconWrap">${
+            wsAllowedInit ? SVG_ICON_BADGE_PCT : SVG_ICON_TRUCK
+          }</div>
           <div>
-            <h3 id="heroWsPromiseTitle">${
-              wsAllowedInit
-                ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
-                : 'Ưu Đãi Vận Chuyển Toàn Quốc'
-            }</h3>
+            <h3 id="heroWsPromiseTitle">${escapeHtml(heroCopyInit.wsPromiseTitle)}</h3>
             <p id="heroWsPromiseDesc">${
               wsAllowedInit
                 ? wsSummaryInit
@@ -1311,8 +1554,8 @@ export function generateStandaloneStorefrontHtml(snapshot) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
           </div>
           <div>
-            <h3>Đóng Gói Chống Sốc — Bảo Hành Bể Vỡ 1 Đổi 1</h3>
-            <p>Xốp định hình nhiều lớp chuyên dụng, kiểm hàng và đổi mới miễn phí trong <span id="heroReturnDays">${snapshot.config.returnDays}</span> ngày.</p>
+            <h3 id="heroSafePromiseTitle">${escapeHtml(heroCopyInit.safePromiseTitle)}</h3>
+            <p id="heroSafePromiseDesc">${escapeHtml(heroCopyInit.safePromiseDesc)}</p>
           </div>
         </div>
       </div>
@@ -1323,11 +1566,15 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     <!-- TAB 1: PRODUCTS -->
     <section id="sec-PRODUCTS">
       <div id="shopeeBannerShowcase" class="banner-showcase hidden"></div>
-      <div class="toolbar">
+      <div class="toolbar${isClosedInit ? ' hidden' : ''}" id="catalogToolbar">
         <div class="toolbar-row">
-          <input type="search" id="searchInput" class="search-input" placeholder="Tìm sản phẩm (nến bơ, hoa sen, búp sen, khay oval...) hoặc mã SKU..." oninput="renderProducts()" />
+          <input type="search" id="searchInput" class="search-input" placeholder="${
+            heroCopyInit.isCandleAtelier
+              ? 'Tìm sản phẩm (nến bơ, hoa sen, búp sen, khay oval...) hoặc mã SKU...'
+              : 'Tìm theo tên sản phẩm hoặc mã SKU...'
+          }" oninput="renderProducts()" />
           <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
-            <div class="mode-switch${snapshot.config.wholesaleEnabled === false ? ' hidden' : ''}" id="modeSwitchWrap">
+            <div class="mode-switch${wsAllowedInit ? '' : ' hidden'}" id="modeSwitchWrap">
               <button type="button" id="modeRetailBtn" class="active" onclick="setPriceMode('RETAIL')">Giá Bán Lẻ</button>
               <button type="button" id="modeWsBtn" onclick="setPriceMode('WHOLESALE')">Hiển thị Giá Sỉ</button>
             </div>
@@ -1377,7 +1624,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
             </div>
             <div class="field">
               <label for="wsQty">Số lượng dự kiến (SP)</label>
-              <input id="wsQty" type="number" min="10" value="30" />
+              <input id="wsQty" type="number" min="${minWsQtyInit}" value="${Math.max(minWsQtyInit, 30)}" />
             </div>
             <div class="field full">
               <label for="wsAddr">Tỉnh / Thành phố nhận hàng</label>
@@ -1922,38 +2169,135 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       return isFinite(n) && n >= 0.5 && n <= 5 ? Math.round(n * 1000) / 1000 : fb;
     }
 
-    function shortHeroLabelClient(rawTitle) {
+    var SVG_FLAME_CLIENT = '${SVG_ICON_FLAME}';
+    var SVG_SPARKLES_CLIENT = '${SVG_ICON_SPARKLES}';
+    var SVG_PCT_CLIENT = '${SVG_ICON_BADGE_PCT}';
+    var SVG_TRUCK_CLIENT = '${SVG_ICON_TRUCK}';
+
+    function minWholesaleQtyClient() {
+      var tiers = (STATE.data && STATE.data.config && STATE.data.config.wholesaleTiers) || [];
+      if (!tiers.length) return 10;
+      return Math.min.apply(null, tiers.map(function(t) { return Math.max(1, Math.floor(Number(t && t.minQty) || 10)); }));
+    }
+
+    function shortHeroLabelClient(rawTitle, maxChars) {
+      var limit = Math.max(12, Math.min(48, Math.floor(Number(maxChars) || 26)));
       var raw = String(rawTitle || '').split('— Phân loại:')[0].replace(/\\s*\\([^)]*\\)\\s*$/g, '').trim();
-      if (!raw) return 'Sản phẩm thủ công';
-      var seg = raw.split(/\\s+[-–—]\\s+/)[0];
+      if (!raw) return 'Sản phẩm tiêu biểu';
+      var seg = raw.split(/\\s+[-–—|/\\u007c]\\s+|:\\s+/)[0];
       var base = (seg && seg.trim().length >= 6) ? seg.trim() : raw;
-      if (base.length <= 26) return base;
-      var stopRx = /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi)$/i;
-      var words = base.split(/\\s+/);
+      if (base.length <= limit) return base;
+      var stopRx = /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi|dùng|phối)$/i;
+      var dangRx = /^(nắp|thạch|xi|màu|size|cỡ|dùng|đựng|cho|kèm|và|với|tặng|loại|mẫu|bộ|set)$/i;
+      var words = base.split(/\\s+/).filter(Boolean);
       var kept = [];
       for (var i = 0; i < words.length; i++) {
         var cw = words[i].replace(/[,.;:!?]+$/g, '');
-        if (kept.join(' ').length >= 14 && stopRx.test(cw)) break;
+        if (!cw) continue;
+        var curLen = kept.join(' ').length;
+        if (curLen >= 14 && stopRx.test(cw)) break;
+        var nextLen = curLen === 0 ? cw.length : (curLen + 1 + cw.length);
+        if (kept.length >= 2 && nextLen > limit) break;
         kept.push(cw);
-        if (kept.join(' ').length >= 26) break;
+        if (nextLen >= limit) break;
       }
-      return kept.length >= 2 ? kept.join(' ') : base.slice(0, 26).trim();
+      while (kept.length > 2 && dangRx.test(kept[kept.length - 1])) {
+        kept.pop();
+      }
+      return kept.length >= 2 ? kept.join(' ') : base.slice(0, limit).trim();
     }
 
-    function formatWsSummaryClient(tiers, hasOem) {
+    function formatWsSummaryClient(tiers, oemNote) {
+      var oemTxt = typeof oemNote === 'string' ? oemNote.trim() : '';
+      var hasOem = typeof oemNote === 'boolean' ? oemNote : oemTxt.length > 0;
+      var giftBox = typeof oemNote === 'boolean' ? oemNote : /hộp quà|khắc|in logo|oem/i.test(oemTxt);
+      var suffix = !hasOem ? '.' : (giftBox ? ' + Khắc/in hộp quà OEM.' : ' + Hỗ trợ gia công theo yêu cầu.');
       if (!Array.isArray(tiers) || !tiers.length) {
         return hasOem
-          ? 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng + Hỗ trợ gia công hộp quà OEM.'
-          : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ tại xưởng.';
+          ? ('Chiết khấu trực tiếp theo mốc số lượng sỉ' + suffix)
+          : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ.';
       }
       var sorted = tiers.slice().filter(function(t) {
         return Number(t && t.minQty) > 0 && Number(t && t.discountPercent) > 0;
       }).sort(function(a, b) { return a.minQty - b.minQty; }).slice(0, 4);
-      if (!sorted.length) return 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng.';
+      if (!sorted.length) return 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ.';
       var parts = sorted.map(function(t) {
         return 'Từ ' + Math.floor(t.minQty) + ' SP giảm ' + (Math.round(t.discountPercent * 10) / 10) + '%';
       });
-      return parts.join(' · ') + (hasOem ? ' + Khắc/in hộp quà OEM.' : '.');
+      return parts.join(' · ') + suffix;
+    }
+
+    function resolveHeroCopyClient(d) {
+      var cfg = (d && d.config) || {};
+      var br = (d && d.brand) || {};
+      var prods = (d && d.products) || [];
+      var isClosed = Boolean(d && (d.storefrontClosed || cfg.enabled === false));
+      var wsOn = !isClosed && cfg.wholesaleEnabled !== false;
+      var tList = cfg.wholesaleTiers || [];
+      var minQ = tList.length ? Math.min.apply(null, tList.map(function(t) { return Math.max(1, Math.floor(Number(t && t.minQty) || 10)); })) : 10;
+      var freeShipFmt = fmtVND(cfg.freeShipThreshold || 500000);
+      var retDays = typeof cfg.returnDays === 'number' && isFinite(cfg.returnDays) ? Math.max(0, Math.floor(cfg.returnDays)) : 7;
+      var dom = String(cfg.customDomain || '').trim().toLowerCase();
+      var sample = prods.slice(0, 6).map(function(p) { return p.cleanTitle || p.name || ''; }).join(' ');
+      var corpus = [br.brandName || '', cfg.heroBadge || '', cfg.heroTitle || '', cfg.heroSubtitle || '', sample].join(' ').toLowerCase();
+      var isCandle = dom.indexOf('bomoc') === 0 || /nến\\s*bơ|sáp\\s*bơ|thạch\\s*cao|bơ\\s*mộc|tealight/i.test(corpus);
+      var brandClean = String(br.brandName || 'Cửa hàng Chính hãng').trim() || 'Cửa hàng Chính hãng';
+      var rawWsName = String(br.workshopName || '').trim();
+      var hasCustomWs = Boolean(rawWsName) && !/xưởng đúc thủ công|bơ mộc/i.test(rawWsName) && rawWsName.toLowerCase() !== brandClean.toLowerCase();
+
+      var hl3 = isClosed
+        ? 'Hỗ trợ tra cứu đơn & CSKH trực tuyến'
+        : (wsOn ? ('Sỉ gộp mẫu tự do từ ' + minQ + ' SP') : ('Freeship đơn từ ' + freeShipFmt));
+
+      var rawAnn = String(cfg.announcementBar || '').trim();
+      var isDefAnn = !rawAnn || (rawAnn.indexOf('Miễn phí vận chuyển toàn quốc đơn lẻ từ 500.000') === 0 && rawAnn.indexOf('Chiết khấu Giá Sỉ') >= 0);
+      var effAnn = rawAnn;
+      if (isClosed && isDefAnn) {
+        effAnn = 'Thông báo: ' + brandClean + ' hiện tạm ngưng nhận đơn trực tuyến để cập nhật danh mục · Hỗ trợ tra cứu đơn đã đặt & tư vấn trực tiếp.';
+      } else if (!wsOn && isDefAnn) {
+        effAnn = retDays > 0
+          ? ('Miễn phí vận chuyển toàn quốc đơn từ ' + freeShipFmt + ' · Kiểm hàng & đổi mới miễn phí trong ' + retDays + ' ngày')
+          : ('Miễn phí vận chuyển toàn quốc đơn từ ' + freeShipFmt + ' · Đồng kiểm sản phẩm trước khi thanh toán');
+      } else if (!effAnn) {
+        effAnn = 'Miễn phí vận chuyển toàn quốc đơn từ ' + freeShipFmt + ' · Chiết khấu Giá Sỉ từ ' + minQ + ' sản phẩm';
+      }
+
+      if (isCandle) {
+        return {
+          isCandle: true,
+          effectiveAnnouncementBar: effAnn,
+          highlight1: '100% Sáp bơ thực vật không khói',
+          highlight2: 'Cốt thạch cao khoáng kháng dầu',
+          highlight3: hl3,
+          showcaseHeading: 'Tác phẩm tiêu biểu tại xưởng',
+          showcaseActionLabel: 'Xem trọn bộ ' + prods.length + ' mẫu →',
+          craftIcon: 'FLAME',
+          craftPromiseTitle: 'Đúc Thủ Công & Sáp Bơ Thực Vật Thuần Chay',
+          craftPromiseDesc: 'Không khói đen, an toàn cho phòng thiền, bàn trà, spa; bề mặt thạch cao kháng dầu mịn đẹp.',
+          wsPromiseTitle: wsOn ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)' : 'Ưu Đãi Vận Chuyển Toàn Quốc',
+          safePromiseTitle: retDays > 0 ? 'Đóng Gói Chống Sốc — Bảo Hành Bể Vỡ 1 Đổi 1' : 'Đóng Gói Chống Sốc Nhiều Lớp Chuyên Dụng',
+          safePromiseDesc: retDays > 0
+            ? ('Xốp định hình nhiều lớp chuyên dụng, kiểm hàng và đổi mới miễn phí trong ' + retDays + ' ngày.')
+            : 'Xốp định hình nhiều lớp chuyên dụng, hỗ trợ kiểm tra sản phẩm ngay khi nhận hàng.'
+        };
+      }
+      return {
+        isCandle: false,
+        effectiveAnnouncementBar: effAnn,
+        highlight1: 'Sản phẩm chính hãng tuyển chọn',
+        highlight2: retDays > 0 ? ('Đồng kiểm & đổi trả trong ' + retDays + ' ngày') : 'Đồng kiểm hàng trước khi nhận',
+        highlight3: hl3,
+        showcaseHeading: 'Sản phẩm tiêu biểu',
+        showcaseActionLabel: 'Xem tất cả ' + prods.length + ' SP →',
+        craftIcon: 'SPARKLES',
+        craftPromiseTitle: hasCustomWs ? (rawWsName + ' — Cam Kết Chất Lượng') : (brandClean + ' — Tuyển Chọn Chính Hãng'),
+        craftPromiseDesc: 'Kiểm định chất lượng kỹ lưỡng từng sản phẩm trước khi xuất kho, hình ảnh và thông số minh bạch.',
+        wsPromiseTitle: wsOn ? 'Chính Sách Chiết Khấu Sỉ Linh Hoạt (Gộp Mẫu)' : 'Ưu Đãi Vận Chuyển Toàn Quốc',
+        safePromiseTitle: retDays > 0 ? ('Đóng Gói Chuẩn — Đổi Trả Trong ' + retDays + ' Ngày') : 'Đóng Gói An Toàn — Đồng Kiểm Khi Nhận',
+        safePromiseDesc: retDays > 0
+          ? ('Đóng gói tiêu chuẩn giao toàn quốc, kiểm hàng khi nhận và hỗ trợ đổi mới trong ' + retDays + ' ngày.')
+          : 'Đóng gói tiêu chuẩn giao toàn quốc, quý khách được kiểm tra sản phẩm trước khi thanh toán.'
+      };
     }
 
     function selectHeroProductsClient(prods, maxItems) {
@@ -2016,11 +2360,18 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         if (sec) sec.classList.toggle('hidden', t !== 'PRODUCTS');
         if (btn) btn.classList.toggle('active', t === 'PRODUCTS');
       });
-      setPriceMode('RETAIL');
       var mainEl = document.getElementById('mainContent');
       if (mainEl && mainEl.scrollIntoView) {
         mainEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+    }
+
+    function onHeroStageClick() {
+      if (STATE.heroStageProductId) {
+        openProdModal(STATE.heroStageProductId);
+        return;
+      }
+      scrollToCatalog();
     }
 
     function openHeroShowcaseIdx(idx) {
@@ -2036,11 +2387,13 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       if (!wrap) return;
       var isClosed = Boolean(STATE.data && (STATE.data.storefrontClosed || (STATE.data.config && STATE.data.config.enabled === false)));
       var banners = (STATE.data && STATE.data.config && STATE.data.config.banners) || null;
+      var showBanners = Boolean(!isClosed && banners && banners.enabled !== false);
       var heroCover = document.getElementById('heroCoverWrap');
       var heroMainGrid = document.getElementById('heroMainGrid');
-      var brandNameTxt = (STATE.data && STATE.data.brand && STATE.data.brand.brandName) || 'Bơ Mộc Decor';
+      var brandNameTxt = (STATE.data && STATE.data.brand && STATE.data.brand.brandName) || 'Cửa hàng';
       var allProdsForHero = (STATE.data && STATE.data.products) || [];
-      STATE.heroShowcase = isClosed ? [] : selectHeroProductsClient(allProdsForHero, 3);
+      var pickedHero = isClosed ? [] : selectHeroProductsClient(allProdsForHero, 3);
+      var heroCopyLive = resolveHeroCopyClient(STATE.data);
 
       if (banners && banners.shopLogoUrl) {
         var logoWrap = document.getElementById('brandLogoWrap');
@@ -2050,28 +2403,54 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       }
 
       if (heroCover) {
-        var hasCover = Boolean(!isClosed && banners && banners.enabled !== false && banners.coverBannerUrl);
-        var heroItems = STATE.heroShowcase || [];
-        var hasVisual = hasCover || heroItems.length > 0;
+        var stageUrl = '';
+        var stageMobUrl = '';
+        var stageAlt = '';
+        var stageProd = null;
+        var stripItems = pickedHero;
+        if (!isClosed) {
+          if (showBanners && banners.coverBannerUrl) {
+            stageUrl = banners.coverBannerUrl;
+            stageMobUrl = banners.mobileCoverBannerUrl || '';
+            stageAlt = brandNameTxt + ' — Không gian trưng bày chính thức';
+          } else if (showBanners && banners.carouselBanners && banners.carouselBanners[0] && banners.carouselBanners[0].imageUrl) {
+            stageUrl = banners.carouselBanners[0].imageUrl;
+            stageMobUrl = banners.carouselBanners[0].mobileImageUrl || '';
+            stageAlt = banners.carouselBanners[0].title || (brandNameTxt + ' — Bộ sưu tập nổi bật');
+          } else if (pickedHero[0] && pickedHero[0].image) {
+            stageUrl = pickedHero[0].image;
+            stageAlt = pickedHero[0].cleanTitle || pickedHero[0].name;
+            stageProd = pickedHero[0];
+            stripItems = pickedHero.length >= 2 ? pickedHero : [];
+          }
+        }
+        STATE.heroStageProductId = stageProd ? stageProd.id : '';
+        STATE.heroShowcase = stripItems;
+
+        var hasVisual = Boolean(stageUrl || stripItems.length > 0);
         if (heroMainGrid) {
           heroMainGrid.classList.toggle('single', !hasVisual);
         }
         if (hasVisual) {
           heroCover.className = 'hero-showcase-card';
-          var coverPart = hasCover
-            ? '<div class="hero-cover-media"><picture>' +
-                (banners.mobileCoverBannerUrl ? '<source media="(max-width: 640px)" srcset="' + esc(banners.mobileCoverBannerUrl) + '" />' : '') +
-                '<img src="' + esc(banners.coverBannerUrl) + '" alt="' + esc(brandNameTxt + ' — Không gian chế tác thủ công') + '" referrerpolicy="no-referrer" />' +
-              '</picture></div>'
+          var capHtml = stageProd
+            ? '<span class="hero-stage-caption fallback"><span class="hero-stage-cap-name">' + esc(shortHeroLabelClient(stageProd.cleanTitle || stageProd.name, 36)) + '</span><span class="hero-stage-cap-price">' + fmtVND(stageProd.retailPrice) + ' · Xem →</span></span>'
+            : '<span class="hero-stage-caption">Khám phá bộ sưu tập ›</span>';
+          var coverPart = stageUrl
+            ? '<button type="button" class="hero-cover-media" onclick="onHeroStageClick()" aria-label="' + esc(stageAlt) + '"><picture>' +
+                (stageMobUrl ? '<source media="(max-width: 640px)" srcset="' + esc(stageMobUrl) + '" />' : '') +
+                '<img src="' + esc(stageUrl) + '" alt="' + esc(stageAlt) + '" referrerpolicy="no-referrer" />' +
+              '</picture>' + capHtml + '</button>'
             : '';
-          var stripPart = heroItems.length > 0
-            ? '<div class="hero-featured-strip' + (hasCover ? ' with-cover' : '') + '">' +
+          var colsCnt = Math.min(3, Math.max(1, stripItems.length || 3));
+          var stripPart = stripItems.length > 0
+            ? '<div class="hero-featured-strip' + (stageUrl ? ' with-cover' : '') + '">' +
                 '<div class="hero-featured-head">' +
-                  '<span>Tác phẩm tiêu biểu tại xưởng</span>' +
-                  '<button type="button" class="hero-featured-more" onclick="scrollToCatalog()">Xem trọn bộ ' + allProdsForHero.length + ' mẫu →</button>' +
+                  '<span>' + esc(heroCopyLive.showcaseHeading) + '</span>' +
+                  '<button type="button" class="hero-featured-more" onclick="scrollToCatalog()">' + esc(heroCopyLive.showcaseActionLabel) + '</button>' +
                 '</div>' +
-                '<div class="hero-featured-grid">' +
-                  heroItems.map(function(it, idx) {
+                '<div class="hero-featured-grid cols-' + colsCnt + '">' +
+                  stripItems.map(function(it, idx) {
                     return '<button type="button" class="hero-mini-item" onclick="openHeroShowcaseIdx(' + idx + ')">' +
                       (it.image ? '<img src="' + esc(it.image) + '" alt="' + esc(it.cleanTitle || it.name) + '" referrerpolicy="no-referrer" loading="lazy" />' : '') +
                       '<div class="hero-mini-meta">' +
@@ -2227,6 +2606,8 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var sort = document.getElementById('sortSelect').value;
       var grid = document.getElementById('productGrid');
       var isClosed = Boolean(STATE.data && (STATE.data.storefrontClosed || (STATE.data.config && STATE.data.config.enabled === false)));
+      var tb = document.getElementById('catalogToolbar');
+      if (tb) tb.classList.toggle('hidden', isClosed);
       document.getElementById('prodCountNav').textContent = String(((STATE.data && STATE.data.products) || []).length);
 
       if (isClosed) {
@@ -2317,6 +2698,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         tiers.map(function(t) { return '<th class="num">Từ ' + t.minQty + ' SP (' + esc(t.badge) + ')</th>'; }).join('') +
         '<th style="text-align:center">Đặt sỉ</th></tr>';
 
+      var minQWs = minWholesaleQtyClient();
       document.getElementById('wsTableBody').innerHTML = (STATE.data.products || []).map(function(p) {
         var canBuy = p.availableToOrder !== false;
         return '<tr>' +
@@ -2328,7 +2710,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
           }).join('') +
           '<td style="text-align:center">' +
             (canBuy
-              ? '<button type="button" class="btn-sm-out" style="padding:0 10px;min-height:30px;" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10)">+10</button>'
+              ? '<button type="button" class="btn-sm-out" style="padding:0 10px;min-height:30px;" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',' + minQWs + ')">+' + minQWs + '</button>'
               : '<button type="button" class="btn-sm-out" disabled style="padding:0 8px;min-height:30px;opacity:0.55;cursor:not-allowed;">Tạm hết</button>') +
           '</td>' +
         '</tr>';
@@ -2342,7 +2724,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         c.zaloUrl ? { label: 'Zalo Báo Sỉ & CSKH Trực Tuyến', html: '<a href="' + esc(c.zaloUrl) + '" target="_blank" rel="noopener" style="color:#0066cc">' + esc(c.zaloUrl) + ' ↗</a>' } : null,
         c.shopeeUrl ? { label: 'Gian hàng Shopee Chính hãng', html: '<a href="' + esc(c.shopeeUrl) + '" target="_blank" rel="noopener" style="color:#ea580c">' + esc(c.shopeeUrl) + ' ↗</a>' } : null,
         c.email ? { label: 'Email Hợp tác & Báo giá Doanh nghiệp', html: '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' } : null,
-        c.address ? { label: 'Địa chỉ Xưởng Đúc Thủ Công & Kho Trung Tâm', html: '<strong>' + esc(c.address) + '</strong>' } : null,
+        c.address ? { label: 'Địa chỉ Xưởng / Showroom Chính thức', html: '<strong>' + esc(c.address) + '</strong>' } : null,
         c.workingHours ? { label: 'Giờ mở cửa & Hỗ trợ', html: '<strong>' + esc(c.workingHours) + '</strong>' } : null
       ].filter(Boolean);
       document.getElementById('contactDetailsList').innerHTML = items.map(function(it) {
@@ -2354,6 +2736,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var p = (STATE.data.products || []).find(function(x) { return x.id === prodId; });
       if (!p) return;
       var wsAllowed = isWholesaleAllowed();
+      var minQModal = minWholesaleQtyClient();
       var canBuy = p.availableToOrder !== false && !isStoreClosed();
       var wsHtml = wsAllowed ? (p.wholesalePrices || []).map(function(w) {
         return '<div class="ws-mini-row"><span>Từ ' + w.minQty + ' ' + esc(p.unit) + ' (' + esc(w.badge) + '):</span><strong>' + fmtVND(w.unitPrice) + ' / ' + esc(p.unit) + '</strong></div>';
@@ -2361,7 +2744,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var buyBtnsHtml = canBuy
         ? '<div style="display:grid;grid-template-columns:' + (wsAllowed ? '1fr 1fr' : '1fr') + ';gap:8px;">' +
             '<button type="button" class="btn-primary" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',1);closeProdModal();">Mua lẻ (+1)</button>' +
-            (wsAllowed ? '<button type="button" class="btn-ws" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10);closeProdModal();openCartModal();">Nhập sỉ (+10)</button>' : '') +
+            (wsAllowed ? '<button type="button" class="btn-ws" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',' + minQModal + ');closeProdModal();openCartModal();">Nhập sỉ (+' + minQModal + ')</button>' : '') +
           '</div>'
         : '<button type="button" class="btn-outline" disabled style="width:100%;justify-content:center;opacity:0.6;cursor:not-allowed;">Tạm hết hàng</button>';
       document.getElementById('prodModalContent').innerHTML =
@@ -2653,14 +3036,15 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         if (live.brand.brandName) {
           document.getElementById('brandNameHdr').textContent = live.brand.brandName;
           document.getElementById('footerBrand').textContent = live.brand.brandName;
-          document.title = live.brand.brandName + ' — Sản phẩm Thủ công, Bảng Giá Sỉ & Liên hệ Chính thức';
+          document.title = live.brand.brandName + ' — Sản phẩm, Bảng Giá Sỉ & Liên hệ Chính thức';
         }
         if (live.brand.workshopName) {
           document.getElementById('footerWorkshop').textContent = live.brand.workshopName;
         }
       }
       if (live.config) {
-        if (live.config.announcementBar) document.getElementById('announcementBar').textContent = live.config.announcementBar;
+        var copyLive = resolveHeroCopyClient(live);
+        document.getElementById('announcementBar').textContent = copyLive.effectiveAnnouncementBar;
         if (live.config.heroBadge) {
           document.getElementById('heroBadge').textContent = live.config.heroBadge;
           var subHdr = document.getElementById('brandSubHdr');
@@ -2675,12 +3059,16 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         if (live.config.heroSubtitle) document.getElementById('heroSubtitle').textContent = live.config.heroSubtitle;
         if (live.config.wholesalePolicyNote) document.getElementById('wsPolicyText').textContent = live.config.wholesalePolicyNote;
         if (live.config.oemCustomNote) document.getElementById('oemNoteText').textContent = live.config.oemCustomNote;
-        if (typeof live.config.returnDays === 'number') {
-          var retEl = document.getElementById('heroReturnDays');
-          if (retEl) retEl.textContent = String(live.config.returnDays);
-        }
 
-        var wsOn = !live.storefrontClosed && live.config.wholesaleEnabled !== false;
+        var isClosedLive = Boolean(live.storefrontClosed || live.config.enabled === false);
+        var wsOn = !isClosedLive && live.config.wholesaleEnabled !== false;
+        var openExploreBtn = document.getElementById('heroOpenExploreBtn');
+        var closedContactBtn = document.getElementById('heroClosedContactBtn');
+        var closedTrackBtn = document.getElementById('heroClosedTrackBtn');
+        if (openExploreBtn) openExploreBtn.classList.toggle('hidden', isClosedLive);
+        if (closedContactBtn) closedContactBtn.classList.toggle('hidden', !isClosedLive);
+        if (closedTrackBtn) closedTrackBtn.classList.toggle('hidden', !isClosedLive);
+
         var tabWs = document.getElementById('tab-WHOLESALE');
         var heroWs = document.getElementById('heroWsBtn');
         var modeSw = document.getElementById('modeSwitchWrap');
@@ -2709,28 +3097,47 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         var heroRangeEl = document.getElementById('heroWsRangeTxt');
         if (heroRangeEl) heroRangeEl.textContent = rangeTxt;
 
-        var minWsQtyLive = tList.length
-          ? Math.min.apply(null, tList.map(function(t) { return Math.max(1, Math.floor(Number(t.minQty) || 10)); }))
-          : 10;
+        var minWsQtyLive = minWholesaleQtyClient();
+        var wsQtyIn = document.getElementById('wsQty');
+        if (wsQtyIn) wsQtyIn.min = String(minWsQtyLive);
+
         var freeShipLiveFmt = fmtVND(live.config.freeShipThreshold || 500000);
+        var hl1El = document.getElementById('heroHighlight1');
+        var hl2El = document.getElementById('heroHighlight2');
         var hlWsEl = document.getElementById('heroHighlightWs');
-        if (hlWsEl) {
-          hlWsEl.textContent = wsOn
-            ? ('Sỉ gộp mẫu tự do từ ' + minWsQtyLive + ' SP')
-            : ('Freeship đơn từ ' + freeShipLiveFmt);
+        if (hl1El) hl1El.textContent = copyLive.highlight1;
+        if (hl2El) hl2El.textContent = copyLive.highlight2;
+        if (hlWsEl) hlWsEl.textContent = copyLive.highlight3;
+
+        var sInEl = document.getElementById('searchInput');
+        if (sInEl) {
+          sInEl.placeholder = copyLive.isCandle
+            ? 'Tìm sản phẩm (nến bơ, hoa sen, búp sen, khay oval...) hoặc mã SKU...'
+            : 'Tìm theo tên sản phẩm hoặc mã SKU...';
         }
+
+        var craftIconEl = document.getElementById('heroCraftIconWrap');
+        var craftTitleEl = document.getElementById('heroCraftPromiseTitle');
+        var craftDescEl = document.getElementById('heroCraftPromiseDesc');
+        if (craftIconEl) craftIconEl.innerHTML = copyLive.craftIcon === 'FLAME' ? SVG_FLAME_CLIENT : SVG_SPARKLES_CLIENT;
+        if (craftTitleEl) craftTitleEl.textContent = copyLive.craftPromiseTitle;
+        if (craftDescEl) craftDescEl.textContent = copyLive.craftPromiseDesc;
+
+        var wsIconEl = document.getElementById('heroWsIconWrap');
         var prTitleEl = document.getElementById('heroWsPromiseTitle');
         var prDescEl = document.getElementById('heroWsPromiseDesc');
-        if (prTitleEl) {
-          prTitleEl.textContent = wsOn
-            ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
-            : 'Ưu Đãi Vận Chuyển Toàn Quốc';
-        }
+        if (wsIconEl) wsIconEl.innerHTML = wsOn ? SVG_PCT_CLIENT : SVG_TRUCK_CLIENT;
+        if (prTitleEl) prTitleEl.textContent = copyLive.wsPromiseTitle;
         if (prDescEl) {
           prDescEl.textContent = wsOn
-            ? formatWsSummaryClient(tList, Boolean(live.config.oemCustomNote))
+            ? formatWsSummaryClient(tList, live.config.oemCustomNote)
             : ('Miễn phí giao hàng toàn quốc đơn lẻ từ ' + freeShipLiveFmt + ' · Kiểm hàng trước khi nhận.');
         }
+
+        var safeTitleEl = document.getElementById('heroSafePromiseTitle');
+        var safeDescEl = document.getElementById('heroSafePromiseDesc');
+        if (safeTitleEl) safeTitleEl.textContent = copyLive.safePromiseTitle;
+        if (safeDescEl) safeDescEl.textContent = copyLive.safePromiseDesc;
 
         if (live.config.contact) {
           var spLink = document.getElementById('heroShopeeLink');

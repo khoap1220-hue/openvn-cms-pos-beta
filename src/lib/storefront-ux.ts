@@ -271,51 +271,329 @@ export function buildStorefrontProductShareUrl(
   }
 }
 
-export function formatHeroShortProductLabel(cleanTitleOrName?: string | null): string {
+export function formatHeroShortProductLabel(
+  cleanTitleOrName?: string | null,
+  maxChars = 26
+): string {
+  const limit = Math.max(12, Math.min(48, Math.floor(Number(maxChars) || 26)))
   const raw = String(cleanTitleOrName || '')
     .split('— Phân loại:')[0]
     .replace(/\s*\([^)]*\)\s*$/g, '')
     .trim()
-  if (!raw) return 'Sản phẩm thủ công'
-  const firstDashPart = raw.split(/\s+[-–—]\s+/)[0]?.trim() || raw
-  const base = firstDashPart.length >= 6 ? firstDashPart : raw
-  if (base.length <= 26) return base
+  if (!raw) return 'Sản phẩm tiêu biểu'
+  const firstSegment = raw.split(/\s+[-–—|/]\s+|:\s+/)[0]?.trim() || raw
+  const base = firstSegment.length >= 6 ? firstSegment : raw
+  if (base.length <= limit) return base
 
   const stopAttrPattern =
-    /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi)$/i
-  const words = base.split(/\s+/)
+    /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi|dùng|phối)$/i
+  const danglingTailPattern =
+    /^(nắp|thạch|xi|màu|size|cỡ|dùng|đựng|cho|kèm|và|với|tặng|loại|mẫu|bộ|set)$/i
+  const words = base.split(/\s+/).filter(Boolean)
   const kept: string[] = []
+
   for (const w of words) {
     const cleanWord = w.replace(/[,.;:!?]+$/g, '')
-    if (kept.join(' ').length >= 14 && stopAttrPattern.test(cleanWord)) {
+    if (!cleanWord) continue
+    const currentLen = kept.join(' ').length
+    if (currentLen >= 14 && stopAttrPattern.test(cleanWord)) {
+      break
+    }
+    const nextLen = currentLen === 0 ? cleanWord.length : currentLen + 1 + cleanWord.length
+    if (kept.length >= 2 && nextLen > limit) {
       break
     }
     kept.push(cleanWord)
-    if (kept.join(' ').length >= 26) break
+    if (nextLen >= limit) break
   }
-  return kept.length >= 2 ? kept.join(' ') : base.slice(0, 26).trim()
+
+  while (kept.length > 2 && danglingTailPattern.test(kept[kept.length - 1])) {
+    kept.pop()
+  }
+
+  if (kept.length >= 2) {
+    return kept.join(' ')
+  }
+  return base.slice(0, limit).trim()
 }
 
 export function formatWholesaleTiersSummary(
   tiers?: Array<{ minQty: number; discountPercent: number; badge?: string }> | null,
-  hasOemNote = true
+  oemCustomNote?: boolean | string | null
 ): string {
+  const oemText = typeof oemCustomNote === 'string' ? oemCustomNote.trim() : ''
+  const hasOem = typeof oemCustomNote === 'boolean' ? oemCustomNote : oemText.length > 0
+  const mentionsGiftBoxOem =
+    typeof oemCustomNote === 'boolean'
+      ? oemCustomNote
+      : /hộp quà|khắc|in logo|oem/i.test(oemText)
+  const oemSuffix = !hasOem
+    ? '.'
+    : mentionsGiftBoxOem
+      ? ' + Khắc/in hộp quà OEM.'
+      : ' + Hỗ trợ gia công theo yêu cầu.'
+
   if (!Array.isArray(tiers) || tiers.length === 0) {
-    return hasOemNote
-      ? 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng + Hỗ trợ gia công hộp quà OEM.'
-      : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ tại xưởng.'
+    return hasOem
+      ? `Chiết khấu trực tiếp theo mốc số lượng sỉ${oemSuffix}`
+      : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ.'
   }
   const sorted = [...tiers]
     .filter((t) => Number(t?.minQty) > 0 && Number(t?.discountPercent) > 0)
     .sort((a, b) => a.minQty - b.minQty)
     .slice(0, 4)
   if (sorted.length === 0) {
-    return 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng.'
+    return 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ.'
   }
   const parts = sorted.map(
     (t) => `Từ ${Math.floor(t.minQty)} SP giảm ${Math.round(t.discountPercent * 10) / 10}%`
   )
-  return `${parts.join(' · ')}${hasOemNote ? ' + Khắc/in hộp quà OEM.' : '.'}`
+  return `${parts.join(' · ')}${oemSuffix}`
+}
+
+export interface StorefrontHeroCopyContext {
+  brandName?: string | null
+  workshopName?: string | null
+  customDomain?: string | null
+  heroBadge?: string | null
+  heroTitle?: string | null
+  heroSubtitle?: string | null
+  announcementBar?: string | null
+  returnDays?: number | null
+  freeShipFormatted: string
+  minWholesaleQty: number
+  isWholesaleAllowed: boolean
+  isStorefrontClosed?: boolean
+  totalProductsCount?: number
+  sampleTexts?: string[]
+}
+
+export interface ResolvedStorefrontHeroCopy {
+  isCandlePlasterAtelier: boolean
+  effectiveAnnouncementBar: string
+  highlight1: string
+  highlight2: string
+  highlight3: string
+  showcaseHeading: string
+  showcaseActionLabel: string
+  craftIcon: 'FLAME' | 'SPARKLES'
+  craftPromiseTitle: string
+  craftPromiseDesc: string
+  wsPromiseTitle: string
+  safePromiseTitle: string
+  safePromiseDesc: string
+}
+
+const DEFAULT_BOMOC_ANNOUNCEMENT_PREFIX = 'Miễn phí vận chuyển toàn quốc đơn lẻ từ 500.000'
+
+export function resolveStorefrontHeroCopy(
+  ctx: StorefrontHeroCopyContext
+): ResolvedStorefrontHeroCopy {
+  const dom = String(ctx.customDomain || '').trim().toLowerCase()
+  const corpus = [
+    ctx.brandName || '',
+    ctx.heroBadge || '',
+    ctx.heroTitle || '',
+    ctx.heroSubtitle || '',
+    ...(ctx.sampleTexts || []).slice(0, 6),
+  ]
+    .join(' ')
+    .toLowerCase()
+
+  const isCandlePlasterAtelier =
+    dom.startsWith('bomoc') ||
+    /nến\s*bơ|sáp\s*bơ|thạch\s*cao|bơ\s*mộc|tealight/i.test(corpus)
+
+  const returnDays =
+    typeof ctx.returnDays === 'number' && Number.isFinite(ctx.returnDays)
+      ? Math.max(0, Math.floor(ctx.returnDays))
+      : 7
+  const brandClean = String(ctx.brandName || 'Cửa hàng Chính hãng').trim() || 'Cửa hàng Chính hãng'
+  const rawWorkshop = String(ctx.workshopName || '').trim()
+  const hasCustomWorkshop =
+    Boolean(rawWorkshop) &&
+    !/xưởng đúc thủ công|bơ mộc/i.test(rawWorkshop) &&
+    rawWorkshop.toLowerCase() !== brandClean.toLowerCase()
+
+  const highlight3 = ctx.isStorefrontClosed
+    ? 'Hỗ trợ tra cứu đơn & CSKH trực tuyến'
+    : ctx.isWholesaleAllowed
+      ? `Sỉ gộp mẫu tự do từ ${Math.max(1, Math.floor(ctx.minWholesaleQty || 10))} SP`
+      : `Freeship đơn từ ${ctx.freeShipFormatted}`
+
+  const rawAnnounce = String(ctx.announcementBar || '').trim()
+  const isDefaultWsAnnounce =
+    !rawAnnounce ||
+    (rawAnnounce.startsWith(DEFAULT_BOMOC_ANNOUNCEMENT_PREFIX) &&
+      rawAnnounce.includes('Chiết khấu Giá Sỉ'))
+
+  let effectiveAnnouncementBar = rawAnnounce
+  if (ctx.isStorefrontClosed && isDefaultWsAnnounce) {
+    effectiveAnnouncementBar = `Thông báo: ${brandClean} hiện tạm ngưng nhận đơn trực tuyến để cập nhật danh mục · Hỗ trợ tra cứu đơn đã đặt & tư vấn trực tiếp.`
+  } else if (!ctx.isWholesaleAllowed && isDefaultWsAnnounce) {
+    effectiveAnnouncementBar =
+      returnDays > 0
+        ? `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Kiểm hàng & đổi mới miễn phí trong ${returnDays} ngày`
+        : `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Đồng kiểm sản phẩm trước khi thanh toán`
+  } else if (!effectiveAnnouncementBar) {
+    effectiveAnnouncementBar = `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Chiết khấu Giá Sỉ từ ${Math.max(1, Math.floor(ctx.minWholesaleQty || 10))} sản phẩm`
+  }
+
+  const totalCount = Math.max(0, Math.floor(Number(ctx.totalProductsCount) || 0))
+
+  if (isCandlePlasterAtelier) {
+    return {
+      isCandlePlasterAtelier: true,
+      effectiveAnnouncementBar,
+      highlight1: '100% Sáp bơ thực vật không khói',
+      highlight2: 'Cốt thạch cao khoáng kháng dầu',
+      highlight3,
+      showcaseHeading: 'Tác phẩm tiêu biểu tại xưởng',
+      showcaseActionLabel: `Xem trọn bộ ${totalCount} mẫu →`,
+      craftIcon: 'FLAME',
+      craftPromiseTitle: 'Đúc Thủ Công & Sáp Bơ Thực Vật Thuần Chay',
+      craftPromiseDesc:
+        'Không khói đen, an toàn cho phòng thiền, bàn trà, spa; bề mặt thạch cao kháng dầu mịn đẹp.',
+      wsPromiseTitle: ctx.isWholesaleAllowed
+        ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
+        : 'Ưu Đãi Vận Chuyển Toàn Quốc',
+      safePromiseTitle:
+        returnDays > 0
+          ? 'Đóng Gói Chống Sốc — Bảo Hành Bể Vỡ 1 Đổi 1'
+          : 'Đóng Gói Chống Sốc Nhiều Lớp Chuyên Dụng',
+      safePromiseDesc:
+        returnDays > 0
+          ? `Xốp định hình nhiều lớp chuyên dụng, kiểm hàng và đổi mới miễn phí trong ${returnDays} ngày.`
+          : 'Xốp định hình nhiều lớp chuyên dụng, hỗ trợ kiểm tra sản phẩm ngay khi nhận hàng.',
+    }
+  }
+
+  return {
+    isCandlePlasterAtelier: false,
+    effectiveAnnouncementBar,
+    highlight1: 'Sản phẩm chính hãng tuyển chọn',
+    highlight2:
+      returnDays > 0
+        ? `Đồng kiểm & đổi trả trong ${returnDays} ngày`
+        : 'Đồng kiểm hàng trước khi nhận',
+    highlight3,
+    showcaseHeading: 'Sản phẩm tiêu biểu',
+    showcaseActionLabel: `Xem tất cả ${totalCount} SP →`,
+    craftIcon: 'SPARKLES',
+    craftPromiseTitle: hasCustomWorkshop
+      ? `${rawWorkshop} — Cam Kết Chất Lượng`
+      : `${brandClean} — Tuyển Chọn Chính Hãng`,
+    craftPromiseDesc:
+      'Kiểm định chất lượng kỹ lưỡng từng sản phẩm trước khi xuất kho, hình ảnh và thông số minh bạch.',
+    wsPromiseTitle: ctx.isWholesaleAllowed
+      ? 'Chính Sách Chiết Khấu Sỉ Linh Hoạt (Gộp Mẫu)'
+      : 'Ưu Đãi Vận Chuyển Toàn Quốc',
+    safePromiseTitle:
+      returnDays > 0
+        ? `Đóng Gói Chuẩn — Đổi Trả Trong ${returnDays} Ngày`
+        : 'Đóng Gói An Toàn — Đồng Kiểm Khi Nhận',
+    safePromiseDesc:
+      returnDays > 0
+        ? `Đóng gói tiêu chuẩn giao toàn quốc, kiểm hàng khi nhận và hỗ trợ đổi mới trong ${returnDays} ngày.`
+        : 'Đóng gói tiêu chuẩn giao toàn quốc, quý khách được kiểm tra sản phẩm trước khi thanh toán.',
+  }
+}
+
+export interface HeroPrimaryStageResult<P> {
+  hasStageImage: boolean
+  imageUrl: string
+  mobileImageUrl: string
+  alt: string
+  isProductFallback: boolean
+  stageProduct: P | null
+  stripProducts: P[]
+}
+
+export function resolveHeroPrimaryStage<
+  P extends {
+    id: string
+    name: string
+    cleanTitle?: string | null
+    image?: string | null
+    retailPrice?: number
+  },
+>(options: {
+  isStorefrontClosed: boolean
+  showShopeeBanners: boolean
+  brandName: string
+  coverBannerUrl?: string | null
+  mobileCoverBannerUrl?: string | null
+  firstCarouselBanner?: {
+    imageUrl?: string | null
+    mobileImageUrl?: string | null
+    title?: string | null
+  } | null
+  showcaseProducts: P[]
+}): HeroPrimaryStageResult<P> {
+  if (options.isStorefrontClosed) {
+    return {
+      hasStageImage: false,
+      imageUrl: '',
+      mobileImageUrl: '',
+      alt: '',
+      isProductFallback: false,
+      stageProduct: null,
+      stripProducts: [],
+    }
+  }
+
+  const coverUrl = options.showShopeeBanners ? String(options.coverBannerUrl || '').trim() : ''
+  if (coverUrl) {
+    return {
+      hasStageImage: true,
+      imageUrl: coverUrl,
+      mobileImageUrl: String(options.mobileCoverBannerUrl || '').trim(),
+      alt: `${options.brandName} — Không gian trưng bày chính thức`,
+      isProductFallback: false,
+      stageProduct: null,
+      stripProducts: options.showcaseProducts,
+    }
+  }
+
+  const carouselUrl = options.showShopeeBanners
+    ? String(options.firstCarouselBanner?.imageUrl || '').trim()
+    : ''
+  if (carouselUrl) {
+    return {
+      hasStageImage: true,
+      imageUrl: carouselUrl,
+      mobileImageUrl: String(options.firstCarouselBanner?.mobileImageUrl || '').trim(),
+      alt: options.firstCarouselBanner?.title || `${options.brandName} — Bộ sưu tập nổi bật`,
+      isProductFallback: false,
+      stageProduct: null,
+      stripProducts: options.showcaseProducts,
+    }
+  }
+
+  const leadProd = options.showcaseProducts[0] ?? null
+  const leadImg = leadProd && typeof leadProd.image === 'string' ? leadProd.image.trim() : ''
+  if (leadProd && leadImg) {
+    return {
+      hasStageImage: true,
+      imageUrl: leadImg,
+      mobileImageUrl: '',
+      alt: leadProd.cleanTitle || leadProd.name,
+      isProductFallback: true,
+      stageProduct: leadProd,
+      // When only 1 product exists and it already occupies the primary stage with caption, omit duplicate 1-tile strip
+      stripProducts: options.showcaseProducts.length >= 2 ? options.showcaseProducts : [],
+    }
+  }
+
+  return {
+    hasStageImage: false,
+    imageUrl: '',
+    mobileImageUrl: '',
+    alt: '',
+    isProductFallback: false,
+    stageProduct: null,
+    stripProducts: options.showcaseProducts,
+  }
 }
 
 export function selectHeroShowcaseProducts<

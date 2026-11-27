@@ -39,6 +39,8 @@ import {
   parseStorefrontDeepLinkQuery,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
+  resolveHeroPrimaryStage,
+  resolveStorefrontHeroCopy,
   selectHeroShowcaseProducts,
   serializeCartForStorage,
 } from '../src/lib/storefront-ux'
@@ -928,6 +930,12 @@ async function main() {
     const shortSenLabel = formatHeroShortProductLabel(
       'Hũ Búp Sen Thạch Cao Có Nắp Trắng Mộc - Decor Phòng Ngủ - Bơ Mộc — Phân loại: Trắng mộc'
     )
+    const shortNoDanglingNap = formatHeroShortProductLabel(
+      'Hũ Thạch Cao Sọc Lùn Nắp Chóp Trắng Mộc 8.3cm Đựng Nến Thơm'
+    )
+    const shortColonSplit = formatHeroShortProductLabel(
+      'Combo Trà Đạo: Ấm Tử Sa Tây Thi & Chén Khải'
+    )
     assert(
       heroPickedFromLive.length === 3 &&
         uniqueHeroTitles.size === 3 &&
@@ -935,12 +943,214 @@ async function main() {
         selectHeroShowcaseProducts([], 3).length === 0 &&
         customTierSummary === 'Từ 5 SP giảm 10% · Từ 25 SP giảm 22%.' &&
         shortSenLabel === 'Hũ Búp Sen Thạch Cao' &&
+        shortNoDanglingNap === 'Hũ Thạch Cao Sọc Lùn' &&
+        shortColonSplit === 'Combo Trà Đạo' &&
         testStandaloneHtml.includes('class="hero-promise-grid"') &&
+        testStandaloneHtml.includes('-webkit-line-clamp: 2') &&
         !testStandaloneHtml.includes('🕯️') &&
         !testStandaloneHtml.includes('🛡️') &&
         !testStandaloneHtml.includes('✨'),
       'S3-HERO-ATELIER-SHOWCASE-AND-SVG-PARITY',
-      'Hero Atelier chọn 3 dòng sản phẩm độc lập (Hũ/Cốc + Nến Bơ + Khay/Đế), rút gọn tên không cắt âm tiết, định dạng động bậc sỉ & dùng 100% icon SVG'
+      'Hero Atelier chọn 3 dòng sản phẩm độc lập (Hũ/Cốc + Nến Bơ + Khay/Đế), rút gọn từ nguyên vẹn (không dư từ treo "Nắp"), clamp 2 dòng & dùng 100% icon SVG'
+    )
+
+    // Verify Multi-CMS Independence (Non-Candle CMS), No-Cover Fallback Stage (1 & 2 items) & Closed-Storefront / Truck Icon Parity
+    const nonCandleCopy = resolveStorefrontHeroCopy({
+      brandName: 'An Nhiên Trà Cụ',
+      workshopName: 'Nghệ Nhân Gốm Nghi Hưng',
+      customDomain: 'annhientra.vn',
+      heroBadge: 'Nghệ Nhân Gốm Tử Sa · Sỉ & Lẻ Toàn Quốc',
+      heroTitle: 'Ấm Chén Tử Sa & Trà Cụ Thủ Công Nung Củi',
+      heroSubtitle: 'Tuyển chọn ấm tử sa Nghi Hưng và trà cụ gốm mộc cho bàn trà đạo.',
+      returnDays: 14,
+      freeShipFormatted: '800.000 ₫',
+      minWholesaleQty: 20,
+      isWholesaleAllowed: true,
+      isStorefrontClosed: false,
+      totalProductsCount: 2,
+      sampleTexts: ['Ấm Tử Sa Tây Thi 220ml', 'Chén Khải Sứ Cảnh Đức'],
+    })
+    const stageTwoItemsNoCover = resolveHeroPrimaryStage({
+      isStorefrontClosed: false,
+      showShopeeBanners: false,
+      brandName: 'An Nhiên Trà Cụ',
+      coverBannerUrl: '',
+      showcaseProducts: [
+        { id: 't1', name: 'Ấm Tử Sa Tây Thi', cleanTitle: 'Ấm Tử Sa Tây Thi', image: 'https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526ksrpxg15', retailPrice: 450_000 },
+        { id: 't2', name: 'Chén Khải Cảnh Đức', cleanTitle: 'Chén Khải Cảnh Đức', image: 'https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526kst4hwea', retailPrice: 180_000 },
+      ],
+    })
+    const stageSingleItemNoCover = resolveHeroPrimaryStage({
+      isStorefrontClosed: false,
+      showShopeeBanners: false,
+      brandName: 'An Nhiên Trà Cụ',
+      coverBannerUrl: '',
+      showcaseProducts: [
+        { id: 't1', name: 'Ấm Tử Sa Tây Thi', cleanTitle: 'Ấm Tử Sa Tây Thi', image: 'https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526ksrpxg15', retailPrice: 450_000 },
+      ],
+    })
+    const nonCandleTwoItemHtml = generateStandaloneStorefrontHtml({
+      ok: true,
+      storefrontClosed: false,
+      cmsInstanceId: 'cms_tea_02',
+      brand: {
+        brandName: 'An Nhiên Trà Cụ',
+        brandShortName: 'ANTC',
+        brandBadge: 'TEA',
+        brandSubtitle: 'Nghệ Nhân Gốm Tử Sa',
+        footerTagline: 'Trà Cụ Chính Hãng',
+        workshopName: 'Xưởng Gốm Nghi Hưng',
+        companyName: 'An Nhiên Trà Cụ',
+      },
+      config: {
+        enabled: true,
+        customDomain: 'annhientra.vn',
+        additionalDomains: ['www.annhientra.vn'],
+        cmsBackendOrigin: 'https://annhien-cms.onrender.com',
+        heroBadge: 'Nghệ Nhân Gốm Tử Sa · Sỉ & Lẻ Toàn Quốc',
+        heroTitle: 'Ấm Chén Tử Sa & Trà Cụ Thủ Công Nung Củi',
+        heroSubtitle: 'Tuyển chọn ấm tử sa Nghi Hưng chính hiệu.',
+        announcementBar: '',
+        wholesaleEnabled: false,
+        wholesaleTiers: [{ id: 't20', minQty: 20, discountPercent: 18, label: 'Sỉ 20+', badge: '-18%', description: 'Từ 20 SP' }],
+        wholesalePolicyNote: 'Sỉ từ 20 SP',
+        oemCustomNote: '',
+        freeShipThreshold: 800_000,
+        baseShippingFee: 30_000,
+        returnDays: 14,
+        allowPreorderWhenOutOfStock: true,
+        contact: {
+          hotline: '0912 345 678',
+          zaloPhone: '0912345678',
+          zaloUrl: 'https://zalo.me/0912345678',
+          email: 'lienhe@annhientra.vn',
+          address: 'Hà Nội',
+          workingHours: '08:00 - 20:00',
+          shopeeUrl: '',
+          facebookUrl: '',
+          tiktokUrl: '',
+        },
+        banners: normalizeSnapshotBanners({ enabled: false, coverBannerUrl: '' }, true),
+      },
+      bankTransfer: null,
+      categories: [{ id: 'c_tea', name: 'Ấm Tử Sa', slug: 'am-tu-sa' }],
+      products: [
+        {
+          id: 't1',
+          sku: 'TEA-01',
+          name: 'Ấm Tử Sa Tây Thi',
+          cleanTitle: 'Ấm Tử Sa Tây Thi',
+          variantLabel: null,
+          description: 'Ấm tử sa',
+          categoryId: 'c_tea',
+          categoryName: 'Ấm Tử Sa',
+          retailPrice: 450_000,
+          wholesalePrices: [],
+          unit: 'chiếc',
+          type: 'SIMPLE',
+          fragile: true,
+          image: 'https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526ksrpxg15',
+          images: ['https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526ksrpxg15'],
+          inStock: true,
+          availableToOrder: true,
+          stockLabel: 'Sẵn hàng',
+          shopeeUrl: '',
+        },
+        {
+          id: 't2',
+          sku: 'TEA-02',
+          name: 'Chén Khải Sứ Cảnh Đức',
+          cleanTitle: 'Chén Khải Sứ Cảnh Đức',
+          variantLabel: null,
+          description: 'Chén khải',
+          categoryId: 'c_tea',
+          categoryName: 'Ấm Tử Sa',
+          retailPrice: 180_000,
+          wholesalePrices: [],
+          unit: 'chiếc',
+          type: 'SIMPLE',
+          fragile: true,
+          image: 'https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526kst4hwea',
+          images: ['https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526kst4hwea'],
+          inStock: true,
+          availableToOrder: true,
+          stockLabel: 'Sẵn hàng',
+          shopeeUrl: '',
+        },
+      ],
+      articles: [],
+    })
+    const closedStandaloneHtml = generateStandaloneStorefrontHtml({
+      ok: true,
+      storefrontClosed: true,
+      cmsInstanceId: 'cms_closed_03',
+      brand: {
+        brandName: 'Bơ Mộc · Showroom',
+        brandShortName: 'BM',
+        brandBadge: 'CRAFT',
+        brandSubtitle: 'Xưởng Thủ Công',
+        footerTagline: 'Xưởng Thủ Công',
+        workshopName: 'Xưởng Bơ Mộc',
+        companyName: 'Bơ Mộc',
+      },
+      config: {
+        enabled: false,
+        customDomain: 'bomocdecor.vn',
+        additionalDomains: ['www.bomocdecor.vn'],
+        cmsBackendOrigin: 'https://openvn-cms-pos-backend.onrender.com',
+        heroBadge: 'Xưởng Thủ Công Chính Hãng',
+        heroTitle: 'Nến Bơ Tự Nhiên & Thạch Cao Decor',
+        heroSubtitle: 'Tạm bảo trì danh mục',
+        announcementBar: '',
+        wholesaleEnabled: true,
+        wholesaleTiers: [],
+        wholesalePolicyNote: '',
+        oemCustomNote: '',
+        freeShipThreshold: 500_000,
+        baseShippingFee: 30_000,
+        returnDays: 7,
+        allowPreorderWhenOutOfStock: false,
+        contact: {
+          hotline: '0909 686 868',
+          zaloPhone: '0909686868',
+          zaloUrl: 'https://zalo.me/0909686868',
+          email: 'lienhe@bomocdecor.vn',
+          address: 'TP.HCM',
+          workingHours: '08:30 - 21:00',
+          shopeeUrl: '',
+          facebookUrl: '',
+          tiktokUrl: '',
+        },
+        banners: normalizeSnapshotBanners({}, false),
+      },
+      bankTransfer: null,
+      categories: [],
+      products: [],
+      articles: [],
+    })
+    const nonCandleVisibleBody = nonCandleTwoItemHtml.split('<script>')[0] || ''
+    const scrollFnMatch = nonCandleTwoItemHtml.match(/function scrollToCatalog\(\)\s*\{[\s\S]*?\n    \}/)
+    assert(
+      nonCandleCopy.isCandlePlasterAtelier === false &&
+        !JSON.stringify(nonCandleCopy).toLowerCase().includes('sáp bơ') &&
+        !JSON.stringify(nonCandleCopy).toLowerCase().includes('thạch cao') &&
+        nonCandleCopy.highlight3.includes('20 SP') &&
+        !nonCandleVisibleBody.toLowerCase().includes('sáp bơ') &&
+        !nonCandleVisibleBody.toLowerCase().includes('thạch cao') &&
+        stageTwoItemsNoCover.hasStageImage === true &&
+        stageTwoItemsNoCover.isProductFallback === true &&
+        stageTwoItemsNoCover.stripProducts.length === 2 &&
+        stageSingleItemNoCover.hasStageImage === true &&
+        stageSingleItemNoCover.stripProducts.length === 0 &&
+        nonCandleTwoItemHtml.includes('hero-featured-grid cols-2') &&
+        nonCandleTwoItemHtml.includes('circle cx="17" cy="18" r="2"') &&
+        closedStandaloneHtml.includes('class="toolbar hidden" id="catalogToolbar"') &&
+        closedStandaloneHtml.includes('id="heroOpenExploreBtn" class="btn-primary hidden"') &&
+        closedStandaloneHtml.includes('id="heroClosedContactBtn" class="btn-primary"') &&
+        Boolean(scrollFnMatch?.[0]) &&
+        !scrollFnMatch![0].includes('setPriceMode'),
+      'S3-MULTI-CMS-HERO-COPY-FALLBACK-STAGE-AND-CLOSED-PARITY',
+      'CMS ngành hàng độc lập 0 rò rỉ chữ Nến bơ/Thạch cao, tự dựng Stage ảnh chính + cols-2 khi thiếu Cover Shopee, đổi đúng icon Truck & ẩn toolbar khi đóng cửa hàng, giữ nguyên WHOLESALE mode khi cuộn'
     )
 
     // Verify Credential Test accuracy (no false READY on cleared config) + enabled=false support + MARKETING RBAC

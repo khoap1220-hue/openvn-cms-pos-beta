@@ -73,6 +73,8 @@ import {
   parseStorefrontDeepLinkQuery,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
+  resolveHeroPrimaryStage,
+  resolveStorefrontHeroCopy,
   selectHeroShowcaseProducts,
   serializeCartForStorage,
 } from '@/lib/storefront-ux'
@@ -413,14 +415,39 @@ export default function OnlineStorefrontPage() {
 
   const isStorefrontClosed = Boolean(storeData?.storefrontClosed || cfg?.enabled === false)
   const isWholesaleAllowed = !isStorefrontClosed && cfg?.wholesaleEnabled !== false
+  const freeShipThresholdEarly = cfg?.freeShipThreshold ?? 500_000
   const mainCatalogRef = useRef<HTMLElement | null>(null)
 
   const heroShowcaseProducts = useMemo(
     () => (isStorefrontClosed ? [] : selectHeroShowcaseProducts(products, 3)),
     [isStorefrontClosed, products]
   )
-  const hasHeroCoverImage = Boolean(showShopeeBanners && banners?.coverBannerUrl)
-  const hasHeroVisual = hasHeroCoverImage || heroShowcaseProducts.length > 0
+  const heroPrimaryStage = useMemo(
+    () =>
+      resolveHeroPrimaryStage({
+        isStorefrontClosed,
+        showShopeeBanners,
+        brandName,
+        coverBannerUrl: banners?.coverBannerUrl,
+        mobileCoverBannerUrl: banners?.mobileCoverBannerUrl,
+        firstCarouselBanner: carouselBanners[0] ?? null,
+        showcaseProducts: heroShowcaseProducts,
+      }),
+    [
+      isStorefrontClosed,
+      showShopeeBanners,
+      brandName,
+      banners?.coverBannerUrl,
+      banners?.mobileCoverBannerUrl,
+      carouselBanners,
+      heroShowcaseProducts,
+    ]
+  )
+  const isInitialHeroLoading = loading && !storeData
+  const hasHeroVisual =
+    isInitialHeroLoading ||
+    heroPrimaryStage.hasStageImage ||
+    heroPrimaryStage.stripProducts.length > 0
   const minWholesaleQty = useMemo(
     () =>
       wholesaleTiers.length > 0
@@ -438,13 +465,46 @@ export default function OnlineStorefrontPage() {
     return ''
   }, [wholesaleTiers])
   const wsTiersSummary = useMemo(
-    () => formatWholesaleTiersSummary(wholesaleTiers, Boolean(cfg?.oemCustomNote)),
+    () => formatWholesaleTiersSummary(wholesaleTiers, cfg?.oemCustomNote),
     [wholesaleTiers, cfg?.oemCustomNote]
+  )
+  const heroCopy = useMemo(
+    () =>
+      resolveStorefrontHeroCopy({
+        brandName: storeData?.brand?.brandName,
+        workshopName: storeData?.brand?.workshopName,
+        customDomain: cfg?.customDomain,
+        heroBadge: cfg?.heroBadge,
+        heroTitle: cfg?.heroTitle,
+        heroSubtitle: cfg?.heroSubtitle,
+        announcementBar: cfg?.announcementBar,
+        returnDays: cfg?.returnDays,
+        freeShipFormatted: formatVND(freeShipThresholdEarly),
+        minWholesaleQty,
+        isWholesaleAllowed,
+        isStorefrontClosed,
+        totalProductsCount: products.length,
+        sampleTexts: products.slice(0, 6).map((p) => p.cleanTitle || p.name),
+      }),
+    [
+      storeData?.brand?.brandName,
+      storeData?.brand?.workshopName,
+      cfg?.customDomain,
+      cfg?.heroBadge,
+      cfg?.heroTitle,
+      cfg?.heroSubtitle,
+      cfg?.announcementBar,
+      cfg?.returnDays,
+      freeShipThresholdEarly,
+      minWholesaleQty,
+      isWholesaleAllowed,
+      isStorefrontClosed,
+      products,
+    ]
   )
 
   const scrollToCatalog = useCallback(() => {
     setActiveTab('PRODUCTS')
-    setPriceViewMode('RETAIL')
     window.requestAnimationFrame(() => {
       mainCatalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -964,7 +1024,7 @@ export default function OnlineStorefrontPage() {
     }
   }
 
-  const estimatedQtyNum = Math.max(10, Math.floor(Number(wsEstimatedQty) || 30))
+  const estimatedQtyNum = Math.max(minWholesaleQty, Math.floor(Number(wsEstimatedQty) || 30))
   const simulatedTier = useMemo(() => {
     const sorted = [...wholesaleTiers].sort((a, b) => b.minQty - a.minQty)
     return sorted.find((t) => estimatedQtyNum >= t.minQty) ?? wholesaleTiers[0] ?? null
@@ -974,10 +1034,7 @@ export default function OnlineStorefrontPage() {
     <div className="flex min-h-svh flex-col bg-background text-foreground">
       {/* Thanh thông báo ưu đãi đầu trang */}
       <div className="border-b border-amber-200/70 bg-gradient-to-r from-amber-50 via-stone-50 to-emerald-50 px-4 py-2 text-center text-xs font-medium text-stone-800 dark:border-stone-800 dark:from-stone-900 dark:via-slate-900 dark:to-emerald-950/50 dark:text-stone-200">
-        <span>
-          {cfg?.announcementBar ||
-            'Miễn phí vận chuyển toàn quốc đơn lẻ từ 500.000 ₫ · Chiết khấu Giá Sỉ tận xưởng từ 10 sản phẩm (-15% đến -35%)'}
-        </span>
+        <span>{heroCopy.effectiveAnnouncementBar}</span>
       </div>
 
       {/* Header Điều hướng Chính */}
@@ -1118,7 +1175,7 @@ export default function OnlineStorefrontPage() {
               hasHeroVisual ? 'lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)]' : 'max-w-3xl'
             )}
           >
-            {/* Cột Trái: Câu chuyện Thương hiệu, Điểm nhấn Chất liệu & Hành động Chính */}
+            {/* Cột Trái: Câu chuyện Thương hiệu, Điểm nhấn Chất lượng & Hành động Chính */}
             <div className="min-w-0 space-y-4">
               <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/75 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-amber-950 shadow-2xs backdrop-blur-xs dark:border-amber-800/80 dark:bg-stone-900/90 dark:text-amber-200">
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
@@ -1136,35 +1193,53 @@ export default function OnlineStorefrontPage() {
                   'Chế tác tỉ mỉ từng khay, hũ nến thạch cao kháng dầu chịu nhiệt và nến bơ thực vật thuần chay không khói cho góc thiền, bàn trà, spa & quà tặng doanh nghiệp.'}
               </p>
 
-              {/* Dải điểm nhấn chất liệu thủ công cân bằng nhịp thị giác */}
+              {/* Dải điểm nhấn thương hiệu thích ứng tự động theo từng CMS độc lập */}
               <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 pt-0.5 text-xs font-semibold text-stone-700 dark:text-stone-300">
                 <span className="inline-flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
-                  <span>100% Sáp bơ thực vật không khói</span>
+                  <span>{heroCopy.highlight1}</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
-                  <span>Cốt thạch cao khoáng kháng dầu</span>
+                  <span>{heroCopy.highlight2}</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-400" />
-                  <span>
-                    {isWholesaleAllowed
-                      ? `Sỉ gộp mẫu tự do từ ${minWholesaleQty} SP`
-                      : `Freeship đơn từ ${formatVND(freeShipThreshold)}`}
-                  </span>
+                  <span>{heroCopy.highlight3}</span>
                 </span>
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 pt-1.5">
-                <Button
-                  type="button"
-                  onClick={scrollToCatalog}
-                  className="h-11 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4.5 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:text-[13px] dark:bg-amber-600 dark:hover:bg-amber-500"
-                >
-                  <ShoppingBag className="h-4 w-4 shrink-0" />
-                  <span>Khám Phá Sản Phẩm</span>
-                </Button>
+                {isStorefrontClosed ? (
+                  <>
+                    <Button
+                      type="button"
+                      onClick={() => setActiveTab('CONTACT')}
+                      className="h-11 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4.5 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:text-[13px] dark:bg-amber-600 dark:hover:bg-amber-500"
+                    >
+                      <Phone className="h-4 w-4 shrink-0" />
+                      <span>Liên Hệ Cửa Hàng</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setActiveTab('TRACKING')}
+                      className="h-11 cursor-pointer gap-1.5 rounded-xl border-amber-400/90 bg-amber-50/85 px-4 text-xs font-bold text-amber-950 transition hover:bg-amber-100/90 sm:text-[13px] dark:border-amber-700 dark:bg-amber-950/45 dark:text-amber-200"
+                    >
+                      <FileSearch className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+                      <span>Tra Cứu Đơn Hàng</span>
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={scrollToCatalog}
+                    className="h-11 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4.5 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:text-[13px] dark:bg-amber-600 dark:hover:bg-amber-500"
+                  >
+                    <ShoppingBag className="h-4 w-4 shrink-0" />
+                    <span>Khám Phá Sản Phẩm</span>
+                  </Button>
+                )}
 
                 {isWholesaleAllowed && (
                   <Button
@@ -1193,92 +1268,153 @@ export default function OnlineStorefrontPage() {
               </div>
             </div>
 
-            {/* Cột Phải: Khung Trưng Bày Nghệ Thuật Xưởng Thủ Công & Tác Phẩm Tiêu Biểu */}
+            {/* Cột Phải: Khung Trưng Bày Nghệ Thuật & Sản Phẩm Tiêu Biểu (0 CLS / 0 Dead-Click) */}
             {hasHeroVisual && (
               <div className="min-w-0 rounded-[22px] border border-stone-200/90 bg-white/92 p-2.5 shadow-[0_20px_44px_-20px_rgba(45,33,20,0.18)] backdrop-blur-xs sm:p-3 dark:border-stone-800 dark:bg-stone-900/90">
-                {hasHeroCoverImage && banners?.coverBannerUrl && (
-                  <div className="overflow-hidden rounded-2xl border border-stone-200/70 bg-stone-100 dark:border-stone-800 dark:bg-stone-950">
-                    <picture>
-                      {banners.mobileCoverBannerUrl && (
-                        <source
-                          media="(max-width: 640px)"
-                          srcSet={banners.mobileCoverBannerUrl}
-                        />
-                      )}
-                      <img
-                        src={banners.coverBannerUrl}
-                        alt={`${brandName} — Không gian chế tác thủ công`}
-                        referrerPolicy="no-referrer"
-                        className="aspect-[1196/518] w-full object-cover transition-transform duration-500 hover:scale-[1.015]"
-                      />
-                    </picture>
+                {isInitialHeroLoading ? (
+                  <div className="space-y-2.5" aria-hidden="true">
+                    <div className="aspect-[1196/518] w-full animate-pulse rounded-2xl bg-stone-200/70 dark:bg-stone-800/70" />
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="h-[58px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
+                      <div className="h-[58px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
+                      <div className="h-[58px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
+                    </div>
                   </div>
-                )}
-
-                {heroShowcaseProducts.length > 0 && (
-                  <div className={cn(hasHeroCoverImage && 'mt-2.5')}>
-                    <div className="mb-1.5 flex items-center justify-between gap-2 px-1 text-[11px] text-stone-500 dark:text-stone-400">
-                      <span className="font-bold text-stone-700 dark:text-stone-200">
-                        Tác phẩm tiêu biểu tại xưởng
-                      </span>
+                ) : (
+                  <>
+                    {heroPrimaryStage.hasStageImage && (
                       <button
                         type="button"
-                        onClick={scrollToCatalog}
-                        className="cursor-pointer font-semibold text-amber-800 transition hover:text-amber-950 hover:underline dark:text-amber-400"
-                      >
-                        Xem trọn bộ {products.length} mẫu →
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      {heroShowcaseProducts.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
+                        onClick={() => {
+                          if (heroPrimaryStage.stageProduct) {
                             setSelectedImageIdx(0)
-                            setSelectedProduct(item)
-                          }}
-                          className="group flex min-h-[54px] cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border border-stone-200/85 bg-stone-50/85 p-1.5 text-left transition hover:-translate-y-0.5 hover:border-amber-400/80 hover:bg-white hover:shadow-xs min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2.5 min-[560px]:p-2 dark:border-stone-800 dark:bg-stone-950/60 dark:hover:border-amber-600/70 dark:hover:bg-stone-950"
-                        >
-                          {item.image && (
-                            <img
-                              src={item.image}
-                              alt={item.cleanTitle || item.name}
-                              referrerPolicy="no-referrer"
-                              loading="lazy"
-                              className="aspect-[4/3] w-full shrink-0 rounded-lg border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 min-[560px]:aspect-square min-[560px]:h-10 min-[560px]:w-10 dark:border-stone-800"
+                            setSelectedProduct(heroPrimaryStage.stageProduct)
+                          } else {
+                            scrollToCatalog()
+                          }
+                        }}
+                        aria-label={
+                          heroPrimaryStage.stageProduct
+                            ? `Xem chi tiết ${heroPrimaryStage.stageProduct.cleanTitle || heroPrimaryStage.stageProduct.name}`
+                            : `Khám phá danh mục ${brandName}`
+                        }
+                        className="group/stage relative block w-full cursor-pointer overflow-hidden rounded-2xl border border-stone-200/70 bg-stone-100 text-left focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none dark:border-stone-800 dark:bg-stone-950"
+                      >
+                        <picture>
+                          {heroPrimaryStage.mobileImageUrl && (
+                            <source
+                              media="(max-width: 640px)"
+                              srcSet={heroPrimaryStage.mobileImageUrl}
                             />
                           )}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[11px] font-bold text-stone-800 group-hover:text-amber-900 min-[560px]:text-xs dark:text-stone-100 dark:group-hover:text-amber-300">
-                              {formatHeroShortProductLabel(item.cleanTitle || item.name)}
-                            </p>
-                            <p className="text-[11px] font-extrabold text-amber-800 dark:text-amber-400">
-                              {formatVND(item.retailPrice)}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                          <img
+                            src={heroPrimaryStage.imageUrl}
+                            alt={heroPrimaryStage.alt}
+                            referrerPolicy="no-referrer"
+                            className="aspect-[1196/518] w-full object-cover transition-transform duration-500 group-hover/stage:scale-[1.018]"
+                          />
+                        </picture>
+                        {heroPrimaryStage.isProductFallback && heroPrimaryStage.stageProduct ? (
+                          <span className="pointer-events-none absolute right-2.5 bottom-2.5 left-2.5 flex items-center justify-between gap-2 rounded-xl bg-stone-950/72 px-3 py-1.5 text-xs text-white backdrop-blur-xs">
+                            <span className="truncate font-bold">
+                              {formatHeroShortProductLabel(
+                                heroPrimaryStage.stageProduct.cleanTitle ||
+                                  heroPrimaryStage.stageProduct.name,
+                                36
+                              )}
+                            </span>
+                            <span className="shrink-0 font-extrabold text-amber-300">
+                              {formatVND(heroPrimaryStage.stageProduct.retailPrice)} · Xem →
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="pointer-events-none absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full bg-stone-950/68 px-2.5 py-1 text-[10.5px] font-semibold text-white opacity-90 backdrop-blur-xs transition group-hover/stage:bg-amber-800 group-hover/stage:opacity-100">
+                            <span>Khám phá bộ sưu tập</span>
+                            <ChevronRight className="h-3 w-3" />
+                          </span>
+                        )}
+                      </button>
+                    )}
+
+                    {heroPrimaryStage.stripProducts.length > 0 && (
+                      <div className={cn(heroPrimaryStage.hasStageImage && 'mt-2.5')}>
+                        <div className="mb-1.5 flex items-center justify-between gap-2 px-1 text-[11px] text-stone-500 dark:text-stone-400">
+                          <span className="font-bold text-stone-700 dark:text-stone-200">
+                            {heroCopy.showcaseHeading}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={scrollToCatalog}
+                            className="cursor-pointer font-semibold text-amber-800 transition hover:text-amber-950 hover:underline dark:text-amber-400"
+                          >
+                            {heroCopy.showcaseActionLabel}
+                          </button>
+                        </div>
+
+                        <div
+                          className={cn(
+                            'grid gap-2',
+                            heroPrimaryStage.stripProducts.length === 1
+                              ? 'grid-cols-1'
+                              : heroPrimaryStage.stripProducts.length === 2
+                                ? 'grid-cols-2'
+                                : 'grid-cols-3'
+                          )}
+                        >
+                          {heroPrimaryStage.stripProducts.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedImageIdx(0)
+                                setSelectedProduct(item)
+                              }}
+                              className="group flex min-h-[58px] cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border border-stone-200/85 bg-stone-50/85 p-1.5 text-left transition hover:-translate-y-0.5 hover:border-amber-400/80 hover:bg-white hover:shadow-xs min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2 min-[560px]:p-2 dark:border-stone-800 dark:bg-stone-950/60 dark:hover:border-amber-600/70 dark:hover:bg-stone-950"
+                            >
+                              {item.image && (
+                                <img
+                                  src={item.image}
+                                  alt={item.cleanTitle || item.name}
+                                  referrerPolicy="no-referrer"
+                                  loading="lazy"
+                                  className="aspect-[4/3] w-full shrink-0 rounded-lg border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 min-[560px]:aspect-square min-[560px]:h-11 min-[560px]:w-11 dark:border-stone-800"
+                                />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="line-clamp-2 text-[11px] leading-[1.24] font-bold text-stone-800 group-hover:text-amber-900 min-[560px]:text-[11.5px] dark:text-stone-100 dark:group-hover:text-amber-300">
+                                  {formatHeroShortProductLabel(item.cleanTitle || item.name)}
+                                </p>
+                                <p className="mt-0.5 text-[11px] font-extrabold text-amber-800 dark:text-amber-400">
+                                  {formatVND(item.retailPrice)}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
           </div>
 
-          {/* Tầng Đáy Hero: 3 Cam Kết Xưởng Sản Xuất Trải Ngang Cân Đối */}
+          {/* Tầng Đáy Hero: 3 Cam Kết Trải Ngang Cân Đối (Thích ứng Đa CMS) */}
           <div className="mt-6 grid gap-3 border-t border-stone-200/80 pt-5 md:grid-cols-3 md:gap-4 dark:border-stone-800/90">
             <div className="flex items-start gap-3 rounded-2xl border border-stone-200/85 bg-white/80 p-3.5 shadow-2xs backdrop-blur-xs transition hover:bg-white dark:border-stone-800 dark:bg-stone-900/75">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100/90 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300">
-                <Flame className="h-4 w-4" />
+                {heroCopy.craftIcon === 'FLAME' ? (
+                  <Flame className="h-4 w-4" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
               </div>
               <div className="min-w-0 text-xs">
                 <p className="font-bold text-stone-900 dark:text-stone-100">
-                  Đúc Thủ Công &amp; Sáp Bơ Thực Vật Thuần Chay
+                  {heroCopy.craftPromiseTitle}
                 </p>
                 <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
-                  Không khói đen, an toàn cho phòng thiền, bàn trà, spa; bề mặt thạch cao kháng dầu mịn đẹp.
+                  {heroCopy.craftPromiseDesc}
                 </p>
               </div>
             </div>
@@ -1293,9 +1429,7 @@ export default function OnlineStorefrontPage() {
               </div>
               <div className="min-w-0 text-xs">
                 <p className="font-bold text-stone-900 dark:text-stone-100">
-                  {isWholesaleAllowed
-                    ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
-                    : 'Ưu Đãi Vận Chuyển Toàn Quốc'}
+                  {heroCopy.wsPromiseTitle}
                 </p>
                 <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
                   {isWholesaleAllowed
@@ -1311,11 +1445,10 @@ export default function OnlineStorefrontPage() {
               </div>
               <div className="min-w-0 text-xs">
                 <p className="font-bold text-stone-900 dark:text-stone-100">
-                  Đóng Gói Chống Sốc — Bảo Hành Bể Vỡ 1 Đổi 1
+                  {heroCopy.safePromiseTitle}
                 </p>
                 <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
-                  Xốp định hình nhiều lớp chuyên dụng, kiểm hàng và đổi mới miễn phí trong{' '}
-                  {cfg?.returnDays ?? 7} ngày.
+                  {heroCopy.safePromiseDesc}
                 </p>
               </div>
             </div>
@@ -1585,120 +1718,126 @@ export default function OnlineStorefrontPage() {
               )}
 
             {/* Thanh công cụ Tìm kiếm + Lọc Danh mục + Chuyển đổi Xem Giá Lẻ / Giá Sỉ */}
-            <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-2xs">
-              <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-                <div className="relative w-full lg:max-w-md">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Tìm theo tên sản phẩm (nến bơ, hoa sen, hũ búp sen, khay oval) hoặc SKU..."
-                    aria-label="Tìm kiếm sản phẩm"
-                    className="h-10 pl-9"
-                  />
-                </div>
+            {!isStorefrontClosed && (
+              <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-2xs">
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                  <div className="relative w-full lg:max-w-md">
+                    <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder={
+                        heroCopy.isCandlePlasterAtelier
+                          ? 'Tìm theo tên sản phẩm (nến bơ, hoa sen, hũ búp sen, khay oval) hoặc SKU...'
+                          : 'Tìm theo tên sản phẩm hoặc mã SKU...'
+                      }
+                      aria-label="Tìm kiếm sản phẩm"
+                      className="h-10 pl-9"
+                    />
+                  </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {cfg?.wholesaleEnabled !== false && (
-                    <div className="inline-flex rounded-xl border bg-muted/50 p-1">
-                      <button
-                        type="button"
-                        onClick={() => setPriceViewMode('RETAIL')}
-                        className={cn(
-                          'min-h-9 rounded-lg px-3 text-xs font-bold transition-colors',
-                          priceViewMode === 'RETAIL'
-                            ? 'bg-card text-foreground shadow-2xs'
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        Giá Bán Lẻ
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPriceViewMode('WHOLESALE')}
-                        className={cn(
-                          'min-h-9 rounded-lg px-3 text-xs font-bold transition-colors',
-                          priceViewMode === 'WHOLESALE'
-                            ? 'bg-amber-600 text-white shadow-2xs'
-                            : 'text-amber-800 hover:text-amber-900 dark:text-amber-300'
-                        )}
-                      >
-                        Hiển thị Giá Sỉ
-                      </button>
-                    </div>
-                  )}
-
-                  <select
-                    aria-label="Sắp xếp theo giá"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                    className="h-10 rounded-xl border bg-background px-3 text-xs font-medium text-foreground"
-                  >
-                    <option value="DEFAULT">Sắp xếp: Đề xuất</option>
-                    <option value="PRICE_ASC">Giá: Thấp đến Cao</option>
-                    <option value="PRICE_DESC">Giá: Cao đến Thấp</option>
-                  </select>
-                </div>
-              </div>
-
-              {categories.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCat('ALL')
-                      setSelectedCollectionId('ALL')
-                    }}
-                    className={cn(
-                      'inline-flex min-h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors',
-                      selectedCat === 'ALL' && selectedCollectionId === 'ALL'
-                        ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-600 dark:bg-amber-600'
-                        : 'bg-background text-foreground hover:bg-muted'
-                    )}
-                  >
-                    Tất cả ({products.length})
-                  </button>
-                  {activeCollectionBanner && (
-                    <div className="inline-flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedCollectionId('ALL')}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-amber-600 bg-amber-600 px-3.5 text-xs font-bold text-white"
-                      >
-                        <span>Bộ sưu tập: {activeCollectionBanner.name}</span>
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                      {activeCollectionBanner.shopeeUrl && (
-                        <a
-                          href={activeCollectionBanner.shopeeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-9 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isWholesaleAllowed && (
+                      <div className="inline-flex rounded-xl border bg-muted/50 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setPriceViewMode('RETAIL')}
+                          className={cn(
+                            'min-h-9 rounded-lg px-3 text-xs font-bold transition-colors',
+                            priceViewMode === 'RETAIL'
+                              ? 'bg-card text-foreground shadow-2xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
                         >
-                          <span>Xem trên Shopee</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  {categories.map((cat) => (
+                          Giá Bán Lẻ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPriceViewMode('WHOLESALE')}
+                          className={cn(
+                            'min-h-9 rounded-lg px-3 text-xs font-bold transition-colors',
+                            priceViewMode === 'WHOLESALE'
+                              ? 'bg-amber-600 text-white shadow-2xs'
+                              : 'text-amber-800 hover:text-amber-900 dark:text-amber-300'
+                          )}
+                        >
+                          Hiển thị Giá Sỉ
+                        </button>
+                      </div>
+                    )}
+
+                    <select
+                      aria-label="Sắp xếp theo giá"
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                      className="h-10 rounded-xl border bg-background px-3 text-xs font-medium text-foreground"
+                    >
+                      <option value="DEFAULT">Sắp xếp: Đề xuất</option>
+                      <option value="PRICE_ASC">Giá: Thấp đến Cao</option>
+                      <option value="PRICE_DESC">Giá: Cao đến Thấp</option>
+                    </select>
+                  </div>
+                </div>
+
+                {categories.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                     <button
-                      key={cat.id}
                       type="button"
-                      onClick={() => setSelectedCat(cat.id)}
+                      onClick={() => {
+                        setSelectedCat('ALL')
+                        setSelectedCollectionId('ALL')
+                      }}
                       className={cn(
                         'inline-flex min-h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors',
-                        selectedCat === cat.id
+                        selectedCat === 'ALL' && selectedCollectionId === 'ALL'
                           ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-600 dark:bg-amber-600'
                           : 'bg-background text-foreground hover:bg-muted'
                       )}
                     >
-                      {cat.name}
+                      Tất cả ({products.length})
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {activeCollectionBanner && (
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCollectionId('ALL')}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-amber-600 bg-amber-600 px-3.5 text-xs font-bold text-white"
+                        >
+                          <span>Bộ sưu tập: {activeCollectionBanner.name}</span>
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                        {activeCollectionBanner.shopeeUrl && (
+                          <a
+                            href={activeCollectionBanner.shopeeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-9 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            <span>Xem trên Shopee</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {categories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedCat(cat.id)}
+                        className={cn(
+                          'inline-flex min-h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors',
+                          selectedCat === cat.id
+                            ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-600 dark:bg-amber-600'
+                            : 'bg-background text-foreground hover:bg-muted'
+                        )}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {loading ? (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1965,10 +2104,10 @@ export default function OnlineStorefrontPage() {
                                 size="sm"
                                 variant="outline"
                                 disabled={!p.availableToOrder}
-                                onClick={() => addToCart(p, 10)}
+                                onClick={() => addToCart(p, minWholesaleQty)}
                                 className="h-8 px-2.5 text-[11px] font-semibold"
                               >
-                                {p.availableToOrder ? '+10' : 'Tạm hết'}
+                                {p.availableToOrder ? `+${minWholesaleQty}` : 'Tạm hết'}
                               </Button>
                             </td>
                           </tr>
@@ -2062,7 +2201,7 @@ export default function OnlineStorefrontPage() {
                           <Input
                             id="ws-qty"
                             type="number"
-                            min={10}
+                            min={minWholesaleQty}
                             value={wsEstimatedQty}
                             onChange={(e) => setWsEstimatedQty(e.target.value)}
                           />
@@ -2585,14 +2724,14 @@ export default function OnlineStorefrontPage() {
                           variant="outline"
                           disabled={!selectedProduct.availableToOrder}
                           onClick={() => {
-                            addToCart(selectedProduct, 10)
+                            addToCart(selectedProduct, minWholesaleQty)
                             setSelectedProduct(null)
                             setCartOpen(true)
                           }}
                           className="h-10 gap-1.5 border-amber-400 text-xs font-bold text-amber-900 dark:text-amber-300"
                         >
                           <BadgePercent className="h-4 w-4" />
-                          Nhập sỉ (+10)
+                          Nhập sỉ (+{minWholesaleQty})
                         </Button>
                       )}
                     </div>
@@ -2644,7 +2783,9 @@ export default function OnlineStorefrontPage() {
               Giỏ hàng &amp; Đặt mua Trực tuyến
             </DialogTitle>
             <DialogDescription>
-              Tự động áp dụng chiết khấu Giá Sỉ tận xưởng khi tổng giỏ hàng từ 10 sản phẩm trở lên.
+              {isWholesaleAllowed
+                ? `Tự động áp dụng chiết khấu Giá Sỉ khi tổng giỏ hàng từ ${minWholesaleQty} sản phẩm trở lên.`
+                : 'Kiểm tra danh sách sản phẩm và nhập thông tin nhận hàng.'}
             </DialogDescription>
           </DialogHeader>
 
