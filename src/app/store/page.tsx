@@ -69,6 +69,7 @@ import {
   buildStorefrontVietQrUrl,
   formatStorefrontLookupStatusLabel,
   parseStorefrontDeepLinkQuery,
+  reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
   serializeCartForStorage,
 } from '@/lib/storefront-ux'
@@ -276,6 +277,7 @@ export default function OnlineStorefrontPage() {
   } | null>(null)
   const [qrLoadFailedUrl, setQrLoadFailedUrl] = useState<string | null>(null)
   const hydratedCartKeyRef = useRef<string | null>(null)
+  const [hydratedCartKey, setHydratedCartKey] = useState<string | null>(null)
   const pendingDeepLinkSkuRef = useRef<string>('')
   const deepLinkSkuAppliedRef = useRef<boolean>(false)
 
@@ -406,21 +408,40 @@ export default function OnlineStorefrontPage() {
     ? buildStorefrontCartStorageKey(storeData.cmsInstanceId)
     : null
 
-  // Phục hồi giỏ hàng cô lập theo đúng cmsInstanceId & tự động đối chiếu lại giá/tồn kho mới nhất
+  const isStorefrontClosed = Boolean(storeData?.storefrontClosed || cfg?.enabled === false)
+  const isWholesaleAllowed = !isStorefrontClosed && cfg?.wholesaleEnabled !== false
+
+  // Tự động hạ tab/chế độ Giá Sỉ về mặc định nếu CMS tắt kênh Sỉ hoặc tạm ngưng nhận đơn
   useEffect(() => {
-    if (typeof window === 'undefined' || !cartStorageKey || products.length === 0) return
-    if (hydratedCartKeyRef.current === cartStorageKey) return
-    hydratedCartKeyRef.current = cartStorageKey
-    try {
-      const raw = window.localStorage.getItem(cartStorageKey)
-      if (!raw) return
-      const parsed = JSON.parse(raw) as unknown
-      const reconciled = reconcilePersistedCartWithCatalog(parsed, products)
-      if (reconciled.length > 0) {
+    if (!storeData) return
+    if (!isWholesaleAllowed) {
+      if (activeTab === 'WHOLESALE') setActiveTab('PRODUCTS')
+      if (priceViewMode === 'WHOLESALE') setPriceViewMode('RETAIL')
+    }
+  }, [storeData, isWholesaleAllowed, activeTab, priceViewMode])
+
+  // Phục hồi giỏ hàng cô lập theo đúng cmsInstanceId & luôn đối chiếu lại giá/tồn kho mới nhất khi liveData cập nhật
+  useEffect(() => {
+    if (typeof window === 'undefined' || !cartStorageKey || !storeData) return
+
+    if (isStorefrontClosed) {
+      setCart((prev) => (prev.length === 0 ? prev : []))
+      return
+    }
+
+    if (hydratedCartKeyRef.current !== cartStorageKey) {
+      if (products.length === 0) return
+      hydratedCartKeyRef.current = cartStorageKey
+      try {
+        const raw = window.localStorage.getItem(cartStorageKey)
+        const parsed = raw ? (JSON.parse(raw) as unknown) : []
+        const reconciled = reconcilePersistedCartWithCatalog(parsed, products)
         setCart((prev) => {
-          if (prev.length === 0) return reconciled
+          const baseActive = reconcileActiveCartItems(prev, products, false)
+          if (reconciled.length === 0) return baseActive
+          if (baseActive.length === 0) return reconciled
           const combined = [...reconciled]
-          for (const item of prev) {
+          for (const item of baseActive) {
             const idx = combined.findIndex((c) => c.product.id === item.product.id)
             if (idx >= 0) {
               combined[idx] = {
@@ -433,15 +454,29 @@ export default function OnlineStorefrontPage() {
           }
           return combined
         })
+      } catch {
+        // Bỏ qua nếu trình duyệt chặn localStorage (chế độ ẩn danh nghiêm ngặt)
       }
-    } catch {
-      // Bỏ qua nếu trình duyệt chặn localStorage (chế độ ẩn danh nghiêm ngặt)
+      setHydratedCartKey(cartStorageKey)
+      return
     }
-  }, [cartStorageKey, products])
+
+    setCart((prev) => {
+      if (prev.length === 0) return prev
+      const refreshed = reconcileActiveCartItems(prev, products, false)
+      const unchanged =
+        refreshed.length === prev.length &&
+        refreshed.every(
+          (item, idx) =>
+            item.product === prev[idx]?.product && item.quantity === prev[idx]?.quantity
+        )
+      return unchanged ? prev : refreshed
+    })
+  }, [cartStorageKey, products, storeData, isStorefrontClosed])
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !cartStorageKey) return
-    if (hydratedCartKeyRef.current !== cartStorageKey) return
+    if (typeof window === 'undefined' || !cartStorageKey || isStorefrontClosed) return
+    if (hydratedCartKey !== cartStorageKey) return
     try {
       const serialized = serializeCartForStorage(cart)
       if (serialized.length === 0) {
@@ -452,21 +487,27 @@ export default function OnlineStorefrontPage() {
     } catch {
       // Bỏ qua nếu bộ nhớ đầy hoặc bị chặn
     }
-  }, [cart, cartStorageKey])
+  }, [cart, cartStorageKey, hydratedCartKey, isStorefrontClosed])
 
-  // Mở thẳng sản phẩm khi truy cập qua Deep-Link ?sku=...
+  // Mở thẳng sản phẩm khi truy cập qua Deep-Link ?sku=... (kể cả sản phẩm mới thêm chỉ có trên liveData)
   useEffect(() => {
-    if (deepLinkSkuAppliedRef.current || !pendingDeepLinkSkuRef.current || products.length === 0) {
+    if (deepLinkSkuAppliedRef.current || !pendingDeepLinkSkuRef.current) {
       return
     }
+    if (isStorefrontClosed) {
+      pendingDeepLinkSkuRef.current = ''
+      deepLinkSkuAppliedRef.current = true
+      return
+    }
+    if (products.length === 0) return
     const targetSku = pendingDeepLinkSkuRef.current.trim().toUpperCase()
     const matched = products.find((p) => p.sku.toUpperCase() === targetSku)
-    deepLinkSkuAppliedRef.current = true
     if (matched) {
+      deepLinkSkuAppliedRef.current = true
       setSelectedImageIdx(0)
       setSelectedProduct(matched)
     }
-  }, [products])
+  }, [products, isStorefrontClosed])
 
   useEffect(() => {
     if (carouselIdx >= carouselBanners.length && carouselBanners.length > 0) {
@@ -641,6 +682,7 @@ export default function OnlineStorefrontPage() {
       : ''
 
   const addToCart = (product: StorefrontProduct, qtyToAdd = 1) => {
+    if (!product.availableToOrder || isStorefrontClosed) return
     setCompletedOrder(null)
     setCart((prev) => {
       const idx = prev.findIndex((it) => it.product.id === product.id)
@@ -1686,7 +1728,7 @@ export default function OnlineStorefrontPage() {
         )}
 
         {/* ==================== TAB 2: BẢNG GIÁ SỈ & CHÍNH SÁCH ĐẠI LÝ ==================== */}
-        {activeTab === 'WHOLESALE' && (
+        {activeTab === 'WHOLESALE' && isWholesaleAllowed && (
           <div className="space-y-8">
             <div className="grid gap-4 md:grid-cols-3">
               {wholesaleTiers.map((tier, idx) => (
@@ -1778,10 +1820,11 @@ export default function OnlineStorefrontPage() {
                                 type="button"
                                 size="sm"
                                 variant="outline"
+                                disabled={!p.availableToOrder}
                                 onClick={() => addToCart(p, 10)}
                                 className="h-8 px-2.5 text-[11px] font-semibold"
                               >
-                                +10
+                                {p.availableToOrder ? '+10' : 'Tạm hết'}
                               </Button>
                             </td>
                           </tr>
@@ -2211,15 +2254,17 @@ export default function OnlineStorefrontPage() {
           <div className="space-y-1.5">
             <p className="font-bold text-foreground">Chính sách Khách hàng &amp; Đại lý Sỉ</p>
             <ul className="space-y-1">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('WHOLESALE')}
-                  className="hover:text-foreground hover:underline"
-                >
-                  Bảng giá sỉ tận xưởng (Từ 10 · 30 · 100 sản phẩm)
-                </button>
-              </li>
+              {isWholesaleAllowed && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('WHOLESALE')}
+                    className="hover:text-foreground hover:underline"
+                  >
+                    Bảng giá sỉ tận xưởng (Từ 10 · 30 · 100 sản phẩm)
+                  </button>
+                </li>
+              )}
               <li>
                 <button
                   type="button"
@@ -2372,7 +2417,12 @@ export default function OnlineStorefrontPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div
+                      className={cn(
+                        'grid gap-2',
+                        isWholesaleAllowed ? 'grid-cols-2' : 'grid-cols-1'
+                      )}
+                    >
                       <Button
                         type="button"
                         disabled={!selectedProduct.availableToOrder}
@@ -2385,20 +2435,22 @@ export default function OnlineStorefrontPage() {
                         <Plus className="h-4 w-4" />
                         {selectedProduct.availableToOrder ? 'Mua lẻ (+1)' : 'Tạm hết hàng'}
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!selectedProduct.availableToOrder}
-                        onClick={() => {
-                          addToCart(selectedProduct, 10)
-                          setSelectedProduct(null)
-                          setCartOpen(true)
-                        }}
-                        className="h-10 gap-1.5 border-amber-400 text-xs font-bold text-amber-900 dark:text-amber-300"
-                      >
-                        <BadgePercent className="h-4 w-4" />
-                        Nhập sỉ (+10)
-                      </Button>
+                      {isWholesaleAllowed && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!selectedProduct.availableToOrder}
+                          onClick={() => {
+                            addToCart(selectedProduct, 10)
+                            setSelectedProduct(null)
+                            setCartOpen(true)
+                          }}
+                          className="h-10 gap-1.5 border-amber-400 text-xs font-bold text-amber-900 dark:text-amber-300"
+                        >
+                          <BadgePercent className="h-4 w-4" />
+                          Nhập sỉ (+10)
+                        </Button>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                       <Button

@@ -6,6 +6,23 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+const NON_CREDENTIAL_META_KEYS = new Set<string>([
+  'connected',
+  'mode',
+  'env',
+  'model',
+  'autoSyncStock',
+  'connectMode',
+  'autoPublishReels',
+  'autoReplyFirstComment',
+  'defaultPrivacy',
+  'cmsType',
+  'bridgePlatform',
+  'enabledChannels',
+  'webhookAuthType',
+  'vaPrefix',
+])
+
 // POST /api/integrations/credentials/test { provider } — kiểm tra cấu hình & độ trễ kết nối đối tác (không ghi DB, 0 lộ secret)
 export async function POST(req: NextRequest) {
   const startedAt = Date.now()
@@ -22,13 +39,21 @@ export async function POST(req: NextRequest) {
 
     const credentials = await getNormalizedCredentials()
     const matched = credentials.find((c) => c.provider === provider)
-    const effectiveConfig: Record<string, unknown> = {
-      ...spec.defaultConfig,
-      ...(matched?.config ?? {}),
-    }
+    const rawMatchedCfg =
+      matched?.config && typeof matched.config === 'object' && !Array.isArray(matched.config)
+        ? matched.config
+        : null
+    const hasExplicitRecord = rawMatchedCfg !== null
+    const effectiveConfig: Record<string, unknown> = hasExplicitRecord
+      ? rawMatchedCfg
+      : { ...spec.defaultConfig }
 
     const validFieldKeys = Object.entries(effectiveConfig)
-      .filter(([, val]) => val !== null && val !== undefined && String(val).trim() !== '')
+      .filter(([key, val]) => {
+        if (key.startsWith('__') || NON_CREDENTIAL_META_KEYS.has(key)) return false
+        if (val === null || val === undefined || typeof val === 'boolean') return false
+        return String(val).trim() !== ''
+      })
       .map(([key]) => key)
 
     const latencyMs = Math.max(1, Date.now() - startedAt)

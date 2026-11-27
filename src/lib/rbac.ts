@@ -507,6 +507,16 @@ export function resolveApiRoutePermission(
       description: 'Cấu hình Website Khách hàng & Tên miền riêng',
     }
   }
+  if (pathname === '/api/integrations/credentials/test') {
+    return {
+      anyOf: [
+        { domain: 'system_iam', level: 'READ' },
+        { domain: 'crm_marketing', level: 'READ' },
+      ],
+      module: 'integrations',
+      description: 'Kiểm tra trạng thái kết nối đối tác tích hợp (chỉ đọc)',
+    }
+  }
   if (
     pathname.startsWith('/api/settings') ||
     pathname.startsWith('/api/integrations') ||

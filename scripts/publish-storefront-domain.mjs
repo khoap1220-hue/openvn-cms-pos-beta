@@ -1226,7 +1226,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       </div>
       <div>
         <h4>Dành cho Khách hàng &amp; Đối tác</h4>
-        <p><a href="#wholesale" onclick="switchTab('WHOLESALE'); return false;">• Bảng giá sỉ tận xưởng (10+ / 30+ / 100+ SP)</a></p>
+        <p id="footerWsRow" class="${snapshot.config.wholesaleEnabled === false ? 'hidden' : ''}"><a href="#wholesale" onclick="switchTab('WHOLESALE'); return false;">• Bảng giá sỉ tận xưởng (10+ / 30+ / 100+ SP)</a></p>
         <p><a href="#contact" onclick="switchTab('CONTACT'); return false;">• Đặt gia công quà tặng doanh nghiệp (OEM)</a></p>
         <p><a href="#tracking" onclick="switchTab('TRACKING'); return false;">• Tra cứu trạng thái đơn hàng</a></p>
       </div>
@@ -1263,6 +1263,8 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       carouselPaused: false,
       paymentMethod: 'COD',
       cart: [],
+      cartHydratedKey: null,
+      pendingSku: '',
       completedOrder: null
     };
 
@@ -1307,8 +1309,17 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       return 'openvn_sf_cart_v1_' + cid;
     }
 
+    function isStoreClosed() {
+      return Boolean(STATE.data && (STATE.data.storefrontClosed || (STATE.data.config && STATE.data.config.enabled === false)));
+    }
+
+    function isWholesaleAllowed() {
+      return !isStoreClosed() && !(STATE.data && STATE.data.config && STATE.data.config.wholesaleEnabled === false);
+    }
+
     function saveCartToStorage() {
       try {
+        if (isStoreClosed()) return;
         var key = cartStorageKey();
         if (!STATE.cart || !STATE.cart.length) {
           window.localStorage.removeItem(key);
@@ -1325,33 +1336,74 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       } catch (e) {}
     }
 
+    function reconcileItemsAgainstCatalog(rawList, prods) {
+      var next = [];
+      if (!Array.isArray(rawList) || !Array.isArray(prods) || !prods.length) return next;
+      rawList.slice(0, 60).forEach(function(item) {
+        if (!item) return;
+        var pid = String(item.productId || (item.product && item.product.id) || '').trim();
+        var sku = String(item.sku || (item.product && item.product.sku) || '').trim().toUpperCase();
+        var qty = Math.max(0, Math.min(10000, Math.floor(Number(item.quantity) || 0)));
+        if (qty <= 0 || (!pid && !sku)) return;
+        var matched = prods.find(function(p) {
+          return (pid && p.id === pid) || (sku && String(p.sku || '').toUpperCase() === sku);
+        });
+        if (!matched || matched.availableToOrder === false) return;
+        var hit = next.find(function(c) { return c.product.id === matched.id; });
+        if (hit) hit.quantity = Math.min(10000, hit.quantity + qty);
+        else next.push({ product: matched, quantity: qty });
+      });
+      return next;
+    }
+
     function reconcileCartFromStorage() {
       try {
+        if (isStoreClosed()) {
+          STATE.cart = [];
+          updateCartBadge();
+          return;
+        }
         var prods = (STATE.data && STATE.data.products) || [];
-        if (!prods.length) return;
-        var raw = window.localStorage.getItem(cartStorageKey());
-        if (!raw) return;
-        var saved = JSON.parse(raw);
-        if (!Array.isArray(saved)) return;
-        var next = [];
-        saved.slice(0, 60).forEach(function(item) {
-          if (!item) return;
-          var pid = String(item.productId || '').trim();
-          var sku = String(item.sku || '').trim().toUpperCase();
-          var qty = Math.max(0, Math.min(10000, Math.floor(Number(item.quantity) || 0)));
-          if (qty <= 0 || (!pid && !sku)) return;
-          var matched = prods.find(function(p) {
-            return (pid && p.id === pid) || (sku && String(p.sku || '').toUpperCase() === sku);
+        var key = cartStorageKey();
+        if (STATE.cartHydratedKey !== key) {
+          if (!prods.length) return;
+          STATE.cartHydratedKey = key;
+          var raw = window.localStorage.getItem(key);
+          var saved = raw ? JSON.parse(raw) : [];
+          var fromStorage = reconcileItemsAgainstCatalog(saved, prods);
+          var fromActive = reconcileItemsAgainstCatalog(STATE.cart, prods);
+          fromActive.forEach(function(act) {
+            var hit = fromStorage.find(function(x) { return x.product.id === act.product.id; });
+            if (hit) hit.quantity = Math.min(10000, hit.quantity + act.quantity);
+            else fromStorage.push(act);
           });
-          if (!matched || matched.availableToOrder === false) return;
-          var hit = next.find(function(c) { return c.product.id === matched.id; });
-          if (hit) hit.quantity = Math.min(10000, hit.quantity + qty);
-          else next.push({ product: matched, quantity: qty });
-        });
-        STATE.cart = next;
+          STATE.cart = fromStorage;
+          saveCartToStorage();
+          updateCartBadge();
+          return;
+        }
+        STATE.cart = reconcileItemsAgainstCatalog(STATE.cart, prods);
+        saveCartToStorage();
         updateCartBadge();
       } catch (e) {}
     }
+
+    var VIETQR_BANK_ALIASES = {
+      VIETCOMBANK: 'VCB',
+      TECHCOMBANK: 'TCB',
+      VIETINBANK: 'ICB',
+      AGRIBANK: 'VBA',
+      MBBANK: 'MB',
+      SACOMBANK: 'STB',
+      VPBANK: 'VPB',
+      TPBANK: 'TPB',
+      HDBANK: 'HDB',
+      LPBANK: 'LPB',
+      LIENVIETPOSTBANK: 'LPB',
+      EXIMBANK: 'EIB',
+      SEABANK: 'SEAB',
+      SHINHANBANK: 'SHBVN'
+    };
 
     function cleanVietQrMemo(raw) {
       return String(raw || '')
@@ -1364,9 +1416,22 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         .slice(0, 50);
     }
 
+    function cleanVietQrAccountName(raw) {
+      return String(raw || '')
+        .normalize('NFD')
+        .replace(/[\\u0300-\\u036f]/g, '')
+        .replace(/[đĐ]/g, 'D')
+        .toUpperCase()
+        .replace(/[^A-Za-z0-9 .&-]/g, ' ')
+        .replace(/\\s+/g, ' ')
+        .trim()
+        .slice(0, 70);
+    }
+
     function buildVietQrUrl(bank, amount, memo) {
       if (!bank) return '';
-      var code = String(bank.bankCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var rawCode = String(bank.bankCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var code = VIETQR_BANK_ALIASES[rawCode] || rawCode;
       var acct = String(bank.bankAccount || '').trim().replace(/[\\s.-]+/g, '').replace(/[^A-Za-z0-9]/g, '');
       if (code.length < 2 || code.length > 20 || acct.length < 5 || acct.length > 26) return '';
       var qs = [];
@@ -1374,7 +1439,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       if (amt > 0) qs.push('amount=' + encodeURIComponent(String(amt)));
       var cleanMemo = cleanVietQrMemo(memo);
       if (cleanMemo) qs.push('addInfo=' + encodeURIComponent(cleanMemo));
-      var holder = String(bank.bankHolder || '').trim().slice(0, 70);
+      var holder = cleanVietQrAccountName(bank.bankHolder);
       if (holder) qs.push('accountName=' + encodeURIComponent(holder));
       return 'https://img.vietqr.io/image/' + code + '-' + acct + '-compact2.png' + (qs.length ? '?' + qs.join('&') : '');
     }
@@ -1394,7 +1459,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 
     function shareProdLink(sku) {
       var cleanSku = String(sku || '').trim();
-      var base = window.location.origin + window.location.pathname;
+      var base = window.location.origin + '/';
       var url = cleanSku ? (base + '?sku=' + encodeURIComponent(cleanSku)) : base;
       copyTxt(url, 'liên kết sản phẩm');
     }
@@ -1404,18 +1469,25 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var map = {
         RECEIVED_PENDING_CONFIRM: 'Đã tiếp nhận — Đang chờ CSKH xác nhận giao hàng',
         RECEIVED_WHOLESALE_LEAD: 'Đã tiếp nhận — Bộ phận Sỉ đang lập báo giá chi tiết',
+        RECEIVED_CONTACT: 'Đã tiếp nhận tin nhắn — Bộ phận CSKH đang phản hồi',
         RECEIVED: 'Đã tiếp nhận yêu cầu',
+        NEW: 'Mới tạo — Đang chờ xử lý',
         PENDING: 'Chờ xác nhận đơn hàng',
+        PAID: 'Đã thanh toán — Đang chuẩn bị giao hàng',
         CONFIRMED: 'Đã xác nhận — Đang chuẩn bị hàng tại xưởng',
         PROCESSING: 'Đang chế tác / đóng gói chống sốc',
         PACKING: 'Đang đóng gói bàn giao vận chuyển',
+        PACKED: 'Đã đóng gói — Sẵn sàng bàn giao ĐVVC',
         READY_TO_SHIP: 'Sẵn sàng bàn giao đơn vị vận chuyển',
+        DISPATCHED: 'Đã bàn giao đơn vị vận chuyển',
+        PICKED_UP: 'Đơn vị vận chuyển đã lấy hàng',
         SHIPPING: 'Đang vận chuyển giao hàng',
         IN_TRANSIT: 'Đang trên đường giao tới bạn',
         DELIVERED: 'Đã giao hàng thành công',
         COMPLETED: 'Hoàn tất đơn hàng',
         CANCELLED: 'Đã hủy đơn',
-        RETURNED: 'Hoàn trả / Đổi hàng'
+        RETURNED: 'Hoàn trả / Đổi hàng',
+        REFUNDED: 'Đã hoàn tiền'
       };
       return map[k] || (st ? String(st) : 'Đã tiếp nhận');
     }
@@ -1430,16 +1502,28 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       switchTab('TRACKING');
     }
 
+    function tryOpenPendingDeepLinkSku() {
+      if (!STATE.pendingSku || isStoreClosed()) return;
+      var target = String(STATE.pendingSku).trim().toUpperCase();
+      var hit = ((STATE.data && STATE.data.products) || []).find(function(p) {
+        return String(p.sku || '').toUpperCase() === target;
+      });
+      if (hit) {
+        STATE.pendingSku = '';
+        openProdModal(hit.id);
+      }
+    }
+
     function applyDeepLinkQuery() {
       try {
         var sp = new URLSearchParams(window.location.search || '');
         var rawTab = String(sp.get('tab') || sp.get('section') || '').trim().toUpperCase();
-        if (rawTab === 'WHOLESALE' || rawTab === 'SI' || rawTab === 'BANGGIASI') switchTab('WHOLESALE');
+        if ((rawTab === 'WHOLESALE' || rawTab === 'SI' || rawTab === 'BANGGIASI') && isWholesaleAllowed()) switchTab('WHOLESALE');
         else if (rawTab === 'CONTACT' || rawTab === 'LIENHE') switchTab('CONTACT');
         else if (rawTab === 'TRACKING' || rawTab === 'TRACUU' || rawTab === 'LOOKUP') switchTab('TRACKING');
 
         var rawMode = String(sp.get('mode') || '').trim().toUpperCase();
-        if (rawMode === 'WHOLESALE' || rawMode === 'SI') setPriceMode('WHOLESALE');
+        if ((rawMode === 'WHOLESALE' || rawMode === 'SI') && isWholesaleAllowed()) setPriceMode('WHOLESALE');
         else if (rawMode === 'RETAIL' || rawMode === 'LE') setPriceMode('RETAIL');
 
         var q = String(sp.get('q') || sp.get('search') || '').trim().slice(0, 80);
@@ -1459,11 +1543,9 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         }
 
         var sku = String(sp.get('sku') || '').trim().toUpperCase();
-        if (sku) {
-          var hit = ((STATE.data && STATE.data.products) || []).find(function(p) {
-            return String(p.sku || '').toUpperCase() === sku;
-          });
-          if (hit) openProdModal(hit.id);
+        if (sku && !isStoreClosed()) {
+          STATE.pendingSku = sku;
+          tryOpenPendingDeepLinkSku();
         }
       } catch (e) {}
     }
@@ -1849,6 +1931,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         '<th style="text-align:center">Đặt sỉ</th></tr>';
 
       document.getElementById('wsTableBody').innerHTML = (STATE.data.products || []).map(function(p) {
+        var canBuy = p.availableToOrder !== false;
         return '<tr>' +
           '<td><div class="sku-code" style="font-size:10.5px;color:#6b6661">' + esc(p.sku) + '</div><strong>' + esc(p.cleanTitle) + '</strong>' +
           (p.variantLabel ? '<div style="font-size:11.5px;color:#7c4619">Phân loại: ' + esc(p.variantLabel) + '</div>' : '') + '</td>' +
@@ -1856,7 +1939,11 @@ export function generateStandaloneStorefrontHtml(snapshot) {
           tiers.map(function(t) {
             return '<td class="num"><strong>' + fmtVND(calcWsPrice(p.retailPrice, t.discountPercent)) + '</strong></td>';
           }).join('') +
-          '<td style="text-align:center"><button type="button" class="btn-sm-out" style="padding:0 10px;min-height:30px;" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10)">+10</button></td>' +
+          '<td style="text-align:center">' +
+            (canBuy
+              ? '<button type="button" class="btn-sm-out" style="padding:0 10px;min-height:30px;" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10)">+10</button>'
+              : '<button type="button" class="btn-sm-out" disabled style="padding:0 8px;min-height:30px;opacity:0.55;cursor:not-allowed;">Tạm hết</button>') +
+          '</td>' +
         '</tr>';
       }).join('');
     }
@@ -1879,9 +1966,17 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     function openProdModal(prodId) {
       var p = (STATE.data.products || []).find(function(x) { return x.id === prodId; });
       if (!p) return;
-      var wsHtml = (p.wholesalePrices || []).map(function(w) {
+      var wsAllowed = isWholesaleAllowed();
+      var canBuy = p.availableToOrder !== false && !isStoreClosed();
+      var wsHtml = wsAllowed ? (p.wholesalePrices || []).map(function(w) {
         return '<div class="ws-mini-row"><span>Từ ' + w.minQty + ' ' + esc(p.unit) + ' (' + esc(w.badge) + '):</span><strong>' + fmtVND(w.unitPrice) + ' / ' + esc(p.unit) + '</strong></div>';
-      }).join('');
+      }).join('') : '';
+      var buyBtnsHtml = canBuy
+        ? '<div style="display:grid;grid-template-columns:' + (wsAllowed ? '1fr 1fr' : '1fr') + ';gap:8px;">' +
+            '<button type="button" class="btn-primary" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',1);closeProdModal();">Mua lẻ (+1)</button>' +
+            (wsAllowed ? '<button type="button" class="btn-ws" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10);closeProdModal();openCartModal();">Nhập sỉ (+10)</button>' : '') +
+          '</div>'
+        : '<button type="button" class="btn-outline" disabled style="width:100%;justify-content:center;opacity:0.6;cursor:not-allowed;">Tạm hết hàng</button>';
       document.getElementById('prodModalContent').innerHTML =
         '<button type="button" class="modal-close" onclick="closeProdModal()">✕</button>' +
         '<div style="display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">' +
@@ -1898,10 +1993,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
               (p.description ? '<div style="max-height:140px;overflow-y:auto;font-size:12.5px;color:#57534e;white-space:pre-line;border:1px solid #e7e2da;border-radius:10px;padding:10px;">' + esc(p.description) + '</div>' : '') +
             '</div>' +
             '<div style="display:grid;gap:8px;">' +
-              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-                '<button type="button" class="btn-primary" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',1);closeProdModal();">Mua lẻ (+1)</button>' +
-                '<button type="button" class="btn-ws" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10);closeProdModal();openCartModal();">Nhập sỉ (+10)</button>' +
-              '</div>' +
+              buyBtnsHtml +
               '<div style="display:grid;grid-template-columns:' + (p.shopeeUrl ? '1fr 1fr' : '1fr') + ';gap:8px;">' +
                 '<button type="button" class="btn-outline" style="justify-content:center;" onclick="shareProdLink(\\'' + jsAttr(p.sku) + '\\')">Sao chép link SP</button>' +
                 (p.shopeeUrl ? '<a href="' + esc(p.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline" style="justify-content:center;">Xem trên Shopee ↗</a>' : '') +
@@ -2197,14 +2289,25 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         if (live.config.wholesalePolicyNote) document.getElementById('wsPolicyText').textContent = live.config.wholesalePolicyNote;
         if (live.config.oemCustomNote) document.getElementById('oemNoteText').textContent = live.config.oemCustomNote;
 
-        var wsOn = live.config.wholesaleEnabled !== false;
+        var wsOn = !live.storefrontClosed && live.config.wholesaleEnabled !== false;
         var tabWs = document.getElementById('tab-WHOLESALE');
         var heroWs = document.getElementById('heroWsBtn');
         var modeSw = document.getElementById('modeSwitchWrap');
+        var ftWs = document.getElementById('footerWsRow');
         if (tabWs) tabWs.classList.toggle('hidden', !wsOn);
         if (heroWs) heroWs.classList.toggle('hidden', !wsOn);
         if (modeSw) modeSw.classList.toggle('hidden', !wsOn);
-        if (!wsOn && STATE.priceMode === 'WHOLESALE') STATE.priceMode = 'RETAIL';
+        if (ftWs) ftWs.classList.toggle('hidden', !wsOn);
+        if (!wsOn && STATE.priceMode === 'WHOLESALE') {
+          STATE.priceMode = 'RETAIL';
+          var mRet = document.getElementById('modeRetailBtn');
+          var mWs = document.getElementById('modeWsBtn');
+          if (mRet) mRet.className = 'active';
+          if (mWs) mWs.className = '';
+        }
+        if (!wsOn && STATE.tab === 'WHOLESALE') {
+          switchTab('PRODUCTS');
+        }
 
         var tList = live.config.wholesaleTiers || [];
         var wsBadgeEl = document.getElementById('wsNavBadge');
@@ -2237,6 +2340,10 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       renderProducts();
       renderWholesaleSection();
       renderContactSection();
+      if (document.getElementById('cartModal').classList.contains('open')) {
+        renderCartModal();
+      }
+      tryOpenPendingDeepLinkSku();
     }
 
     // Khởi tạo tức thì 0ms từ dữ liệu bootstrap & đồng bộ ngầm từ CMS API riêng
@@ -2266,12 +2373,14 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 
 export function generateStorefrontSitemapXml(snapshot) {
   const domain = String(snapshot?.config?.customDomain || 'bomocdecor.vn').trim()
-  const urls = [
-    { loc: `https://${domain}/`, changefreq: 'daily', priority: '1.0' },
-    { loc: `https://${domain}/?tab=WHOLESALE`, changefreq: 'daily', priority: '0.9' },
-    { loc: `https://${domain}/?tab=CONTACT`, changefreq: 'weekly', priority: '0.8' },
-  ]
-  if (!snapshot?.storefrontClosed && Array.isArray(snapshot?.products)) {
+  const isClosed = Boolean(snapshot?.storefrontClosed || snapshot?.config?.enabled === false)
+  const wsAllowed = !isClosed && snapshot?.config?.wholesaleEnabled !== false
+  const urls = [{ loc: `https://${domain}/`, changefreq: 'daily', priority: '1.0' }]
+  if (wsAllowed) {
+    urls.push({ loc: `https://${domain}/?tab=WHOLESALE`, changefreq: 'daily', priority: '0.9' })
+  }
+  urls.push({ loc: `https://${domain}/?tab=CONTACT`, changefreq: 'weekly', priority: '0.8' })
+  if (!isClosed && Array.isArray(snapshot?.products)) {
     for (const p of snapshot.products.slice(0, 100)) {
       if (p?.sku) {
         urls.push({

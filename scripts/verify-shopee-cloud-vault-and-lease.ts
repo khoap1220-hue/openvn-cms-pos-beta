@@ -40,6 +40,7 @@ import {
   GET as credentialsGet,
   PATCH as credentialsPatch,
 } from '../src/app/api/integrations/credentials/route'
+import { POST as webhooksTestPost } from '../src/app/api/integrations/webhooks/test/route'
 import {
   GET as shopeeSessionGet,
   OPTIONS as shopeeSessionOptions,
@@ -481,6 +482,41 @@ async function main() {
       'S5-BLOCK-REMOTE-CDP-LAUNCH',
       'Chặn 403 thao tác mở trình duyệt cục bộ khi gọi từ xa qua Cloud Bridge'
     )
+
+    for (const forbiddenSimEvent of [
+      'OUTBOX_VAULT_PULL_AND_LEASE',
+      'OUTBOX_FETCH_PENDING',
+      'OUTBOX_ACK_RESULT',
+      'INBOUND_SHOPEE_SESSION_UPDATE',
+      'INBOUND_SHOPEE_SESSION_ALERT',
+    ]) {
+      const simRes = await webhooksTestPost(
+        new NextRequest(
+          'https://openvn-cms-pos-backend.onrender.com/api/integrations/webhooks/test',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Forwarded-For': '203.0.113.88',
+            },
+            body: JSON.stringify({
+              mode: 'INBOUND_SIMULATE',
+              event: forbiddenSimEvent,
+              data: { nodeId: 'attacker-sim-probe', action: 'PEEK' },
+            }),
+          }
+        )
+      )
+      const simBodyText = await simRes.text()
+      assert(
+        simRes.status === 403 &&
+          !simBodyText.includes('live_ec_secret_value') &&
+          !simBodyText.includes('SPC_EC') &&
+          !simBodyText.includes('__vault_v1'),
+        'S5-BLOCK-SIMULATE-VAULT-EXFIL',
+        `POST /api/integrations/webhooks/test chặn cứng 403 sự kiện nội bộ «${forbiddenSimEvent}», tuyệt đối không lộ Cookie Kho Phiên`
+      )
+    }
 
     const vaultMetaCheck = await readShopeeSessionVaultMetadata()
     assert(

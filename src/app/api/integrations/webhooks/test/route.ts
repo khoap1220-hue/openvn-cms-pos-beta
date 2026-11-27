@@ -12,9 +12,21 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+const ALLOWED_INBOUND_SIMULATE_EVENTS = new Set<string>([
+  'INBOUND_PING',
+  'INBOUND_SEPAY_TRANSACTION',
+  'INBOUND_VOUCHER_VALIDATE',
+  'INBOUND_ALLIANCE_STOCK_SYNC',
+  'INBOUND_STOCK_UPDATE',
+  'INBOUND_ORDER_CREATE',
+  'INBOUND_SHIPMENT_UPDATE',
+  'INBOUND_ZALO_MESSAGE',
+  'INBOUND_PAYMENT_CONFIRM',
+])
+
 // POST /api/integrations/webhooks/test
 // Hỗ trợ 2 chế độ:
-//   1. { mode: 'INBOUND_SIMULATE', event, data } — tự ký HMAC-SHA256 nội bộ & chạy thử /api/webhooks/inbound
+//   1. { mode: 'INBOUND_SIMULATE', event, data } — tự ký HMAC-SHA256 cho sự kiện đối tác cho phép (chặn tuyệt đối OUTBOX_* & INBOUND_SHOPEE_*)
 //   2. { id, event? } — gửi sự kiện kiểm thử Outbound tới WebhookEndpoint đã đăng ký
 export async function POST(req: NextRequest) {
   try {
@@ -26,18 +38,35 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.mode === 'INBOUND_SIMULATE') {
-      const event = String(body.event || 'INBOUND_PING').trim()
-      if (!event.startsWith('INBOUND_') && !event.startsWith('OUTBOX_')) {
+      const event = String(body.event || 'INBOUND_PING')
+        .trim()
+        .toUpperCase()
+      if (event.startsWith('OUTBOX_') || event.startsWith('INBOUND_SHOPEE_')) {
         return NextResponse.json(
-          { ok: false, error: 'Sự kiện giả lập phải bắt đầu bằng INBOUND_ hoặc OUTBOX_' },
+          {
+            ok: false,
+            code: 'FORBIDDEN_INTERNAL_EVENT',
+            error:
+              'Sự kiện nội bộ Kho Phiên Mã Hóa Shopee & Hàng đợi Outbox không được phép gọi qua trình giả lập.',
+          },
+          { status: 403 }
+        )
+      }
+      if (!ALLOWED_INBOUND_SIMULATE_EVENTS.has(event)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: 'UNSUPPORTED_SIMULATE_EVENT',
+            error: `Sự kiện giả lập «${event}» không nằm trong danh mục cho phép.`,
+          },
           { status: 400 }
         )
       }
 
       const activeSecrets = await getActiveInboundSecrets()
       const preferredSecret =
-        getOrCreateLocalBridgeToken() ||
         activeSecrets.find((s) => !isPublicDemoSecret(s)) ||
+        getOrCreateLocalBridgeToken() ||
         activeSecrets[0]
 
       if (!preferredSecret) {
@@ -53,25 +82,35 @@ export async function POST(req: NextRequest) {
         data: body.data ?? {},
       })
       const signature = signPayload(preferredSecret, rawPayload)
+      const incomingFwd = req.headers.get('x-forwarded-for')?.trim()
+      const simHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Signature': signature,
+      }
+      if (incomingFwd || !isPublicDemoSecret(preferredSecret)) {
+        simHeaders['X-Forwarded-For'] = incomingFwd || '127.0.0.1'
+      }
 
       const simReq = new NextRequest('http://127.0.0.1:3010/api/webhooks/inbound', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Signature': signature,
-        },
+        headers: simHeaders,
         body: rawPayload,
       })
 
       const inboundRes = await inboundWebhookPost(simReq)
       const responseJson = (await inboundRes.json().catch(() => ({}))) as Record<string, unknown>
+      const safeResponse: Record<string, unknown> = { ...responseJson }
+      delete safeResponse.vault
+      delete safeResponse.cookies
+      delete safeResponse.spc_cds
+      delete safeResponse.csrf_token
 
       return NextResponse.json({
         ok: inboundRes.ok,
         status: inboundRes.status,
         event,
         signature: `${signature.slice(0, 8)}...${signature.slice(-6)}`,
-        response: responseJson,
+        response: safeResponse,
       })
     }
 

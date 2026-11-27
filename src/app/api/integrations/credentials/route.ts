@@ -38,6 +38,7 @@ async function upsertCredential(req: NextRequest) {
     name?: string
     config?: Record<string, unknown>
     active?: boolean
+    enabled?: boolean
   }
   const provider = body.provider?.trim().toUpperCase()
   if (!provider || !INTEGRATION_PROVIDERS.some((p) => p.provider === provider)) {
@@ -48,7 +49,12 @@ async function upsertCredential(req: NextRequest) {
   }
 
   const label = INTEGRATION_PROVIDERS.find((p) => p.provider === provider)?.label ?? provider
-  const nextActive = typeof body.active === 'boolean' ? body.active : true
+  const nextActive =
+    typeof body.active === 'boolean'
+      ? body.active
+      : typeof body.enabled === 'boolean'
+        ? body.enabled
+        : true
   const nextName = body.name?.trim() || label
 
   if (BASE_DB_PROVIDER_KEYS.has(provider)) {

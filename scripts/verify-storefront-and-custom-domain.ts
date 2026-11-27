@@ -35,9 +35,17 @@ import {
   buildStorefrontVietQrUrl,
   formatStorefrontLookupStatusLabel,
   parseStorefrontDeepLinkQuery,
+  reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
   serializeCartForStorage,
 } from '../src/lib/storefront-ux'
+import {
+  ROLE_DEFINITIONS,
+  checkApiRequirement,
+  resolveApiRoutePermission,
+} from '../src/lib/rbac'
+import { PUT as credentialsPut } from '../src/app/api/integrations/credentials/route'
+import { POST as credentialsTestPost } from '../src/app/api/integrations/credentials/test/route'
 import {
   computeWholesaleUnitPrice,
   getStorefrontConfigForCurrentCms,
@@ -772,9 +780,15 @@ async function main() {
     const validVietQr = buildStorefrontVietQrUrl({
       bankCode: ' vcb ',
       bankAccount: '0071 0012 34567',
-      bankHolder: 'BO MOC DECOR',
+      bankHolder: 'BƠ MỘC ĐẸP',
       amount: 501_500,
       addInfo: 'Đơn Bơ Mộc #BM-WEB-261127-1234 <script>',
+    })
+    const aliasVietQr = buildStorefrontVietQrUrl({
+      bankCode: 'MBBank',
+      bankAccount: '0905123456888',
+      bankHolder: 'Nguyễn Văn Ánh',
+      amount: 120_000,
     })
     const invalidVietQrEmpty = buildStorefrontVietQrUrl({
       bankCode: '',
@@ -790,10 +804,13 @@ async function main() {
       validVietQr.startsWith('https://img.vietqr.io/image/VCB-0071001234567-compact2.png?') &&
         validVietQr.includes('amount=501500') &&
         validVietQr.includes('addInfo=Don+Bo+Moc+BM-WEB-261127-1234+script') &&
+        validVietQr.includes('accountName=BO+MOC+DEP') &&
+        aliasVietQr.startsWith('https://img.vietqr.io/image/MB-0905123456888-compact2.png?') &&
+        aliasVietQr.includes('accountName=NGUYEN+VAN+ANH') &&
         invalidVietQrEmpty === '' &&
         invalidVietQrShortAcct === '',
       'S3-VIETQR-BUILDER-AND-SANITIZER',
-      'Tạo URL VietQR chuẩn ngân hàng (khử dấu tiếng Việt/ký tự lạ trong addInfo) & từ chối STK/mã NH rỗng hoặc sai chuẩn'
+      'Tạo URL VietQR chuẩn ngân hàng (ánh xạ MBBank -> MB, khử dấu tiếng Việt cả addInfo & accountName) & từ chối STK/mã NH sai chuẩn'
     )
 
     const cartKeyA = buildStorefrontCartStorageKey('cms_bomoc_01')
@@ -811,16 +828,28 @@ async function main() {
         { id: 'p_oos', sku: 'BM-OOS', retailPrice: 99_000, availableToOrder: false },
       ]
     )
+    const refreshedLiveCart = reconcileActiveCartItems(
+      reconciledCart,
+      [
+        { id: 'p_live', sku: 'BM-TEA-10', retailPrice: 79_000, availableToOrder: true },
+        { id: 'p_oos', sku: 'BM-OOS', retailPrice: 99_000, availableToOrder: false },
+      ],
+      false
+    )
+    const closedStoreCart = reconcileActiveCartItems(reconciledCart, [], true)
     const roundtripSerialized = serializeCartForStorage(reconciledCart)
     assert(
       cartKeyA !== cartKeyB &&
         reconciledCart.length === 1 &&
         reconciledCart[0].quantity === 10 &&
         reconciledCart[0].product.retailPrice === 59_000 &&
+        refreshedLiveCart.length === 1 &&
+        refreshedLiveCart[0].product.retailPrice === 79_000 &&
+        closedStoreCart.length === 0 &&
         roundtripSerialized.length === 1 &&
         roundtripSerialized[0].quantity === 10,
       'S3-ISOLATED-CART-PERSISTENCE-AND-RECONCILE',
-      'Giỏ hàng lưu trữ cô lập theo cmsInstanceId, gộp trùng SKU, bỏ SP hết hàng/số lượng âm & luôn lấy giá mới nhất từ danh mục'
+      'Giỏ hàng cô lập theo cmsInstanceId, tự cập nhật giá mới khi liveData thay đổi & dọn sạch bộ nhớ khi cửa hàng đóng'
     )
 
     const dlProduct = parseStorefrontDeepLinkQuery('?sku=BM-SEN-01-TRANG&mode=si&q=sen')
@@ -836,17 +865,23 @@ async function main() {
         dlTracking.tab === 'TRACKING' &&
         dlTracking.lookupCode === 'BM-WEB-261127-9999' &&
         shareUrl === 'https://bomocdecor.vn/?sku=BM-SEN-01-TRANG' &&
-        formatStorefrontLookupStatusLabel('SHIPPING').includes('vận chuyển'),
+        formatStorefrontLookupStatusLabel('SHIPPING').includes('vận chuyển') &&
+        formatStorefrontLookupStatusLabel('RECEIVED_CONTACT').includes('tin nhắn'),
       'S3-DEEPLINK-AND-STATUS-LABELS',
-      'Hỗ trợ đầy đủ Deep-Link (?sku=, ?mode=, ?q=, ?code=), tạo link chia sẻ sản phẩm sạch & Việt hóa nhãn trạng thái vận đơn'
+      'Hỗ trợ đầy đủ Deep-Link (?sku=, ?mode=, ?q=, ?code=), tạo link chia sẻ sản phẩm sạch & Việt hóa đủ cả RECEIVED_CONTACT'
     )
 
     const ldMatch = testStandaloneHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
     const parsedLd = ldMatch?.[1] ? (JSON.parse(ldMatch[1]) as { '@graph'?: Array<Record<string, unknown>> }) : null
     const openSitemap = generateStorefrontSitemapXml({
       storefrontClosed: false,
-      config: { customDomain: 'bomocdecor.vn' },
+      config: { customDomain: 'bomocdecor.vn', wholesaleEnabled: true },
       products: [{ sku: 'BM-TEA-10' }, { sku: 'BM-SEN-01-TRANG' }],
+    })
+    const retailOnlySitemap = generateStorefrontSitemapXml({
+      storefrontClosed: false,
+      config: { customDomain: 'bomocdecor.vn', wholesaleEnabled: false },
+      products: [{ sku: 'BM-TEA-10' }],
     })
     const closedSitemap = generateStorefrontSitemapXml({
       storefrontClosed: true,
@@ -859,10 +894,75 @@ async function main() {
         !JSON.stringify(parsedLd).includes('costPrice') &&
         openSitemap.includes('https://bomocdecor.vn/?tab=WHOLESALE') &&
         openSitemap.includes('https://bomocdecor.vn/?sku=BM-TEA-10') &&
+        !retailOnlySitemap.includes('tab=WHOLESALE') &&
+        !closedSitemap.includes('tab=WHOLESALE') &&
         !closedSitemap.includes('?sku='),
       'S3-JSONLD-PRODUCT-SCHEMA-AND-SITEMAP',
-      'Xuất chuẩn JSON-LD @graph (Store + WebSite + Product ItemList 0 costPrice) & Sitemap XML đa đường dẫn tự ẩn SP khi đóng cửa hàng'
+      'Xuất chuẩn JSON-LD @graph (0 costPrice) & Sitemap XML tự ẩn WHOLESALE/SP khi tắt kênh sỉ hoặc đóng cửa hàng'
     )
+
+    // Verify Credential Test accuracy (no false READY on cleared config) + enabled=false support + MARKETING RBAC
+    const origGhtkRow = await db.integrationCredential.findUnique({ where: { provider: 'GHTK' } })
+    try {
+      const putDisabledRes = await credentialsPut(
+        new NextRequest('http://localhost:3010/api/integrations/credentials', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: 'GHTK',
+            enabled: false,
+            config: { token: '', partnerCode: '' },
+          }),
+        })
+      )
+      const putDisabledJson = (await putDisabledRes.json()) as {
+        credential?: { active?: boolean }
+      }
+      await db.ledgerEntry.deleteMany({
+        where: { scope: 'SETTINGS', action: 'CREDENTIAL_SAVED', entityCode: 'GHTK' },
+      })
+      const emptyTestRes = await credentialsTestPost(
+        new NextRequest('http://localhost:3010/api/integrations/credentials/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: 'GHTK' }),
+        })
+      )
+      const emptyTestJson = (await emptyTestRes.json()) as {
+        ok?: boolean
+        status?: string
+        configuredFieldCount?: number
+      }
+      const credTestReqPerm = resolveApiRoutePermission('/api/integrations/credentials/test', 'POST')
+      const marketingCanTest = checkApiRequirement(
+        ROLE_DEFINITIONS.MARKETING.preset,
+        credTestReqPerm
+      )
+      assert(
+        putDisabledRes.ok &&
+          putDisabledJson.credential?.active === false &&
+          emptyTestRes.status === 200 &&
+          emptyTestJson.ok === false &&
+          emptyTestJson.status === 'MISSING_CONFIG' &&
+          emptyTestJson.configuredFieldCount === 0 &&
+          marketingCanTest === true,
+        'S3-CREDENTIAL-TEST-ACCURACY-AND-MARKETING-RBAC',
+        'PUT credentials tôn trọng enabled=false, POST credentials/test báo đúng MISSING_CONFIG khi xóa rỗng token & mở quyền kiểm tra cho vai trò MARKETING'
+      )
+    } finally {
+      if (origGhtkRow) {
+        await db.integrationCredential.update({
+          where: { provider: 'GHTK' },
+          data: {
+            name: origGhtkRow.name,
+            config: origGhtkRow.config,
+            active: origGhtkRow.active,
+          },
+        })
+      }
+      invalidateInboundSecretsCache()
+      invalidateApiCache()
+    }
 
     const teaProd = sfJson.products!.find((p) => p.sku === 'BM-TEA-10')!
     const senHolderProd = sfJson.products!.find((p) => p.sku === 'BM-SEN-01-TRANG')!

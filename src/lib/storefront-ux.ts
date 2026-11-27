@@ -29,6 +29,45 @@ export interface StorefrontDeepLinkState {
   lookupCode: string
 }
 
+const VIETQR_BANK_ALIASES: Record<string, string> = {
+  VIETCOMBANK: 'VCB',
+  TECHCOMBANK: 'TCB',
+  VIETINBANK: 'ICB',
+  AGRIBANK: 'VBA',
+  MBBANK: 'MB',
+  SACOMBANK: 'STB',
+  VPBANK: 'VPB',
+  TPBANK: 'TPB',
+  HDBANK: 'HDB',
+  LPBANK: 'LPB',
+  LIENVIETPOSTBANK: 'LPB',
+  EXIMBANK: 'EIB',
+  SEABANK: 'SEAB',
+  SHINHANBANK: 'SHBVN',
+}
+
+export function normalizeVietQrBankCode(raw?: string | null): string {
+  const clean = String(raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+  if (!clean) return ''
+  return VIETQR_BANK_ALIASES[clean] || clean
+}
+
+export function sanitizeVietQrAccountName(raw?: string | null): string {
+  if (!raw) return ''
+  return String(raw)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'D')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 .&-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 70)
+}
+
 export function sanitizeVietQrTransferMemo(raw?: string | null): string {
   if (!raw) return ''
   return String(raw)
@@ -42,10 +81,7 @@ export function sanitizeVietQrTransferMemo(raw?: string | null): string {
 }
 
 export function buildStorefrontVietQrUrl(input: StorefrontVietQrInput): string {
-  const cleanCode = String(input.bankCode || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
+  const cleanCode = normalizeVietQrBankCode(input.bankCode)
   const cleanAccount = String(input.bankAccount || '')
     .trim()
     .replace(/[\s.-]+/g, '')
@@ -67,9 +103,7 @@ export function buildStorefrontVietQrUrl(input: StorefrontVietQrInput): string {
     params.set('addInfo', memo)
   }
 
-  const holder = String(input.bankHolder || '')
-    .trim()
-    .slice(0, 70)
+  const holder = sanitizeVietQrAccountName(input.bankHolder)
   if (holder) {
     params.set('accountName', holder)
   }
@@ -135,6 +169,19 @@ export function reconcilePersistedCartWithCatalog<
   return Array.from(merged.values())
 }
 
+export function reconcileActiveCartItems<
+  P extends { id: string; sku: string; availableToOrder: boolean },
+>(
+  currentCart: Array<{ product: P; quantity: number }>,
+  catalogProducts: P[],
+  storefrontClosed = false
+): Array<{ product: P; quantity: number }> {
+  if (storefrontClosed || !Array.isArray(currentCart) || currentCart.length === 0) {
+    return []
+  }
+  return reconcilePersistedCartWithCatalog(serializeCartForStorage(currentCart), catalogProducts)
+}
+
 export function parseStorefrontDeepLinkQuery(searchString: string): StorefrontDeepLinkState {
   const sp = new URLSearchParams(searchString.startsWith('?') ? searchString.slice(1) : searchString)
   const rawTab = String(sp.get('tab') || sp.get('section') || '')
@@ -183,18 +230,25 @@ export function formatStorefrontLookupStatusLabel(status?: string | null): strin
   const labels: Record<string, string> = {
     RECEIVED_PENDING_CONFIRM: 'Đã tiếp nhận — Đang chờ CSKH xác nhận giao hàng',
     RECEIVED_WHOLESALE_LEAD: 'Đã tiếp nhận — Bộ phận Sỉ đang lập báo giá chi tiết',
+    RECEIVED_CONTACT: 'Đã tiếp nhận tin nhắn — Bộ phận CSKH đang phản hồi',
     RECEIVED: 'Đã tiếp nhận yêu cầu',
+    NEW: 'Mới tạo — Đang chờ xử lý',
     PENDING: 'Chờ xác nhận đơn hàng',
+    PAID: 'Đã thanh toán — Đang chuẩn bị giao hàng',
     CONFIRMED: 'Đã xác nhận — Đang chuẩn bị hàng tại xưởng',
     PROCESSING: 'Đang chế tác / đóng gói chống sốc',
     PACKING: 'Đang đóng gói bàn giao vận chuyển',
+    PACKED: 'Đã đóng gói — Sẵn sàng bàn giao ĐVVC',
     READY_TO_SHIP: 'Sẵn sàng bàn giao đơn vị vận chuyển',
+    DISPATCHED: 'Đã bàn giao đơn vị vận chuyển',
+    PICKED_UP: 'Đơn vị vận chuyển đã lấy hàng',
     SHIPPING: 'Đang vận chuyển giao hàng',
     IN_TRANSIT: 'Đang trên đường giao tới bạn',
     DELIVERED: 'Đã giao hàng thành công',
     COMPLETED: 'Hoàn tất đơn hàng',
     CANCELLED: 'Đã hủy đơn',
     RETURNED: 'Hoàn trả / Đổi hàng',
+    REFUNDED: 'Đã hoàn tiền',
   }
   return labels[code] || (status ? String(status) : 'Đã tiếp nhận')
 }

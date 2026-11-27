@@ -845,8 +845,11 @@ export function IntegrationsView() {
         [provider]: { ok: res.ok, latencyMs: res.latencyMs },
       }))
       toast({
-        title: `Kết nối ${res.provider} thành công (${res.latencyMs}ms)`,
+        title: res.ok
+          ? `Kết nối ${res.provider} sẵn sàng (${res.latencyMs}ms)`
+          : `Chưa đủ cấu hình ${res.provider}`,
         description: res.message,
+        variant: res.ok ? 'default' : 'destructive',
       })
     } catch (err) {
       setCredTestResults((prev) => ({
