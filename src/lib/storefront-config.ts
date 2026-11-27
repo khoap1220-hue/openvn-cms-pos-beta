@@ -151,8 +151,8 @@ export const DEFAULT_WHOLESALE_TIERS: WholesaleTierConfig[] = [
 
 export const DEFAULT_STOREFRONT_CONFIG: StorefrontCmsConfig = {
   enabled: true,
-  customDomain: 'bomocdecor.vn',
-  additionalDomains: ['www.bomocdecor.vn'],
+  customDomain: '',
+  additionalDomains: [],
   domainRoutingMode: 'STOREFRONT_ON_CUSTOM_DOMAIN',
   cmsBackendOrigin: 'https://openvn-cms-pos-backend.onrender.com',
   heroBadge: 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc',
@@ -175,14 +175,41 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontCmsConfig = {
     hotline: '0909 686 868',
     zaloPhone: '0909686868',
     zaloUrl: 'https://zalo.me/0909686868',
-    email: 'lienhe@bomocdecor.vn',
-    address: 'Xưởng Đúc Thủ Công & Showroom Bơ Mộc Decor — TP. Hồ Chí Minh',
+    email: '',
+    address: 'Xưởng Đúc Thủ Công & Showroom Chính Hãng — TP. Hồ Chí Minh',
     workingHours: '08:30 – 21:00 (Thứ 2 – Chủ Nhật)',
-    shopeeUrl: 'https://shopee.vn/bomocdecor',
-    facebookUrl: 'https://facebook.com/bomocdecor',
-    tiktokUrl: 'https://tiktok.com/@bomocdecor',
+    shopeeUrl: '',
+    facebookUrl: '',
+    tiktokUrl: '',
   },
   updatedAt: null,
+}
+
+export function deriveStorefrontRefPrefix(brandShortName: string, customDomain?: string): string {
+  const dom = (customDomain || '').trim().toLowerCase()
+  if (dom.startsWith('bomoc')) return 'BM'
+  const ascii = String(brandShortName || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'D')
+    .toUpperCase()
+    .trim()
+  const words = ascii.split(/[^A-Z0-9]+/).filter(Boolean)
+  if (words.length >= 2) {
+    const initials = words
+      .slice(0, 4)
+      .map((w) => w[0])
+      .join('')
+    if (initials.length >= 2) return initials
+  }
+  if (words.length === 1 && words[0] !== 'OPENVN') {
+    return words[0].slice(0, 4)
+  }
+  if (dom) {
+    const firstLabel = dom.split('.')[0]?.replace(/[^a-z0-9]/g, '').toUpperCase() || ''
+    if (firstLabel.length >= 2) return firstLabel.slice(0, 4)
+  }
+  return 'WEB'
 }
 
 /**
@@ -272,7 +299,9 @@ export function normalizeStorefrontCmsConfig(
       ? normalizeDomainHostname(rawInput.customDomain, { stripWww: true })
       : base.customDomain
 
-  let additionalDomains = base.additionalDomains
+  const hasExplicitAdditional =
+    Array.isArray(rawInput.additionalDomains) || typeof rawInput.additionalDomains === 'string'
+  let additionalDomains = rawDomain ? base.additionalDomains : []
   if (Array.isArray(rawInput.additionalDomains)) {
     additionalDomains = rawInput.additionalDomains
       .map((d) => normalizeDomainHostname(String(d || ''), { stripWww: false }))
@@ -284,6 +313,10 @@ export function normalizeStorefrontCmsConfig(
       .map((d) => normalizeDomainHostname(d, { stripWww: false }))
       .filter(Boolean)
       .slice(0, 10)
+  } else if (!hasExplicitAdditional && base.customDomain && base.customDomain !== rawDomain) {
+    additionalDomains = additionalDomains.filter(
+      (d) => d !== base.customDomain && d !== `www.${base.customDomain}`
+    )
   }
   if (rawDomain && !additionalDomains.includes(`www.${rawDomain}`)) {
     additionalDomains = [`www.${rawDomain}`, ...additionalDomains.filter((d) => d !== rawDomain)]
@@ -367,6 +400,8 @@ export function getCachedStorefrontDomainsSnapshot() {
  */
 export async function getStorefrontConfigForCurrentCms(): Promise<{
   cmsInstanceId: string
+  shopeeShopId: string
+  refCodePrefix: string
   brandProfile: ServerBrandProfile & {
     companyName: string
     companyPhone: string
@@ -412,15 +447,25 @@ export async function getStorefrontConfigForCurrentCms(): Promise<{
     }
   }
 
-  let shopeeUsername = 'bomocdecor'
+  let shopeeShopId = ''
+  let shopeeUsername = ''
   if (shopeeCred?.config) {
     try {
       const sCfg = JSON.parse(shopeeCred.config) as {
+        shopId?: string | number
         username?: string
-        __vault_v1?: { username?: string }
+        __vault_v1?: { shopId?: string | number; username?: string }
       }
-      if (sCfg.__vault_v1?.username) shopeeUsername = String(sCfg.__vault_v1.username)
-      else if (sCfg.username && sCfg.username !== 'thaimy1605') shopeeUsername = String(sCfg.username)
+      const rawSid = sCfg.__vault_v1?.shopId ?? sCfg.shopId ?? ''
+      if (rawSid && /^\d+$/.test(String(rawSid).trim())) {
+        shopeeShopId = String(rawSid).trim()
+      }
+      if (sCfg.__vault_v1?.username) shopeeUsername = String(sCfg.__vault_v1.username).trim()
+      else if (sCfg.username && sCfg.username !== 'thaimy1605') {
+        shopeeUsername = String(sCfg.username).trim()
+      } else if (shopeeShopId === '197195817') {
+        shopeeUsername = 'bomocdecor'
+      }
     } catch {
       // ignore
     }
@@ -449,6 +494,7 @@ export async function getStorefrontConfigForCurrentCms(): Promise<{
 
   const normalized = normalizeStorefrontCmsConfig(rawV1, {
     customDomain: fallbackCustomDomain,
+    additionalDomains: fallbackCustomDomain ? [`www.${fallbackCustomDomain}`] : [],
     cmsBackendOrigin:
       process.env.NEXT_PUBLIC_CLOUD_BACKEND_URL?.trim() ||
       process.env.RENDER_EXTERNAL_URL?.trim() ||
@@ -456,8 +502,9 @@ export async function getStorefrontConfigForCurrentCms(): Promise<{
     contact: {
       ...DEFAULT_STOREFRONT_CONFIG.contact,
       hotline: rawSettings.company_phone?.trim() || DEFAULT_STOREFRONT_CONFIG.contact.hotline,
+      email: fallbackCustomDomain ? `lienhe@${fallbackCustomDomain}` : '',
       address: rawSettings.company_address?.trim() || DEFAULT_STOREFRONT_CONFIG.contact.address,
-      shopeeUrl: `https://shopee.vn/${shopeeUsername}`,
+      shopeeUrl: shopeeUsername ? `https://shopee.vn/${shopeeUsername}` : '',
     },
   })
 
@@ -481,8 +528,15 @@ export async function getStorefrontConfigForCurrentCms(): Promise<{
       ? 'Bơ Mộc Decor'
       : shopProfile.brandName
 
+  const refCodePrefix = deriveStorefrontRefPrefix(
+    shopProfile.brandShortName,
+    normalized.customDomain
+  )
+
   return {
     cmsInstanceId,
+    shopeeShopId,
+    refCodePrefix,
     brandProfile: {
       ...shopProfile,
       brandName: displayBrandName,
@@ -506,8 +560,10 @@ export async function saveStorefrontConfigForCurrentCms(
   partialInput: Record<string, unknown>
 ): Promise<StorefrontCmsConfig> {
   const current = await getStorefrontConfigForCurrentCms()
+  const { additionalDomains: _prevAdditional, ...currentWithoutAdditional } = current.config
+  void _prevAdditional
   const mergedInput: Record<string, unknown> = {
-    ...current.config,
+    ...currentWithoutAdditional,
     ...partialInput,
     contact: {
       ...current.config.contact,
@@ -524,9 +580,7 @@ export async function saveStorefrontConfigForCurrentCms(
     where: { provider: 'WEBSITE' },
   })
 
-  const siteUrl = nextConfig.customDomain
-    ? `https://${nextConfig.customDomain}`
-    : current.brandProfile.storefrontUrl || '/store'
+  const siteUrl = nextConfig.customDomain ? `https://${nextConfig.customDomain}` : '/store'
 
   if (existingCred) {
     let prevObj: Record<string, unknown> = {}

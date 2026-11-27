@@ -72,7 +72,8 @@ export async function GET(req: NextRequest) {
           phone: null as string | null,
         }
         if (virtualThreadId) {
-          const [rawName, rawPhone] = (m.agentName || '').split('|')
+          const hasPipe = Boolean(m.agentName?.includes('|'))
+          const [rawName, rawPhone] = hasPipe ? (m.agentName || '').split('|') : ['', '']
           resolvedCustomer = {
             id: virtualThreadId,
             name: rawName?.trim() || 'Khách Website',
@@ -91,6 +92,15 @@ export async function GET(req: NextRequest) {
       } else {
         entry.total += 1
         if (m.sender === 'CUSTOMER' && !m.readAt) entry.unread += 1
+        if (
+          virtualThreadId &&
+          entry.customer.name === 'Khách Website' &&
+          m.agentName?.includes('|')
+        ) {
+          const [rawName, rawPhone] = m.agentName.split('|')
+          if (rawName?.trim()) entry.customer.name = rawName.trim()
+          if (rawPhone?.trim()) entry.customer.phone = rawPhone.trim()
+        }
       }
     }
 
@@ -135,11 +145,26 @@ export async function POST(req: NextRequest) {
 
     const sender = body.sender === 'CUSTOMER' ? 'CUSTOMER' : 'OPERATOR'
     const isWebThread = body.customerId.startsWith('web:')
+    let priorWebAgentTag: string | null = null
+    if (isWebThread) {
+      const priorWebMsg = await db.directMessage.findFirst({
+        where: {
+          relatedOrderId: body.customerId,
+          agentName: { contains: '|' },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { agentName: true },
+      })
+      priorWebAgentTag = priorWebMsg?.agentName ?? null
+    }
+    const [knownWebName, knownWebPhone] = priorWebAgentTag
+      ? priorWebAgentTag.split('|')
+      : ['', '']
     const customer = isWebThread
       ? {
           id: body.customerId,
-          name: `Khách Website (${body.customerId.slice(4)})`,
-          phone: body.customerId.slice(4) || null,
+          name: knownWebName?.trim() || `Khách Website (${body.customerId.slice(4)})`,
+          phone: knownWebPhone?.trim() || body.customerId.slice(4) || null,
         }
       : await db.customer.findUnique({
           where: { id: body.customerId },
@@ -161,6 +186,7 @@ export async function POST(req: NextRequest) {
       data: {
         customerId: isWebThread ? null : body.customerId,
         relatedOrderId: isWebThread ? body.customerId : null,
+        agentName: isWebThread ? priorWebAgentTag : null,
         channelKey: body.channelKey,
         sender,
         content: body.content?.trim() || '[Ảnh khách gửi]',
@@ -178,6 +204,13 @@ export async function POST(req: NextRequest) {
       refreshCustomerMemory(body.customerId, 'MESSAGE', (body.content || imageAnalysis || '').slice(0, 140)).catch(() => null)
     }
 
+    const channelDisplay =
+      body.channelKey === 'WEBSITE'
+        ? 'Website Cửa hàng'
+        : body.channelKey === 'ZALO_OA'
+          ? 'Zalo OA'
+          : 'Zalo cá nhân'
+
     // Sổ Data
     await logLedger({
       scope: 'MESSAGE',
@@ -187,8 +220,8 @@ export async function POST(req: NextRequest) {
       entityCode: body.channelKey,
       title:
         sender === 'CUSTOMER'
-          ? `${customer.name} nhắn tin${imageUrl ? ' kèm ảnh' : ''} trên ${body.channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`
-          : `Người vận hành trả lời ${customer.name} trên ${body.channelKey === 'ZALO_OA' ? 'Zalo OA' : 'Zalo cá nhân'}`,
+          ? `${customer.name} nhắn tin${imageUrl ? ' kèm ảnh' : ''} trên ${channelDisplay}`
+          : `Người vận hành trả lời ${customer.name} trên ${channelDisplay}`,
       detail: {
         customerId: body.customerId,
         channelKey: body.channelKey,

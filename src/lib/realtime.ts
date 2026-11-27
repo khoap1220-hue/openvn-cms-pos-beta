@@ -303,6 +303,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('invoice-dashboard:')
       invalidateApiCache('sales-invoices:')
       invalidateApiCache('reconciliation:')
+      invalidateApiCache('storefront:')
       break
     case 'customer.updated':
     case 'loyalty.policy.updated':

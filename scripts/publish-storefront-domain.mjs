@@ -75,6 +75,10 @@ async function buildCmsStorefrontSnapshot() {
               'company_name',
               'company_phone',
               'company_address',
+              'invoice_bank_code',
+              'invoice_bank_name',
+              'invoice_bank_account',
+              'invoice_bank_holder',
             ],
           },
         },
@@ -116,10 +120,20 @@ async function buildCmsStorefrontSnapshot() {
     webCfgObj = {}
   }
 
-  let shopeeUsername = 'bomocdecor'
+  let shopeeShopId = ''
+  let shopeeUsername = ''
   try {
     const sObj = JSON.parse(shopeeCred?.config || '{}')
-    if (sObj?.__vault_v1?.username) shopeeUsername = String(sObj.__vault_v1.username)
+    const rawSid = sObj?.__vault_v1?.shopId ?? sObj?.shopId ?? ''
+    if (rawSid && /^\d+$/.test(String(rawSid).trim())) {
+      shopeeShopId = String(rawSid).trim()
+    }
+    if (sObj?.__vault_v1?.username) shopeeUsername = String(sObj.__vault_v1.username).trim()
+    else if (sObj?.username && sObj.username !== 'thaimy1605') {
+      shopeeUsername = String(sObj.username).trim()
+    } else if (shopeeShopId === '197195817') {
+      shopeeUsername = 'bomocdecor'
+    }
   } catch {
     // ignore
   }
@@ -198,72 +212,86 @@ async function buildCmsStorefrontSnapshot() {
     .digest('hex')
     .slice(0, 12)}`
 
-  const webChannelId = webChannel?.id || ''
-  const products = rawProducts
-    .filter((prod) => {
-      if (!webChannelId) return true
-      const wl = prod.listings.find((l) => l.channelId === webChannelId)
-      return !wl || wl.status !== 'INACTIVE'
-    })
-    .map((prod) => {
-      const wl = webChannelId
-        ? prod.listings.find((l) => l.channelId === webChannelId)
-        : null
-      const retailPrice = wl?.price && wl.price > 0 ? wl.price : prod.sellPrice
-      let shopeeItemId = null
-      let images = prod.image ? [prod.image] : []
-      if (prod.attributes) {
-        try {
-          const attr = JSON.parse(prod.attributes)
-          if (attr.shopeeItemId) shopeeItemId = String(attr.shopeeItemId)
-          if (Array.isArray(attr.images) && attr.images.length > 0) {
-            images = attr.images.filter((u) => typeof u === 'string' && u.startsWith('http'))
-            if (prod.image && !images.includes(prod.image)) images = [prod.image, ...images]
-          }
-        } catch {
-          // ignore
-        }
-      }
-      const { cleanTitle, variantLabel } = splitTitle(prod.name)
-      const wholesalePrices = wholesaleTiers.map((t) => ({
-        tierId: t.id,
-        minQty: t.minQty,
-        label: t.label,
-        badge: t.badge,
-        discountPercent: t.discountPercent,
-        unitPrice: computeWholesaleUnitPrice(retailPrice, t.discountPercent),
-      }))
+  const allowPreorder = savedSf.allowPreorderWhenOutOfStock !== false
+  const isEnabled = savedSf.enabled !== false
+  const wholesaleEnabled = savedSf.wholesaleEnabled !== false
 
-      return {
-        id: prod.id,
-        sku: prod.sku,
-        name: prod.name,
-        cleanTitle,
-        variantLabel,
-        description: wl?.description || prod.description || '',
-        categoryId: prod.categoryId,
-        categoryName: prod.category?.name || 'Nến Bơ & Thạch Cao Thủ Công',
-        retailPrice,
-        wholesalePrices,
-        unit: prod.unit || 'bộ',
-        type: prod.type || 'SIMPLE',
-        fragile: Boolean(prod.fragile),
-        image: prod.image || images[0] || null,
-        images: images.slice(0, 6),
-        inStock: prod.stock > 0,
-        availableToOrder: true,
-        stockLabel:
-          prod.stock > 0
-            ? `Sẵn hàng (${prod.stock} ${prod.unit || 'bộ'})`
-            : 'Chế tác thủ công tại xưởng (Giao 1–2 ngày)',
-        shopeeUrl: shopeeItemId
-          ? `https://shopee.vn/product/197195817/${shopeeItemId}`
-          : contact.shopeeUrl,
-      }
-    })
+  const webChannelId = webChannel?.id || ''
+  const products = !isEnabled
+    ? []
+    : rawProducts
+        .filter((prod) => {
+          if (!webChannelId) return true
+          const wl = prod.listings.find((l) => l.channelId === webChannelId)
+          return !wl || wl.status !== 'INACTIVE'
+        })
+        .map((prod) => {
+          const wl = webChannelId
+            ? prod.listings.find((l) => l.channelId === webChannelId)
+            : null
+          const retailPrice = wl?.price && wl.price > 0 ? wl.price : prod.sellPrice
+          let shopeeItemId = null
+          let images = prod.image ? [prod.image] : []
+          if (prod.attributes) {
+            try {
+              const attr = JSON.parse(prod.attributes)
+              if (attr.shopeeItemId) shopeeItemId = String(attr.shopeeItemId)
+              if (Array.isArray(attr.images) && attr.images.length > 0) {
+                images = attr.images.filter((u) => typeof u === 'string' && u.startsWith('http'))
+                if (prod.image && !images.includes(prod.image)) images = [prod.image, ...images]
+              }
+            } catch {
+              // ignore
+            }
+          }
+          const { cleanTitle, variantLabel } = splitTitle(prod.name)
+          const wholesalePrices = wholesaleEnabled
+            ? wholesaleTiers.map((t) => ({
+                tierId: t.id,
+                minQty: t.minQty,
+                label: t.label,
+                badge: t.badge,
+                discountPercent: t.discountPercent,
+                unitPrice: computeWholesaleUnitPrice(retailPrice, t.discountPercent),
+              }))
+            : []
+
+          return {
+            id: prod.id,
+            sku: prod.sku,
+            name: prod.name,
+            cleanTitle,
+            variantLabel,
+            description: wl?.description || prod.description || '',
+            categoryId: prod.categoryId,
+            categoryName: prod.category?.name || 'Nến Bơ & Thạch Cao Thủ Công',
+            retailPrice,
+            wholesalePrices,
+            unit: prod.unit || 'bộ',
+            type: prod.type || 'SIMPLE',
+            fragile: Boolean(prod.fragile),
+            image: prod.image || images[0] || null,
+            images: images.slice(0, 6),
+            inStock: prod.stock > 0,
+            availableToOrder: prod.stock > 0 || allowPreorder,
+            stockLabel:
+              prod.stock > 0
+                ? `Sẵn hàng (${prod.stock} ${prod.unit || 'bộ'})`
+                : allowPreorder
+                  ? 'Chế tác thủ công tại xưởng (Giao 1–2 ngày)'
+                  : 'Tạm hết hàng',
+            shopeeUrl:
+              shopeeItemId && shopeeShopId
+                ? `https://shopee.vn/product/${shopeeShopId}/${shopeeItemId}`
+                : contact.shopeeUrl,
+          }
+        })
+
+  const hasBankTransfer = Boolean(settings.invoice_bank_code && settings.invoice_bank_account)
 
   return {
     ok: true,
+    storefrontClosed: !isEnabled,
     cmsInstanceId,
     generatedAt: new Date().toISOString(),
     brand: {
@@ -279,7 +307,7 @@ async function buildCmsStorefrontSnapshot() {
       companyName: settings.company_name || brandName,
     },
     config: {
-      enabled: true,
+      enabled: isEnabled,
       customDomain,
       additionalDomains: [`www.${customDomain}`],
       cmsBackendOrigin,
@@ -294,7 +322,7 @@ async function buildCmsStorefrontSnapshot() {
       announcementBar:
         savedSf.announcementBar ||
         'Miễn phí vận chuyển toàn quốc đơn lẻ từ 500.000 ₫ · Chiết khấu Giá Sỉ tận xưởng từ 10 sản phẩm (-15% đến -35%)',
-      wholesaleEnabled: savedSf.wholesaleEnabled !== false,
+      wholesaleEnabled,
       wholesaleTiers,
       wholesalePolicyNote:
         savedSf.wholesalePolicyNote ||
@@ -305,10 +333,17 @@ async function buildCmsStorefrontSnapshot() {
       freeShipThreshold: Number(savedSf.freeShipThreshold) || 500_000,
       baseShippingFee: Number(savedSf.baseShippingFee) || 30_000,
       returnDays: Number(savedSf.returnDays) || 7,
-      allowPreorderWhenOutOfStock: true,
+      allowPreorderWhenOutOfStock: allowPreorder,
       contact,
     },
-    bankTransfer: null,
+    bankTransfer: hasBankTransfer
+      ? {
+          bankCode: settings.invoice_bank_code,
+          bankName: settings.invoice_bank_name || settings.invoice_bank_code,
+          bankAccount: settings.invoice_bank_account,
+          bankHolder: settings.invoice_bank_holder || '',
+        }
+      : null,
     categories,
     products,
     articles: [],
@@ -317,11 +352,33 @@ async function buildCmsStorefrontSnapshot() {
 
 function generateStandaloneStorefrontHtml(snapshot) {
   const brandName = escapeHtml(snapshot.brand.brandName)
+  const rawShort = String(snapshot.brand.brandShortName || snapshot.brand.brandName || 'BM')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'D')
+    .toUpperCase()
+    .trim()
+  const shortWords = rawShort.split(/[^A-Z0-9]+/).filter(Boolean)
+  const logoInitials = escapeHtml(
+    shortWords.length >= 2
+      ? shortWords
+          .slice(0, 2)
+          .map((w) => w[0])
+          .join('')
+      : (shortWords[0] || 'BM').slice(0, 2)
+  )
   const domain = escapeHtml(snapshot.config.customDomain)
   const heroTitle = escapeHtml(snapshot.config.heroTitle)
   const heroSub = escapeHtml(snapshot.config.heroSubtitle)
   const firstImage = escapeHtml(snapshot.products[0]?.image || '')
   const jsonBootstrap = JSON.stringify(snapshot).replace(/<\//g, '<\\/')
+  const tiers = snapshot.config.wholesaleTiers || []
+  const wsRangeLabel =
+    tiers.length >= 2
+      ? `(${escapeHtml(tiers[0].badge)} → ${escapeHtml(tiers[tiers.length - 1].badge)})`
+      : tiers.length === 1
+        ? `(${escapeHtml(tiers[0].badge)})`
+        : ''
 
   const structuredData = JSON.stringify({
     '@context': 'https://schema.org',
@@ -608,7 +665,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
   <header>
     <div class="container nav-wrap">
       <div class="brand-box" onclick="switchTab('PRODUCTS')">
-        <div class="brand-logo">BM</div>
+        <div class="brand-logo" id="brandLogoBox">${logoInitials}</div>
         <div>
           <div class="brand-title">
             <span id="brandNameHdr">${brandName}</span>
@@ -622,8 +679,8 @@ function generateStandaloneStorefrontHtml(snapshot) {
         <button type="button" class="tab-btn active" id="tab-PRODUCTS" onclick="switchTab('PRODUCTS')">
           Sản phẩm (<span id="prodCountNav">${snapshot.products.length}</span>)
         </button>
-        <button type="button" class="tab-btn wholesale" id="tab-WHOLESALE" onclick="switchTab('WHOLESALE')">
-          Bảng Giá Sỉ (-15% → -35%)
+        <button type="button" class="tab-btn wholesale${snapshot.config.wholesaleEnabled === false ? ' hidden' : ''}" id="tab-WHOLESALE" onclick="switchTab('WHOLESALE')">
+          Bảng Giá Sỉ <span id="wsNavBadge">${wsRangeLabel}</span>
         </button>
         <button type="button" class="tab-btn" id="tab-CONTACT" onclick="switchTab('CONTACT')">
           Liên hệ &amp; Xưởng
@@ -648,10 +705,10 @@ function generateStandaloneStorefrontHtml(snapshot) {
           <button type="button" class="btn-primary" onclick="switchTab('PRODUCTS'); setPriceMode('RETAIL')">
             Khám Phá Sản Phẩm
           </button>
-          <button type="button" class="btn-ws" onclick="switchTab('WHOLESALE')">
+          <button type="button" id="heroWsBtn" class="btn-ws${snapshot.config.wholesaleEnabled === false ? ' hidden' : ''}" onclick="switchTab('WHOLESALE')">
             Bảng Giá Sỉ Đại Lý &amp; Quà Tặng OEM
           </button>
-          <a id="heroShopeeLink" href="${escapeHtml(snapshot.config.contact.shopeeUrl)}" target="_blank" rel="noopener noreferrer" class="btn-outline">
+          <a id="heroShopeeLink" href="${escapeHtml(snapshot.config.contact.shopeeUrl)}" target="_blank" rel="noopener noreferrer" class="btn-outline${snapshot.config.contact.shopeeUrl ? '' : ' hidden'}">
             Gian hàng Shopee ↗
           </a>
         </div>
@@ -690,7 +747,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
         <div class="toolbar-row">
           <input type="search" id="searchInput" class="search-input" placeholder="Tìm sản phẩm (nến bơ, hoa sen, búp sen, khay oval...) hoặc mã SKU..." oninput="renderProducts()" />
           <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
-            <div class="mode-switch">
+            <div class="mode-switch${snapshot.config.wholesaleEnabled === false ? ' hidden' : ''}" id="modeSwitchWrap">
               <button type="button" id="modeRetailBtn" class="active" onclick="setPriceMode('RETAIL')">Giá Bán Lẻ</button>
               <button type="button" id="modeWsBtn" onclick="setPriceMode('WHOLESALE')">Hiển thị Giá Sỉ</button>
             </div>
@@ -701,6 +758,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
             </select>
           </div>
         </div>
+        <div id="catFilterRow" style="display:none; flex-wrap:wrap; gap:6px; border-top:1px solid var(--line); padding-top:10px;"></div>
       </div>
       <div class="prod-grid" id="productGrid"></div>
     </section>
@@ -865,6 +923,8 @@ function generateStandaloneStorefrontHtml(snapshot) {
       data: window.__OPENVN_STOREFRONT_BOOTSTRAP__,
       tab: 'PRODUCTS',
       priceMode: 'RETAIL',
+      selectedCat: 'ALL',
+      paymentMethod: 'COD',
       cart: [],
       completedOrder: null
     };
@@ -911,26 +971,66 @@ function generateStandaloneStorefrontHtml(snapshot) {
       renderProducts();
     }
 
+    function setCategory(catId) {
+      STATE.selectedCat = catId;
+      renderCategoryPills();
+      renderProducts();
+    }
+
+    function renderCategoryPills() {
+      var cats = (STATE.data && STATE.data.categories) || [];
+      var row = document.getElementById('catFilterRow');
+      if (!row) return;
+      if (!cats.length) {
+        row.style.display = 'none';
+        return;
+      }
+      row.style.display = 'flex';
+      var totalLen = ((STATE.data && STATE.data.products) || []).length;
+      var html = '<button type="button" class="tab-btn ' + (STATE.selectedCat === 'ALL' ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'ALL\\')">Tất cả (' + totalLen + ')</button>';
+      html += cats.map(function(c) {
+        var isAct = STATE.selectedCat === c.id;
+        return '<button type="button" class="tab-btn ' + (isAct ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'' + esc(c.id) + '\\')">' + esc(c.name) + '</button>';
+      }).join('');
+      row.innerHTML = html;
+    }
+
     function renderProducts() {
       var q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
       var sort = document.getElementById('sortSelect').value;
+      var grid = document.getElementById('productGrid');
+      var isClosed = Boolean(STATE.data && (STATE.data.storefrontClosed || (STATE.data.config && STATE.data.config.enabled === false)));
+      document.getElementById('prodCountNav').textContent = String(((STATE.data && STATE.data.products) || []).length);
+
+      if (isClosed) {
+        grid.innerHTML = '<div class="panel" style="grid-column:1/-1;text-align:center;padding:42px;border-color:#f0d5b8;background:#fffbf5;">' +
+          '<h3 style="font-size:17px;font-weight:800;margin-bottom:6px;">Website hiện đang tạm ngưng nhận đơn trực tuyến để cập nhật danh mục</h3>' +
+          '<p style="font-size:13px;color:#6b6661;margin-bottom:14px;">Quý khách vẫn có thể tra cứu trạng thái đơn hàng đã đặt hoặc liên hệ trực tiếp Hotline / Zalo để được phục vụ ngay.</p>' +
+          '<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">' +
+            '<button type="button" class="btn-primary" onclick="switchTab(\\'CONTACT\\')">Xem Thông tin Liên hệ &amp; Zalo</button>' +
+            '<button type="button" class="btn-outline" onclick="switchTab(\\'TRACKING\\')">Tra cứu đơn hàng</button>' +
+          '</div></div>';
+        return;
+      }
+
+      var wsAllowed = !(STATE.data && STATE.data.config && STATE.data.config.wholesaleEnabled === false);
       var list = (STATE.data.products || []).filter(function(p) {
+        if (STATE.selectedCat !== 'ALL' && p.categoryId !== STATE.selectedCat) return false;
         if (!q) return true;
         return p.name.toLowerCase().indexOf(q) >= 0 || p.sku.toLowerCase().indexOf(q) >= 0 || (p.description || '').toLowerCase().indexOf(q) >= 0;
       });
       if (sort === 'PRICE_ASC') list.sort(function(a, b) { return a.retailPrice - b.retailPrice; });
       if (sort === 'PRICE_DESC') list.sort(function(a, b) { return b.retailPrice - a.retailPrice; });
 
-      document.getElementById('prodCountNav').textContent = String((STATE.data.products || []).length);
-      var grid = document.getElementById('productGrid');
       if (!list.length) {
         grid.innerHTML = '<div class="panel" style="grid-column:1/-1;text-align:center;padding:40px;">Không tìm thấy sản phẩm phù hợp với từ khóa.</div>';
         return;
       }
       grid.innerHTML = list.map(function(p) {
-        var wsList = p.wholesalePrices || [];
+        var wsList = wsAllowed ? (p.wholesalePrices || []) : [];
         var firstWs = wsList[0];
         var bestWs = wsList[wsList.length - 1];
+        var canBuy = p.availableToOrder !== false;
         var priceHtml = '';
         if (STATE.priceMode === 'WHOLESALE' && wsList.length) {
           priceHtml = '<div class="ws-mini-table">' +
@@ -952,7 +1052,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
           '</div>' +
           '<div class="prod-body">' +
             '<div>' +
-              '<div class="sku-line"><span class="sku-code">' + esc(p.sku) + '</span><span class="stock-ok">Sẵn sàng đặt</span></div>' +
+              '<div class="sku-line"><span class="sku-code">' + esc(p.sku) + '</span><span class="stock-ok">' + esc(p.stockLabel || 'Sẵn sàng đặt') + '</span></div>' +
               '<h3 class="prod-title" onclick="openProdModal(\\'' + esc(p.id) + '\\')">' + esc(p.cleanTitle) + '</h3>' +
               (p.variantLabel ? '<div class="prod-var-txt">Phân loại: ' + esc(p.variantLabel) + '</div>' : '') +
             '</div>' +
@@ -960,7 +1060,9 @@ function generateStandaloneStorefrontHtml(snapshot) {
               priceHtml +
               '<div class="card-actions">' +
                 '<button type="button" class="btn-sm-out" onclick="openProdModal(\\'' + esc(p.id) + '\\')">Chi tiết</button>' +
-                '<button type="button" class="btn-sm-buy" onclick="addToCart(\\'' + esc(p.id) + '\\',' + addQty + ')">+ ' + (addQty > 1 ? 'Thêm ' + addQty + ' SP' : 'Chọn mua') + '</button>' +
+                (canBuy
+                  ? '<button type="button" class="btn-sm-buy" onclick="addToCart(\\'' + esc(p.id) + '\\',' + addQty + ')">+ ' + (addQty > 1 ? 'Thêm ' + addQty + ' SP' : 'Chọn mua') + '</button>'
+                  : '<button type="button" class="btn-sm-out" disabled style="opacity:0.55;cursor:not-allowed;">Tạm hết hàng</button>') +
               '</div>' +
             '</div>' +
           '</div>' +
@@ -1049,13 +1151,17 @@ function generateStandaloneStorefrontHtml(snapshot) {
 
     function addToCart(prodId, qty) {
       var p = (STATE.data.products || []).find(function(x) { return x.id === prodId; });
-      if (!p) return;
+      if (!p || p.availableToOrder === false) return;
       STATE.completedOrder = null;
       var hit = STATE.cart.find(function(i) { return i.product.id === prodId; });
       if (hit) hit.quantity += qty;
       else STATE.cart.push({ product: p, quantity: qty });
       updateCartBadge();
       showToast('Đã thêm ' + qty + ' ' + p.unit + ' "' + p.cleanTitle + '" vào giỏ hàng');
+    }
+    function setPaymentMethod(m) {
+      STATE.paymentMethod = m;
+      renderCartModal();
     }
     function updateCartQty(prodId, delta) {
       STATE.cart = STATE.cart.map(function(i) {
@@ -1094,8 +1200,9 @@ function generateStandaloneStorefrontHtml(snapshot) {
         return;
       }
       var totalQty = STATE.cart.reduce(function(s, i) { return s + i.quantity; }, 0);
-      var tiers = ((STATE.data.config && STATE.data.config.wholesaleTiers) || []).slice().sort(function(a, b) { return b.minQty - a.minQty; });
-      var activeTier = tiers.find(function(t) { return totalQty >= t.minQty; }) || null;
+      var wsAllowed = !(STATE.data.config && STATE.data.config.wholesaleEnabled === false);
+      var tiers = wsAllowed ? ((STATE.data.config && STATE.data.config.wholesaleTiers) || []).slice().sort(function(a, b) { return b.minQty - a.minQty; }) : [];
+      var activeTier = wsAllowed ? (tiers.find(function(t) { return totalQty >= t.minQty; }) || null) : null;
       var retailSub = STATE.cart.reduce(function(s, i) { return s + i.product.retailPrice * i.quantity; }, 0);
       var effSub = STATE.cart.reduce(function(s, i) {
         var u = activeTier ? calcWsPrice(i.product.retailPrice, activeTier.discountPercent) : i.product.retailPrice;
@@ -1105,10 +1212,12 @@ function generateStandaloneStorefrontHtml(snapshot) {
       var freeShip = (STATE.data.config && STATE.data.config.freeShipThreshold) || 500000;
       var shipFee = effSub >= freeShip ? 0 : ((STATE.data.config && STATE.data.config.baseShippingFee) || 30000);
       var grand = effSub + shipFee;
+      var bank = STATE.data.bankTransfer || null;
+      var pm = STATE.paymentMethod || 'COD';
 
       box.innerHTML = '<button type="button" class="modal-close" onclick="closeCartModal()">✕</button>' +
         '<h3 style="font-size:18px;font-weight:800;margin-bottom:4px;">Giỏ hàng &amp; Đặt mua Trực tuyến</h3>' +
-        '<p style="font-size:12px;color:#6b6661;margin-bottom:12px;">Tự động tính chiết khấu Giá Sỉ khi tổng số lượng từ 10 sản phẩm trở lên.</p>' +
+        '<p style="font-size:12px;color:#6b6661;margin-bottom:12px;">' + (wsAllowed ? 'Tự động tính chiết khấu Giá Sỉ khi tổng số lượng đạt mốc sỉ xưởng.' : 'Kiểm tra danh sách sản phẩm và thông tin nhận hàng.') + '</p>' +
         (activeTier ? '<div class="alert-ok">Đã kích hoạt <strong>' + esc(activeTier.label) + '</strong> — Tiết kiệm ngay <strong>' + fmtVND(saved) + '</strong>!</div>' : '') +
         '<div style="max-height:200px;overflow-y:auto;margin-bottom:14px;display:grid;gap:8px;">' +
           STATE.cart.map(function(i) {
@@ -1128,6 +1237,11 @@ function generateStandaloneStorefrontHtml(snapshot) {
           '<div class="field"><label>Số điện thoại *</label><input id="ordPhone" required placeholder="0909..." /></div>' +
           '<div class="field full"><label>Địa chỉ giao hàng chi tiết *</label><input id="ordAddr" required placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành..." /></div>' +
           '<div class="field full"><label>Ghi chú đơn hàng</label><input id="ordNote" placeholder="Gói quà, xuất hóa đơn, giờ giao..." /></div>' +
+          '<div class="field full" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<button type="button" class="btn-sm-out" style="' + (pm === 'COD' ? 'border-color:#0066cc;background:#eff6ff;color:#0066cc;font-weight:750;' : '') + '" onclick="setPaymentMethod(\\'COD\\')">Thanh toán khi nhận (COD)</button>' +
+            '<button type="button" class="btn-sm-out" style="' + (pm === 'BANK_TRANSFER' ? 'border-color:#0066cc;background:#eff6ff;color:#0066cc;font-weight:750;' : '') + '" onclick="setPaymentMethod(\\'BANK_TRANSFER\\')">Chuyển khoản Ngân hàng</button>' +
+          '</div>' +
+          (pm === 'BANK_TRANSFER' && bank ? '<div class="field full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px;font-size:12px;"><strong>Thông tin chuyển khoản:</strong> ' + esc(bank.bankName) + ' · STK: <strong>' + esc(bank.bankAccount) + '</strong>' + (bank.bankHolder ? ' (' + esc(bank.bankHolder) + ')' : '') + '</div>' : '') +
           '<div class="field full" style="background:#f5f2ec;border-radius:11px;padding:11px;font-size:12.5px;">' +
             '<div style="display:flex;justify-content:space-between;"><span>Tạm tính (' + totalQty + ' SP):</span><strong>' + fmtVND(effSub) + '</strong></div>' +
             '<div style="display:flex;justify-content:space-between;"><span>Phí vận chuyển:</span><strong>' + (shipFee === 0 ? 'Miễn phí' : fmtVND(shipFee)) + '</strong></div>' +
@@ -1151,7 +1265,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
             customerPhone: document.getElementById('ordPhone').value,
             address: document.getElementById('ordAddr').value,
             note: document.getElementById('ordNote').value,
-            paymentMethod: 'COD',
+            paymentMethod: STATE.paymentMethod || 'COD',
             items: STATE.cart.map(function(i) { return { productId: i.product.id, sku: i.product.sku, quantity: i.quantity }; })
           })
         });
@@ -1251,21 +1365,66 @@ function generateStandaloneStorefrontHtml(snapshot) {
     function applyLiveStorefrontData(live) {
       if (!live || !live.ok || !Array.isArray(live.products)) return;
       STATE.data = live;
-      if (live.brand && live.brand.brandName) {
-        document.getElementById('brandNameHdr').textContent = live.brand.brandName;
-        document.getElementById('footerBrand').textContent = live.brand.brandName;
+      if (live.brand) {
+        if (live.brand.brandName) {
+          document.getElementById('brandNameHdr').textContent = live.brand.brandName;
+          document.getElementById('footerBrand').textContent = live.brand.brandName;
+          document.title = live.brand.brandName + ' — Sản phẩm Thủ công, Bảng Giá Sỉ & Liên hệ Chính thức';
+        }
+        if (live.brand.workshopName) {
+          document.getElementById('footerWorkshop').textContent = live.brand.workshopName;
+        }
       }
       if (live.config) {
         if (live.config.announcementBar) document.getElementById('announcementBar').textContent = live.config.announcementBar;
+        if (live.config.heroBadge) document.getElementById('heroBadge').textContent = '✨ ' + live.config.heroBadge;
         if (live.config.heroTitle) document.getElementById('heroTitle').textContent = live.config.heroTitle;
         if (live.config.heroSubtitle) document.getElementById('heroSubtitle').textContent = live.config.heroSubtitle;
+        if (live.config.wholesalePolicyNote) document.getElementById('wsPolicyText').textContent = live.config.wholesalePolicyNote;
+        if (live.config.oemCustomNote) document.getElementById('oemNoteText').textContent = live.config.oemCustomNote;
+
+        var wsOn = live.config.wholesaleEnabled !== false;
+        var tabWs = document.getElementById('tab-WHOLESALE');
+        var heroWs = document.getElementById('heroWsBtn');
+        var modeSw = document.getElementById('modeSwitchWrap');
+        if (tabWs) tabWs.classList.toggle('hidden', !wsOn);
+        if (heroWs) heroWs.classList.toggle('hidden', !wsOn);
+        if (modeSw) modeSw.classList.toggle('hidden', !wsOn);
+        if (!wsOn && STATE.priceMode === 'WHOLESALE') STATE.priceMode = 'RETAIL';
+
+        var tList = live.config.wholesaleTiers || [];
+        var wsBadgeEl = document.getElementById('wsNavBadge');
+        if (wsBadgeEl) {
+          wsBadgeEl.textContent = tList.length >= 2
+            ? '(' + tList[0].badge + ' → ' + tList[tList.length - 1].badge + ')'
+            : (tList.length === 1 ? '(' + tList[0].badge + ')' : '');
+        }
+
+        if (live.config.contact) {
+          var spLink = document.getElementById('heroShopeeLink');
+          var ftShopee = document.getElementById('footerShopee');
+          var ftHot = document.getElementById('footerHotline');
+          if (spLink) {
+            spLink.href = live.config.contact.shopeeUrl || '#';
+            spLink.classList.toggle('hidden', !live.config.contact.shopeeUrl);
+          }
+          if (ftShopee && live.config.contact.shopeeUrl) {
+            ftShopee.href = live.config.contact.shopeeUrl;
+            ftShopee.textContent = 'Shopee Chính hãng: ' + live.config.contact.shopeeUrl.replace('https://', '');
+          }
+          if (ftHot && live.config.contact.hotline) {
+            ftHot.textContent = 'Hotline / Zalo: ' + live.config.contact.hotline;
+          }
+        }
       }
+      renderCategoryPills();
       renderProducts();
       renderWholesaleSection();
       renderContactSection();
     }
 
     // Khởi tạo tức thì 0ms từ dữ liệu bootstrap & đồng bộ ngầm từ CMS API riêng
+    renderCategoryPills();
     renderProducts();
     renderWholesaleSection();
     renderContactSection();

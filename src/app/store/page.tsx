@@ -95,6 +95,7 @@ interface WholesaleTier {
 
 interface StorefrontPayload {
   ok: boolean
+  storefrontClosed?: boolean
   cmsInstanceId: string
   brand: {
     brandName: string
@@ -170,12 +171,27 @@ function computeDiscountedPriceClient(retailPrice: number, discountPercent: numb
   return Math.floor((cleanRetail * keepBps + 5_000) / 10_000)
 }
 
+function isStaticBetaHost(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname.toLowerCase()
+  const hasSubpathShim = Boolean(
+    (window as unknown as { __BETA_SUBPATH_SHIM__?: unknown }).__BETA_SUBPATH_SHIM__
+  )
+  return (
+    hasSubpathShim ||
+    host.endsWith('.github.io') ||
+    host === 'khoaphan.dev' ||
+    host.endsWith('.khoaphan.dev')
+  )
+}
+
 function resolveStorefrontApiEndpoint(bootstrapData?: StorefrontPayload | null): string {
   if (typeof window === 'undefined') return '/api/public/storefront'
   const host = window.location.hostname.toLowerCase()
   const isStaticCustomOrPagesHost =
-    host.endsWith('.github.io') ||
+    isStaticBetaHost() ||
     Boolean(bootstrapData) ||
+    Boolean(window.__OPENVN_STOREFRONT_BOOTSTRAP__) ||
     (host !== 'localhost' &&
       host !== '127.0.0.1' &&
       !host.endsWith('.onrender.com') &&
@@ -186,6 +202,7 @@ function resolveStorefrontApiEndpoint(bootstrapData?: StorefrontPayload | null):
     const origin = (
       bootstrapData?.config?.cmsBackendOrigin ||
       window.__OPENVN_STOREFRONT_BOOTSTRAP__?.config?.cmsBackendOrigin ||
+      process.env.NEXT_PUBLIC_CLOUD_BACKEND_URL ||
       'https://openvn-cms-pos-backend.onrender.com'
     ).replace(/\/+$/, '')
     return `${origin}/api/public/storefront`
@@ -213,6 +230,7 @@ export default function OnlineStorefrontPage() {
   const [selectedCat, setSelectedCat] = useState<string>('ALL')
   const [sortBy, setSortBy] = useState<'DEFAULT' | 'PRICE_ASC' | 'PRICE_DESC'>('DEFAULT')
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null)
+  const [selectedImageIdx, setSelectedImageIdx] = useState(0)
 
   const [cart, setCart] = useState<StoreCartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -295,11 +313,15 @@ export default function OnlineStorefrontPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const h = window.location.hostname.toLowerCase()
+      const p = window.location.pathname.toLowerCase()
       const isInternal =
         h === 'localhost' ||
         h === '127.0.0.1' ||
         h.endsWith('.onrender.com') ||
-        window.location.pathname.startsWith('/store')
+        isStaticBetaHost() ||
+        p.startsWith('/store') ||
+        p.endsWith('/store') ||
+        p.endsWith('/store/')
       setIsCustomDomainHost(!isInternal)
     }
     void loadStorefront()
@@ -944,6 +966,24 @@ export default function OnlineStorefrontPage() {
                   <div key={i} className="h-80 animate-pulse rounded-2xl border bg-muted/40" />
                 ))}
               </div>
+            ) : storeData?.storefrontClosed || cfg?.enabled === false ? (
+              <div className="rounded-2xl border border-amber-300/80 bg-amber-50/70 py-14 px-6 text-center dark:border-amber-900 dark:bg-amber-950/30">
+                <Store className="mx-auto mb-3 h-10 w-10 text-amber-700 dark:text-amber-400" />
+                <p className="text-base font-bold text-foreground">
+                  Website hiện đang tạm ngưng nhận đơn trực tuyến để cập nhật danh mục
+                </p>
+                <p className="mx-auto mt-1.5 max-w-lg text-xs text-muted-foreground">
+                  Quý khách vẫn có thể tra cứu trạng thái đơn hàng đã đặt hoặc liên hệ trực tiếp Hotline / Zalo của {brandName} để được phục vụ ngay.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <Button type="button" size="sm" onClick={() => setActiveTab('CONTACT')}>
+                    Xem Thông tin Liên hệ &amp; Zalo
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setActiveTab('TRACKING')}>
+                    Tra cứu đơn hàng
+                  </Button>
+                </div>
+              </div>
             ) : filteredProducts.length === 0 ? (
               <div className="rounded-2xl border border-dashed py-16 text-center">
                 <Package className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
@@ -1055,7 +1095,10 @@ export default function OnlineStorefrontPage() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => setSelectedProduct(p)}
+                              onClick={() => {
+                                setSelectedImageIdx(0)
+                                setSelectedProduct(p)
+                              }}
                               className="col-span-2 h-10 gap-1 px-2 text-xs font-semibold"
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -1064,15 +1107,18 @@ export default function OnlineStorefrontPage() {
                             <Button
                               type="button"
                               size="sm"
+                              disabled={!p.availableToOrder}
                               onClick={() =>
                                 addToCart(p, priceViewMode === 'WHOLESALE' && firstWs ? firstWs.minQty : 1)
                               }
                               className="col-span-3 h-10 gap-1 bg-stone-900 px-2.5 text-xs font-bold text-white hover:bg-stone-800 dark:bg-[#0066CC] dark:hover:bg-[#0055B3]"
                             >
                               <Plus className="h-3.5 w-3.5" />
-                              {priceViewMode === 'WHOLESALE' && firstWs
-                                ? `Thêm ${firstWs.minQty} SP`
-                                : 'Chọn mua'}
+                              {!p.availableToOrder
+                                ? 'Tạm hết hàng'
+                                : priceViewMode === 'WHOLESALE' && firstWs
+                                  ? `Thêm ${firstWs.minQty} SP`
+                                  : 'Chọn mua'}
                             </Button>
                           </div>
                         </div>
@@ -1698,15 +1744,36 @@ export default function OnlineStorefrontPage() {
               </DialogHeader>
 
               <div className="grid gap-5 sm:grid-cols-2">
-                <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border bg-muted/30 p-2">
-                  {selectedProduct.image ? (
-                    <img
-                      src={selectedProduct.image}
-                      alt={selectedProduct.name}
-                      className="h-full w-full rounded-xl object-cover"
-                    />
-                  ) : (
-                    <ProductAvatar name={selectedProduct.name} className="h-24 w-24 text-2xl" />
+                <div className="space-y-2">
+                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border bg-muted/30 p-2">
+                    {(selectedProduct.images[selectedImageIdx] || selectedProduct.image) ? (
+                      <img
+                        src={selectedProduct.images[selectedImageIdx] || selectedProduct.image || ''}
+                        alt={selectedProduct.name}
+                        className="h-full w-full rounded-xl object-cover"
+                      />
+                    ) : (
+                      <ProductAvatar name={selectedProduct.name} className="h-24 w-24 text-2xl" />
+                    )}
+                  </div>
+                  {selectedProduct.images.length > 1 && (
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      {selectedProduct.images.map((imgUrl, idx) => (
+                        <button
+                          key={imgUrl}
+                          type="button"
+                          onClick={() => setSelectedImageIdx(idx)}
+                          className={cn(
+                            'h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all',
+                            selectedImageIdx === idx
+                              ? 'border-[#0066CC] ring-1 ring-[#0066CC]'
+                              : 'border-transparent opacity-70 hover:opacity-100'
+                          )}
+                        >
+                          <img src={imgUrl} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
 
@@ -1751,6 +1818,7 @@ export default function OnlineStorefrontPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         type="button"
+                        disabled={!selectedProduct.availableToOrder}
                         onClick={() => {
                           addToCart(selectedProduct, 1)
                           setSelectedProduct(null)
@@ -1758,11 +1826,12 @@ export default function OnlineStorefrontPage() {
                         className="h-10 gap-1.5 bg-[#0066CC] text-xs font-bold text-white hover:bg-[#0055B3]"
                       >
                         <Plus className="h-4 w-4" />
-                        Mua lẻ (+1)
+                        {selectedProduct.availableToOrder ? 'Mua lẻ (+1)' : 'Tạm hết hàng'}
                       </Button>
                       <Button
                         type="button"
                         variant="outline"
+                        disabled={!selectedProduct.availableToOrder}
                         onClick={() => {
                           addToCart(selectedProduct, 10)
                           setSelectedProduct(null)
@@ -1979,6 +2048,21 @@ export default function OnlineStorefrontPage() {
                   Chuyển khoản Ngân hàng
                 </button>
               </div>
+
+              {paymentMethod === 'BANK_TRANSFER' && storeData?.bankTransfer && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs dark:border-sky-900 dark:bg-sky-950/30">
+                  <p className="font-bold text-sky-900 dark:text-sky-200">
+                    Thông tin chuyển khoản thanh toán:
+                  </p>
+                  <p className="mt-0.5">
+                    Ngân hàng: <strong>{storeData.bankTransfer.bankName}</strong> · STK:{' '}
+                    <strong className="font-mono">{storeData.bankTransfer.bankAccount}</strong>
+                  </p>
+                  {storeData.bankTransfer.bankHolder && (
+                    <p>Chủ TK: {storeData.bankTransfer.bankHolder}</p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1 rounded-xl border bg-muted/40 p-3 text-xs">
                 <div className="flex justify-between">

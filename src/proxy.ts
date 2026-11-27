@@ -359,7 +359,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
 
   // Định tuyến Tên miền Riêng (Custom Domain) cho từng CMS độc lập:
   // Khách truy cập trang chủ `/` qua tên miền riêng (VD: bomocdecor.vn) sẽ xem ngay Website Khách hàng (/store)
-  if (pathname === '/' && req.method === 'GET') {
+  if (pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (await shouldRewriteRootToCustomDomainStorefront(req)) {
       return NextResponse.rewrite(new URL('/store', req.url))
     }

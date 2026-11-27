@@ -20,10 +20,12 @@ import { cn } from '@/lib/utils'
 export const CHANNEL_KEY_COLORS: Record<string, string> = {
   ZALO_OA: '#0084FF',
   ZALO_PERSONAL: '#45C4B0',
+  WEBSITE: '#0F766E',
 }
 
 const FILTERS = [
   { key: 'ALL', label: 'Tất cả' },
+  { key: 'WEBSITE', label: 'Website' },
   { key: 'ZALO_OA', label: 'Zalo OA' },
   { key: 'ZALO_PERSONAL', label: 'Zalo cá nhân' },
 ]
@@ -155,6 +157,7 @@ export function InboxView() {
   )
 
   const loadMemory = useCallback(async (customerId: string, fallbackCustomer?: Conversation['customer']) => {
+    const isWebVirtual = customerId.startsWith('web:')
     const buildFallbackCustomer = (fc: Conversation['customer']): Customer => ({
       id: customerId,
       name: fc.name,
@@ -165,9 +168,25 @@ export function InboxView() {
       points: 0,
       avatarUrl: null,
       salutation: 'Tụi em - Mình',
-      contextSummary: 'Khách hàng tương tác qua hộp thư Zalo của Ưu Đàm.',
+      contextSummary: isWebVirtual
+        ? 'Khách hàng đặt đơn sỉ/lẻ hoặc gửi yêu cầu tư vấn trực tiếp từ Website Cửa hàng.'
+        : 'Khách hàng tương tác qua hộp thư CSKH của cửa hàng.',
       stats: { orderCount: 1, totalSpent: 0, lastOrderAt: null },
     })
+
+    if (isWebVirtual) {
+      setMemory(
+        fallbackCustomer
+          ? buildFallbackCustomer(fallbackCustomer)
+          : buildFallbackCustomer({
+              id: customerId,
+              name: `Khách Website (${customerId.slice(4)})`,
+              phone: customerId.slice(4) || null,
+            })
+      )
+      setMemoryLoading(false)
+      return
+    }
 
     setMemoryLoading(true)
     try {
@@ -238,7 +257,12 @@ export function InboxView() {
     }
     if (e.type !== 'message.new') return
     const msg = e.data as DirectMessage
-    if (selected && msg.customerId === selected.customerId && msg.channelKey === selected.channelKey) {
+    const msgThreadId =
+      msg.customerId ||
+      (typeof msg.relatedOrderId === 'string' && msg.relatedOrderId.startsWith('web:')
+        ? msg.relatedOrderId
+        : null)
+    if (selected && msg.id && msgThreadId === selected.customerId && msg.channelKey === selected.channelKey) {
       setMessages((prev) => [...prev.filter((m) => m.id !== msg.id), msg])
       if (msg.sender === 'CUSTOMER') {
         void apiGet(`/api/inbox?customerId=${encodeURIComponent(selected.customerId)}&channelKey=${encodeURIComponent(selected.channelKey)}`)
@@ -380,6 +404,13 @@ export function InboxView() {
 
   const reSummarize = async () => {
     if (!selected || summarizing) return
+    if (selected.customerId.startsWith('web:')) {
+      toast({
+        title: 'Hội thoại từ Website',
+        description: 'Khách đặt đơn / liên hệ trực tuyến từ Website được định danh theo số điện thoại trên luồng chat.',
+      })
+      return
+    }
     setSummarizing(true)
     try {
       await apiPost(`/api/customers/${encodeURIComponent(selected.customerId)}/memory`, {})

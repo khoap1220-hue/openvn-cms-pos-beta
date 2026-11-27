@@ -176,135 +176,148 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(cached, { headers: corsHeaders })
     }
 
-    const [{ cmsInstanceId, brandProfile, config }, categories, websiteChannel, rawProducts, posts] =
-      await Promise.all([
-        getStorefrontConfigForCurrentCms(),
-        db.category.findMany({
-          orderBy: { name: 'asc' },
-          select: { id: true, name: true, slug: true },
-        }),
-        db.channel.findUnique({
-          where: { key: 'WEBSITE' },
-          select: { id: true },
-        }),
-        db.product.findMany({
-          where: { status: 'ACTIVE' },
-          orderBy: [{ sellPrice: 'asc' }, { name: 'asc' }],
-          select: {
-            id: true,
-            sku: true,
-            name: true,
-            description: true,
-            categoryId: true,
-            sellPrice: true,
-            stock: true,
-            unit: true,
-            type: true,
-            fragile: true,
-            image: true,
-            attributes: true,
-            category: { select: { id: true, name: true, slug: true } },
-            listings: {
-              select: {
-                channelId: true,
-                price: true,
-                status: true,
-                description: true,
-              },
+    const [
+      { cmsInstanceId, shopeeShopId, brandProfile, config },
+      categories,
+      websiteChannel,
+      rawProducts,
+      posts,
+    ] = await Promise.all([
+      getStorefrontConfigForCurrentCms(),
+      db.category.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, slug: true },
+      }),
+      db.channel.findUnique({
+        where: { key: 'WEBSITE' },
+        select: { id: true },
+      }),
+      db.product.findMany({
+        where: { status: 'ACTIVE' },
+        orderBy: [{ sellPrice: 'asc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          description: true,
+          categoryId: true,
+          sellPrice: true,
+          stock: true,
+          unit: true,
+          type: true,
+          fragile: true,
+          image: true,
+          attributes: true,
+          category: { select: { id: true, name: true, slug: true } },
+          listings: {
+            select: {
+              channelId: true,
+              price: true,
+              status: true,
+              description: true,
             },
           },
-        }),
-        db.socialPost
-          .findMany({
-            where: { channel: 'WEBSITE', status: 'PUBLISHED' },
-            orderBy: { publishedAt: 'desc' },
-            take: 6,
-            select: {
-              id: true,
-              slug: true,
-              title: true,
-              excerpt: true,
-              publishedAt: true,
-              mediaUrls: true,
-            },
-          })
-          .catch(() => []),
-      ])
+        },
+      }),
+      db.socialPost
+        .findMany({
+          where: { channel: 'WEBSITE', status: 'PUBLISHED' },
+          orderBy: { publishedAt: 'desc' },
+          take: 6,
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            excerpt: true,
+            publishedAt: true,
+            mediaUrls: true,
+          },
+        })
+        .catch(() => []),
+    ])
 
     const webChannelId = websiteChannel?.id || ''
-    const shopeeBaseUrl = config.contact.shopeeUrl.replace(/\/+$/, '') || 'https://shopee.vn/bomocdecor'
+    const shopeeBaseUrl = config.contact.shopeeUrl.replace(/\/+$/, '')
 
-    const publicProducts = rawProducts
-      .filter((prod) => {
-        if (!webChannelId) return true
-        const webListing = prod.listings.find((l) => l.channelId === webChannelId)
-        return !webListing || webListing.status !== 'INACTIVE'
-      })
-      .map((prod) => {
-        const webListing = webChannelId
-          ? prod.listings.find((l) => l.channelId === webChannelId)
-          : undefined
-        const retailPrice =
-          webListing?.price && webListing.price > 0 ? webListing.price : prod.sellPrice
+    const publicProducts =
+      config.enabled === false
+        ? []
+        : rawProducts
+            .filter((prod) => {
+              if (!webChannelId) return true
+              const webListing = prod.listings.find((l) => l.channelId === webChannelId)
+              return !webListing || webListing.status !== 'INACTIVE'
+            })
+            .map((prod) => {
+              const webListing = webChannelId
+                ? prod.listings.find((l) => l.channelId === webChannelId)
+                : undefined
+              const retailPrice =
+                webListing?.price && webListing.price > 0 ? webListing.price : prod.sellPrice
 
-        let shopeeItemId: string | null = null
-        let images: string[] = prod.image ? [prod.image] : []
-        if (prod.attributes) {
-          try {
-            const attr = JSON.parse(prod.attributes) as {
-              shopeeItemId?: string | number
-              images?: string[]
-            }
-            if (attr.shopeeItemId) shopeeItemId = String(attr.shopeeItemId)
-            if (Array.isArray(attr.images) && attr.images.length > 0) {
-              images = attr.images.filter((u) => typeof u === 'string' && u.startsWith('http'))
-              if (prod.image && !images.includes(prod.image)) {
-                images = [prod.image, ...images]
+              let shopeeItemId: string | null = null
+              let images: string[] = prod.image ? [prod.image] : []
+              if (prod.attributes) {
+                try {
+                  const attr = JSON.parse(prod.attributes) as {
+                    shopeeItemId?: string | number
+                    images?: string[]
+                  }
+                  if (attr.shopeeItemId) shopeeItemId = String(attr.shopeeItemId)
+                  if (Array.isArray(attr.images) && attr.images.length > 0) {
+                    images = attr.images.filter((u) => typeof u === 'string' && u.startsWith('http'))
+                    if (prod.image && !images.includes(prod.image)) {
+                      images = [prod.image, ...images]
+                    }
+                  }
+                } catch {
+                  // ignore
+                }
               }
-            }
-          } catch {
-            // ignore
-          }
-        }
 
-        const { cleanTitle, variantLabel } = splitProductTitleAndVariant(prod.name)
+              const { cleanTitle, variantLabel } = splitProductTitleAndVariant(prod.name)
 
-        const wholesalePrices = config.wholesaleEnabled
-          ? config.wholesaleTiers.map((tier) => ({
-              tierId: tier.id,
-              minQty: tier.minQty,
-              label: tier.label,
-              badge: tier.badge,
-              discountPercent: tier.discountPercent,
-              unitPrice: computeWholesaleUnitPrice(retailPrice, tier.discountPercent),
-            }))
-          : []
+              const wholesalePrices = config.wholesaleEnabled
+                ? config.wholesaleTiers.map((tier) => ({
+                    tierId: tier.id,
+                    minQty: tier.minQty,
+                    label: tier.label,
+                    badge: tier.badge,
+                    discountPercent: tier.discountPercent,
+                    unitPrice: computeWholesaleUnitPrice(retailPrice, tier.discountPercent),
+                  }))
+                : []
 
-        return {
-          id: prod.id,
-          sku: prod.sku,
-          name: prod.name,
-          cleanTitle,
-          variantLabel,
-          description: webListing?.description || prod.description || '',
-          categoryId: prod.categoryId,
-          categoryName: prod.category?.name || 'Bộ sưu tập Thủ công',
-          retailPrice,
-          wholesalePrices,
-          unit: prod.unit || 'sp',
-          type: prod.type || 'SIMPLE',
-          fragile: Boolean(prod.fragile),
-          image: prod.image || images[0] || null,
-          images: images.slice(0, 6),
-          inStock: prod.stock > 0,
-          availableToOrder: prod.stock > 0 || config.allowPreorderWhenOutOfStock,
-          stockLabel:
-            prod.stock > 0
-              ? `Sẵn hàng (${prod.stock} ${prod.unit || 'sp'})`
-              : 'Đặt chế tác tại xưởng (Giao 1–2 ngày)',
-          shopeeUrl: shopeeItemId ? `https://shopee.vn/product/197195817/${shopeeItemId}` : shopeeBaseUrl,
-        }
-      })
+              return {
+                id: prod.id,
+                sku: prod.sku,
+                name: prod.name,
+                cleanTitle,
+                variantLabel,
+                description: webListing?.description || prod.description || '',
+                categoryId: prod.categoryId,
+                categoryName: prod.category?.name || 'Bộ sưu tập Thủ công',
+                retailPrice,
+                wholesalePrices,
+                unit: prod.unit || 'sp',
+                type: prod.type || 'SIMPLE',
+                fragile: Boolean(prod.fragile),
+                image: prod.image || images[0] || null,
+                images: images.slice(0, 6),
+                inStock: prod.stock > 0,
+                availableToOrder: prod.stock > 0 || config.allowPreorderWhenOutOfStock,
+                stockLabel:
+                  prod.stock > 0
+                    ? `Sẵn hàng (${prod.stock} ${prod.unit || 'sp'})`
+                    : config.allowPreorderWhenOutOfStock
+                      ? 'Đặt chế tác tại xưởng (Giao 1–2 ngày)'
+                      : 'Tạm hết hàng',
+                shopeeUrl:
+                  shopeeItemId && shopeeShopId
+                    ? `https://shopee.vn/product/${shopeeShopId}/${shopeeItemId}`
+                    : shopeeBaseUrl,
+              }
+            })
 
     const hasBankTransfer = Boolean(
       brandProfile.invoiceBankCode && brandProfile.invoiceBankAccount
@@ -312,6 +325,7 @@ export async function GET(req: NextRequest) {
 
     const responsePayload = {
       ok: true,
+      storefrontClosed: config.enabled === false,
       cmsInstanceId,
       generatedAt: new Date().toISOString(),
       brand: {
@@ -419,7 +433,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { config, brandProfile } = await getStorefrontConfigForCurrentCms()
+    const { config, brandProfile, refCodePrefix } = await getStorefrontConfigForCurrentCms()
     const datePart = new Date().toISOString().slice(2, 10).replace(/-/g, '')
     const randSuffix = Math.floor(1000 + Math.random() * 9000)
     const cleanPhoneKey = customerPhone.replace(/\D/g, '')
@@ -430,6 +444,17 @@ export async function POST(req: NextRequest) {
     // 1. ĐẶT HÀNG LẺ / ĐƠN SỈ TỪ GIỎ HÀNG WEBSITE
     // =========================================================================
     if (action === 'SUBMIT_WEB_ORDER') {
+      if (config.enabled === false) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: 'STOREFRONT_DISABLED',
+            error:
+              'Website hiện đang tạm ngưng nhận đơn trực tuyến để bảo trì/cập nhật. Quý khách vui lòng liên hệ Hotline hoặc Zalo để được hỗ trợ ngay.',
+          },
+          { status: 503, headers: corsHeaders }
+        )
+      }
       if (!address) {
         return NextResponse.json(
           { ok: false, error: 'Vui lòng nhập địa chỉ giao hàng chi tiết.' },
@@ -451,22 +476,35 @@ export async function POST(req: NextRequest) {
         .map((i) => String(i.sku || '').trim())
         .filter(Boolean)
 
-      const dbProducts = await db.product.findMany({
-        where: {
-          status: 'ACTIVE',
-          OR: [
-            ...(prodIds.length > 0 ? [{ id: { in: prodIds } }] : []),
-            ...(skus.length > 0 ? [{ sku: { in: skus } }] : []),
-          ],
-        },
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          sellPrice: true,
-          unit: true,
-        },
-      })
+      const [websiteChannel, dbProducts] = await Promise.all([
+        db.channel.findUnique({ where: { key: 'WEBSITE' }, select: { id: true } }),
+        db.product.findMany({
+          where: {
+            status: 'ACTIVE',
+            OR: [
+              ...(prodIds.length > 0 ? [{ id: { in: prodIds } }] : []),
+              ...(skus.length > 0 ? [{ sku: { in: skus } }] : []),
+            ],
+          },
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            sellPrice: true,
+            stock: true,
+            unit: true,
+            listings: {
+              select: {
+                channelId: true,
+                price: true,
+                status: true,
+              },
+            },
+          },
+        }),
+      ])
+
+      const webChannelId = websiteChannel?.id || ''
 
       const resolvedLines: Array<{
         productId: string
@@ -484,6 +522,22 @@ export async function POST(req: NextRequest) {
             (reqItem.sku && p.sku.toUpperCase() === String(reqItem.sku).trim().toUpperCase())
         )
         if (!matched) continue
+        const webListing = webChannelId
+          ? matched.listings.find((l) => l.channelId === webChannelId)
+          : undefined
+        if (webListing?.status === 'INACTIVE') continue
+        if (matched.stock <= 0 && !config.allowPreorderWhenOutOfStock) {
+          return NextResponse.json(
+            {
+              ok: false,
+              code: 'OUT_OF_STOCK',
+              error: `Sản phẩm "${matched.name}" (${matched.sku}) hiện tạm hết hàng.`,
+            },
+            { status: 400, headers: corsHeaders }
+          )
+        }
+        const effectiveRetail =
+          webListing?.price && webListing.price > 0 ? webListing.price : matched.sellPrice
         const existingIdx = resolvedLines.findIndex((x) => x.productId === matched.id)
         if (existingIdx >= 0) {
           resolvedLines[existingIdx].quantity += qty
@@ -493,7 +547,7 @@ export async function POST(req: NextRequest) {
             sku: matched.sku,
             name: matched.name,
             quantity: qty,
-            retailPrice: matched.sellPrice,
+            retailPrice: effectiveRetail,
           })
         }
       }
@@ -530,7 +584,7 @@ export async function POST(req: NextRequest) {
         subtotal >= config.freeShipThreshold ? 0 : config.baseShippingFee
       const grandTotal = subtotal + shippingFee
       const paymentMethod = body.paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'COD'
-      const refCode = `BM-WEB-${datePart}-${randSuffix}`
+      const refCode = `${refCodePrefix}-WEB-${datePart}-${randSuffix}`
 
       const summaryLines = pricedLines
         .map((l) => `• ${l.sku} × ${l.quantity}: ${l.lineTotal.toLocaleString('vi-VN')} ₫`)
@@ -636,7 +690,7 @@ export async function POST(req: NextRequest) {
     // 2. ĐĂNG KÝ NHẬN BÁO GIÁ SỈ / ĐẠI LÝ / GIA CÔNG OEM QUÀ TẶNG DOANH NGHIỆP
     // =========================================================================
     if (action === 'SUBMIT_WHOLESALE_INQUIRY') {
-      const refCode = `BM-SI-${datePart}-${randSuffix}`
+      const refCode = `${refCodePrefix}-SI-${datePart}-${randSuffix}`
       const estQty = Math.max(10, Math.min(100_000, Math.floor(Number(body.estimatedQty) || 30)))
       const matchedTier = resolveActiveWholesaleTier(
         estQty,
@@ -742,7 +796,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const refCode = `BM-LH-${datePart}-${randSuffix}`
+    const refCode = `${refCodePrefix}-LH-${datePart}-${randSuffix}`
     const inboxContent = [
       `[LIÊN HỆ TỪ WEBSITE ${refCode}]`,
       `Khách hàng: ${customerName} · SĐT/Zalo: ${customerPhone}`,

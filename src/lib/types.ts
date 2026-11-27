@@ -474,6 +474,7 @@ export interface LiveOpsData {
 export const CHANNEL_KEY_LABELS: Record<string, string> = {
   ZALO_OA: 'Zalo OA',
   ZALO_PERSONAL: 'Zalo cá nhân',
+  WEBSITE: 'Website Cửa hàng',
 }
 
 export const AGENT_ACTION_LABELS: Record<string, string> = {

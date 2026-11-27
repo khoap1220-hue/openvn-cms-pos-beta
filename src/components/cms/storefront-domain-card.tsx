@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
   BadgePercent,
   CheckCircle2,
@@ -61,6 +62,7 @@ interface StorefrontConfigResponse {
     freeShipThreshold: number
     baseShippingFee: number
     returnDays: number
+    allowPreorderWhenOutOfStock?: boolean
     contact: {
       hotline: string
       zaloPhone: string
@@ -119,6 +121,7 @@ export function StorefrontDomainCard() {
     },
   ])
   const [wholesalePolicyNote, setWholesalePolicyNote] = useState('')
+  const [allowPreorderWhenOutOfStock, setAllowPreorderWhenOutOfStock] = useState(true)
   const [hotline, setHotline] = useState('')
   const [zaloUrl, setZaloUrl] = useState('')
   const [email, setEmail] = useState('')
@@ -127,15 +130,9 @@ export function StorefrontDomainCard() {
   const [workingHours, setWorkingHours] = useState('')
   const [dnsStatus, setDnsStatus] = useState<DnsStatusView | null>(null)
 
-  const loadConfig = useCallback(async (withDns = false) => {
-    try {
-      const url = withDns
-        ? '/api/storefront-config?verifyDns=1'
-        : '/api/storefront-config'
-      const res = await apiGet<StorefrontConfigResponse>(url)
-      if (!res?.config) return
-      const c = res.config
-      setCmsInstanceId(res.cmsInstanceId || '')
+  const applyConfigToForm = useCallback(
+    (c: StorefrontConfigResponse['config'], instanceId?: string) => {
+      if (instanceId) setCmsInstanceId(instanceId)
       setEnabled(c.enabled)
       setCustomDomain(c.customDomain || '')
       setCmsBackendOrigin(c.cmsBackendOrigin || '')
@@ -146,39 +143,117 @@ export function StorefrontDomainCard() {
         setTiers(c.wholesaleTiers)
       }
       setWholesalePolicyNote(c.wholesalePolicyNote || '')
+      if (typeof c.allowPreorderWhenOutOfStock === 'boolean') {
+        setAllowPreorderWhenOutOfStock(c.allowPreorderWhenOutOfStock)
+      }
       setHotline(c.contact?.hotline || '')
       setZaloUrl(c.contact?.zaloUrl || '')
       setEmail(c.contact?.email || '')
       setShopeeUrl(c.contact?.shopeeUrl || '')
       setAddress(c.contact?.address || '')
       setWorkingHours(c.contact?.workingHours || '')
-      if (res.dnsStatus) setDnsStatus(res.dnsStatus)
-    } catch {
-      // Bỏ qua nếu đang ở chế độ tĩnh không có backend cục bộ
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    },
+    []
+  )
+
+  const loadConfig = useCallback(
+    async (withDns = false) => {
+      try {
+        const url = withDns
+          ? '/api/storefront-config?verifyDns=1'
+          : '/api/storefront-config'
+        const res = await apiGet<StorefrontConfigResponse>(url)
+        if (res?.config) {
+          applyConfigToForm(res.config, res.cmsInstanceId)
+          if (res.dnsStatus) setDnsStatus(res.dnsStatus)
+          return
+        }
+      } catch {
+        // Khi mở CMS từ Static Beta CDN (khoaphan.dev / github.io), đồng bộ trực tiếp cấu hình từ Cloud Backend
+      }
+
+      try {
+        const fallbackOrigin = (
+          process.env.NEXT_PUBLIC_CLOUD_BACKEND_URL ||
+          'https://openvn-cms-pos-backend.onrender.com'
+        ).replace(/\/+$/, '')
+        const pubRes = await fetch(`${fallbackOrigin}/api/public/storefront`, {
+          cache: 'no-store',
+        })
+        if (pubRes.ok) {
+          const pubJson = (await pubRes.json()) as StorefrontConfigResponse
+          if (pubJson?.config) {
+            applyConfigToForm(pubJson.config, pubJson.cmsInstanceId)
+          }
+        }
+      } catch {
+        // Bỏ qua nếu đang ngoại tuyến hoàn toàn
+      } finally {
+        setLoading(false)
+      }
+    },
+    [applyConfigToForm]
+  )
 
   useEffect(() => {
-    void loadConfig(false)
+    void loadConfig(false).finally(() => setLoading(false))
   }, [loadConfig])
 
   const handleCheckDns = async () => {
-    if (!customDomain.trim()) return
+    const cleanDom = customDomain
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .replace(/^www\./, '')
+    if (!cleanDom) return
     setCheckingDns(true)
     try {
-      const res = await apiGet<StorefrontConfigResponse>(
-        `/api/storefront-config?verifyDns=1&domain=${encodeURIComponent(customDomain.trim())}`
-      )
-      if (res.dnsStatus) {
-        setDnsStatus(res.dnsStatus)
+      let resolvedView: DnsStatusView | null = null
+      try {
+        const res = await apiGet<StorefrontConfigResponse>(
+          `/api/storefront-config?verifyDns=1&domain=${encodeURIComponent(cleanDom)}`
+        )
+        if (res?.dnsStatus) resolvedView = res.dnsStatus
+      } catch {
+        // Fallback DNS-over-HTTPS trực tiếp khi kiểm tra trên Static CDN
+        const [aResp, cnameResp] = await Promise.all([
+          fetch(`https://dns.google/resolve?name=${encodeURIComponent(cleanDom)}&type=A`).then((r) =>
+            r.ok ? r.json() : null
+          ),
+          fetch(
+            `https://dns.google/resolve?name=${encodeURIComponent(`www.${cleanDom}`)}&type=CNAME`
+          ).then((r) => (r.ok ? r.json() : null)),
+        ])
+        const aRecords = Array.isArray(aResp?.Answer)
+          ? aResp.Answer.filter((x: { type?: number }) => x.type === 1).map((x: { data: string }) =>
+              String(x.data).replace(/\.$/, '')
+            )
+          : []
+        const wwwCnameRecords = Array.isArray(cnameResp?.Answer)
+          ? cnameResp.Answer.filter((x: { type?: number }) => x.type === 5).map(
+              (x: { data: string }) => String(x.data).replace(/\.$/, '')
+            )
+          : []
+        resolvedView = {
+          domain: cleanDom,
+          validSyntax: true,
+          aRecords,
+          wwwCnameRecords,
+          nsRecords: [],
+          ready: aRecords.length > 0 || wwwCnameRecords.length > 0,
+          checkedAt: new Date().toISOString(),
+        }
+      }
+
+      if (resolvedView) {
+        setDnsStatus(resolvedView)
         toast({
-          title: res.dnsStatus.ready
-            ? `Tên miền ${res.dnsStatus.domain} đã trỏ DNS thành công!`
-            : `Tên miền ${res.dnsStatus.domain} chưa có bản ghi A/CNAME`,
-          description: res.dnsStatus.ready
-            ? `A: ${res.dnsStatus.aRecords.join(', ') || '—'} · CNAME(www): ${res.dnsStatus.wwwCnameRecords.join(', ') || '—'}`
+          title: resolvedView.ready
+            ? `Tên miền ${resolvedView.domain} đã trỏ DNS thành công!`
+            : `Tên miền ${resolvedView.domain} chưa có bản ghi A/CNAME`,
+          description: resolvedView.ready
+            ? `A: ${resolvedView.aRecords.join(', ') || '—'} · CNAME(www): ${resolvedView.wwwCnameRecords.join(', ') || '—'}`
             : 'Hãy cấu hình bản ghi A (@) và CNAME (www) theo hướng dẫn bên dưới.',
         })
       }
@@ -230,6 +305,7 @@ export function StorefrontDomainCard() {
         wholesaleEnabled,
         wholesaleTiers: tiers,
         wholesalePolicyNote: wholesalePolicyNote.trim(),
+        allowPreorderWhenOutOfStock,
         contact: {
           hotline: hotline.trim(),
           zaloPhone: hotline.replace(/\D/g, ''),
@@ -296,10 +372,10 @@ export function StorefrontDomainCard() {
               </Label>
             </div>
             <Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-semibold">
-              <a href="/store" target="_blank" rel="noopener noreferrer">
+              <Link href="/store" target="_blank" rel="noopener noreferrer">
                 <span>Xem thử /store</span>
                 <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              </Link>
             </Button>
             {customDomain.trim() && (
               <Button
@@ -461,6 +537,18 @@ export function StorefrontDomainCard() {
                   onChange={(e) => setWholesalePolicyNote(e.target.value)}
                   className="text-xs"
                 />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={allowPreorderWhenOutOfStock}
+                    onCheckedChange={setAllowPreorderWhenOutOfStock}
+                    id="sf-preorder-switch"
+                  />
+                  <Label htmlFor="sf-preorder-switch" className="cursor-pointer text-xs">
+                    Cho phép đặt chế tác trước tại xưởng khi tồn kho sản phẩm = 0
+                  </Label>
+                </div>
               </div>
             </div>
 

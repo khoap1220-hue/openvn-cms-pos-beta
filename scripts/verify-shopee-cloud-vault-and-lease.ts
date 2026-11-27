@@ -314,6 +314,16 @@ async function main() {
     )
 
     // 4.1 Leader Lease: CLOUD_RENDER acquires when idle -> LOCAL_VN preempts -> CLOUD_RENDER yields -> LOCAL_VN releases -> CLOUD_RENDER takes over
+    // Đưa trạng thái khóa tạm thời về rỗi (idle) trong phiên test cô lập để kiểm chứng trọn vẹn 5 bước chuyển trạng thái (originalShopeeCred được khôi phục nguyên trạng trong finally)
+    const preLeaseRow = await db.integrationCredential.findUnique({ where: { provider: 'SHOPEE' } })
+    if (preLeaseRow?.config) {
+      const preLeaseCfg = JSON.parse(preLeaseRow.config) as Record<string, unknown>
+      delete preLeaseCfg.__lease_v1
+      await db.integrationCredential.update({
+        where: { provider: 'SHOPEE' },
+        data: { config: JSON.stringify(preLeaseCfg) },
+      })
+    }
     const cloudAcq1 = await acquireOrRenewShopeeLeaderLease({
       nodeId: 'cloud-render-sg-01',
       nodeRole: 'CLOUD_RENDER',

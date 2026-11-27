@@ -25,7 +25,7 @@ import {
   saveStorefrontConfigForCurrentCms,
 } from '../src/lib/storefront-config'
 import { invalidateInboundSecretsCache } from '../src/lib/webhook-service'
-import { GET as inboxGet } from '../src/app/api/inbox/route'
+import { GET as inboxGet, POST as inboxPost } from '../src/app/api/inbox/route'
 import { GET as testGuardGet } from '../src/app/api/ledger/test-guard/route'
 import {
   GET as publicStorefrontGet,
@@ -245,14 +245,38 @@ async function main() {
     const patchCms2Res = await storefrontConfigPatch(patchCms2Req)
     const patchCms2Json = (await patchCms2Res.json()) as {
       ok?: boolean
-      config?: { customDomain?: string; cmsBackendOrigin?: string }
+      config?: { customDomain?: string; additionalDomains?: string[]; cmsBackendOrigin?: string }
     }
     assert(
       patchCms2Res.status === 200 &&
         patchCms2Json.config?.customDomain === 'annhienthach.vn' &&
+        Array.isArray(patchCms2Json.config?.additionalDomains) &&
+        patchCms2Json.config.additionalDomains.includes('www.annhienthach.vn') &&
+        !patchCms2Json.config.additionalDomains.includes('www.bomocdecor.vn') &&
+        !patchCms2Json.config.additionalDomains.includes('bomocdecor.vn') &&
         patchCms2Json.config?.cmsBackendOrigin === 'https://annhien-cms.onrender.com',
       'S2-INDEPENDENT-CMS-DOMAIN',
-      'Mỗi CMS lưu độc lập tên miền riêng & cổng Backend API riêng trong CSDL của chính nó'
+      'Mỗi CMS lưu độc lập tên miền riêng & Backend riêng, tự động loại bỏ www.bomocdecor.vn khỏi additionalDomains khi đổi domain'
+    )
+
+    // Clearing custom domain MUST also clear additionalDomains to []
+    const clearDomainRes = await storefrontConfigPatch(
+      new NextRequest('http://localhost:3010/api/storefront-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customDomain: '' }),
+      })
+    )
+    const clearDomainJson = (await clearDomainRes.json()) as {
+      config?: { customDomain?: string; additionalDomains?: string[] }
+    }
+    assert(
+      clearDomainRes.status === 200 &&
+        clearDomainJson.config?.customDomain === '' &&
+        Array.isArray(clearDomainJson.config?.additionalDomains) &&
+        clearDomainJson.config.additionalDomains.length === 0,
+      'S2-CLEAR-CUSTOM-DOMAIN-CLEAN',
+      'Xóa tên miền riêng trả về customDomain="" và additionalDomains=[] sạch 100%'
     )
 
     // Restore / set canonical bomocdecor.vn config
@@ -292,11 +316,20 @@ async function main() {
       const customDomainRootRes = await proxy(customDomainRootReq, {
         waitUntil: () => {},
       } as never)
+      const customDomainHeadRes = await proxy(
+        new NextRequest('https://bomocdecor.vn/', {
+          method: 'HEAD',
+          headers: { host: 'bomocdecor.vn' },
+        }),
+        { waitUntil: () => {} } as never
+      )
       assert(
         customDomainRootRes.status === 200 &&
-          customDomainRootRes.headers.get('x-middleware-rewrite')?.endsWith('/store'),
+          customDomainRootRes.headers.get('x-middleware-rewrite')?.endsWith('/store') &&
+          customDomainHeadRes.status === 200 &&
+          customDomainHeadRes.headers.get('x-middleware-rewrite')?.endsWith('/store'),
         'S2-PROXY-CUSTOM-DOMAIN-REWRITE',
-        'Truy cập https://bomocdecor.vn/ tự động rewrite về /store công khai mà không bắt đăng nhập CMS'
+        'Truy cập GET & HEAD https://bomocdecor.vn/ đều tự động rewrite về /store công khai mà không bắt đăng nhập CMS'
       )
 
       const publicStorePathReq = new NextRequest(
@@ -475,20 +508,127 @@ async function main() {
       'Tra cứu đơn hàng xác thực đúng 4 số cuối SĐT & chặn SĐT sai (HTTP 404)'
     )
 
-    // Verify CMS Inbox lists the virtual Website thread without touching Customer baseline count!
+    // Verify CMS Inbox lists the virtual Website thread AND preserves customer name after staff reply!
+    invalidateApiCache('inbox:')
+    const staffReplyRes = await inboxPost(
+      new NextRequest('http://localhost:3010/api/inbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: 'web:0938123987',
+          channelKey: 'WEBSITE',
+          sender: 'OPERATOR',
+          content: 'Dạ Bơ Mộc đã tiếp nhận đơn sỉ 10 SP và đang đóng gói cho chị Lan Hương ạ!',
+        }),
+      })
+    )
+    assert(
+      staffReplyRes.status === 201,
+      'S4-CMS-INBOX-STAFF-REPLY-201',
+      'Nhân sự trả lời hội thoại web:<phone> trong /api/inbox trả về HTTP 201'
+    )
+
     invalidateApiCache('inbox:')
     const inboxRes = await inboxGet(new NextRequest('http://localhost:3010/api/inbox'))
     const inboxJson = (await inboxRes.json()) as {
-      conversations?: Array<{ customerId: string; channelKey: string }>
+      conversations?: Array<{
+        customerId: string
+        channelKey: string
+        customer: { name: string; phone: string | null }
+      }>
     }
-    assert(
-      Array.isArray(inboxJson.conversations) &&
-        inboxJson.conversations.some(
-          (c) => c.customerId === 'web:0938123987' && c.channelKey === 'WEBSITE'
-        ),
-      'S4-CMS-INBOX-VISIBILITY',
-      'Đơn đặt & tin nhắn từ Website hiển thị ngay trong Hộp thư CSKH CMS (/api/inbox)'
+    const webConv = inboxJson.conversations?.find(
+      (c) => c.customerId === 'web:0938123987' && c.channelKey === 'WEBSITE'
     )
+    assert(
+      Boolean(webConv) &&
+        webConv?.customer.name === 'Chị Lan Hương' &&
+        webConv?.customer.phone === '0938123987',
+      'S4-CMS-INBOX-VISIBILITY-AND-NAME-PRESERVED',
+      `Hội thoại Website hiển thị trong /api/inbox và giữ nguyên tên thật "${webConv?.customer.name}" sau khi nhân sự trả lời`
+    )
+
+    // Verify Out-of-Stock Preorder Guard (allowPreorderWhenOutOfStock=false) & Disabled Storefront (enabled=false)
+    await saveStorefrontConfigForCurrentCms({
+      allowPreorderWhenOutOfStock: false,
+    })
+    const zeroStockProd = await db.product.findFirst({
+      where: { status: 'ACTIVE', stock: 0 },
+      select: { id: true, sku: true },
+    })
+    if (zeroStockProd) {
+      const oosOrderRes = await publicStorefrontPost(
+        new NextRequest('http://localhost:3010/api/public/storefront', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-forwarded-for': '113.161.72.12',
+          },
+          body: JSON.stringify({
+            action: 'SUBMIT_WEB_ORDER',
+            customerName: 'Khách Kiểm Tra Tồn 0',
+            customerPhone: '0938123989',
+            address: '12 Lê Lợi, Quận 1, TP.HCM',
+            items: [{ productId: zeroStockProd.id, sku: zeroStockProd.sku, quantity: 1 }],
+          }),
+        })
+      )
+      assert(
+        oosOrderRes.status === 400,
+        'S4-OUT-OF-STOCK-GUARD',
+        'Chặn đặt mua SP tồn kho = 0 (HTTP 400) khi tắt allowPreorderWhenOutOfStock'
+      )
+    }
+
+    await saveStorefrontConfigForCurrentCms({
+      enabled: false,
+      allowPreorderWhenOutOfStock: true,
+    })
+    const closedGetRes = await publicStorefrontGet(
+      new NextRequest('http://localhost:3010/api/public/storefront')
+    )
+    const closedGetJson = (await closedGetRes.json()) as {
+      storefrontClosed?: boolean
+      products?: unknown[]
+    }
+    const closedPostRes = await publicStorefrontPost(
+      new NextRequest('http://localhost:3010/api/public/storefront', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '113.161.72.13',
+        },
+        body: JSON.stringify({
+          action: 'SUBMIT_WEB_ORDER',
+          customerName: 'Khách Khi Tạm Ẩn',
+          customerPhone: '0938123990',
+          address: '12 Lê Lợi, Quận 1, TP.HCM',
+          items: [{ productId: sampleProd.id, sku: sampleProd.sku, quantity: 1 }],
+        }),
+      })
+    )
+    const closedLookupRes = await publicStorefrontGet(
+      new NextRequest(
+        `http://localhost:3010/api/public/storefront?lookupCode=${orderPostJson.refCode}&phone=3987`
+      )
+    )
+    assert(
+      closedGetJson.storefrontClosed === true &&
+        Array.isArray(closedGetJson.products) &&
+        closedGetJson.products.length === 0 &&
+        closedPostRes.status === 503 &&
+        closedLookupRes.status === 200,
+      'S4-DISABLED-STOREFRONT-ENFORCED',
+      'Khi tạm ẩn Website (enabled=false): ẩn danh mục, chặn đặt đơn mới (503) nhưng vẫn cho khách tra cứu đơn cũ (200)'
+    )
+
+    // Restore enabled=true
+    await saveStorefrontConfigForCurrentCms({
+      enabled: true,
+      customDomain: 'bomocdecor.vn',
+      cmsBackendOrigin: 'https://openvn-cms-pos-backend.onrender.com',
+      allowPreorderWhenOutOfStock: true,
+    })
 
     // Verify 24-table baseline counts were NOT altered even BEFORE cleanup!
     const [appSettingCnt, credCnt, orderCnt, custCnt] = await Promise.all([
@@ -526,8 +666,8 @@ async function main() {
               },
             },
             {
-              action: 'STOREFRONT_CONFIG_UPDATED',
-              createdAt: { gte: new Date(Date.now() - 30_000) },
+              action: { in: ['STOREFRONT_CONFIG_UPDATED', 'OPERATOR_REPLY'] },
+              createdAt: { gte: new Date(Date.now() - 60_000) },
             },
           ],
         },

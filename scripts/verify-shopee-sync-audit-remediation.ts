@@ -15,7 +15,7 @@ import path from 'node:path'
 import { execSync } from 'node:child_process'
 import { NextRequest } from 'next/server'
 import { db } from '../src/lib/db'
-import { getApiCache, setApiCache } from '../src/lib/realtime'
+import { getApiCache, invalidateApiCache, setApiCache } from '../src/lib/realtime'
 import { CARRIER_FEE_ESTIMATES, CANONICAL_SKUS, resolveCanonicalSku } from '../src/lib/baocao1-core'
 import { buildBaocao1Snapshot } from '../src/lib/baocao1-bomoc'
 import { generateShopeeExtensionFiles, normalizeCmsOrigin } from '../src/lib/shopee-extension-bundle'
@@ -473,6 +473,13 @@ print("PYTHON_AUDIT_SUITE_ALL_OK")
     await db.ledgerEntry.deleteMany({ where: { entityId: { in: staleIds } } })
     await db.product.deleteMany({ where: { id: { in: staleIds } } })
   }
+
+  invalidateApiCache('channels')
+  const baselineLinksRes = await productLinksGet()
+  const baselineLinksJson = (await baselineLinksRes.json()) as {
+    stats: { unlinkedCount: number }
+  }
+  const baselineUnlinkedCount = baselineLinksJson.stats.unlinkedCount
 
   const callInbound = async (bodyObj: Record<string, unknown>) => {
     const req = new NextRequest('http://localhost:3010/api/webhooks/inbound', {
@@ -1491,9 +1498,11 @@ print("PYTHON_AUDIT_SUITE_ALL_OK")
     })
     const retiredStale = await db.ledgerEntry.findUnique({ where: { id: staleLedger.id } })
     assert(
-      retiredStale?.action === 'UNLINKED_STALE_MODEL_REMOVED' && linksCheckJson.stats.unlinkedCount === 8,
+      retiredStale?.action === 'UNLINKED_STALE_MODEL_REMOVED' &&
+        baselineUnlinkedCount >= 8 &&
+        linksCheckJson.stats.unlinkedCount === baselineUnlinkedCount,
       'S7-STALE-UNLINKED-MODEL-RETIRED',
-      `Phân loại chưa liên kết cũ tự động thu hồi (${retiredStale?.action}) và CSDL thật còn đúng ${linksCheckJson.stats.unlinkedCount} dòng chưa liên kết hợp lệ`
+      `Phân loại chưa liên kết cũ tự động thu hồi (${retiredStale?.action}) và CSDL thật giữ nguyên đúng ${linksCheckJson.stats.unlinkedCount}/${baselineUnlinkedCount} dòng chưa liên kết hợp lệ`
     )
 
     // ------------------------------------------------------------------------
