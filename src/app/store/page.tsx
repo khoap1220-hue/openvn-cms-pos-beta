@@ -752,8 +752,8 @@ export default function OnlineStorefrontPage() {
       </div>
 
       {/* Header Điều hướng Chính */}
-      <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <header className="z-30 border-b bg-card/95 backdrop-blur-md sm:sticky sm:top-0">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 px-4 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
           <button
             type="button"
             onClick={() => setActiveTab('PRODUCTS')}
@@ -786,7 +786,8 @@ export default function OnlineStorefrontPage() {
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Xưởng Nến Bơ Tự Nhiên &amp; Thạch Cao Decor Thủ Công · Sỉ &amp; Lẻ Toàn Quốc
+                {cfg?.heroBadge ||
+                  'Xưởng Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công · Sỉ & Lẻ Toàn Quốc'}
               </p>
             </div>
           </button>
@@ -1093,12 +1094,13 @@ export default function OnlineStorefrontPage() {
                             )}
                           </div>
 
-                          <div className="flex h-[34px] items-center justify-between border-t bg-card px-3.5 text-[11px] text-muted-foreground">
+                          <div className="flex h-[34px] items-center justify-between gap-2 border-t bg-card px-3.5 text-[11px] text-muted-foreground">
                             <span className="truncate font-medium">
-                              Bộ sưu tập Thủ công {brandName} ({carouselIdx + 1}/
-                              {carouselBanners.length})
+                              {carouselBanners[carouselIdx]?.title ||
+                                `Bộ sưu tập Thủ công ${brandName}`}{' '}
+                              ({carouselIdx + 1}/{carouselBanners.length})
                             </span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex shrink-0 items-center gap-1.5">
                               {carouselBanners.map((s, idx) => (
                                 <button
                                   key={s.id}
@@ -1124,7 +1126,9 @@ export default function OnlineStorefrontPage() {
                           key={sb.id}
                           className={cn(
                             'overflow-hidden rounded-2xl border bg-card shadow-2xs',
-                            carouselBanners.length > 0 ? 'lg:col-span-6' : 'lg:col-span-12'
+                            (carouselBanners.length > 0 ? 1 : 0) + spotlightBanners.length > 1
+                              ? 'lg:col-span-6'
+                              : 'lg:col-span-12'
                           )}
                         >
                           <div
@@ -1179,13 +1183,13 @@ export default function OnlineStorefrontPage() {
                                   }}
                                   className="group/hs absolute z-10 cursor-pointer transition-all hover:bg-black/5 hover:ring-2 hover:ring-amber-300/90 hover:ring-inset focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                                 >
-                                  <span className="pointer-events-none absolute right-2 bottom-2 inline-flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10.5px] font-semibold text-white opacity-85 shadow-sm backdrop-blur-xs transition group-hover/hs:scale-105 group-hover/hs:bg-amber-700 group-hover/hs:opacity-100">
+                                  <span className="pointer-events-none absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-full bg-stone-950/75 px-1.5 py-0.5 text-[9.5px] font-semibold whitespace-nowrap text-white opacity-90 shadow-sm backdrop-blur-xs transition group-hover/hs:scale-105 group-hover/hs:bg-amber-700 group-hover/hs:opacity-100 sm:right-2 sm:bottom-2 sm:px-2.5 sm:py-1 sm:text-[10.5px]">
                                     <span>
                                       {matchedProd
                                         ? formatVND(matchedProd.retailPrice)
                                         : 'Xem SP'}
                                     </span>
-                                    <Eye className="h-3 w-3" />
+                                    <Eye className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
                                   </span>
                                 </button>
                               )
@@ -1198,7 +1202,7 @@ export default function OnlineStorefrontPage() {
 
                   {/* 4 Thẻ Bộ Sưu Tập Hình Ảnh Đồng Bộ Từ Shopee */}
                   {collectionBanners.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
                       {collectionBanners.map((col) => {
                         const isSelected = selectedCollectionId === col.id
                         const matchedCount = products.filter((p) =>
@@ -1215,7 +1219,7 @@ export default function OnlineStorefrontPage() {
                               )
                             }}
                             className={cn(
-                              'group flex items-center gap-3 rounded-2xl border p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm',
+                              'group flex flex-col items-start gap-2 rounded-2xl border p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm min-[420px]:flex-row min-[420px]:items-center sm:gap-3',
                               isSelected
                                 ? 'border-amber-600 bg-amber-50/80 ring-1 ring-amber-600/40 dark:border-amber-500 dark:bg-amber-950/35'
                                 : 'border-border/80 bg-card hover:border-amber-300'
@@ -1226,15 +1230,15 @@ export default function OnlineStorefrontPage() {
                               alt={col.name}
                               referrerPolicy="no-referrer"
                               loading="lazy"
-                              className="h-14 w-14 shrink-0 rounded-xl border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 sm:h-16 sm:w-16 dark:border-stone-800"
+                              className="h-12 w-12 shrink-0 rounded-xl border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 min-[420px]:h-14 min-[420px]:w-14 sm:h-16 sm:w-16 dark:border-stone-800"
                             />
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs font-extrabold text-foreground sm:text-sm">
+                              <p className="line-clamp-2 text-xs leading-tight font-extrabold text-foreground sm:text-sm">
                                 {col.name}
                               </p>
                               <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
                                 {isSelected
-                                  ? 'Đang lọc · Bấm để bỏ'
+                                  ? 'Đang lọc · Bỏ chọn'
                                   : `${matchedCount} mẫu tại xưởng`}
                               </p>
                             </div>

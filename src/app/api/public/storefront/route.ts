@@ -345,7 +345,10 @@ export async function GET(req: NextRequest) {
         brandName: brandProfile.brandName,
         brandShortName: brandProfile.brandShortName,
         brandBadge: brandProfile.brandBadge,
-        brandSubtitle: brandProfile.brandSubtitle,
+        brandSubtitle:
+          brandProfile.brandSubtitle && brandProfile.brandSubtitle !== 'Quản lý bán hàng đa kênh'
+            ? brandProfile.brandSubtitle
+            : config.heroBadge,
         footerTagline: brandProfile.brandFooterTagline,
         workshopName: brandProfile.defaultWorkshopName,
         companyName: brandProfile.companyName || brandProfile.brandName,

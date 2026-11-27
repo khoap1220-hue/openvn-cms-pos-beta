@@ -10,6 +10,7 @@
  */
 
 import crypto from 'node:crypto'
+import vm from 'node:vm'
 import { NextRequest } from 'next/server'
 import { db, normalizePrismaDatasourceUrl } from '../src/lib/db'
 import {
@@ -19,7 +20,11 @@ import {
   normalizeDomainHostname,
 } from '../src/lib/domain-routing'
 import { invalidateApiCache } from '../src/lib/realtime'
-import { parseShopeeDecorationPayloadToBanners } from '../src/lib/shopee-banner-sync'
+import {
+  parseShopeeDecorationPayloadToBanners,
+  selectEffectiveShopeeDraft,
+} from '../src/lib/shopee-banner-sync'
+import { generateStandaloneStorefrontHtml, normalizeSnapshotBanners } from './publish-storefront-domain.mjs'
 import {
   computeWholesaleUnitPrice,
   getStorefrontConfigForCurrentCms,
@@ -395,6 +400,7 @@ async function main() {
     )
     const sfJson = (await sfRes.json()) as {
       ok?: boolean
+      brand?: { brandSubtitle?: string }
       products?: Array<{
         id: string
         sku: string
@@ -480,6 +486,273 @@ async function main() {
         dirtySanitized.carouselBanners.length === 0,
       'S3-HOTSPOT-CLAMP-AND-SKU-MATCH',
       'Kẹp biên tọa độ Hotspot (0..100%), ánh xạ đúng shopeeItemId -> SKU CMS & loại bỏ slide URL bẩn'
+    )
+
+    // Published draft precedence over empty [] or unpublished draft_get
+    const chosenDraftFromUnpub = selectEffectiveShopeeDraft(
+      { draft_id: 999, draft_type: 'draft', decoration_data: [] },
+      [
+        {
+          draft_id: 13977721,
+          draft_type: 'publish',
+          decoration_data: [{ type: 20, data: { shop_cover_image: 'vn-11134210-81ztc-mvx526kpkjd2e8' } }],
+        },
+      ]
+    )
+    assert(
+      chosenDraftFromUnpub?.draft_id === 13977721,
+      'S3-PUBLISHED-DRAFT-PRECEDENCE',
+      'Ưu tiên bản trang trí đang publish trên kênh Shopee thay vì bản nháp rỗng/chưa xuất bản'
+    )
+
+    // Multi-column clickable banner (type=10), Instant Deco (generate_image), Video Banner (type=18) & Mobile Ratio Guard
+    const edgeDecorationParsed = parseShopeeDecorationPayloadToBanners({
+      shopId: '197195817',
+      shopUsername: 'bomocdecor',
+      pcDraft: {
+        draft_id: 7001,
+        draft_type: 'publish',
+        decoration_data: [
+          {
+            type: 10,
+            data: {
+              display_ratio: 2,
+              banners: [
+                {
+                  image: 'vn-11134210-81ztc-mvx526ksrpxg15',
+                  texts: ['Búp Sen Thạch Cao'],
+                  navigator: { product_id: 47971384068, url: 'https://shopee.vn/product/197195817/47971384068' },
+                },
+                {
+                  image: 'vn-11134210-81ztc-mvx526kst4hwea',
+                  texts: ['Góc Trang Sức'],
+                  navigator: { product_id: 54421411904 },
+                },
+              ],
+            },
+          },
+          {
+            type: 9,
+            data: {
+              image: 'vn-11134210-81ztc-mvx8btw5w0lff8',
+              display_ratio: 2.0,
+              hotspots: [
+                {
+                  position: { x: 0, y: 0, w: 50, h: 100 },
+                  navigator: { product_id: 47971384068 },
+                },
+              ],
+            },
+          },
+          {
+            type: 18,
+            data: {
+              title: 'Video Xưởng Đúc Bơ Mộc',
+              video: { cover: 'vn-11134210-81ztc-mvx5xpf3j9xib4' },
+              navigator: { product_id: 54421411904 },
+            },
+          },
+        ],
+      },
+      mobileDraft: {
+        draft_id: 7002,
+        draft_type: 'publish',
+        decoration_data: [
+          {
+            type: 10,
+            data: {
+              display_ratio: 1,
+              banners: [{ image: 'vn-11134204-81ztc-mvx67zsxoefbfd' }],
+            },
+          },
+          {
+            type: 9,
+            data: {
+              // Mismatched 1:1 mobile spotlight with different product -> MUST NOT override PC image!
+              image: 'vn-11134204-81ztc-mvx9xxjm6m881d',
+              display_ratio: 1.0,
+              hotspots: [
+                {
+                  position: { x: 0, y: 50, w: 100, h: 50 },
+                  navigator: { product_id: 40686632066 },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      cmsProducts: [
+        {
+          id: 'p1',
+          sku: 'BM-DEC-VAT-BACAU-CAM',
+          name: 'Hũ Thạch Cao Trụ Trơn — Phân loại: Cam Đất',
+          shopeeItemId: '47971384068',
+        },
+        {
+          id: 'p2',
+          sku: 'BM-DEC-COC-TRON',
+          name: 'Cốc Thạch Cao Trụ Trơn',
+          shopeeItemId: '54421411904',
+        },
+      ],
+    })
+    const instantOnlyParsed = parseShopeeDecorationPayloadToBanners({
+      shopId: '197195817',
+      shopUsername: 'bomocdecor',
+      instantDeco: {
+        decoration_data: [
+          {
+            type: 99,
+            data: {
+              generate_image: 'vn-11134210-81ztc-mvx8btw5w0lff8',
+              display_ratio: 1.8,
+              items: [{ item_id: 47971384068 }, { item_id: 54421411904 }],
+            },
+          },
+        ],
+      },
+      cmsProducts: [
+        {
+          id: 'p1',
+          sku: 'BM-DEC-VAT-BACAU-CAM',
+          name: 'Hũ Thạch Cao Trụ Trơn',
+          shopeeItemId: '47971384068',
+        },
+        {
+          id: 'p2',
+          sku: 'BM-DEC-COC-TRON',
+          name: 'Cốc Thạch Cao Trụ Trơn',
+          shopeeItemId: '54421411904',
+        },
+      ],
+    })
+    assert(
+      edgeDecorationParsed.spotlightBanners.length === 3 &&
+        edgeDecorationParsed.spotlightBanners[0]?.hotspots[0]?.w === 100 &&
+        edgeDecorationParsed.spotlightBanners[0]?.hotspots[0]?.targetSku ===
+          'BM-DEC-VAT-BACAU-CAM' &&
+        edgeDecorationParsed.spotlightBanners[1]?.hotspots[0]?.targetSku === 'BM-DEC-COC-TRON' &&
+        // Mismatched 1:1 mobile spotlight was rejected so PC hotspot hitboxes stay aligned with PC image
+        edgeDecorationParsed.spotlightBanners[2]?.mobileImageUrl ===
+          edgeDecorationParsed.spotlightBanners[2]?.imageUrl &&
+        edgeDecorationParsed.carouselBanners.length === 1 &&
+        edgeDecorationParsed.carouselBanners[0]?.targetSku === 'BM-DEC-COC-TRON' &&
+        instantOnlyParsed.spotlightBanners.length === 1 &&
+        instantOnlyParsed.spotlightBanners[0]?.hotspots.length === 2,
+      'S3-MULTI-COL-INSTANT-DECO-AND-VIDEO-BANNERS',
+      'Hỗ trợ đầy đủ Single/Multi-Column Banner (type=10), Instant Deco (generate_image), Video Poster (type=18) & chống lệch tỷ lệ Mobile Hotspot'
+    )
+
+    // Standalone Publisher Sanitizer Parity, Quote/XSS Safety & Customer Subtitle Check
+    const snapNorm = normalizeSnapshotBanners(
+      {
+        enabled: true,
+        carouselBanners: [
+          {
+            imageUrl: 'vn-11134210-81ztc-mvx526ksrpxg15',
+            aspectRatio: -99,
+            filterKeyword: "'); window.__xss = 1; //",
+          },
+        ],
+        spotlightBanners: [
+          {
+            imageUrl: 'vn-11134210-81ztc-mvx8btw5w0lff8',
+            aspectRatio: Number.POSITIVE_INFINITY,
+            hotspots: [
+              { x: 10, y: 10, w: 0, h: 40, targetSku: 'BM-TEA-10' },
+              { x: 0, y: 0, w: 50, h: 100, targetSku: "BM-TEA-10');alert(1);//" },
+            ],
+          },
+        ],
+      },
+      true
+    )
+    const testStandaloneHtml = generateStandaloneStorefrontHtml({
+      ok: true,
+      storefrontClosed: false,
+      cmsInstanceId: 'cms_test_xss',
+      brand: {
+        brandName: 'Bơ Mộc · Showroom',
+        brandShortName: 'BM',
+        brandBadge: 'CRAFT',
+        brandSubtitle: 'Quản lý bán hàng đa kênh',
+        footerTagline: 'Xưởng Thủ Công',
+        workshopName: 'Xưởng Bơ Mộc',
+        companyName: 'Bơ Mộc',
+      },
+      config: {
+        enabled: true,
+        customDomain: 'bomocdecor.vn',
+        additionalDomains: ['www.bomocdecor.vn'],
+        cmsBackendOrigin: 'https://openvn-cms-pos-backend.onrender.com',
+        heroBadge: 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc',
+        heroTitle: 'Nến Bơ Tự Nhiên',
+        heroSubtitle: 'Chế tác thủ công',
+        announcementBar: 'Freeship 500k',
+        wholesaleEnabled: true,
+        wholesaleTiers: [],
+        wholesalePolicyNote: 'Sỉ từ 10 SP',
+        oemCustomNote: 'OEM',
+        freeShipThreshold: 500_000,
+        baseShippingFee: 30_000,
+        returnDays: 7,
+        allowPreorderWhenOutOfStock: true,
+        contact: {
+          hotline: '0909 686 868',
+          zaloPhone: '0909686868',
+          zaloUrl: 'https://zalo.me/0909686868',
+          email: 'lienhe@bomocdecor.vn',
+          address: 'TP.HCM',
+          workingHours: '08:30 - 21:00',
+          shopeeUrl: 'https://shopee.vn/bomocdecor',
+          facebookUrl: '',
+          tiktokUrl: '',
+        },
+        banners: snapNorm,
+      },
+      bankTransfer: null,
+      categories: [{ id: "cat_'quote", name: 'Nến & Hũ', slug: 'nen' }],
+      products: [
+        {
+          id: "prod_'quote\\test",
+          sku: 'BM-TEA-10',
+          name: 'Nến Bơ',
+          cleanTitle: 'Nến Bơ',
+          variantLabel: null,
+          description: 'Nến bơ',
+          categoryId: "cat_'quote",
+          categoryName: 'Nến & Hũ',
+          retailPrice: 59_000,
+          wholesalePrices: [],
+          unit: 'hộp',
+          type: 'SIMPLE',
+          fragile: false,
+          image: null,
+          images: [],
+          inStock: true,
+          availableToOrder: true,
+          stockLabel: 'Sẵn hàng',
+          shopeeUrl: 'https://shopee.vn/bomocdecor',
+        },
+      ],
+      articles: [],
+    })
+    const inlineScriptMatch = testStandaloneHtml.match(/<script>([\s\S]*?)<\/script>/)
+    let scriptSyntaxValid = false
+    if (inlineScriptMatch?.[1]) {
+      new vm.Script(inlineScriptMatch[1])
+      scriptSyntaxValid = true
+    }
+    assert(
+      snapNorm.carouselBanners[0]?.aspectRatio === 2 &&
+        snapNorm.spotlightBanners[0]?.aspectRatio === 1.796 &&
+        snapNorm.spotlightBanners[0]?.hotspots.length === 1 &&
+        scriptSyntaxValid &&
+        !testStandaloneHtml.includes('<div class="brand-sub" id="brandSubHdr">Quản lý bán hàng đa kênh</div>') &&
+        !testStandaloneHtml.includes('onclick="onBannerRefClick(') &&
+        !String(sfJson.brand?.brandSubtitle || '').includes('Quản lý bán hàng đa kênh'),
+      'S3-STANDALONE-PUBLISHER-XSS-QUOTE-AND-SANITIZER',
+      'Standalone HTML loại bỏ hotspot w<=0, kẹp aspectRatio hợp lệ, chặn tuyệt đối nhúng chuỗi thô vào onclick & ẩn tagline POS nội bộ trên giao diện khách hàng'
     )
 
     const teaProd = sfJson.products!.find((p) => p.sku === 'BM-TEA-10')!

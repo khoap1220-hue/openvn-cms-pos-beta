@@ -636,6 +636,25 @@ export function StorefrontDomainCard() {
                         </p>
                       </div>
                     ))}
+                    {!banners.coverBannerUrl &&
+                      banners.spotlightBanners.length === 0 &&
+                      banners.carouselBanners.length === 0 &&
+                      banners.collectionBanners.slice(0, 4).map((col) => (
+                        <div
+                          key={col.id}
+                          className="overflow-hidden rounded-lg border bg-background p-1"
+                        >
+                          <img
+                            src={col.imageUrl}
+                            alt={col.name}
+                            referrerPolicy="no-referrer"
+                            className="aspect-[2/1] w-full rounded object-cover"
+                          />
+                          <p className="mt-1 truncate px-1 text-[10px] font-medium text-muted-foreground">
+                            Bộ sưu tập: {col.name}
+                          </p>
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}

@@ -16,9 +16,14 @@ import crypto from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+let _prisma = null
+function getPrisma() {
+  if (!_prisma) _prisma = new PrismaClient()
+  return _prisma
+}
 
 function parseArg(flag) {
   const pref = `--${flag}=`
@@ -75,7 +80,12 @@ function sanitizeBannerUrlMjs(raw) {
   return ''
 }
 
-function normalizeSnapshotBanners(rawBanners, isEnabled) {
+export function clampSafeAspectRatioMjs(raw, fallback) {
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 0.5 && n <= 5 ? Math.round(n * 1000) / 1000 : fallback
+}
+
+export function normalizeSnapshotBanners(rawBanners, isEnabled) {
   const b = rawBanners && typeof rawBanners === 'object' ? rawBanners : {}
   const shopLogoUrl = sanitizeBannerUrlMjs(b.shopLogoUrl)
   if (!isEnabled) {
@@ -97,6 +107,7 @@ function normalizeSnapshotBanners(rawBanners, isEnabled) {
   const mobileCoverBannerUrl = sanitizeBannerUrlMjs(b.mobileCoverBannerUrl) || coverBannerUrl
   const carouselBanners = Array.isArray(b.carouselBanners)
     ? b.carouselBanners
+        .slice(0, 10)
         .map((c, idx) => {
           const imageUrl = sanitizeBannerUrlMjs(c?.imageUrl)
           if (!imageUrl) return null
@@ -106,7 +117,7 @@ function normalizeSnapshotBanners(rawBanners, isEnabled) {
             mobileImageUrl: sanitizeBannerUrlMjs(c?.mobileImageUrl) || imageUrl,
             title: String(c?.title || '').trim().slice(0, 120),
             subtitle: String(c?.subtitle || '').trim().slice(0, 160),
-            aspectRatio: Number(c?.aspectRatio) || 2,
+            aspectRatio: clampSafeAspectRatioMjs(c?.aspectRatio, 2),
             shopeeProductId: String(c?.shopeeProductId || '').replace(/[^\d]/g, ''),
             targetSku: String(c?.targetSku || '').trim().slice(0, 64),
             filterKeyword: String(c?.filterKeyword || '').trim().slice(0, 80),
@@ -117,16 +128,25 @@ function normalizeSnapshotBanners(rawBanners, isEnabled) {
     : []
   const spotlightBanners = Array.isArray(b.spotlightBanners)
     ? b.spotlightBanners
+        .slice(0, 6)
         .map((s, idx) => {
           const imageUrl = sanitizeBannerUrlMjs(s?.imageUrl)
           if (!imageUrl) return null
           const hotspots = Array.isArray(s?.hotspots)
             ? s.hotspots
+                .slice(0, 12)
                 .map((hs, hIdx) => {
-                  const x = Math.min(99, Math.max(0, Number(hs?.x) || 0))
-                  const y = Math.min(99, Math.max(0, Number(hs?.y) || 0))
-                  const w = Math.min(100 - x, Math.max(1, Number(hs?.w) || 0))
-                  const h = Math.min(100 - y, Math.max(1, Number(hs?.h) || 0))
+                  const rawX = Number(hs?.x)
+                  const rawY = Number(hs?.y)
+                  const rawW = Number(hs?.w)
+                  const rawH = Number(hs?.h)
+                  if (!Number.isFinite(rawW) || !Number.isFinite(rawH) || rawW <= 0 || rawH <= 0) {
+                    return null
+                  }
+                  const x = Math.min(99, Math.max(0, Number.isFinite(rawX) ? rawX : 0))
+                  const y = Math.min(99, Math.max(0, Number.isFinite(rawY) ? rawY : 0))
+                  const w = Math.min(100 - x, Math.max(1, rawW))
+                  const h = Math.min(100 - y, Math.max(1, rawH))
                   return {
                     id: String(hs?.id || `hs_${hIdx + 1}`).slice(0, 48),
                     x: Math.round(x * 100) / 100,
@@ -146,7 +166,7 @@ function normalizeSnapshotBanners(rawBanners, isEnabled) {
             imageUrl,
             mobileImageUrl: sanitizeBannerUrlMjs(s?.mobileImageUrl) || imageUrl,
             title: String(s?.title || '').trim().slice(0, 120),
-            aspectRatio: Number(s?.aspectRatio) || 1.796,
+            aspectRatio: clampSafeAspectRatioMjs(s?.aspectRatio, 1.796),
             hotspots,
           }
         })
@@ -187,6 +207,7 @@ function normalizeSnapshotBanners(rawBanners, isEnabled) {
 }
 
 async function buildCmsStorefrontSnapshot() {
+  const prisma = getPrisma()
   const [webCred, shopeeCred, settingsRows, categories, webChannel, rawProducts] =
     await Promise.all([
       prisma.integrationCredential.findUnique({ where: { provider: 'WEBSITE' } }),
@@ -418,6 +439,13 @@ async function buildCmsStorefrontSnapshot() {
         })
 
   const hasBankTransfer = Boolean(settings.invoice_bank_code && settings.invoice_bank_account)
+  const heroBadgeText =
+    savedSf.heroBadge || 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc'
+  const rawBrandSub = (settings.brand_subtitle || '').trim()
+  const customerBrandSubtitle =
+    rawBrandSub && rawBrandSub !== 'Quản lý bán hàng đa kênh'
+      ? rawBrandSub
+      : heroBadgeText
 
   return {
     ok: true,
@@ -428,8 +456,7 @@ async function buildCmsStorefrontSnapshot() {
       brandName,
       brandShortName: settings.brand_short_name || 'BƠ MỘC',
       brandBadge: settings.brand_badge || 'CRAFT',
-      brandSubtitle:
-        settings.brand_subtitle || 'Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công',
+      brandSubtitle: customerBrandSubtitle,
       footerTagline:
         settings.brand_footer_tagline ||
         'Xưởng Đúc Thạch Cao Thủ Công & Nến Bơ Thực Vật Thuần Chay · Sỉ & Lẻ Toàn Quốc',
@@ -441,8 +468,7 @@ async function buildCmsStorefrontSnapshot() {
       customDomain,
       additionalDomains: [`www.${customDomain}`],
       cmsBackendOrigin,
-      heroBadge:
-        savedSf.heroBadge || 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc',
+      heroBadge: heroBadgeText,
       heroTitle:
         savedSf.heroTitle ||
         'Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công Tinh Tế',
@@ -481,8 +507,14 @@ async function buildCmsStorefrontSnapshot() {
   }
 }
 
-function generateStandaloneStorefrontHtml(snapshot) {
+export function generateStandaloneStorefrontHtml(snapshot) {
   const brandName = escapeHtml(snapshot.brand.brandName)
+  const rawSub = String(snapshot.brand.brandSubtitle || '').trim()
+  const headerSub = escapeHtml(
+    rawSub && rawSub !== 'Quản lý bán hàng đa kênh'
+      ? rawSub
+      : snapshot.config.heroBadge || 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc'
+  )
   const rawShort = String(snapshot.brand.brandShortName || snapshot.brand.brandName || 'BM')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -585,12 +617,13 @@ function generateStandaloneStorefrontHtml(snapshot) {
       color: #292524;
     }
     header {
-      position: sticky;
-      top: 0;
       z-index: 40;
       background: rgba(255, 255, 255, 0.94);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--line);
+    }
+    @media (min-width: 641px) {
+      header { position: sticky; top: 0; }
     }
     .nav-wrap {
       display: flex;
@@ -846,20 +879,28 @@ function generateStandaloneStorefrontHtml(snapshot) {
     .hotspot-pill {
       position: absolute; right: 8px; bottom: 8px; padding: 3px 9px; border-radius: 999px;
       background: rgba(28,25,23,0.78); color: #fff; font-size: 11px; font-weight: 700;
+      white-space: nowrap; max-width: calc(100% - 10px); overflow: hidden; text-overflow: ellipsis;
       backdrop-filter: blur(4px); transition: transform 0.18s ease, background 0.18s ease;
+    }
+    @media (max-width: 520px) {
+      .hotspot-pill { right: 5px; bottom: 5px; padding: 2px 6px; font-size: 9.5px; }
     }
     .hotspot-zone:hover .hotspot-pill { background: var(--brand); transform: scale(1.05); }
     .col-banner-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
-    @media (max-width: 860px) { .col-banner-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 860px) { .col-banner-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
     .col-banner-btn {
       display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 15px;
       border: 1px solid var(--line); background: var(--card); text-align: left; cursor: pointer;
       transition: all 0.18s ease;
     }
+    @media (max-width: 420px) {
+      .col-banner-btn { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; }
+      .col-banner-btn img { width: 48px !important; height: 48px !important; }
+    }
     .col-banner-btn:hover { transform: translateY(-2px); border-color: #d99b66; box-shadow: var(--shadow); }
     .col-banner-btn.active { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 1px var(--brand); }
     .col-banner-btn img { width: 60px; height: 60px; border-radius: 11px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); }
-    .col-banner-title { font-size: 13.5px; font-weight: 800; color: var(--text); }
+    .col-banner-title { font-size: 13.5px; font-weight: 800; color: var(--text); line-height: 1.25; }
     .col-banner-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
   </style>
 </head>
@@ -879,7 +920,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
             <span id="brandNameHdr">${brandName}</span>
             <span class="domain-pill" id="domainPill">${domain}</span>
           </div>
-          <div class="brand-sub" id="brandSubHdr">${escapeHtml(snapshot.brand.brandSubtitle)}</div>
+          <div class="brand-sub" id="brandSubHdr">${headerSub}</div>
         </div>
       </div>
 
@@ -1163,7 +1204,17 @@ function generateStandaloneStorefrontHtml(snapshot) {
     }
     function esc(s) {
       return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function jsAttr(s) {
+      var jsEsc = String(s == null ? '' : s)
+        .replace(/\\\\/g, '\\\\\\\\')
+        .replace(/'/g, "\\\\'")
+        .replace(/\\r/g, '\\\\r')
+        .replace(/\\n/g, '\\\\n')
+        .replace(/\\u2028/g, '\\\\u2028')
+        .replace(/\\u2029/g, '\\\\u2029');
+      return esc(jsEsc);
     }
     function calcWsPrice(retail, pct) {
       var r = Math.max(0, Math.round(Number(retail) || 0));
@@ -1280,6 +1331,33 @@ function generateStandaloneStorefrontHtml(snapshot) {
       }
     }
 
+    function onCarouselSlideClick(idx) {
+      var b = STATE.data && STATE.data.config && STATE.data.config.banners;
+      var s = b && b.carouselBanners && b.carouselBanners[idx];
+      if (!s) return;
+      onBannerRefClick(s.targetSku || '', s.shopeeProductId || '', s.filterKeyword || '', s.linkUrl || '');
+    }
+
+    function onSpotlightHotspotClick(sIdx, hIdx) {
+      var b = STATE.data && STATE.data.config && STATE.data.config.banners;
+      var sb = b && b.spotlightBanners && b.spotlightBanners[sIdx];
+      var hs = sb && sb.hotspots && sb.hotspots[hIdx];
+      if (!hs) return;
+      onBannerRefClick(hs.targetSku || '', hs.shopeeProductId || '', '', hs.linkUrl || '');
+    }
+
+    function toggleCollectionIdx(cIdx) {
+      var b = STATE.data && STATE.data.config && STATE.data.config.banners;
+      var col = b && b.collectionBanners && b.collectionBanners[cIdx];
+      if (!col) return;
+      toggleCollectionFilter(col.id);
+    }
+
+    function clampRatioClient(val, fb) {
+      var n = Number(val);
+      return isFinite(n) && n >= 0.5 && n <= 5 ? Math.round(n * 1000) / 1000 : fb;
+    }
+
     function renderShopeeBanners() {
       var wrap = document.getElementById('shopeeBannerShowcase');
       if (!wrap) return;
@@ -1328,7 +1406,8 @@ function generateStandaloneStorefrontHtml(snapshot) {
 
       var topHtml = '';
       if (carousels.length || spotlights.length) {
-        var singleCls = (!carousels.length || !spotlights.length) ? ' single' : '';
+        var totalCards = (carousels.length ? 1 : 0) + spotlights.length;
+        var singleCls = totalCards <= 1 ? ' single' : '';
         topHtml += '<div class="banner-top-grid' + singleCls + '">';
 
         if (carousels.length) {
@@ -1336,7 +1415,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
             var act = i === STATE.carouselIdx ? ' active' : '';
             var clickable = Boolean(s.targetSku || s.shopeeProductId || s.filterKeyword || s.linkUrl);
             var clickAttr = clickable
-              ? ' style="cursor:pointer" onclick="onBannerRefClick(\\'' + esc(s.targetSku || '') + '\\',\\'' + esc(s.shopeeProductId || '') + '\\',\\'' + esc(s.filterKeyword || '') + '\\',\\'' + esc(s.linkUrl || '') + '\\')"'
+              ? ' style="cursor:pointer" onclick="onCarouselSlideClick(' + i + ')"'
               : '';
             return '<div class="carousel-slide' + act + '">' +
               '<picture>' +
@@ -1355,24 +1434,27 @@ function generateStandaloneStorefrontHtml(snapshot) {
             return '<button type="button" class="carousel-dot' + (i === STATE.carouselIdx ? ' active' : '') + '" aria-label="Slide ' + (i + 1) + '" onclick="setCarouselSlide(' + i + ')"></button>';
           }).join('');
 
+          var curSlide = carousels[STATE.carouselIdx] || {};
+          var barTitle = curSlide.title || ('Bộ sưu tập Thủ công ' + brandNameTxt);
+
           topHtml += '<div class="banner-card" onmouseenter="STATE.carouselPaused=true" onmouseleave="STATE.carouselPaused=false">' +
             '<div class="carousel-stage">' + slidesHtml + navBtns + '</div>' +
             '<div class="carousel-bar">' +
-              '<span>Bộ sưu tập Thủ công ' + esc(brandNameTxt) + ' (' + (STATE.carouselIdx + 1) + '/' + carousels.length + ')</span>' +
-              '<div class="carousel-dots">' + dotsHtml + '</div>' +
+              '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px;">' + esc(barTitle) + ' (' + (STATE.carouselIdx + 1) + '/' + carousels.length + ')</span>' +
+              '<div class="carousel-dots" style="flex-shrink:0;">' + dotsHtml + '</div>' +
             '</div>' +
           '</div>';
         }
 
-        spotlights.forEach(function(sb) {
-          var ratio = Number(sb.aspectRatio) || 1.796;
+        spotlights.forEach(function(sb, sIdx) {
+          var ratio = clampRatioClient(sb.aspectRatio, 1.796);
           var hsHtml = (sb.hotspots || []).map(function(hs, hIdx) {
             var matched = findProductByBannerRef(hs.targetSku, hs.shopeeProductId);
             var lbl = (matched && matched.cleanTitle) || hs.label || ('Xem sản phẩm #' + (hIdx + 1));
-            var pillTxt = matched ? fmtVND(matched.retailPrice) + ' · Xem' : 'Xem SP';
+            var pillTxt = matched ? fmtVND(matched.retailPrice) + ' ↗' : 'Xem SP';
             return '<button type="button" class="hotspot-zone" title="' + esc(lbl) + '" aria-label="' + esc(lbl) + '"' +
               ' style="left:' + hs.x + '%;top:' + hs.y + '%;width:' + hs.w + '%;height:' + hs.h + '%;"' +
-              ' onclick="onBannerRefClick(\\'' + esc(hs.targetSku || '') + '\\',\\'' + esc(hs.shopeeProductId || '') + '\\',\\'\\',\\'' + esc(hs.linkUrl || '') + '\\')">' +
+              ' onclick="onSpotlightHotspotClick(' + sIdx + ',' + hIdx + ')">' +
               '<span class="hotspot-pill">' + esc(pillTxt) + '</span>' +
             '</button>';
           }).join('');
@@ -1394,14 +1476,14 @@ function generateStandaloneStorefrontHtml(snapshot) {
       var colHtml = '';
       if (collections.length) {
         var allProds = (STATE.data && STATE.data.products) || [];
-        colHtml = '<div class="col-banner-grid">' + collections.map(function(col) {
+        colHtml = '<div class="col-banner-grid">' + collections.map(function(col, cIdx) {
           var isAct = STATE.selectedCollectionId === col.id;
           var cnt = allProds.filter(function(p) { return matchesColFilter(p, col); }).length;
-          return '<button type="button" class="col-banner-btn' + (isAct ? ' active' : '') + '" onclick="toggleCollectionFilter(\\'' + esc(col.id) + '\\')">' +
+          return '<button type="button" class="col-banner-btn' + (isAct ? ' active' : '') + '" onclick="toggleCollectionIdx(' + cIdx + ')">' +
             '<img src="' + esc(col.imageUrl) + '" alt="' + esc(col.name) + '" referrerpolicy="no-referrer" loading="lazy" />' +
             '<div style="min-width:0;flex:1;">' +
               '<div class="col-banner-title">' + esc(col.name) + '</div>' +
-              '<div class="col-banner-sub">' + (isAct ? 'Đang lọc · Bấm để bỏ' : (cnt + ' mẫu tại xưởng')) + '</div>' +
+              '<div class="col-banner-sub">' + (isAct ? 'Đang lọc · Bỏ chọn' : (cnt + ' mẫu tại xưởng')) + '</div>' +
             '</div>' +
           '</button>';
         }).join('') + '</div>';
@@ -1424,14 +1506,14 @@ function generateStandaloneStorefrontHtml(snapshot) {
       var totalLen = ((STATE.data && STATE.data.products) || []).length;
       var html = '<button type="button" class="tab-btn ' + (STATE.selectedCat === 'ALL' && !activeCol ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'ALL\\')">Tất cả (' + totalLen + ')</button>';
       if (activeCol) {
-        html += '<button type="button" class="tab-btn wholesale active" style="min-height:34px;border-radius:999px;font-size:12px;" onclick="toggleCollectionFilter(\\'' + esc(activeCol.id) + '\\')">Bộ sưu tập: ' + esc(activeCol.name) + ' ✕</button>';
+        html += '<button type="button" class="tab-btn wholesale active" style="min-height:34px;border-radius:999px;font-size:12px;" onclick="toggleCollectionFilter(\\'' + jsAttr(activeCol.id) + '\\')">Bộ sưu tập: ' + esc(activeCol.name) + ' ✕</button>';
         if (activeCol.shopeeUrl) {
           html += '<a href="' + esc(activeCol.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline" style="min-height:34px;border-radius:999px;font-size:11.5px;padding:0 12px;">Xem trên Shopee ↗</a>';
         }
       }
       html += cats.map(function(c) {
         var isAct = STATE.selectedCat === c.id;
-        return '<button type="button" class="tab-btn ' + (isAct ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'' + esc(c.id) + '\\')">' + esc(c.name) + '</button>';
+        return '<button type="button" class="tab-btn ' + (isAct ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'' + jsAttr(c.id) + '\\')">' + esc(c.name) + '</button>';
       }).join('');
       row.innerHTML = html;
     }
@@ -1489,7 +1571,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
         }
         var addQty = (STATE.priceMode === 'WHOLESALE' && firstWs) ? firstWs.minQty : 1;
         return '<article class="prod-card">' +
-          '<div class="prod-img-wrap" onclick="openProdModal(\\'' + esc(p.id) + '\\')">' +
+          '<div class="prod-img-wrap" onclick="openProdModal(\\'' + jsAttr(p.id) + '\\')">' +
             (p.image ? '<img src="' + esc(p.image) + '" alt="' + esc(p.name) + '" loading="lazy" />' : '') +
             (p.variantLabel ? '<span class="badge-var">' + esc(p.variantLabel) + '</span>' : '') +
             (bestWs ? '<span class="badge-ws">Sỉ từ ' + fmtVND(bestWs.unitPrice) + '</span>' : '') +
@@ -1497,15 +1579,15 @@ function generateStandaloneStorefrontHtml(snapshot) {
           '<div class="prod-body">' +
             '<div>' +
               '<div class="sku-line"><span class="sku-code">' + esc(p.sku) + '</span><span class="stock-ok">' + esc(p.stockLabel || 'Sẵn sàng đặt') + '</span></div>' +
-              '<h3 class="prod-title" onclick="openProdModal(\\'' + esc(p.id) + '\\')">' + esc(p.cleanTitle) + '</h3>' +
+              '<h3 class="prod-title" onclick="openProdModal(\\'' + jsAttr(p.id) + '\\')">' + esc(p.cleanTitle) + '</h3>' +
               (p.variantLabel ? '<div class="prod-var-txt">Phân loại: ' + esc(p.variantLabel) + '</div>' : '') +
             '</div>' +
             '<div class="price-area">' +
               priceHtml +
               '<div class="card-actions">' +
-                '<button type="button" class="btn-sm-out" onclick="openProdModal(\\'' + esc(p.id) + '\\')">Chi tiết</button>' +
+                '<button type="button" class="btn-sm-out" onclick="openProdModal(\\'' + jsAttr(p.id) + '\\')">Chi tiết</button>' +
                 (canBuy
-                  ? '<button type="button" class="btn-sm-buy" onclick="addToCart(\\'' + esc(p.id) + '\\',' + addQty + ')">+ ' + (addQty > 1 ? 'Thêm ' + addQty + ' SP' : 'Chọn mua') + '</button>'
+                  ? '<button type="button" class="btn-sm-buy" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',' + addQty + ')">+ ' + (addQty > 1 ? 'Thêm ' + addQty + ' SP' : 'Chọn mua') + '</button>'
                   : '<button type="button" class="btn-sm-out" disabled style="opacity:0.55;cursor:not-allowed;">Tạm hết hàng</button>') +
               '</div>' +
             '</div>' +
@@ -1539,7 +1621,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
           tiers.map(function(t) {
             return '<td class="num"><strong>' + fmtVND(calcWsPrice(p.retailPrice, t.discountPercent)) + '</strong></td>';
           }).join('') +
-          '<td style="text-align:center"><button type="button" class="btn-sm-out" style="padding:0 10px;min-height:30px;" onclick="addToCart(\\'' + esc(p.id) + '\\',10)">+10</button></td>' +
+          '<td style="text-align:center"><button type="button" class="btn-sm-out" style="padding:0 10px;min-height:30px;" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10)">+10</button></td>' +
         '</tr>';
       }).join('');
     }
@@ -1582,8 +1664,8 @@ function generateStandaloneStorefrontHtml(snapshot) {
             '</div>' +
             '<div style="display:grid;gap:8px;">' +
               '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-                '<button type="button" class="btn-primary" onclick="addToCart(\\'' + esc(p.id) + '\\',1);closeProdModal();">Mua lẻ (+1)</button>' +
-                '<button type="button" class="btn-ws" onclick="addToCart(\\'' + esc(p.id) + '\\',10);closeProdModal();openCartModal();">Nhập sỉ (+10)</button>' +
+                '<button type="button" class="btn-primary" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',1);closeProdModal();">Mua lẻ (+1)</button>' +
+                '<button type="button" class="btn-ws" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10);closeProdModal();openCartModal();">Nhập sỉ (+10)</button>' +
               '</div>' +
               (p.shopeeUrl ? '<a href="' + esc(p.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline" style="justify-content:center;">Xem sản phẩm trên Shopee ↗</a>' : '') +
             '</div>' +
@@ -1669,9 +1751,9 @@ function generateStandaloneStorefrontHtml(snapshot) {
             return '<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #e7e2da;border-radius:10px;padding:8px 10px;font-size:12.5px;">' +
               '<div style="min-width:0;flex:1;padding-right:8px;"><strong>' + esc(i.product.cleanTitle) + '</strong><div style="color:#6b6661">' + fmtVND(u) + ' / ' + esc(i.product.unit) + (i.product.variantLabel ? ' · ' + esc(i.product.variantLabel) : '') + '</div></div>' +
               '<div style="display:flex;align-items:center;gap:6px;">' +
-                '<button type="button" class="btn-sm-out" style="width:28px;min-height:28px;" onclick="updateCartQty(\\'' + esc(i.product.id) + '\\',-1)">−</button>' +
+                '<button type="button" class="btn-sm-out" style="width:28px;min-height:28px;" onclick="updateCartQty(\\'' + jsAttr(i.product.id) + '\\',-1)">−</button>' +
                 '<strong>' + i.quantity + '</strong>' +
-                '<button type="button" class="btn-sm-out" style="width:28px;min-height:28px;" onclick="updateCartQty(\\'' + esc(i.product.id) + '\\',1)">+</button>' +
+                '<button type="button" class="btn-sm-out" style="width:28px;min-height:28px;" onclick="updateCartQty(\\'' + jsAttr(i.product.id) + '\\',1)">+</button>' +
               '</div>' +
             '</div>';
           }).join('') +
@@ -1821,7 +1903,16 @@ function generateStandaloneStorefrontHtml(snapshot) {
       }
       if (live.config) {
         if (live.config.announcementBar) document.getElementById('announcementBar').textContent = live.config.announcementBar;
-        if (live.config.heroBadge) document.getElementById('heroBadge').textContent = '✨ ' + live.config.heroBadge;
+        if (live.config.heroBadge) {
+          document.getElementById('heroBadge').textContent = '✨ ' + live.config.heroBadge;
+          var subHdr = document.getElementById('brandSubHdr');
+          var liveSub = (live.brand && live.brand.brandSubtitle) ? String(live.brand.brandSubtitle).trim() : '';
+          if (subHdr) {
+            subHdr.textContent = (liveSub && liveSub !== 'Quản lý bán hàng đa kênh')
+              ? liveSub
+              : live.config.heroBadge;
+          }
+        }
         if (live.config.heroTitle) document.getElementById('heroTitle').textContent = live.config.heroTitle;
         if (live.config.heroSubtitle) document.getElementById('heroSubtitle').textContent = live.config.heroSubtitle;
         if (live.config.wholesalePolicyNote) document.getElementById('wsPolicyText').textContent = live.config.wholesalePolicyNote;
@@ -1892,6 +1983,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
 }
 
 async function main() {
+  const prisma = getPrisma()
   const snapshot = await buildCmsStorefrontSnapshot()
   const domain = snapshot.config.customDomain
   const targetRepo = parseArg('repo') || 'khoap1220-hue/bomocdecor-vn'
@@ -1965,8 +2057,14 @@ async function main() {
   }
 }
 
-main().catch(async (err) => {
-  console.error(err)
-  await prisma.$disconnect().catch(() => null)
-  process.exit(1)
-})
+const isDirectCli =
+  Boolean(process.argv[1]) &&
+  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
+
+if (isDirectCli) {
+  main().catch(async (err) => {
+    console.error(err)
+    if (_prisma) await _prisma.$disconnect().catch(() => null)
+    process.exit(1)
+  })
+}

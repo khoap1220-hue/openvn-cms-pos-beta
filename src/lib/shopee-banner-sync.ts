@@ -40,7 +40,9 @@ interface RawDecorationHotspot {
 interface RawDecorationBannerItem {
   image?: string
   banner_image?: string
+  image_url?: string
   texts?: string[]
+  title?: string
   display_ratio?: number
   navigator?: {
     url?: string
@@ -58,9 +60,29 @@ interface RawDecorationComponent {
     title?: string
     shop_cover_image?: string
     image?: string
+    image_url?: string
+    generate_image?: string
+    cover_image?: string
+    cover?: string
+    thumb_url?: string
+    video_url?: string
     display_ratio?: number
     banners?: RawDecorationBannerItem[]
     hotspots?: RawDecorationHotspot[]
+    items?: Array<{ item_id?: number | string; product_id?: number | string; url?: string }>
+    products?: Array<{ item_id?: number | string; product_id?: number | string; url?: string }>
+    video?: {
+      cover?: string
+      cover_image?: string
+      thumb_url?: string
+      url?: string
+    }
+    navigator?: {
+      url?: string
+      type?: number
+      product_id?: number | string
+      productId?: number | string
+    }
   }
 }
 
@@ -76,10 +98,15 @@ export interface RawShopeeBannerSyncPayload {
   } | null
   pcDraft?: {
     draft_id?: number | string
+    draft_type?: string
     decoration_data?: RawDecorationComponent[] | null
   } | null
   mobileDraft?: {
     draft_id?: number | string
+    draft_type?: string
+    decoration_data?: RawDecorationComponent[] | null
+  } | null
+  instantDeco?: {
     decoration_data?: RawDecorationComponent[] | null
   } | null
   collectionList?: Array<{
@@ -132,6 +159,114 @@ function matchBestCmsProductByShopeeItemId(
   return matches[0]
 }
 
+export interface ShopeeDraftCandidate {
+  draft_id?: number | string
+  draft_type?: string
+  decoration_data?: RawDecorationComponent[] | null
+}
+
+/**
+ * Ưu tiên bản thiết kế đang xuất bản trực tiếp trên kênh Shopee (`draft_type === 'publish'`)
+ * có `decoration_data` khác rỗng; chỉ rơi về bản nháp (`draft_get`) nếu chưa có bản publish chứa dữ liệu.
+ */
+export function selectEffectiveShopeeDraft(
+  draftGetData: ShopeeDraftCandidate | null | undefined,
+  draftListEntries: ShopeeDraftCandidate[] | null | undefined
+): ShopeeDraftCandidate | null {
+  const list = Array.isArray(draftListEntries) ? draftListEntries : []
+  const publishedFromList = list.find(
+    (d) =>
+      String(d?.draft_type || '').toLowerCase() === 'publish' &&
+      Array.isArray(d?.decoration_data) &&
+      d.decoration_data.length > 0
+  )
+  if (publishedFromList) return publishedFromList
+
+  if (
+    draftGetData &&
+    String(draftGetData.draft_type || '').toLowerCase() === 'publish' &&
+    Array.isArray(draftGetData.decoration_data) &&
+    draftGetData.decoration_data.length > 0
+  ) {
+    return draftGetData
+  }
+
+  const anyNonEmptyList = list.find(
+    (d) => Array.isArray(d?.decoration_data) && d.decoration_data.length > 0
+  )
+  if (anyNonEmptyList) return anyNonEmptyList
+
+  if (
+    draftGetData &&
+    Array.isArray(draftGetData.decoration_data) &&
+    draftGetData.decoration_data.length > 0
+  ) {
+    return draftGetData
+  }
+
+  return null
+}
+
+function isMultiBannerRowType(type?: number): boolean {
+  return type === 2 || type === 3 || type === 4 || type === 10
+}
+
+function isVideoBannerComponent(comp?: RawDecorationComponent): boolean {
+  if (!comp?.data) return false
+  if (comp.type === 8 || comp.type === 18) return true
+  return Boolean(
+    comp.data.video?.cover ||
+      comp.data.video?.cover_image ||
+      comp.data.video?.thumb_url ||
+      comp.data.video_url
+  )
+}
+
+function isInstantDecoBannerComponent(comp?: RawDecorationComponent): boolean {
+  if (!comp?.data) return false
+  return Boolean(
+    comp.data.generate_image ||
+      (comp.type !== 20 &&
+        comp.type !== 9 &&
+        comp.type !== 1 &&
+        !isMultiBannerRowType(comp.type) &&
+        !isVideoBannerComponent(comp) &&
+        comp.data.image_url)
+  )
+}
+
+function canPairMobileSpotlight(
+  pcComp: RawDecorationComponent,
+  mobComp: RawDecorationComponent | undefined,
+  pcRatio: number
+): boolean {
+  if (!mobComp?.data) return false
+  const mobRatio =
+    Number(mobComp.data.display_ratio || mobComp.data.banners?.[0]?.display_ratio) || pcRatio
+  if (Math.abs(mobRatio - pcRatio) > 0.22) return false
+
+  const pcHs = Array.isArray(pcComp.data?.hotspots) ? pcComp.data!.hotspots! : []
+  const mobHs = Array.isArray(mobComp.data?.hotspots) ? mobComp.data!.hotspots! : []
+  if (pcHs.length === 0 && mobHs.length === 0) return true
+  if (pcHs.length !== mobHs.length) return false
+
+  for (let i = 0; i < pcHs.length; i++) {
+    const pPid = String(
+      pcHs[i]?.navigator?.product_id ?? pcHs[i]?.navigator?.productId ?? ''
+    ).replace(/[^\d]/g, '')
+    const mPid = String(
+      mobHs[i]?.navigator?.product_id ?? mobHs[i]?.navigator?.productId ?? ''
+    ).replace(/[^\d]/g, '')
+    if (pPid !== mPid) return false
+    const px = Number(pcHs[i]?.position?.x ?? 0)
+    const py = Number(pcHs[i]?.position?.y ?? 0)
+    const mx = Number(mobHs[i]?.position?.x ?? 0)
+    const my = Number(mobHs[i]?.position?.y ?? 0)
+    if (Math.abs(px - mx) > 8 || Math.abs(py - my) > 8) return false
+  }
+  return true
+}
+
 export function parseShopeeDecorationPayloadToBanners(
   payload: RawShopeeBannerSyncPayload
 ): StorefrontBannersConfig {
@@ -150,12 +285,18 @@ export function parseShopeeDecorationPayloadToBanners(
 
   const shopLogoUrl = sanitizeSafeBannerUrl(payload.profileInfo?.basic_info?.shop_logo || '')
 
-  const pcComponents = Array.isArray(payload.pcDraft?.decoration_data)
+  const rawPcComponents = Array.isArray(payload.pcDraft?.decoration_data)
     ? payload.pcDraft!.decoration_data!
     : []
-  const mobComponents = Array.isArray(payload.mobileDraft?.decoration_data)
+  const rawMobComponents = Array.isArray(payload.mobileDraft?.decoration_data)
     ? payload.mobileDraft!.decoration_data!
     : []
+  const rawInstantComponents = Array.isArray(payload.instantDeco?.decoration_data)
+    ? payload.instantDeco!.decoration_data!
+    : []
+
+  const pcComponents = rawPcComponents
+  const mobComponents = rawMobComponents.length > 0 ? rawMobComponents : rawInstantComponents
 
   // 1. Shop Cover Banner (type = 20)
   const pcCoverComp = pcComponents.find((c) => c?.type === 20 && c?.data?.shop_cover_image)
@@ -165,7 +306,7 @@ export function parseShopeeDecorationPayloadToBanners(
   const coverBannerUrl = pcCoverUrl || mobCoverUrl
   const mobileCoverBannerUrl = mobCoverUrl || pcCoverUrl
 
-  // 2. Carousel Banners (type = 1)
+  // 2. Carousel Banners (type = 1) + Video Poster Banners (type = 8 | 18)
   const pcCarousels = pcComponents.filter(
     (c) => c?.type === 1 && Array.isArray(c?.data?.banners) && c.data!.banners!.length > 0
   )
@@ -176,23 +317,37 @@ export function parseShopeeDecorationPayloadToBanners(
 
   const carouselBanners: StorefrontCarouselBanner[] = []
   primaryCarouselComps.forEach((comp, compIdx) => {
-    const pairedMobComp = mobCarousels[compIdx]
+    const pairedMobComp = pcCarousels.length > 0 ? mobCarousels[compIdx] : undefined
     const slides = comp.data?.banners ?? []
     const mobSlides = pairedMobComp?.data?.banners ?? []
     const ratio = Number(comp.data?.display_ratio) || 2
+    const mobRatio = Number(pairedMobComp?.data?.display_ratio) || ratio
+    const canPairMobRatio = Math.abs(mobRatio - ratio) <= 0.25
 
     slides.forEach((slide, slideIdx) => {
-      const imageUrl = sanitizeSafeBannerUrl(slide.image || slide.banner_image || '')
-      if (!imageUrl) return
-      const pairedMobUrl = sanitizeSafeBannerUrl(
-        mobSlides[slideIdx]?.image || mobSlides[slideIdx]?.banner_image || ''
+      const imageUrl = sanitizeSafeBannerUrl(
+        slide.image || slide.banner_image || slide.image_url || ''
       )
+      if (!imageUrl) return
       const rawPid = String(
         slide.navigator?.product_id ?? slide.navigator?.productId ?? ''
       ).replace(/[^\d]/g, '')
+      const mobSlide = mobSlides[slideIdx]
+      const mobPid = String(
+        mobSlide?.navigator?.product_id ?? mobSlide?.navigator?.productId ?? ''
+      ).replace(/[^\d]/g, '')
+      const pairedMobUrl =
+        canPairMobRatio && (!rawPid || !mobPid || rawPid === mobPid)
+          ? sanitizeSafeBannerUrl(
+              mobSlide?.image || mobSlide?.banner_image || mobSlide?.image_url || ''
+            )
+          : ''
       const matchedProd = matchBestCmsProductByShopeeItemId(byShopeeItemId, rawPid)
-      const titleFromTexts = Array.isArray(slide.texts) && slide.texts[0] ? slide.texts[0] : ''
+      const titleFromTexts =
+        (Array.isArray(slide.texts) && slide.texts[0] ? slide.texts[0] : '') || slide.title || ''
       const subFromTexts = Array.isArray(slide.texts) && slide.texts[1] ? slide.texts[1] : ''
+      const fallbackLink =
+        slide.navigator?.url || (rawPid && shopId ? `https://shopee.vn/product/${shopId}/${rawPid}` : '')
 
       carouselBanners.push({
         id: `carousel_${compIdx + 1}_${slideIdx + 1}`,
@@ -204,40 +359,172 @@ export function parseShopeeDecorationPayloadToBanners(
         shopeeProductId: rawPid,
         targetSku: matchedProd?.sku || '',
         filterKeyword: '',
-        linkUrl: sanitizeSafeBannerUrl(slide.navigator?.url || ''),
+        linkUrl: sanitizeSafeBannerUrl(fallbackLink),
       })
     })
   })
 
-  // 3. Spotlight & Multi-Hotspot Banners (type = 9 hoặc type = 10)
-  const pcSpotlights = pcComponents.filter(
-    (c) =>
-      (c?.type === 9 && Boolean(c?.data?.image)) ||
-      (c?.type === 10 && Array.isArray(c?.data?.banners) && c.data!.banners!.length > 0)
-  )
-  const mobSpotlights = mobComponents.filter(
-    (c) =>
-      (c?.type === 9 && Boolean(c?.data?.image)) ||
-      (c?.type === 10 && Array.isArray(c?.data?.banners) && c.data!.banners!.length > 0)
-  )
-  const primarySpotlightComps = pcSpotlights.length > 0 ? pcSpotlights : mobSpotlights
+  // Video Banner Poster fallback (type = 8 | 18) -> đồng bộ ảnh bìa video & đường dẫn an toàn
+  const pcVideos = pcComponents.filter((c) => isVideoBannerComponent(c))
+  const mobVideos = mobComponents.filter((c) => isVideoBannerComponent(c))
+  const primaryVideoComps = pcVideos.length > 0 ? pcVideos : mobVideos
+  primaryVideoComps.forEach((comp, vIdx) => {
+    const posterRaw =
+      comp.data?.cover_image ||
+      comp.data?.cover ||
+      comp.data?.thumb_url ||
+      comp.data?.video?.cover_image ||
+      comp.data?.video?.cover ||
+      comp.data?.video?.thumb_url ||
+      comp.data?.image ||
+      ''
+    const imageUrl = sanitizeSafeBannerUrl(posterRaw)
+    if (!imageUrl) return
+    const pid = String(
+      comp.data?.navigator?.product_id ?? comp.data?.navigator?.productId ?? ''
+    ).replace(/[^\d]/g, '')
+    const matchedProd = matchBestCmsProductByShopeeItemId(byShopeeItemId, pid)
+    const linkRaw =
+      comp.data?.navigator?.url ||
+      (pid && shopId
+        ? `https://shopee.vn/product/${shopId}/${pid}`
+        : shopUsername
+          ? `https://shopee.vn/${shopUsername}`
+          : '')
+    carouselBanners.push({
+      id: `video_banner_${vIdx + 1}`,
+      imageUrl,
+      mobileImageUrl: imageUrl,
+      title: comp.data?.title || (matchedProd ? cleanProductTitle(matchedProd.name) : ''),
+      subtitle: '',
+      aspectRatio: Number(comp.data?.display_ratio) || 1.778,
+      shopeeProductId: pid,
+      targetSku: matchedProd?.sku || '',
+      filterKeyword: '',
+      linkUrl: sanitizeSafeBannerUrl(linkRaw),
+    })
+  })
+
+  // 3. Spotlight, Multi-Hotspot (type = 9), Single/Multi-Column Banner (type = 2,3,4,10) & Instant Deco
+  const isSpotlightLike = (c?: RawDecorationComponent): boolean =>
+    Boolean(
+      (c?.type === 9 && Boolean(c?.data?.image || c?.data?.image_url)) ||
+        (isMultiBannerRowType(c?.type) &&
+          Array.isArray(c?.data?.banners) &&
+          c!.data!.banners!.length > 0) ||
+        isInstantDecoBannerComponent(c)
+    )
+
+  const pcSpotlights = pcComponents.filter(isSpotlightLike)
+  const mobSpotlights = mobComponents.filter(isSpotlightLike)
+  const primarySpotlightComps =
+    pcSpotlights.length > 0
+      ? pcSpotlights
+      : mobSpotlights.length > 0
+        ? mobSpotlights
+        : rawInstantComponents.filter(isSpotlightLike)
 
   const spotlightBanners: StorefrontSpotlightBanner[] = []
   primarySpotlightComps.forEach((comp, compIdx) => {
-    const pairedMob = mobSpotlights[compIdx]
+    const pairedMob = pcSpotlights.length > 0 ? mobSpotlights[compIdx] : undefined
+
+    // Case A: Single / 2-Column / 3-Column Clickable Banner Row (type = 2, 3, 4, 10) without explicit hotspots
+    if (
+      isMultiBannerRowType(comp.type) &&
+      Array.isArray(comp.data?.banners) &&
+      comp.data!.banners!.length > 0 &&
+      (!Array.isArray(comp.data?.hotspots) || comp.data!.hotspots!.length === 0)
+    ) {
+      const rowBanners = comp.data!.banners!
+      const mobRowBanners = Array.isArray(pairedMob?.data?.banners) ? pairedMob!.data!.banners! : []
+      rowBanners.forEach((bItem, bIdx) => {
+        const imageUrl = sanitizeSafeBannerUrl(
+          bItem.image || bItem.banner_image || bItem.image_url || ''
+        )
+        if (!imageUrl) return
+        const itemRatio = Number(bItem.display_ratio || comp.data?.display_ratio) || 2
+        const mobItem = mobRowBanners[bIdx]
+        const mobRatio = Number(mobItem?.display_ratio || pairedMob?.data?.display_ratio) || itemRatio
+        const pid = String(
+          bItem.navigator?.product_id ?? bItem.navigator?.productId ?? ''
+        ).replace(/[^\d]/g, '')
+        const mobPid = String(
+          mobItem?.navigator?.product_id ?? mobItem?.navigator?.productId ?? ''
+        ).replace(/[^\d]/g, '')
+        const pairedMobUrl =
+          Math.abs(mobRatio - itemRatio) <= 0.25 && (!pid || !mobPid || pid === mobPid)
+            ? sanitizeSafeBannerUrl(
+                mobItem?.image || mobItem?.banner_image || mobItem?.image_url || ''
+              )
+            : ''
+        const matchedProd = matchBestCmsProductByShopeeItemId(byShopeeItemId, pid)
+        const fallbackLink =
+          bItem.navigator?.url || (pid && shopId ? `https://shopee.vn/product/${shopId}/${pid}` : '')
+        const safeLink = sanitizeSafeBannerUrl(fallbackLink)
+        const itemTitle =
+          (Array.isArray(bItem.texts) && bItem.texts[0] ? bItem.texts[0] : '') ||
+          bItem.title ||
+          comp.data?.title ||
+          ''
+
+        const itemHotspots: StorefrontBannerHotspot[] = []
+        if (pid || matchedProd || safeLink) {
+          itemHotspots.push({
+            id: `hs_${compIdx + 1}_${bIdx + 1}`,
+            x: 0,
+            y: 0,
+            w: 100,
+            h: 100,
+            shopeeProductId: pid,
+            targetSku: matchedProd?.sku || '',
+            label:
+              (matchedProd ? cleanProductTitle(matchedProd.name) : '') ||
+              itemTitle ||
+              'Xem chi tiết ưu đãi',
+            linkUrl: safeLink,
+          })
+        }
+
+        spotlightBanners.push({
+          id:
+            rowBanners.length === 1 && comp.meta?.id
+              ? comp.meta.id
+              : `spotlight_${compIdx + 1}_${bIdx + 1}`,
+          imageUrl,
+          mobileImageUrl: pairedMobUrl || imageUrl,
+          title: itemTitle,
+          aspectRatio: itemRatio,
+          hotspots: itemHotspots,
+        })
+      })
+      return
+    }
+
+    // Case B: Hotspot Banner (type = 9) hoặc Instant Deco Composite (`generate_image`)
     const rawImg =
       comp.type === 9
-        ? comp.data?.image
-        : comp.data?.banners?.[0]?.image || comp.data?.banners?.[0]?.banner_image
-    const rawMobImg =
-      pairedMob?.type === 9
-        ? pairedMob.data?.image
-        : pairedMob?.data?.banners?.[0]?.image || pairedMob?.data?.banners?.[0]?.banner_image
+        ? comp.data?.image || comp.data?.image_url
+        : comp.data?.generate_image ||
+          comp.data?.image_url ||
+          comp.data?.image ||
+          comp.data?.banners?.[0]?.image ||
+          comp.data?.banners?.[0]?.banner_image
     const imageUrl = sanitizeSafeBannerUrl(rawImg || '')
     if (!imageUrl) return
-    const mobileImageUrl = sanitizeSafeBannerUrl(rawMobImg || '') || imageUrl
+
     const ratio =
       Number(comp.data?.display_ratio || comp.data?.banners?.[0]?.display_ratio) || 1.796
+    const rawMobImg =
+      pairedMob && canPairMobileSpotlight(comp, pairedMob, ratio)
+        ? pairedMob.type === 9
+          ? pairedMob.data?.image || pairedMob.data?.image_url
+          : pairedMob.data?.generate_image ||
+            pairedMob.data?.image_url ||
+            pairedMob.data?.image ||
+            pairedMob.data?.banners?.[0]?.image ||
+            pairedMob.data?.banners?.[0]?.banner_image
+        : ''
+    const mobileImageUrl = sanitizeSafeBannerUrl(rawMobImg || '') || imageUrl
 
     const hotspots: StorefrontBannerHotspot[] = []
     const rawHotspots = Array.isArray(comp.data?.hotspots) ? comp.data!.hotspots! : []
@@ -264,6 +551,55 @@ export function parseShopeeDecorationPayloadToBanners(
         linkUrl: sanitizeSafeBannerUrl(fallbackLink),
       })
     })
+
+    // Nếu là Instant Deco gắn danh sách `items` / `products` mà không có tọa độ hotspot rời, chia cột đều tự động
+    if (hotspots.length === 0) {
+      const linkedItems = (comp.data?.items || comp.data?.products || []).slice(0, 6)
+      if (linkedItems.length > 0) {
+        const sliceW = 100 / linkedItems.length
+        linkedItems.forEach((it, idx) => {
+          const pid = String(it.product_id ?? it.item_id ?? '').replace(/[^\d]/g, '')
+          const matchedProd = matchBestCmsProductByShopeeItemId(byShopeeItemId, pid)
+          const fallbackLink =
+            it.url || (pid && shopId ? `https://shopee.vn/product/${shopId}/${pid}` : '')
+          const safeLink = sanitizeSafeBannerUrl(fallbackLink)
+          if (!pid && !matchedProd && !safeLink) return
+          hotspots.push({
+            id: `hs_inst_${compIdx + 1}_${idx + 1}`,
+            x: idx * sliceW,
+            y: 0,
+            w: sliceW,
+            h: 100,
+            shopeeProductId: pid,
+            targetSku: matchedProd?.sku || '',
+            label: matchedProd ? cleanProductTitle(matchedProd.name) : '',
+            linkUrl: safeLink,
+          })
+        })
+      } else if (comp.data?.navigator) {
+        const pid = String(
+          comp.data.navigator.product_id ?? comp.data.navigator.productId ?? ''
+        ).replace(/[^\d]/g, '')
+        const matchedProd = matchBestCmsProductByShopeeItemId(byShopeeItemId, pid)
+        const fallbackLink =
+          comp.data.navigator.url ||
+          (pid && shopId ? `https://shopee.vn/product/${shopId}/${pid}` : '')
+        const safeLink = sanitizeSafeBannerUrl(fallbackLink)
+        if (pid || matchedProd || safeLink) {
+          hotspots.push({
+            id: `hs_full_${compIdx + 1}`,
+            x: 0,
+            y: 0,
+            w: 100,
+            h: 100,
+            shopeeProductId: pid,
+            targetSku: matchedProd?.sku || '',
+            label: matchedProd ? cleanProductTitle(matchedProd.name) : comp.data?.title || '',
+            linkUrl: safeLink,
+          })
+        }
+      }
+    }
 
     spotlightBanners.push({
       id: comp.meta?.id || `spotlight_${compIdx + 1}`,
@@ -384,63 +720,71 @@ export async function syncShopeeBannersForCurrentCms(): Promise<{
     'X-CSRFToken': csrfToken,
   }
 
-  const [profileRes, pcDraftRes, mobDraftRes, pcListRes, collectionRes, rawDbProducts] =
-    await Promise.all([
-      fetchSellerCenterJson<{
-        basic_info?: { shop_name?: string; shop_desc?: string; shop_logo?: string }
-      }>(
-        `https://banhang.shopee.vn/api/sellermanagement_seller/v1/shop/profile/info?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
-        headers
-      ),
-      fetchSellerCenterJson<{
-        code?: number
-        data?: { draft_id?: number; decoration_data?: RawDecorationComponent[] }
-      }>(
-        `https://banhang.shopee.vn/api/n/decoration/pc_homepage/draft_get/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
-        headers
-      ),
-      fetchSellerCenterJson<{
-        code?: number
-        data?: { draft_id?: number; decoration_data?: RawDecorationComponent[] }
-      }>(
-        `https://banhang.shopee.vn/api/n/decoration/homepage/draft_get/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
-        headers
-      ),
-      fetchSellerCenterJson<{
-        code?: number
-        data?: {
-          pc_homepage_list?: Array<{
-            draft_id?: number
-            draft_type?: string
-            decoration_data?: RawDecorationComponent[]
-          }>
-        }
-      }>(
-        `https://banhang.shopee.vn/api/n/decoration/pc_homepage/draft_list/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
-        headers
-      ),
-      fetchSellerCenterJson<{
-        code?: number
-        data?: {
-          list?: Array<{
-            id?: number
-            name?: string
-            status?: string
-            sort_weight?: number
-            product_count?: number
-            cover_image?: string
-          }>
-        }
-      }>(
-        `https://banhang.shopee.vn/api/shopcategory/v4/category/get_collection_list/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
-        headers
-      ),
-      db.product.findMany({
-        where: { status: 'ACTIVE' },
-        orderBy: [{ sellPrice: 'asc' }, { name: 'asc' }],
-        select: { id: true, sku: true, name: true, attributes: true },
-      }),
-    ])
+  const [
+    profileRes,
+    pcDraftRes,
+    mobDraftRes,
+    pcListRes,
+    mobListRes,
+    collectionRes,
+    rawDbProducts,
+  ] = await Promise.all([
+    fetchSellerCenterJson<{
+      basic_info?: { shop_name?: string; shop_desc?: string; shop_logo?: string }
+    }>(
+      `https://banhang.shopee.vn/api/sellermanagement_seller/v1/shop/profile/info?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
+      headers
+    ),
+    fetchSellerCenterJson<{
+      code?: number
+      data?: ShopeeDraftCandidate
+    }>(
+      `https://banhang.shopee.vn/api/n/decoration/pc_homepage/draft_get/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
+      headers
+    ),
+    fetchSellerCenterJson<{
+      code?: number
+      data?: ShopeeDraftCandidate
+    }>(
+      `https://banhang.shopee.vn/api/n/decoration/homepage/draft_get/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
+      headers
+    ),
+    fetchSellerCenterJson<{
+      code?: number
+      data?: { pc_homepage_list?: ShopeeDraftCandidate[] }
+    }>(
+      `https://banhang.shopee.vn/api/n/decoration/pc_homepage/draft_list/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
+      headers
+    ),
+    fetchSellerCenterJson<{
+      code?: number
+      data?: { homepage_list?: ShopeeDraftCandidate[] }
+    }>(
+      `https://banhang.shopee.vn/api/n/decoration/homepage/draft_list/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
+      headers
+    ),
+    fetchSellerCenterJson<{
+      code?: number
+      data?: {
+        list?: Array<{
+          id?: number
+          name?: string
+          status?: string
+          sort_weight?: number
+          product_count?: number
+          cover_image?: string
+        }>
+      }
+    }>(
+      `https://banhang.shopee.vn/api/shopcategory/v4/category/get_collection_list/?SPC_CDS=${spcCds}&SPC_CDS_VER=2`,
+      headers
+    ),
+    db.product.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: [{ sellPrice: 'asc' }, { name: 'asc' }],
+      select: { id: true, sku: true, name: true, attributes: true },
+    }),
+  ])
 
   const allAuthFailed =
     profileRes.status !== 200 &&
@@ -453,19 +797,15 @@ export async function syncShopeeBannersForCurrentCms(): Promise<{
     )
   }
 
-  const publishedPcListEntry =
-    pcListRes.data?.data?.pc_homepage_list?.find((d) => d.draft_type === 'publish') ??
-    pcListRes.data?.data?.pc_homepage_list?.[0]
+  const effectivePcDraft = selectEffectiveShopeeDraft(
+    pcDraftRes.data?.code === 0 ? pcDraftRes.data.data : null,
+    pcListRes.data?.data?.pc_homepage_list
+  )
 
-  const effectivePcDraft =
-    pcDraftRes.data?.code === 0 && Array.isArray(pcDraftRes.data?.data?.decoration_data)
-      ? pcDraftRes.data.data
-      : publishedPcListEntry || null
-
-  const effectiveMobDraft =
-    mobDraftRes.data?.code === 0 && Array.isArray(mobDraftRes.data?.data?.decoration_data)
-      ? mobDraftRes.data.data
-      : null
+  const effectiveMobDraft = selectEffectiveShopeeDraft(
+    mobDraftRes.data?.code === 0 ? mobDraftRes.data.data : null,
+    mobListRes.data?.data?.homepage_list
+  )
 
   const cmsProducts: CmsProductShopeeRef[] = rawDbProducts.map((p) => {
     let shopeeItemId = ''
