@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
 import { broadcast, getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import {
+  DEFAULT_STOREFRONT_BANNERS,
   computeWholesaleUnitPrice,
   getStorefrontConfigForCurrentCms,
   resolveActiveWholesaleTier,
@@ -323,6 +324,18 @@ export async function GET(req: NextRequest) {
       brandProfile.invoiceBankCode && brandProfile.invoiceBankAccount
     )
 
+    const publicConfig =
+      config.enabled === false
+        ? {
+            ...config,
+            banners: {
+              ...DEFAULT_STOREFRONT_BANNERS,
+              enabled: false,
+              shopLogoUrl: config.banners.shopLogoUrl,
+            },
+          }
+        : config
+
     const responsePayload = {
       ok: true,
       storefrontClosed: config.enabled === false,
@@ -337,7 +350,7 @@ export async function GET(req: NextRequest) {
         workshopName: brandProfile.defaultWorkshopName,
         companyName: brandProfile.companyName || brandProfile.brandName,
       },
-      config,
+      config: publicConfig,
       bankTransfer: hasBankTransfer
         ? {
             bankCode: brandProfile.invoiceBankCode,

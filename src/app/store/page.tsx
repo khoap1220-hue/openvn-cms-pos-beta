@@ -9,6 +9,8 @@ import {
   Building2,
   Calculator,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   ExternalLink,
   Eye,
@@ -32,6 +34,7 @@ import {
   Store,
   Trash2,
   Truck,
+  X,
 } from 'lucide-react'
 import { ProductAvatar } from '@/components/cms/product-avatar'
 import { ThemeToggle } from '@/components/cms/theme-toggle'
@@ -51,6 +54,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { formatVND } from '@/lib/format'
+import {
+  hasAnySyncedShopeeBanners,
+  matchesCollectionBannerProduct,
+  type StorefrontBannersConfig,
+  type StorefrontCarouselBanner,
+} from '@/lib/storefront-banners'
 import { cn } from '@/lib/utils'
 
 interface WholesalePriceEntry {
@@ -134,6 +143,7 @@ interface StorefrontPayload {
       facebookUrl: string
       tiktokUrl: string
     }
+    banners?: StorefrontBannersConfig
   }
   bankTransfer: {
     bankCode: string
@@ -228,6 +238,9 @@ export default function OnlineStorefrontPage() {
   const [priceViewMode, setPriceViewMode] = useState<'RETAIL' | 'WHOLESALE'>('RETAIL')
   const [search, setSearch] = useState('')
   const [selectedCat, setSelectedCat] = useState<string>('ALL')
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('ALL')
+  const [carouselIdx, setCarouselIdx] = useState(0)
+  const [carouselPaused, setCarouselPaused] = useState(false)
   const [sortBy, setSortBy] = useState<'DEFAULT' | 'PRICE_ASC' | 'PRICE_DESC'>('DEFAULT')
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null)
   const [selectedImageIdx, setSelectedImageIdx] = useState(0)
@@ -335,6 +348,24 @@ export default function OnlineStorefrontPage() {
 
   const brandName = storeData?.brand?.brandName || 'Bơ Mộc Decor'
   const cfg = storeData?.config
+  const banners = cfg?.banners
+  const showShopeeBanners =
+    !storeData?.storefrontClosed &&
+    cfg?.enabled !== false &&
+    banners?.enabled !== false &&
+    hasAnySyncedShopeeBanners(banners)
+  const carouselBanners = useMemo(
+    () => (showShopeeBanners ? banners?.carouselBanners ?? [] : []),
+    [showShopeeBanners, banners?.carouselBanners]
+  )
+  const spotlightBanners = useMemo(
+    () => (showShopeeBanners ? banners?.spotlightBanners ?? [] : []),
+    [showShopeeBanners, banners?.spotlightBanners]
+  )
+  const collectionBanners = useMemo(
+    () => (showShopeeBanners ? banners?.collectionBanners ?? [] : []),
+    [showShopeeBanners, banners?.collectionBanners]
+  )
   const products = useMemo(() => storeData?.products ?? [], [storeData?.products])
   const categories = useMemo(() => storeData?.categories ?? [], [storeData?.categories])
   const wholesaleTiers = useMemo(
@@ -343,10 +374,75 @@ export default function OnlineStorefrontPage() {
   )
   const contact = cfg?.contact
 
+  useEffect(() => {
+    if (carouselIdx >= carouselBanners.length && carouselBanners.length > 0) {
+      setCarouselIdx(0)
+    }
+  }, [carouselIdx, carouselBanners.length])
+
+  useEffect(() => {
+    if (carouselBanners.length <= 1 || carouselPaused || activeTab !== 'PRODUCTS') return
+    const timer = window.setInterval(() => {
+      setCarouselIdx((prev) => (prev + 1) % carouselBanners.length)
+    }, 4800)
+    return () => window.clearInterval(timer)
+  }, [carouselBanners.length, carouselPaused, activeTab])
+
+  const resolveProductFromBannerRef = useCallback(
+    (targetSku?: string, shopeeProductId?: string): StorefrontProduct | null => {
+      if (targetSku) {
+        const bySku = products.find(
+          (p) => p.sku.toUpperCase() === targetSku.trim().toUpperCase()
+        )
+        if (bySku) return bySku
+      }
+      if (shopeeProductId) {
+        const suffix = `/${shopeeProductId.trim()}`
+        const byShopee = products.find((p) => p.shopeeUrl && p.shopeeUrl.endsWith(suffix))
+        if (byShopee) return byShopee
+      }
+      return null
+    },
+    [products]
+  )
+
+  const handleCarouselSlideClick = useCallback(
+    (slide: StorefrontCarouselBanner) => {
+      const matched = resolveProductFromBannerRef(slide.targetSku, slide.shopeeProductId)
+      if (matched) {
+        setSelectedImageIdx(0)
+        setSelectedProduct(matched)
+        return
+      }
+      if (slide.filterKeyword) {
+        setSearch(slide.filterKeyword)
+        return
+      }
+      if (slide.linkUrl) {
+        window.open(slide.linkUrl, '_blank', 'noopener,noreferrer')
+      }
+    },
+    [resolveProductFromBannerRef]
+  )
+
+  const activeCollectionBanner = useMemo(
+    () =>
+      selectedCollectionId === 'ALL'
+        ? null
+        : collectionBanners.find((c) => c.id === selectedCollectionId) ?? null,
+    [collectionBanners, selectedCollectionId]
+  )
+
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase()
     const base = products.filter((p) => {
       if (selectedCat !== 'ALL' && p.categoryId !== selectedCat) return false
+      if (
+        activeCollectionBanner &&
+        !matchesCollectionBannerProduct(p, activeCollectionBanner)
+      ) {
+        return false
+      }
       if (!q) return true
       return (
         p.name.toLowerCase().includes(q) ||
@@ -361,7 +457,7 @@ export default function OnlineStorefrontPage() {
       return [...base].sort((a, b) => b.retailPrice - a.retailPrice)
     }
     return base
-  }, [products, search, selectedCat, sortBy])
+  }, [products, search, selectedCat, activeCollectionBanner, sortBy])
 
   const totalCartItems = useMemo(
     () => cart.reduce((sum, it) => sum + it.quantity, 0),
@@ -663,9 +759,18 @@ export default function OnlineStorefrontPage() {
             onClick={() => setActiveTab('PRODUCTS')}
             className="flex items-center gap-3 text-left"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-700 via-amber-600 to-stone-800 text-white shadow-sm">
-              <ShoppingBag className="h-5 w-5" />
-            </div>
+            {banners?.shopLogoUrl ? (
+              <img
+                src={banners.shopLogoUrl}
+                alt={brandName}
+                referrerPolicy="no-referrer"
+                className="h-10 w-10 shrink-0 rounded-full border border-stone-200 object-cover shadow-xs dark:border-stone-700"
+              />
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-700 via-amber-600 to-stone-800 text-white shadow-sm">
+                <ShoppingBag className="h-5 w-5" />
+              </div>
+            )}
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-extrabold tracking-tight text-foreground">
@@ -825,39 +930,60 @@ export default function OnlineStorefrontPage() {
               </div>
             </div>
 
-            {/* 3 Cam kết Xưởng sản xuất */}
-            <div className="grid gap-3 sm:grid-cols-3 lg:col-span-5 lg:grid-cols-1">
-              <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3.5 shadow-2xs">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                  <Award className="h-4.5 w-4.5" />
+            {/* Ảnh bìa Gian hàng Shopee (nếu có) + 3 Cam kết Xưởng sản xuất */}
+            <div className="space-y-3 lg:col-span-5">
+              {showShopeeBanners && banners?.coverBannerUrl && (
+                <div className="overflow-hidden rounded-2xl border border-stone-200/90 bg-card shadow-sm dark:border-stone-800">
+                  <picture>
+                    {banners.mobileCoverBannerUrl && (
+                      <source
+                        media="(max-width: 640px)"
+                        srcSet={banners.mobileCoverBannerUrl}
+                      />
+                    )}
+                    <img
+                      src={banners.coverBannerUrl}
+                      alt={`${brandName} — Không gian thủ công`}
+                      referrerPolicy="no-referrer"
+                      className="aspect-[1196/518] w-full object-cover"
+                    />
+                  </picture>
                 </div>
-                <div className="text-xs">
-                  <p className="font-bold text-foreground">Đúc Thủ Công &amp; Sáp Bơ Thuần Chay</p>
-                  <p className="mt-0.5 text-muted-foreground">
-                    Không khói đen, không hóa chất độc hại, bề mặt thạch cao phủ chống thấm mịn màng.
-                  </p>
+              )}
+
+              <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3 shadow-2xs">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    <Award className="h-4 w-4" />
+                  </div>
+                  <div className="text-xs">
+                    <p className="font-bold text-foreground">Đúc Thủ Công &amp; Sáp Bơ Thuần Chay</p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      Không khói đen, không hóa chất độc hại, bề mặt thạch cao phủ chống thấm mịn màng.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3.5 shadow-2xs">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  <BadgePercent className="h-4.5 w-4.5" />
+                <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3 shadow-2xs">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    <BadgePercent className="h-4 w-4" />
+                  </div>
+                  <div className="text-xs">
+                    <p className="font-bold text-foreground">Giá Sỉ Tận Gốc Tại Xưởng (Gộp Mẫu Tự Do)</p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      Từ 10 SP giảm 15% · Từ 30 SP giảm 25% · Từ 100 SP giảm 35% + Gia công quà tặng OEM.
+                    </p>
+                  </div>
                 </div>
-                <div className="text-xs">
-                  <p className="font-bold text-foreground">Giá Sỉ Tận Gốc Tại Xưởng (Gộp Mẫu Tự Do)</p>
-                  <p className="mt-0.5 text-muted-foreground">
-                    Từ 10 SP giảm 15% · Từ 30 SP giảm 25% · Từ 100 SP giảm 35% + Gia công quà tặng OEM.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3.5 shadow-2xs">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
-                  <ShieldCheck className="h-4.5 w-4.5" />
-                </div>
-                <div className="text-xs">
-                  <p className="font-bold text-foreground">Bảo Hành Bể Vỡ 1 Đổi 1 Toàn Quốc</p>
-                  <p className="mt-0.5 text-muted-foreground">
-                    Đóng gói xốp định hình nhiều lớp, đổi trả miễn phí trong {cfg?.returnDays ?? 7} ngày.
-                  </p>
+                <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3 shadow-2xs">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                    <ShieldCheck className="h-4 w-4" />
+                  </div>
+                  <div className="text-xs">
+                    <p className="font-bold text-foreground">Bảo Hành Bể Vỡ 1 Đổi 1 Toàn Quốc</p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      Đóng gói xốp định hình nhiều lớp, đổi trả miễn phí trong {cfg?.returnDays ?? 7} ngày.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -870,6 +996,256 @@ export default function OnlineStorefrontPage() {
         {/* ==================== TAB 1: DANH MỤC SẢN PHẨM ==================== */}
         {activeTab === 'PRODUCTS' && (
           <div className="space-y-6">
+            {/* Banner Trang trí Đồng bộ từ Gian hàng Shopee (Carousel + Điểm chạm SP + Bộ sưu tập) */}
+            {showShopeeBanners &&
+              (carouselBanners.length > 0 ||
+                spotlightBanners.length > 0 ||
+                collectionBanners.length > 0) && (
+                <section aria-label="Bộ sưu tập & Banner nổi bật" className="space-y-4">
+                  {(carouselBanners.length > 0 || spotlightBanners.length > 0) && (
+                    <div className="grid items-start gap-4 lg:grid-cols-12">
+                      {/* Carousel Banner Xoay vòng */}
+                      {carouselBanners.length > 0 && (
+                        <div
+                          onMouseEnter={() => setCarouselPaused(true)}
+                          onMouseLeave={() => setCarouselPaused(false)}
+                          className={cn(
+                            'overflow-hidden rounded-2xl border bg-card shadow-2xs',
+                            spotlightBanners.length > 0 ? 'lg:col-span-6' : 'lg:col-span-12'
+                          )}
+                        >
+                          <div className="relative aspect-[2/1] w-full overflow-hidden bg-stone-100 dark:bg-stone-900">
+                            {carouselBanners.map((slide, idx) => {
+                              const isCurrent = idx === carouselIdx
+                              const isClickable = Boolean(
+                                slide.targetSku ||
+                                  slide.shopeeProductId ||
+                                  slide.filterKeyword ||
+                                  slide.linkUrl
+                              )
+                              return (
+                                <div
+                                  key={slide.id}
+                                  aria-hidden={!isCurrent}
+                                  className={cn(
+                                    'absolute inset-0 transition-opacity duration-500',
+                                    isCurrent
+                                      ? 'z-10 opacity-100'
+                                      : 'pointer-events-none z-0 opacity-0'
+                                  )}
+                                >
+                                  <picture>
+                                    {slide.mobileImageUrl && (
+                                      <source
+                                        media="(max-width: 640px)"
+                                        srcSet={slide.mobileImageUrl}
+                                      />
+                                    )}
+                                    <img
+                                      src={slide.imageUrl}
+                                      alt={
+                                        slide.title ||
+                                        `${brandName} — Bộ sưu tập nổi bật #${idx + 1}`
+                                      }
+                                      referrerPolicy="no-referrer"
+                                      onClick={() => {
+                                        if (isClickable) handleCarouselSlideClick(slide)
+                                      }}
+                                      className={cn(
+                                        'h-full w-full object-cover',
+                                        isClickable && 'cursor-pointer'
+                                      )}
+                                    />
+                                  </picture>
+                                </div>
+                              )
+                            })}
+
+                            {carouselBanners.length > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  aria-label="Banner trước"
+                                  onClick={() =>
+                                    setCarouselIdx(
+                                      (prev) =>
+                                        (prev - 1 + carouselBanners.length) %
+                                        carouselBanners.length
+                                    )
+                                  }
+                                  className="absolute top-1/2 left-2.5 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/35 text-white backdrop-blur-xs transition hover:bg-black/60"
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Banner tiếp theo"
+                                  onClick={() =>
+                                    setCarouselIdx(
+                                      (prev) => (prev + 1) % carouselBanners.length
+                                    )
+                                  }
+                                  className="absolute top-1/2 right-2.5 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/35 text-white backdrop-blur-xs transition hover:bg-black/60"
+                                >
+                                  <ChevronRight className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="flex h-[34px] items-center justify-between border-t bg-card px-3.5 text-[11px] text-muted-foreground">
+                            <span className="truncate font-medium">
+                              Bộ sưu tập Thủ công {brandName} ({carouselIdx + 1}/
+                              {carouselBanners.length})
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {carouselBanners.map((s, idx) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  aria-label={`Chuyển tới banner ${idx + 1}`}
+                                  onClick={() => setCarouselIdx(idx)}
+                                  className={cn(
+                                    'h-2 rounded-full transition-all',
+                                    idx === carouselIdx
+                                      ? 'w-5 bg-amber-700 dark:bg-amber-400'
+                                      : 'w-2 bg-stone-300 hover:bg-stone-400 dark:bg-stone-700'
+                                  )}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Banner Điểm chạm Tương tác Đa Sản phẩm (Shopee Hotspot Banner) */}
+                      {spotlightBanners.map((sb) => (
+                        <div
+                          key={sb.id}
+                          className={cn(
+                            'overflow-hidden rounded-2xl border bg-card shadow-2xs',
+                            carouselBanners.length > 0 ? 'lg:col-span-6' : 'lg:col-span-12'
+                          )}
+                        >
+                          <div
+                            className="relative w-full overflow-hidden bg-stone-100 dark:bg-stone-900"
+                            style={{ aspectRatio: String(sb.aspectRatio || 1.796) }}
+                          >
+                            <picture>
+                              {sb.mobileImageUrl && (
+                                <source
+                                  media="(max-width: 640px)"
+                                  srcSet={sb.mobileImageUrl}
+                                />
+                              )}
+                              <img
+                                src={sb.imageUrl}
+                                alt={sb.title || `${brandName} — Sản phẩm tiêu điểm`}
+                                referrerPolicy="no-referrer"
+                                className="h-full w-full object-cover"
+                              />
+                            </picture>
+
+                            {sb.hotspots.map((hs, hIdx) => {
+                              const matchedProd = resolveProductFromBannerRef(
+                                hs.targetSku,
+                                hs.shopeeProductId
+                              )
+                              const labelText =
+                                matchedProd?.cleanTitle ||
+                                hs.label ||
+                                `Xem sản phẩm nổi bật #${hIdx + 1}`
+                              return (
+                                <button
+                                  key={hs.id}
+                                  type="button"
+                                  title={labelText}
+                                  aria-label={labelText}
+                                  onClick={() => {
+                                    if (matchedProd) {
+                                      setSelectedImageIdx(0)
+                                      setSelectedProduct(matchedProd)
+                                      return
+                                    }
+                                    if (hs.linkUrl) {
+                                      window.open(hs.linkUrl, '_blank', 'noopener,noreferrer')
+                                    }
+                                  }}
+                                  style={{
+                                    left: `${hs.x}%`,
+                                    top: `${hs.y}%`,
+                                    width: `${hs.w}%`,
+                                    height: `${hs.h}%`,
+                                  }}
+                                  className="group/hs absolute z-10 cursor-pointer transition-all hover:bg-black/5 hover:ring-2 hover:ring-amber-300/90 hover:ring-inset focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
+                                >
+                                  <span className="pointer-events-none absolute right-2 bottom-2 inline-flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10.5px] font-semibold text-white opacity-85 shadow-sm backdrop-blur-xs transition group-hover/hs:scale-105 group-hover/hs:bg-amber-700 group-hover/hs:opacity-100">
+                                    <span>
+                                      {matchedProd
+                                        ? formatVND(matchedProd.retailPrice)
+                                        : 'Xem SP'}
+                                    </span>
+                                    <Eye className="h-3 w-3" />
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 4 Thẻ Bộ Sưu Tập Hình Ảnh Đồng Bộ Từ Shopee */}
+                  {collectionBanners.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {collectionBanners.map((col) => {
+                        const isSelected = selectedCollectionId === col.id
+                        const matchedCount = products.filter((p) =>
+                          matchesCollectionBannerProduct(p, col)
+                        ).length
+                        return (
+                          <button
+                            key={col.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCat('ALL')
+                              setSelectedCollectionId((prev) =>
+                                prev === col.id ? 'ALL' : col.id
+                              )
+                            }}
+                            className={cn(
+                              'group flex items-center gap-3 rounded-2xl border p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm',
+                              isSelected
+                                ? 'border-amber-600 bg-amber-50/80 ring-1 ring-amber-600/40 dark:border-amber-500 dark:bg-amber-950/35'
+                                : 'border-border/80 bg-card hover:border-amber-300'
+                            )}
+                          >
+                            <img
+                              src={col.imageUrl}
+                              alt={col.name}
+                              referrerPolicy="no-referrer"
+                              loading="lazy"
+                              className="h-14 w-14 shrink-0 rounded-xl border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 sm:h-16 sm:w-16 dark:border-stone-800"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-extrabold text-foreground sm:text-sm">
+                                {col.name}
+                              </p>
+                              <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+                                {isSelected
+                                  ? 'Đang lọc · Bấm để bỏ'
+                                  : `${matchedCount} mẫu tại xưởng`}
+                              </p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </section>
+              )}
+
             {/* Thanh công cụ Tìm kiếm + Lọc Danh mục + Chuyển đổi Xem Giá Lẻ / Giá Sỉ */}
             <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-2xs">
               <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
@@ -931,16 +1307,42 @@ export default function OnlineStorefrontPage() {
                 <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                   <button
                     type="button"
-                    onClick={() => setSelectedCat('ALL')}
+                    onClick={() => {
+                      setSelectedCat('ALL')
+                      setSelectedCollectionId('ALL')
+                    }}
                     className={cn(
                       'inline-flex min-h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors',
-                      selectedCat === 'ALL'
+                      selectedCat === 'ALL' && selectedCollectionId === 'ALL'
                         ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-600 dark:bg-amber-600'
                         : 'bg-background text-foreground hover:bg-muted'
                     )}
                   >
                     Tất cả ({products.length})
                   </button>
+                  {activeCollectionBanner && (
+                    <div className="inline-flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCollectionId('ALL')}
+                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-amber-600 bg-amber-600 px-3.5 text-xs font-bold text-white"
+                      >
+                        <span>Bộ sưu tập: {activeCollectionBanner.name}</span>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      {activeCollectionBanner.shopeeUrl && (
+                        <a
+                          href={activeCollectionBanner.shopeeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-9 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <span>Xem trên Shopee</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  )}
                   {categories.map((cat) => (
                     <button
                       key={cat.id}

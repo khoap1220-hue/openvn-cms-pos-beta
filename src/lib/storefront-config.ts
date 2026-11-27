@@ -4,6 +4,13 @@ import { normalizeDomainHostname } from '@/lib/domain-routing'
 import { broadcast, invalidateApiCache } from '@/lib/realtime'
 import { getSettings } from '@/lib/settings'
 import { mergePreservingInternalVaultFields } from '@/lib/shopee-session-vault'
+import {
+  DEFAULT_STOREFRONT_BANNERS,
+  sanitizeStorefrontBanners,
+  type StorefrontBannersConfig,
+} from '@/lib/storefront-banners'
+
+export * from '@/lib/storefront-banners'
 
 export interface ServerBrandProfile {
   brandName: string
@@ -119,6 +126,7 @@ export interface StorefrontCmsConfig {
   returnDays: number
   allowPreorderWhenOutOfStock: boolean
   contact: StorefrontContactConfig
+  banners: StorefrontBannersConfig
   updatedAt: string | null
 }
 
@@ -182,6 +190,7 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontCmsConfig = {
     facebookUrl: '',
     tiktokUrl: '',
   },
+  banners: DEFAULT_STOREFRONT_BANNERS,
   updatedAt: null,
 }
 
@@ -278,6 +287,7 @@ export function normalizeStorefrontCmsConfig(
       ...DEFAULT_STOREFRONT_CONFIG.contact,
       ...(fallbackOverrides?.contact ?? {}),
     },
+    banners: sanitizeStorefrontBanners(fallbackOverrides?.banners, DEFAULT_STOREFRONT_BANNERS),
   }
   if (!rawInput || typeof rawInput !== 'object') return base
 
@@ -374,6 +384,7 @@ export function normalizeStorefrontCmsConfig(
       facebookUrl: strAllowEmpty(rawContact.facebookUrl, base.contact.facebookUrl, 240),
       tiktokUrl: strAllowEmpty(rawContact.tiktokUrl, base.contact.tiktokUrl, 240),
     },
+    banners: sanitizeStorefrontBanners(rawInput.banners, base.banners),
     updatedAt: typeof rawInput.updatedAt === 'string' ? rawInput.updatedAt : base.updatedAt,
   }
 }
@@ -571,6 +582,13 @@ export async function saveStorefrontConfigForCurrentCms(
         ? (partialInput.contact as Record<string, unknown>)
         : {}),
     },
+    banners:
+      partialInput.banners && typeof partialInput.banners === 'object'
+        ? {
+            ...current.config.banners,
+            ...(partialInput.banners as Record<string, unknown>),
+          }
+        : current.config.banners,
     updatedAt: new Date().toISOString(),
   }
 

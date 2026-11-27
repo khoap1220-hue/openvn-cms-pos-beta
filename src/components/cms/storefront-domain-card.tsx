@@ -7,13 +7,18 @@ import {
   CheckCircle2,
   ExternalLink,
   Globe,
+  Images,
   Loader2,
   Phone,
   RefreshCw,
   Save,
   Server,
 } from 'lucide-react'
-import { apiGet, apiPatch } from '@/lib/api'
+import { apiGet, apiPatch, apiPost } from '@/lib/api'
+import {
+  hasAnySyncedShopeeBanners,
+  type StorefrontBannersConfig,
+} from '@/lib/storefront-banners'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,6 +79,7 @@ interface StorefrontConfigResponse {
       facebookUrl: string
       tiktokUrl: string
     }
+    banners?: StorefrontBannersConfig
   }
   dnsStatus?: DnsStatusView | null
 }
@@ -84,8 +90,11 @@ export function StorefrontDomainCard() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [checkingDns, setCheckingDns] = useState(false)
+  const [syncingBanners, setSyncingBanners] = useState(false)
 
   const [cmsInstanceId, setCmsInstanceId] = useState('')
+  const [banners, setBanners] = useState<StorefrontBannersConfig | null>(null)
+  const [bannersEnabled, setBannersEnabled] = useState(true)
   const [enabled, setEnabled] = useState(true)
   const [customDomain, setCustomDomain] = useState('bomocdecor.vn')
   const [cmsBackendOrigin, setCmsBackendOrigin] = useState(
@@ -152,6 +161,10 @@ export function StorefrontDomainCard() {
       setShopeeUrl(c.contact?.shopeeUrl || '')
       setAddress(c.contact?.address || '')
       setWorkingHours(c.contact?.workingHours || '')
+      if (c.banners) {
+        setBanners(c.banners)
+        setBannersEnabled(c.banners.enabled !== false)
+      }
     },
     []
   )
@@ -289,6 +302,43 @@ export function StorefrontDomainCard() {
     )
   }
 
+  const handleSyncShopeeBanners = async () => {
+    setSyncingBanners(true)
+    try {
+      const res = await apiPost<{
+        ok: boolean
+        config: StorefrontConfigResponse['config']
+        banners: StorefrontBannersConfig
+        summary: {
+          shopUsername: string
+          carouselCount: number
+          spotlightCount: number
+          hotspotCount: number
+          collectionCount: number
+        }
+      }>('/api/storefront-config', { action: 'SYNC_SHOPEE_BANNERS' })
+      if (res?.banners) {
+        setBanners(res.banners)
+        setBannersEnabled(res.banners.enabled !== false)
+      }
+      toast({
+        title: `Đã đồng bộ Banner từ Shopee (${res?.summary?.shopUsername || 'Shop'})`,
+        description: `${res?.summary?.carouselCount ?? 0} slide Carousel · ${res?.summary?.spotlightCount ?? 0} Banner điểm chạm (${res?.summary?.hotspotCount ?? 0} SP) · ${res?.summary?.collectionCount ?? 0} Bộ sưu tập.`,
+      })
+    } catch (e) {
+      toast({
+        title: 'Không thể đồng bộ Banner từ Shopee',
+        description:
+          e instanceof Error
+            ? e.message
+            : 'Vui lòng kiểm tra kết nối phiên Shopee của CMS hiện tại.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncingBanners(false)
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -315,9 +365,16 @@ export function StorefrontDomainCard() {
           address: address.trim(),
           workingHours: workingHours.trim(),
         },
+        banners: {
+          enabled: bannersEnabled,
+        },
       })
       if (res?.config) {
         setCustomDomain(res.config.customDomain)
+        if (res.config.banners) {
+          setBanners(res.config.banners)
+          setBannersEnabled(res.config.banners.enabled !== false)
+        }
       }
       if (res?.dnsStatus) {
         setDnsStatus(res.dnsStatus)
@@ -458,6 +515,130 @@ export function StorefrontDomainCard() {
                   </span>
                 )}
               </div>
+            </div>
+
+            {/* Khối 1B: Đồng bộ Banner Trang trí Gian hàng từ Shopee (Độc lập từng CMS) */}
+            <div className="space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/25 p-3.5 dark:border-amber-900/50 dark:bg-amber-950/15">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Images className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                    <span className="text-xs font-bold text-foreground">
+                      Banner Trang Trí Đồng Bộ Từ Gian Hàng Shopee
+                    </span>
+                    {banners?.sourceShopUsername && (
+                      <Badge variant="outline" className="text-[10px] font-semibold">
+                        shopee.vn/{banners.sourceShopUsername}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Tự động lấy Logo, Ảnh bìa, Carousel xoay vòng, Banner điểm chạm gắn sản phẩm và Ảnh danh mục từ Kênh Người Bán Shopee của riêng CMS này.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={bannersEnabled}
+                      onCheckedChange={setBannersEnabled}
+                      id="sf-banners-switch"
+                    />
+                    <Label htmlFor="sf-banners-switch" className="cursor-pointer text-xs">
+                      Hiển thị trên Website
+                    </Label>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleSyncShopeeBanners()}
+                    disabled={syncingBanners}
+                    className="h-8 gap-1.5 border-amber-400/80 bg-background text-xs font-semibold text-amber-900 hover:bg-amber-100/60 dark:border-amber-800 dark:text-amber-200"
+                  >
+                    {syncingBanners ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    Đồng bộ Banner từ Shopee
+                  </Button>
+                </div>
+              </div>
+
+              {hasAnySyncedShopeeBanners(banners) && banners && (
+                <div className="space-y-2 border-t border-amber-200/60 pt-2.5 dark:border-amber-900/40">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <span>
+                      Đã đồng bộ:{' '}
+                      <strong className="text-foreground">
+                        {banners.carouselBanners.length} Banner Carousel
+                      </strong>{' '}
+                      ·{' '}
+                      <strong className="text-foreground">
+                        {banners.spotlightBanners.length} Banner Điểm chạm
+                      </strong>{' '}
+                      (
+                      {banners.spotlightBanners.reduce((s, b) => s + b.hotspots.length, 0)} SP gắn link) ·{' '}
+                      <strong className="text-foreground">
+                        {banners.collectionBanners.length} Bộ sưu tập
+                      </strong>
+                    </span>
+                    {banners.syncedAt && (
+                      <span>
+                        Cập nhật: {new Date(banners.syncedAt).toLocaleString('vi-VN')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+                    {banners.coverBannerUrl && (
+                      <div className="overflow-hidden rounded-lg border bg-background p-1">
+                        <img
+                          src={banners.coverBannerUrl}
+                          alt="Ảnh bìa Shopee"
+                          referrerPolicy="no-referrer"
+                          className="aspect-[2/1] w-full rounded object-cover"
+                        />
+                        <p className="mt-1 truncate px-1 text-[10px] font-medium text-muted-foreground">
+                          Ảnh bìa Hero
+                        </p>
+                      </div>
+                    )}
+                    {banners.spotlightBanners.map((sb) => (
+                      <div
+                        key={sb.id}
+                        className="overflow-hidden rounded-lg border bg-background p-1"
+                      >
+                        <img
+                          src={sb.imageUrl}
+                          alt="Banner điểm chạm"
+                          referrerPolicy="no-referrer"
+                          className="aspect-[2/1] w-full rounded object-cover"
+                        />
+                        <p className="mt-1 truncate px-1 text-[10px] font-medium text-muted-foreground">
+                          Điểm chạm ({sb.hotspots.length} SP)
+                        </p>
+                      </div>
+                    ))}
+                    {banners.carouselBanners.slice(0, 3).map((cb, idx) => (
+                      <div
+                        key={cb.id}
+                        className="overflow-hidden rounded-lg border bg-background p-1"
+                      >
+                        <img
+                          src={cb.imageUrl}
+                          alt={cb.title || `Carousel #${idx + 1}`}
+                          referrerPolicy="no-referrer"
+                          className="aspect-[2/1] w-full rounded object-cover"
+                        />
+                        <p className="mt-1 truncate px-1 text-[10px] font-medium text-muted-foreground">
+                          Carousel #{idx + 1}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Khối 2: Bảng Giá Sỉ 3 Bậc */}

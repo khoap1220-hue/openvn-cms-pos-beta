@@ -2,6 +2,7 @@ import dns from 'node:dns/promises'
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeDomainHostname } from '@/lib/domain-routing'
 import { logLedger } from '@/lib/ledger'
+import { syncShopeeBannersForCurrentCms } from '@/lib/shopee-banner-sync'
 import {
   getStorefrontConfigForCurrentCms,
   saveStorefrontConfigForCurrentCms,
@@ -126,6 +127,50 @@ export async function PATCH(req: NextRequest) {
     console.error('Storefront config PATCH error:', error)
     return NextResponse.json(
       { ok: false, error: 'Không thể lưu cấu hình Website & Tên miền riêng.' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as { action?: string }
+    if (body.action !== 'SYNC_SHOPEE_BANNERS') {
+      return NextResponse.json(
+        { ok: false, error: 'Thao tác không hợp lệ (yêu cầu action=SYNC_SHOPEE_BANNERS).' },
+        { status: 400 }
+      )
+    }
+
+    const result = await syncShopeeBannersForCurrentCms()
+
+    await logLedger({
+      scope: 'SETTINGS',
+      action: 'STOREFRONT_SHOPEE_BANNERS_SYNCED',
+      entityType: 'IntegrationCredential',
+      entityCode: 'WEBSITE',
+      title: `Đồng bộ Banner trang trí từ Shopee (${result.summary.shopUsername} · #${result.summary.shopId}) về Website`,
+      detail: result.summary,
+      actor: 'OPERATOR',
+      originSource: 'MARKETPLACE_SYNC',
+    })
+
+    return NextResponse.json({
+      ok: true,
+      config: result.config,
+      banners: result.banners,
+      summary: result.summary,
+    })
+  } catch (error) {
+    console.error('Storefront config POST sync banners error:', error)
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Không thể đồng bộ Banner từ Shopee lúc này.',
+      },
       { status: 500 }
     )
   }

@@ -19,10 +19,15 @@ import {
   normalizeDomainHostname,
 } from '../src/lib/domain-routing'
 import { invalidateApiCache } from '../src/lib/realtime'
+import { parseShopeeDecorationPayloadToBanners } from '../src/lib/shopee-banner-sync'
 import {
   computeWholesaleUnitPrice,
   getStorefrontConfigForCurrentCms,
+  matchesCollectionBannerProduct,
+  sanitizeSafeBannerUrl,
+  sanitizeStorefrontBanners,
   saveStorefrontConfigForCurrentCms,
+  type StorefrontBannersConfig,
 } from '../src/lib/storefront-config'
 import { invalidateInboundSecretsCache } from '../src/lib/webhook-service'
 import { GET as inboxGet, POST as inboxPost } from '../src/app/api/inbox/route'
@@ -35,6 +40,7 @@ import {
 import {
   GET as storefrontConfigGet,
   PATCH as storefrontConfigPatch,
+  POST as storefrontConfigPost,
 } from '../src/app/api/storefront-config/route'
 import { POST as inboundWebhookPost } from '../src/app/api/webhooks/inbound/route'
 import { clearProxyStorefrontDomainCache, proxy } from '../src/proxy'
@@ -392,10 +398,15 @@ async function main() {
       products?: Array<{
         id: string
         sku: string
+        name: string
+        cleanTitle: string
         retailPrice: number
         wholesalePrices: Array<{ minQty: number; discountPercent: number; unitPrice: number }>
       }>
-      config?: { wholesaleTiers?: Array<{ minQty: number }> }
+      config?: {
+        wholesaleTiers?: Array<{ minQty: number }>
+        banners?: StorefrontBannersConfig
+      }
     }
     const rawSfText = JSON.stringify(sfJson)
     assert(
@@ -409,6 +420,145 @@ async function main() {
         !rawSfText.includes('__vault_v1'),
       'S3-18-PRODUCTS-ZERO-SECRET',
       `API công khai trả đủ ${sfJson.products?.length}/18 sản phẩm Bơ Mộc, ẩn tuyệt đối 100% costPrice & secret`
+    )
+
+    // Verify Shopee Banner Sanitizer, Parser, Hotspot Clamping & Live Synced Banners
+    assert(
+      sanitizeSafeBannerUrl('vn-11134210-81ztc-mvx526ksrpxg15') ===
+        'https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526ksrpxg15' &&
+        sanitizeSafeBannerUrl('javascript:alert(1)') === '' &&
+        sanitizeSafeBannerUrl('data:text/html,<script>alert(1)</script>') === '' &&
+        sanitizeSafeBannerUrl('http://insecure.example.com/a.jpg') === '' &&
+        sanitizeSafeBannerUrl('https://evil.example.com/a.jpg"onload="1') === '',
+      'S3-BANNER-URL-SANITIZER',
+      'Chuẩn hóa hash ảnh Shopee CDN & chặn tuyệt đối URL độc hại (javascript:, data:, http://, XSS quotes)'
+    )
+
+    const parsedTestBanners = parseShopeeDecorationPayloadToBanners({
+      shopId: '197195817',
+      shopUsername: 'bomocdecor',
+      profileInfo: { basic_info: { shop_logo: 'vn-11134216-81ztc-mv7hyg7qj6yv24' } },
+      pcDraft: {
+        draft_id: 13977721,
+        decoration_data: [
+          { type: 20, data: { shop_cover_image: 'vn-11134210-81ztc-mvx526kpkjd2e8' } },
+          {
+            type: 9,
+            data: {
+              image: 'vn-11134210-81ztc-mvx8btw5w0lff8',
+              display_ratio: 1.796,
+              hotspots: [
+                {
+                  position: { x: -4, y: 49.64, w: 120, h: 100.1199 },
+                  navigator: { product_id: 47971384068, url: 'javascript:alert(1)' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      cmsProducts: [
+        {
+          id: 'p1',
+          sku: 'BM-DEC-VAT-BACAU-CAM',
+          name: 'Hũ Thạch Cao Trụ Trơn — Phân loại: Cam Đất',
+          shopeeItemId: '47971384068',
+        },
+      ],
+    })
+    const clampedHs = parsedTestBanners.spotlightBanners[0]?.hotspots[0]
+    const dirtySanitized = sanitizeStorefrontBanners({
+      carouselBanners: [{ imageUrl: 'javascript:void(0)' }],
+    })
+    assert(
+      Boolean(clampedHs) &&
+        clampedHs.x === 0 &&
+        clampedHs.x + clampedHs.w <= 100 &&
+        clampedHs.y + clampedHs.h <= 100 &&
+        clampedHs.targetSku === 'BM-DEC-VAT-BACAU-CAM' &&
+        clampedHs.linkUrl === '' &&
+        dirtySanitized.carouselBanners.length === 0,
+      'S3-HOTSPOT-CLAMP-AND-SKU-MATCH',
+      'Kẹp biên tọa độ Hotspot (0..100%), ánh xạ đúng shopeeItemId -> SKU CMS & loại bỏ slide URL bẩn'
+    )
+
+    const teaProd = sfJson.products!.find((p) => p.sku === 'BM-TEA-10')!
+    const senHolderProd = sfJson.products!.find((p) => p.sku === 'BM-SEN-01-TRANG')!
+    const cocProd = sfJson.products!.find((p) => p.sku === 'BM-DEC-COC-TRON')!
+    assert(
+      matchesCollectionBannerProduct(teaProd, { name: 'Nến', filterKeyword: '__CANDLE_ONLY__' }) ===
+        true &&
+        matchesCollectionBannerProduct(senHolderProd, {
+          name: 'Nến',
+          filterKeyword: '__CANDLE_ONLY__',
+        }) === false &&
+        matchesCollectionBannerProduct(cocProd, {
+          name: 'Hũ & Cốc',
+          filterKeyword: 'hũ|cốc',
+        }) === true &&
+        matchesCollectionBannerProduct(senHolderProd, {
+          name: 'Khay & Đế Nến',
+          filterKeyword: 'khay|đế nến|chân nến',
+        }) === true,
+      'S3-COLLECTION-FILTER-ACCURACY',
+      'Bộ lọc Bộ sưu tập Shopee phân biệt chính xác Nến thuần túy vs Đế nến/Khay & Hũ/Cốc'
+    )
+
+    const badBannerActionRes = await storefrontConfigPost(
+      new NextRequest('http://localhost:3010/api/storefront-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'UNKNOWN_ACTION' }),
+      })
+    )
+    assert(
+      badBannerActionRes.status === 400,
+      'S3-REJECT-UNKNOWN-POST-ACTION',
+      'POST /api/storefront-config từ chối action lạ (HTTP 400)'
+    )
+
+    const syncBannerPostRes = await storefrontConfigPost(
+      new NextRequest('http://localhost:3010/api/storefront-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'SYNC_SHOPEE_BANNERS' }),
+      })
+    )
+    const syncBannerPostJson = (await syncBannerPostRes.json()) as {
+      ok?: boolean
+      summary?: {
+        shopId?: string
+        shopUsername?: string
+        carouselCount?: number
+        hotspotCount?: number
+        collectionCount?: number
+      }
+    }
+    assert(
+      syncBannerPostRes.status === 200 &&
+        syncBannerPostJson.ok === true &&
+        syncBannerPostJson.summary?.shopId === '197195817' &&
+        syncBannerPostJson.summary?.shopUsername === 'bomocdecor' &&
+        syncBannerPostJson.summary?.carouselCount === 3 &&
+        syncBannerPostJson.summary?.hotspotCount === 3 &&
+        syncBannerPostJson.summary?.collectionCount === 4,
+      'S3-SYNC-SHOPEE-BANNERS-ENDPOINT',
+      'POST /api/storefront-config { action: SYNC_SHOPEE_BANNERS } đồng bộ trực tiếp từ Shopee Kênh Người Bán (HTTP 200)'
+    )
+
+    const liveBanners = sfJson.config?.banners
+    assert(
+      Boolean(liveBanners?.enabled) &&
+        Boolean(liveBanners?.shopLogoUrl?.startsWith('https://down-vn.img.susercontent.com/file/')) &&
+        Boolean(
+          liveBanners?.coverBannerUrl?.startsWith('https://down-vn.img.susercontent.com/file/')
+        ) &&
+        (liveBanners?.carouselBanners?.length ?? 0) === 3 &&
+        (liveBanners?.spotlightBanners?.length ?? 0) === 1 &&
+        (liveBanners?.spotlightBanners?.[0]?.hotspots?.length ?? 0) === 3 &&
+        (liveBanners?.collectionBanners?.length ?? 0) === 4,
+      'S3-LIVE-SHOPEE-BANNERS-SYNCED',
+      `API công khai trả đủ bộ Banner đồng bộ từ Shopee bomocdecor (Logo + Cover + ${liveBanners?.carouselBanners?.length} Carousel + ${liveBanners?.spotlightBanners?.[0]?.hotspots?.length} Hotspot + ${liveBanners?.collectionBanners?.length} Bộ sưu tập)`
     )
 
     const sampleProd = sfJson.products!.find((p) => p.sku === 'BM-TEA-10') || sfJson.products![0]
@@ -590,6 +740,7 @@ async function main() {
     const closedGetJson = (await closedGetRes.json()) as {
       storefrontClosed?: boolean
       products?: unknown[]
+      config?: { banners?: StorefrontBannersConfig }
     }
     const closedPostRes = await publicStorefrontPost(
       new NextRequest('http://localhost:3010/api/public/storefront', {
@@ -616,10 +767,12 @@ async function main() {
       closedGetJson.storefrontClosed === true &&
         Array.isArray(closedGetJson.products) &&
         closedGetJson.products.length === 0 &&
+        closedGetJson.config?.banners?.enabled === false &&
+        (closedGetJson.config?.banners?.carouselBanners?.length ?? -1) === 0 &&
         closedPostRes.status === 503 &&
         closedLookupRes.status === 200,
       'S4-DISABLED-STOREFRONT-ENFORCED',
-      'Khi tạm ẩn Website (enabled=false): ẩn danh mục, chặn đặt đơn mới (503) nhưng vẫn cho khách tra cứu đơn cũ (200)'
+      'Khi tạm ẩn Website (enabled=false): ẩn danh mục & banner quảng bá, chặn đặt đơn mới (503) nhưng vẫn cho khách tra cứu đơn cũ (200)'
     )
 
     // Restore enabled=true
@@ -666,7 +819,13 @@ async function main() {
               },
             },
             {
-              action: { in: ['STOREFRONT_CONFIG_UPDATED', 'OPERATOR_REPLY'] },
+              action: {
+                in: [
+                  'STOREFRONT_CONFIG_UPDATED',
+                  'STOREFRONT_SHOPEE_BANNERS_SYNCED',
+                  'OPERATOR_REPLY',
+                ],
+              },
               createdAt: { gte: new Date(Date.now() - 60_000) },
             },
           ],

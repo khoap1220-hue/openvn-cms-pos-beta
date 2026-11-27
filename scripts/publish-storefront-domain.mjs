@@ -56,6 +56,136 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;')
 }
 
+function sanitizeBannerUrlMjs(raw) {
+  if (typeof raw !== 'string') return ''
+  const t = raw.trim().slice(0, 400)
+  if (!t || /[\s<>"'`\u0000-\u001f]/.test(t)) return ''
+  if (/^[a-z]{2}-\d{5,12}-[a-z0-9]{3,16}-[a-z0-9_-]{6,80}$/i.test(t)) {
+    return `https://down-vn.img.susercontent.com/file/${t}`
+  }
+  if (t.startsWith('/') && !t.startsWith('//')) return t
+  if (t.toLowerCase().startsWith('https://')) {
+    try {
+      const u = new URL(t)
+      if (u.protocol === 'https:') return u.toString()
+    } catch {
+      return ''
+    }
+  }
+  return ''
+}
+
+function normalizeSnapshotBanners(rawBanners, isEnabled) {
+  const b = rawBanners && typeof rawBanners === 'object' ? rawBanners : {}
+  const shopLogoUrl = sanitizeBannerUrlMjs(b.shopLogoUrl)
+  if (!isEnabled) {
+    return {
+      enabled: false,
+      shopLogoUrl,
+      coverBannerUrl: '',
+      mobileCoverBannerUrl: '',
+      carouselBanners: [],
+      spotlightBanners: [],
+      collectionBanners: [],
+      sourceShopId: '',
+      sourceShopUsername: '',
+      sourceDraftId: '',
+      syncedAt: null,
+    }
+  }
+  const coverBannerUrl = sanitizeBannerUrlMjs(b.coverBannerUrl)
+  const mobileCoverBannerUrl = sanitizeBannerUrlMjs(b.mobileCoverBannerUrl) || coverBannerUrl
+  const carouselBanners = Array.isArray(b.carouselBanners)
+    ? b.carouselBanners
+        .map((c, idx) => {
+          const imageUrl = sanitizeBannerUrlMjs(c?.imageUrl)
+          if (!imageUrl) return null
+          return {
+            id: String(c?.id || `carousel_${idx + 1}`).slice(0, 48),
+            imageUrl,
+            mobileImageUrl: sanitizeBannerUrlMjs(c?.mobileImageUrl) || imageUrl,
+            title: String(c?.title || '').trim().slice(0, 120),
+            subtitle: String(c?.subtitle || '').trim().slice(0, 160),
+            aspectRatio: Number(c?.aspectRatio) || 2,
+            shopeeProductId: String(c?.shopeeProductId || '').replace(/[^\d]/g, ''),
+            targetSku: String(c?.targetSku || '').trim().slice(0, 64),
+            filterKeyword: String(c?.filterKeyword || '').trim().slice(0, 80),
+            linkUrl: sanitizeBannerUrlMjs(c?.linkUrl),
+          }
+        })
+        .filter(Boolean)
+    : []
+  const spotlightBanners = Array.isArray(b.spotlightBanners)
+    ? b.spotlightBanners
+        .map((s, idx) => {
+          const imageUrl = sanitizeBannerUrlMjs(s?.imageUrl)
+          if (!imageUrl) return null
+          const hotspots = Array.isArray(s?.hotspots)
+            ? s.hotspots
+                .map((hs, hIdx) => {
+                  const x = Math.min(99, Math.max(0, Number(hs?.x) || 0))
+                  const y = Math.min(99, Math.max(0, Number(hs?.y) || 0))
+                  const w = Math.min(100 - x, Math.max(1, Number(hs?.w) || 0))
+                  const h = Math.min(100 - y, Math.max(1, Number(hs?.h) || 0))
+                  return {
+                    id: String(hs?.id || `hs_${hIdx + 1}`).slice(0, 48),
+                    x: Math.round(x * 100) / 100,
+                    y: Math.round(y * 100) / 100,
+                    w: Math.round(w * 100) / 100,
+                    h: Math.round(h * 100) / 100,
+                    shopeeProductId: String(hs?.shopeeProductId || '').replace(/[^\d]/g, ''),
+                    targetSku: String(hs?.targetSku || '').trim().slice(0, 64),
+                    label: String(hs?.label || '').trim().slice(0, 140),
+                    linkUrl: sanitizeBannerUrlMjs(hs?.linkUrl),
+                  }
+                })
+                .filter(Boolean)
+            : []
+          return {
+            id: String(s?.id || `spotlight_${idx + 1}`).slice(0, 48),
+            imageUrl,
+            mobileImageUrl: sanitizeBannerUrlMjs(s?.mobileImageUrl) || imageUrl,
+            title: String(s?.title || '').trim().slice(0, 120),
+            aspectRatio: Number(s?.aspectRatio) || 1.796,
+            hotspots,
+          }
+        })
+        .filter(Boolean)
+    : []
+  const collectionBanners = Array.isArray(b.collectionBanners)
+    ? b.collectionBanners
+        .map((col, idx) => {
+          const imageUrl = sanitizeBannerUrlMjs(col?.imageUrl)
+          const name = String(col?.name || '').trim().slice(0, 80)
+          if (!imageUrl || !name) return null
+          return {
+            id: String(col?.id || `col_${idx + 1}`).slice(0, 48),
+            collectionId: String(col?.collectionId || idx + 1).slice(0, 40),
+            name,
+            imageUrl,
+            productCount: Math.max(0, Math.floor(Number(col?.productCount) || 0)),
+            filterKeyword: String(col?.filterKeyword || '').trim().slice(0, 100),
+            shopeeUrl: sanitizeBannerUrlMjs(col?.shopeeUrl),
+          }
+        })
+        .filter(Boolean)
+    : []
+
+  return {
+    enabled: b.enabled !== false,
+    shopLogoUrl,
+    coverBannerUrl,
+    mobileCoverBannerUrl,
+    carouselBanners,
+    spotlightBanners,
+    collectionBanners,
+    sourceShopId: String(b.sourceShopId || '').replace(/[^\d]/g, ''),
+    sourceShopUsername: String(b.sourceShopUsername || '').trim().slice(0, 64),
+    sourceDraftId: String(b.sourceDraftId || '').trim().slice(0, 64),
+    syncedAt: typeof b.syncedAt === 'string' ? b.syncedAt : null,
+  }
+}
+
 async function buildCmsStorefrontSnapshot() {
   const [webCred, shopeeCred, settingsRows, categories, webChannel, rawProducts] =
     await Promise.all([
@@ -335,6 +465,7 @@ async function buildCmsStorefrontSnapshot() {
       returnDays: Number(savedSf.returnDays) || 7,
       allowPreorderWhenOutOfStock: allowPreorder,
       contact,
+      banners: normalizeSnapshotBanners(savedSf.banners, isEnabled),
     },
     bankTransfer: hasBankTransfer
       ? {
@@ -370,7 +501,13 @@ function generateStandaloneStorefrontHtml(snapshot) {
   const domain = escapeHtml(snapshot.config.customDomain)
   const heroTitle = escapeHtml(snapshot.config.heroTitle)
   const heroSub = escapeHtml(snapshot.config.heroSubtitle)
-  const firstImage = escapeHtml(snapshot.products[0]?.image || '')
+  const shopLogoUrl = escapeHtml(snapshot.config.banners?.shopLogoUrl || '')
+  const ogBannerImg = escapeHtml(
+    snapshot.config.banners?.coverBannerUrl ||
+      snapshot.config.banners?.carouselBanners?.[0]?.imageUrl ||
+      snapshot.products[0]?.image ||
+      ''
+  )
   const jsonBootstrap = JSON.stringify(snapshot).replace(/<\//g, '<\\/')
   const tiers = snapshot.config.wholesaleTiers || []
   const wsRangeLabel =
@@ -403,11 +540,12 @@ function generateStandaloneStorefrontHtml(snapshot) {
   <title>${brandName} — Sản phẩm Thủ công, Bảng Giá Sỉ &amp; Liên hệ Chính thức (${domain})</title>
   <meta name="description" content="${heroSub}" />
   <link rel="canonical" href="https://${domain}/" />
+  ${shopLogoUrl ? `<link rel="icon" href="${shopLogoUrl}" />` : ''}
   <meta property="og:type" content="website" />
   <meta property="og:title" content="${brandName} — ${heroTitle}" />
   <meta property="og:description" content="${heroSub}" />
   <meta property="og:url" content="https://${domain}/" />
-  ${firstImage ? `<meta property="og:image" content="${firstImage}" />` : ''}
+  ${ogBannerImg ? `<meta property="og:image" content="${ogBannerImg}" />` : ''}
   <script type="application/ld+json">${structuredData}</script>
   <style>
     :root {
@@ -657,6 +795,72 @@ function generateStandaloneStorefrontHtml(snapshot) {
       display: none; max-width: 340px;
     }
     .hidden { display: none !important; }
+    .brand-logo-img {
+      width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
+      border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.08); flex-shrink: 0;
+    }
+    .hero-cover-card {
+      border-radius: 16px; overflow: hidden; border: 1px solid var(--line);
+      background: var(--card); box-shadow: var(--shadow);
+    }
+    .hero-cover-card img { width: 100%; aspect-ratio: 1196 / 518; object-fit: cover; display: block; }
+    .banner-showcase { margin-bottom: 22px; display: grid; gap: 14px; }
+    .banner-top-grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; align-items: start; }
+    .banner-top-grid.single { grid-template-columns: 1fr; }
+    @media (max-width: 900px) { .banner-top-grid { grid-template-columns: 1fr; } }
+    .banner-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      overflow: hidden; box-shadow: var(--shadow);
+    }
+    .carousel-stage { position: relative; width: 100%; aspect-ratio: 2 / 1; background: #f3efe9; overflow: hidden; }
+    .carousel-slide {
+      position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.45s ease;
+    }
+    .carousel-slide.active { opacity: 1; pointer-events: auto; z-index: 2; }
+    .carousel-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .carousel-nav {
+      position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+      width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.45);
+      background: rgba(28,25,23,0.45); color: #fff; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+    }
+    .carousel-nav:hover { background: rgba(28,25,23,0.72); }
+    .carousel-nav.prev { left: 10px; }
+    .carousel-nav.next { right: 10px; }
+    .carousel-bar {
+      height: 34px; border-top: 1px solid var(--line); padding: 0 14px;
+      display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--muted);
+    }
+    .carousel-dots { display: flex; align-items: center; gap: 6px; }
+    .carousel-dot {
+      height: 8px; width: 8px; border-radius: 999px; border: none; background: #d6d0c7; cursor: pointer; transition: all 0.2s ease;
+    }
+    .carousel-dot.active { width: 20px; background: var(--brand); }
+    .hotspot-stage { position: relative; width: 100%; background: #f3efe9; overflow: hidden; }
+    .hotspot-stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hotspot-zone {
+      position: absolute; z-index: 4; border: 2px solid transparent; background: transparent;
+      cursor: pointer; transition: all 0.18s ease;
+    }
+    .hotspot-zone:hover { background: rgba(0,0,0,0.05); border-color: rgba(251, 191, 36, 0.9); }
+    .hotspot-pill {
+      position: absolute; right: 8px; bottom: 8px; padding: 3px 9px; border-radius: 999px;
+      background: rgba(28,25,23,0.78); color: #fff; font-size: 11px; font-weight: 700;
+      backdrop-filter: blur(4px); transition: transform 0.18s ease, background 0.18s ease;
+    }
+    .hotspot-zone:hover .hotspot-pill { background: var(--brand); transform: scale(1.05); }
+    .col-banner-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
+    @media (max-width: 860px) { .col-banner-grid { grid-template-columns: repeat(2, 1fr); } }
+    .col-banner-btn {
+      display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 15px;
+      border: 1px solid var(--line); background: var(--card); text-align: left; cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .col-banner-btn:hover { transform: translateY(-2px); border-color: #d99b66; box-shadow: var(--shadow); }
+    .col-banner-btn.active { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 1px var(--brand); }
+    .col-banner-btn img { width: 60px; height: 60px; border-radius: 11px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); }
+    .col-banner-title { font-size: 13.5px; font-weight: 800; color: var(--text); }
+    .col-banner-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -665,7 +869,11 @@ function generateStandaloneStorefrontHtml(snapshot) {
   <header>
     <div class="container nav-wrap">
       <div class="brand-box" onclick="switchTab('PRODUCTS')">
-        <div class="brand-logo" id="brandLogoBox">${logoInitials}</div>
+        <span id="brandLogoWrap">${
+          shopLogoUrl
+            ? `<img src="${shopLogoUrl}" alt="${brandName}" referrerpolicy="no-referrer" class="brand-logo-img" />`
+            : `<div class="brand-logo" id="brandLogoBox">${logoInitials}</div>`
+        }</span>
         <div>
           <div class="brand-title">
             <span id="brandNameHdr">${brandName}</span>
@@ -715,6 +923,23 @@ function generateStandaloneStorefrontHtml(snapshot) {
       </div>
 
       <div class="trust-stack">
+        <div id="heroCoverWrap" class="${
+          snapshot.config.enabled !== false &&
+          snapshot.config.banners?.enabled !== false &&
+          snapshot.config.banners?.coverBannerUrl
+            ? 'hero-cover-card'
+            : 'hidden'
+        }">${
+          snapshot.config.enabled !== false &&
+          snapshot.config.banners?.enabled !== false &&
+          snapshot.config.banners?.coverBannerUrl
+            ? `<picture>${
+                snapshot.config.banners.mobileCoverBannerUrl
+                  ? `<source media="(max-width: 640px)" srcset="${escapeHtml(snapshot.config.banners.mobileCoverBannerUrl)}" />`
+                  : ''
+              }<img src="${escapeHtml(snapshot.config.banners.coverBannerUrl)}" alt="${brandName}" referrerpolicy="no-referrer" /></picture>`
+            : ''
+        }</div>
         <div class="trust-card">
           <div class="trust-icon">🕯️</div>
           <div>
@@ -743,6 +968,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
   <main class="container">
     <!-- TAB 1: PRODUCTS -->
     <section id="sec-PRODUCTS">
+      <div id="shopeeBannerShowcase" class="banner-showcase hidden"></div>
       <div class="toolbar">
         <div class="toolbar-row">
           <input type="search" id="searchInput" class="search-input" placeholder="Tìm sản phẩm (nến bơ, hoa sen, búp sen, khay oval...) hoặc mã SKU..." oninput="renderProducts()" />
@@ -924,6 +1150,9 @@ function generateStandaloneStorefrontHtml(snapshot) {
       tab: 'PRODUCTS',
       priceMode: 'RETAIL',
       selectedCat: 'ALL',
+      selectedCollectionId: 'ALL',
+      carouselIdx: 0,
+      carouselPaused: false,
       paymentMethod: 'COD',
       cart: [],
       completedOrder: null
@@ -973,21 +1202,233 @@ function generateStandaloneStorefrontHtml(snapshot) {
 
     function setCategory(catId) {
       STATE.selectedCat = catId;
+      if (catId === 'ALL') STATE.selectedCollectionId = 'ALL';
+      renderShopeeBanners();
       renderCategoryPills();
       renderProducts();
     }
 
+    function matchesColFilter(prod, col) {
+      if (!col) return true;
+      var clean = String(prod.cleanTitle || prod.name || '').split('— Phân loại:')[0].trim().toLowerCase();
+      var sku = String(prod.sku || '').toLowerCase();
+      var desc = String(prod.description || '').toLowerCase();
+      var cName = String(col.name || '').trim().toLowerCase();
+      if (cName === 'nến' || col.filterKeyword === '__CANDLE_ONLY__') {
+        return clean === 'nến' || clean.indexOf('nến ') === 0 || sku.indexOf('-tea-') >= 0 || sku.indexOf('nen-') === 0;
+      }
+      if (cName.indexOf('nguyên liệu') >= 0 || cName.indexOf('diy') >= 0) {
+        return clean.indexOf('nguyên liệu') >= 0 || clean.indexOf('bột thạch cao') >= 0 || clean.indexOf('khuôn') >= 0 || clean.indexOf('diy') >= 0 || clean.indexOf('đổ nến') >= 0 || desc.indexOf('bột thạch cao') >= 0 || desc.indexOf('khuôn silicone') >= 0;
+      }
+      var expr = String(col.filterKeyword || col.name || '').toLowerCase().replace(/\\bvà\\b/g, '|');
+      var toks = expr.split(/[|,;/+&]+/).map(function(t) { return t.trim(); }).filter(function(t) { return t.length >= 2; });
+      if (!toks.length) return true;
+      return toks.some(function(tok) {
+        if (tok === 'đế nến' || tok === 'chân nến') return clean.indexOf('đế nến') >= 0 || clean.indexOf('chân nến') >= 0;
+        return clean.indexOf(tok) >= 0 || sku.indexOf(tok) >= 0;
+      });
+    }
+
+    function findProductByBannerRef(targetSku, shopeePid) {
+      var list = (STATE.data && STATE.data.products) || [];
+      if (targetSku) {
+        var uSku = String(targetSku).trim().toUpperCase();
+        var bySku = list.find(function(p) { return String(p.sku || '').toUpperCase() === uSku; });
+        if (bySku) return bySku;
+      }
+      if (shopeePid) {
+        var suf = '/' + String(shopeePid).trim();
+        var bySp = list.find(function(p) { return p.shopeeUrl && p.shopeeUrl.slice(-suf.length) === suf; });
+        if (bySp) return bySp;
+      }
+      return null;
+    }
+
+    function toggleCollectionFilter(colId) {
+      STATE.selectedCat = 'ALL';
+      STATE.selectedCollectionId = STATE.selectedCollectionId === colId ? 'ALL' : colId;
+      renderShopeeBanners();
+      renderCategoryPills();
+      renderProducts();
+    }
+
+    function setCarouselSlide(idx) {
+      var banners = (STATE.data && STATE.data.config && STATE.data.config.banners) || {};
+      var slides = banners.carouselBanners || [];
+      if (!slides.length) return;
+      STATE.carouselIdx = ((idx % slides.length) + slides.length) % slides.length;
+      renderShopeeBanners();
+    }
+
+    function stepCarousel(delta) {
+      setCarouselSlide((STATE.carouselIdx || 0) + delta);
+    }
+
+    function onBannerRefClick(sku, pid, kw, url) {
+      var prod = findProductByBannerRef(sku, pid);
+      if (prod) {
+        openProdModal(prod.id);
+        return;
+      }
+      if (kw) {
+        document.getElementById('searchInput').value = kw;
+        renderProducts();
+        return;
+      }
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    }
+
+    function renderShopeeBanners() {
+      var wrap = document.getElementById('shopeeBannerShowcase');
+      if (!wrap) return;
+      var isClosed = Boolean(STATE.data && (STATE.data.storefrontClosed || (STATE.data.config && STATE.data.config.enabled === false)));
+      var banners = (STATE.data && STATE.data.config && STATE.data.config.banners) || null;
+      var heroCover = document.getElementById('heroCoverWrap');
+      var brandNameTxt = (STATE.data && STATE.data.brand && STATE.data.brand.brandName) || 'Bơ Mộc Decor';
+
+      if (banners && banners.shopLogoUrl) {
+        var logoWrap = document.getElementById('brandLogoWrap');
+        if (logoWrap) {
+          logoWrap.innerHTML = '<img src="' + esc(banners.shopLogoUrl) + '" alt="' + esc(brandNameTxt) + '" referrerpolicy="no-referrer" class="brand-logo-img" />';
+        }
+      }
+
+      if (heroCover) {
+        if (!isClosed && banners && banners.enabled !== false && banners.coverBannerUrl) {
+          heroCover.className = 'hero-cover-card';
+          heroCover.innerHTML = '<picture>' +
+            (banners.mobileCoverBannerUrl ? '<source media="(max-width: 640px)" srcset="' + esc(banners.mobileCoverBannerUrl) + '" />' : '') +
+            '<img src="' + esc(banners.coverBannerUrl) + '" alt="' + esc(brandNameTxt) + '" referrerpolicy="no-referrer" />' +
+          '</picture>';
+        } else {
+          heroCover.className = 'hidden';
+          heroCover.innerHTML = '';
+        }
+      }
+
+      if (isClosed || !banners || banners.enabled === false) {
+        wrap.classList.add('hidden');
+        wrap.innerHTML = '';
+        return;
+      }
+
+      var carousels = banners.carouselBanners || [];
+      var spotlights = banners.spotlightBanners || [];
+      var collections = banners.collectionBanners || [];
+      if (!carousels.length && !spotlights.length && !collections.length) {
+        wrap.classList.add('hidden');
+        wrap.innerHTML = '';
+        return;
+      }
+
+      if (STATE.carouselIdx >= carousels.length) STATE.carouselIdx = 0;
+      wrap.classList.remove('hidden');
+
+      var topHtml = '';
+      if (carousels.length || spotlights.length) {
+        var singleCls = (!carousels.length || !spotlights.length) ? ' single' : '';
+        topHtml += '<div class="banner-top-grid' + singleCls + '">';
+
+        if (carousels.length) {
+          var slidesHtml = carousels.map(function(s, i) {
+            var act = i === STATE.carouselIdx ? ' active' : '';
+            var clickable = Boolean(s.targetSku || s.shopeeProductId || s.filterKeyword || s.linkUrl);
+            var clickAttr = clickable
+              ? ' style="cursor:pointer" onclick="onBannerRefClick(\\'' + esc(s.targetSku || '') + '\\',\\'' + esc(s.shopeeProductId || '') + '\\',\\'' + esc(s.filterKeyword || '') + '\\',\\'' + esc(s.linkUrl || '') + '\\')"'
+              : '';
+            return '<div class="carousel-slide' + act + '">' +
+              '<picture>' +
+                (s.mobileImageUrl ? '<source media="(max-width: 640px)" srcset="' + esc(s.mobileImageUrl) + '" />' : '') +
+                '<img src="' + esc(s.imageUrl) + '" alt="' + esc(s.title || (brandNameTxt + ' #' + (i + 1))) + '" referrerpolicy="no-referrer"' + clickAttr + ' />' +
+              '</picture>' +
+            '</div>';
+          }).join('');
+
+          var navBtns = carousels.length > 1
+            ? '<button type="button" class="carousel-nav prev" aria-label="Banner trước" onclick="stepCarousel(-1)">‹</button>' +
+              '<button type="button" class="carousel-nav next" aria-label="Banner tiếp" onclick="stepCarousel(1)">›</button>'
+            : '';
+
+          var dotsHtml = carousels.map(function(s, i) {
+            return '<button type="button" class="carousel-dot' + (i === STATE.carouselIdx ? ' active' : '') + '" aria-label="Slide ' + (i + 1) + '" onclick="setCarouselSlide(' + i + ')"></button>';
+          }).join('');
+
+          topHtml += '<div class="banner-card" onmouseenter="STATE.carouselPaused=true" onmouseleave="STATE.carouselPaused=false">' +
+            '<div class="carousel-stage">' + slidesHtml + navBtns + '</div>' +
+            '<div class="carousel-bar">' +
+              '<span>Bộ sưu tập Thủ công ' + esc(brandNameTxt) + ' (' + (STATE.carouselIdx + 1) + '/' + carousels.length + ')</span>' +
+              '<div class="carousel-dots">' + dotsHtml + '</div>' +
+            '</div>' +
+          '</div>';
+        }
+
+        spotlights.forEach(function(sb) {
+          var ratio = Number(sb.aspectRatio) || 1.796;
+          var hsHtml = (sb.hotspots || []).map(function(hs, hIdx) {
+            var matched = findProductByBannerRef(hs.targetSku, hs.shopeeProductId);
+            var lbl = (matched && matched.cleanTitle) || hs.label || ('Xem sản phẩm #' + (hIdx + 1));
+            var pillTxt = matched ? fmtVND(matched.retailPrice) + ' · Xem' : 'Xem SP';
+            return '<button type="button" class="hotspot-zone" title="' + esc(lbl) + '" aria-label="' + esc(lbl) + '"' +
+              ' style="left:' + hs.x + '%;top:' + hs.y + '%;width:' + hs.w + '%;height:' + hs.h + '%;"' +
+              ' onclick="onBannerRefClick(\\'' + esc(hs.targetSku || '') + '\\',\\'' + esc(hs.shopeeProductId || '') + '\\',\\'\\',\\'' + esc(hs.linkUrl || '') + '\\')">' +
+              '<span class="hotspot-pill">' + esc(pillTxt) + '</span>' +
+            '</button>';
+          }).join('');
+
+          topHtml += '<div class="banner-card">' +
+            '<div class="hotspot-stage" style="aspect-ratio:' + ratio + ';">' +
+              '<picture>' +
+                (sb.mobileImageUrl ? '<source media="(max-width: 640px)" srcset="' + esc(sb.mobileImageUrl) + '" />' : '') +
+                '<img src="' + esc(sb.imageUrl) + '" alt="' + esc(sb.title || (brandNameTxt + ' tiêu điểm')) + '" referrerpolicy="no-referrer" />' +
+              '</picture>' +
+              hsHtml +
+            '</div>' +
+          '</div>';
+        });
+
+        topHtml += '</div>';
+      }
+
+      var colHtml = '';
+      if (collections.length) {
+        var allProds = (STATE.data && STATE.data.products) || [];
+        colHtml = '<div class="col-banner-grid">' + collections.map(function(col) {
+          var isAct = STATE.selectedCollectionId === col.id;
+          var cnt = allProds.filter(function(p) { return matchesColFilter(p, col); }).length;
+          return '<button type="button" class="col-banner-btn' + (isAct ? ' active' : '') + '" onclick="toggleCollectionFilter(\\'' + esc(col.id) + '\\')">' +
+            '<img src="' + esc(col.imageUrl) + '" alt="' + esc(col.name) + '" referrerpolicy="no-referrer" loading="lazy" />' +
+            '<div style="min-width:0;flex:1;">' +
+              '<div class="col-banner-title">' + esc(col.name) + '</div>' +
+              '<div class="col-banner-sub">' + (isAct ? 'Đang lọc · Bấm để bỏ' : (cnt + ' mẫu tại xưởng')) + '</div>' +
+            '</div>' +
+          '</button>';
+        }).join('') + '</div>';
+      }
+
+      wrap.innerHTML = topHtml + colHtml;
+    }
+
     function renderCategoryPills() {
       var cats = (STATE.data && STATE.data.categories) || [];
+      var cols = (STATE.data && STATE.data.config && STATE.data.config.banners && STATE.data.config.banners.collectionBanners) || [];
+      var activeCol = STATE.selectedCollectionId === 'ALL' ? null : cols.find(function(x) { return x.id === STATE.selectedCollectionId; });
       var row = document.getElementById('catFilterRow');
       if (!row) return;
-      if (!cats.length) {
+      if (!cats.length && !activeCol) {
         row.style.display = 'none';
         return;
       }
       row.style.display = 'flex';
       var totalLen = ((STATE.data && STATE.data.products) || []).length;
-      var html = '<button type="button" class="tab-btn ' + (STATE.selectedCat === 'ALL' ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'ALL\\')">Tất cả (' + totalLen + ')</button>';
+      var html = '<button type="button" class="tab-btn ' + (STATE.selectedCat === 'ALL' && !activeCol ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'ALL\\')">Tất cả (' + totalLen + ')</button>';
+      if (activeCol) {
+        html += '<button type="button" class="tab-btn wholesale active" style="min-height:34px;border-radius:999px;font-size:12px;" onclick="toggleCollectionFilter(\\'' + esc(activeCol.id) + '\\')">Bộ sưu tập: ' + esc(activeCol.name) + ' ✕</button>';
+        if (activeCol.shopeeUrl) {
+          html += '<a href="' + esc(activeCol.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline" style="min-height:34px;border-radius:999px;font-size:11.5px;padding:0 12px;">Xem trên Shopee ↗</a>';
+        }
+      }
       html += cats.map(function(c) {
         var isAct = STATE.selectedCat === c.id;
         return '<button type="button" class="tab-btn ' + (isAct ? 'active' : '') + '" style="min-height:34px;border-radius:999px;border-color:#e7e2da;font-size:12px;" onclick="setCategory(\\'' + esc(c.id) + '\\')">' + esc(c.name) + '</button>';
@@ -1014,8 +1455,11 @@ function generateStandaloneStorefrontHtml(snapshot) {
       }
 
       var wsAllowed = !(STATE.data && STATE.data.config && STATE.data.config.wholesaleEnabled === false);
+      var cols = (STATE.data && STATE.data.config && STATE.data.config.banners && STATE.data.config.banners.collectionBanners) || [];
+      var activeCol = STATE.selectedCollectionId === 'ALL' ? null : cols.find(function(x) { return x.id === STATE.selectedCollectionId; });
       var list = (STATE.data.products || []).filter(function(p) {
         if (STATE.selectedCat !== 'ALL' && p.categoryId !== STATE.selectedCat) return false;
+        if (activeCol && !matchesColFilter(p, activeCol)) return false;
         if (!q) return true;
         return p.name.toLowerCase().indexOf(q) >= 0 || p.sku.toLowerCase().indexOf(q) >= 0 || (p.description || '').toLowerCase().indexOf(q) >= 0;
       });
@@ -1417,6 +1861,7 @@ function generateStandaloneStorefrontHtml(snapshot) {
           }
         }
       }
+      renderShopeeBanners();
       renderCategoryPills();
       renderProducts();
       renderWholesaleSection();
@@ -1424,10 +1869,18 @@ function generateStandaloneStorefrontHtml(snapshot) {
     }
 
     // Khởi tạo tức thì 0ms từ dữ liệu bootstrap & đồng bộ ngầm từ CMS API riêng
+    renderShopeeBanners();
     renderCategoryPills();
     renderProducts();
     renderWholesaleSection();
     renderContactSection();
+    setInterval(function() {
+      if (STATE.carouselPaused || STATE.tab !== 'PRODUCTS') return;
+      var b = STATE.data && STATE.data.config && STATE.data.config.banners;
+      if (b && b.enabled !== false && b.carouselBanners && b.carouselBanners.length > 1) {
+        stepCarousel(1);
+      }
+    }, 4800);
     fetch(apiEndpoint(), { cache: 'no-store' })
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(d) { if (d) applyLiveStorefrontData(d); })
