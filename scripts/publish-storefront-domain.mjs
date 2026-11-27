@@ -507,6 +507,96 @@ async function buildCmsStorefrontSnapshot() {
   }
 }
 
+function formatHeroShortLabelMjs(cleanTitleOrName) {
+  const raw = String(cleanTitleOrName || '')
+    .split('— Phân loại:')[0]
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .trim()
+  if (!raw) return 'Sản phẩm thủ công'
+  const firstPart = raw.split(/\s+[-–—]\s+/)[0]?.trim() || raw
+  const base = firstPart.length >= 6 ? firstPart : raw
+  if (base.length <= 26) return base
+  const stopRx = /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi)$/i
+  const kept = []
+  for (const w of base.split(/\s+/)) {
+    const cw = w.replace(/[,.;:!?]+$/g, '')
+    if (kept.join(' ').length >= 14 && stopRx.test(cw)) break
+    kept.push(cw)
+    if (kept.join(' ').length >= 26) break
+  }
+  return kept.length >= 2 ? kept.join(' ') : base.slice(0, 26).trim()
+}
+
+function formatWholesaleSummaryMjs(tiers, hasOemNote) {
+  if (!Array.isArray(tiers) || tiers.length === 0) {
+    return hasOemNote
+      ? 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng + Hỗ trợ gia công hộp quà OEM.'
+      : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ tại xưởng.'
+  }
+  const sorted = [...tiers]
+    .filter((t) => Number(t?.minQty) > 0 && Number(t?.discountPercent) > 0)
+    .sort((a, b) => a.minQty - b.minQty)
+    .slice(0, 4)
+  if (!sorted.length) return 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng.'
+  const parts = sorted.map(
+    (t) => `Từ ${Math.floor(t.minQty)} SP giảm ${Math.round(t.discountPercent * 10) / 10}%`
+  )
+  return `${parts.join(' · ')}${hasOemNote ? ' + Khắc/in hộp quà OEM.' : '.'}`
+}
+
+function selectHeroProductsMjs(products, maxItems = 3) {
+  if (!Array.isArray(products) || maxItems <= 0) return []
+  const withImg = products.filter((p) => Boolean(p && typeof p.image === 'string' && p.image.trim()))
+  if (!withImg.length) return []
+  const orderable = withImg.filter((p) => p.availableToOrder !== false)
+  const pool = orderable.length ? orderable : withImg
+
+  const byTitle = new Map()
+  for (const prod of pool) {
+    const key = String(prod.cleanTitle || prod.name || prod.sku)
+      .split('— Phân loại:')[0]
+      .trim()
+      .toLowerCase()
+    const prev = byTitle.get(key)
+    if (!prev || (!prev.inStock && Boolean(prod.inStock))) {
+      byTitle.set(key, prod)
+    }
+  }
+  const distinct = Array.from(byTitle.values())
+  const selected = []
+  const used = new Set()
+  const familyChecks = [
+    (lead) => lead.startsWith('hũ ') || lead.startsWith('cốc '),
+    (lead) => lead.startsWith('nến ') || lead.includes('nến bơ') || lead.includes('tealight'),
+    (lead) => lead.startsWith('khay ') || lead.startsWith('đế nến') || lead.includes('chân nến'),
+  ]
+  for (const fn of familyChecks) {
+    if (selected.length >= maxItems) break
+    const hit = distinct.find(
+      (p) => !used.has(p.id) && fn(String(p.cleanTitle || p.name || '').trim().slice(0, 32).toLowerCase())
+    )
+    if (hit) {
+      selected.push(hit)
+      used.add(hit.id)
+    }
+  }
+  for (const p of distinct) {
+    if (selected.length >= maxItems) break
+    if (!used.has(p.id)) {
+      selected.push(p)
+      used.add(p.id)
+    }
+  }
+  for (const p of pool) {
+    if (selected.length >= maxItems) break
+    if (!used.has(p.id)) {
+      selected.push(p)
+      used.add(p.id)
+    }
+  }
+  return selected
+}
+
 export function generateStandaloneStorefrontHtml(snapshot) {
   const brandName = escapeHtml(snapshot.brand.brandName)
   const rawSub = String(snapshot.brand.brandSubtitle || '').trim()
@@ -548,6 +638,53 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       : tiers.length === 1
         ? `(${escapeHtml(tiers[0].badge)})`
         : ''
+  const isClosedInit = Boolean(snapshot.storefrontClosed || snapshot.config.enabled === false)
+  const wsAllowedInit = !isClosedInit && snapshot.config.wholesaleEnabled !== false
+  const minWsQtyInit =
+    tiers.length > 0
+      ? Math.min(...tiers.map((t) => Math.max(1, Math.floor(Number(t.minQty) || 10))))
+      : 10
+  const freeShipInitFmt = `${Math.max(0, Math.round(Number(snapshot.config.freeShipThreshold) || 500_000)).toLocaleString('vi-VN')} ₫`
+  const wsSummaryInit = escapeHtml(
+    formatWholesaleSummaryMjs(tiers, Boolean(snapshot.config.oemCustomNote))
+  )
+  const heroHighlight3Init = escapeHtml(
+    wsAllowedInit
+      ? `Sỉ gộp mẫu tự do từ ${minWsQtyInit} SP`
+      : `Freeship đơn từ ${freeShipInitFmt}`
+  )
+  const hasCoverInit = Boolean(
+    !isClosedInit &&
+      snapshot.config.banners?.enabled !== false &&
+      snapshot.config.banners?.coverBannerUrl
+  )
+  const heroShowcaseInit = isClosedInit ? [] : selectHeroProductsMjs(snapshot.products || [], 3)
+  const hasHeroVisualInit = hasCoverInit || heroShowcaseInit.length > 0
+  const heroCoverMediaHtml = hasCoverInit
+    ? `<div class="hero-cover-media"><picture>${
+        snapshot.config.banners.mobileCoverBannerUrl
+          ? `<source media="(max-width: 640px)" srcset="${escapeHtml(snapshot.config.banners.mobileCoverBannerUrl)}" />`
+          : ''
+      }<img src="${escapeHtml(snapshot.config.banners.coverBannerUrl)}" alt="${brandName} — Không gian chế tác thủ công" referrerpolicy="no-referrer" /></picture></div>`
+    : ''
+  const heroFeaturedStripHtml =
+    heroShowcaseInit.length > 0
+      ? `<div class="hero-featured-strip${hasCoverInit ? ' with-cover' : ''}">` +
+        `<div class="hero-featured-head"><span>Tác phẩm tiêu biểu tại xưởng</span><button type="button" class="hero-featured-more" onclick="scrollToCatalog()">Xem trọn bộ ${(snapshot.products || []).length} mẫu →</button></div>` +
+        `<div class="hero-featured-grid">` +
+        heroShowcaseInit
+          .map(
+            (item, idx) =>
+              `<button type="button" class="hero-mini-item" onclick="openHeroShowcaseIdx(${idx})">` +
+              (item.image
+                ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.cleanTitle || item.name)}" referrerpolicy="no-referrer" loading="lazy" />`
+                : '') +
+              `<div class="hero-mini-meta"><div class="hero-mini-name">${escapeHtml(formatHeroShortLabelMjs(item.cleanTitle || item.name))}</div><div class="hero-mini-price">${Math.max(0, Math.round(Number(item.retailPrice) || 0)).toLocaleString('vi-VN')} ₫</div></div>` +
+              `</button>`
+          )
+          .join('') +
+        `</div></div>`
+      : ''
 
   const sameAsLinks = [
     snapshot.config.contact?.shopeeUrl,
@@ -673,7 +810,8 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     }
     a { color: inherit; text-decoration: none; }
     button, input, select, textarea { font: inherit; }
-    .container { max-width: 1240px; margin: 0 auto; padding: 0 18px; }
+    .container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+    @media (max-width: 640px) { .container { padding: 0 16px; } }
     .topbar {
       background: linear-gradient(90deg, #fef3c7, #f5f5f4, #d1fae5);
       border-bottom: 1px solid var(--line);
@@ -700,7 +838,8 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       gap: 12px;
       padding: 12px 0;
     }
-    .brand-box { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .brand-box { display: flex; align-items: center; gap: 12px; cursor: pointer; min-width: 0; }
+    .brand-box > div { min-width: 0; }
     .brand-logo {
       width: 42px; height: 42px; border-radius: 13px;
       background: linear-gradient(135deg, #b4692c, #3f2e21);
@@ -708,7 +847,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 4px 12px rgba(154, 91, 37, 0.25);
     }
-    .brand-title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+    .brand-title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
     .domain-pill {
       font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
       background: var(--brand-soft); color: var(--brand-dark); border: 1px solid #f0d5b8;
@@ -730,50 +869,136 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     }
     .cart-btn:hover { background: var(--accent-dark); }
     .hero {
-      padding: 36px 0 32px;
-      background: radial-gradient(circle at top left, #fff8ed 0%, #faf8f5 55%, #eefaf4 100%);
-      border-bottom: 1px solid var(--line);
+      padding: 36px 0 28px;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(245, 213, 172, 0.3), transparent 48%),
+        radial-gradient(circle at 100% 100%, rgba(167, 214, 193, 0.22), transparent 46%),
+        linear-gradient(135deg, #fbf9f5 0%, #f7f1e7 52%, #f2f6f3 100%);
+      border-bottom: 1px solid #e5ddd1;
     }
+    @media (max-width: 640px) { .hero { padding: 24px 0 22px; } }
     .hero-grid {
-      display: grid; gap: 24px; grid-template-columns: 1.35fr 1fr; align-items: center;
+      display: grid; gap: 34px; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); align-items: center;
     }
-    @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } }
+    .hero-grid > * { min-width: 0; }
+    .hero-grid.single { grid-template-columns: minmax(0, 1fr); max-width: 760px; }
+    @media (max-width: 960px) { .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 22px; } }
     .hero-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 5px 13px; border-radius: 999px; background: #fff;
-      border: 1px solid #e7cfb4; color: var(--brand-dark); font-size: 12px; font-weight: 700;
-      margin-bottom: 12px;
+      display: inline-flex; align-items: center; gap: 7px; max-width: 100%;
+      padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.92);
+      border: 1px solid #e4cbb0; color: #783f12; font-size: 12px; font-weight: 700;
+      box-shadow: 0 2px 8px rgba(140, 79, 30, 0.06); margin-bottom: 14px;
     }
-    .hero h1 { font-size: clamp(24px, 3.3vw, 38px); font-weight: 850; line-height: 1.18; letter-spacing: -0.02em; margin-bottom: 12px; }
-    .hero p { color: var(--muted); font-size: 15px; max-width: 640px; margin-bottom: 18px; }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-badge svg { flex-shrink: 0; color: #9a5b25; }
+    .hero-badge span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hero h1 { font-size: clamp(25px, 3vw, 38px); font-weight: 850; line-height: 1.18; letter-spacing: -0.022em; margin-bottom: 13px; color: #1c1917; }
+    .hero-sub { color: #57534e; font-size: 15px; line-height: 1.64; max-width: 580px; margin-bottom: 16px; }
+    @media (max-width: 640px) { .hero-sub { font-size: 14px; line-height: 1.58; } }
+    .hero-highlights {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px 13px;
+      margin-bottom: 18px; font-size: 12px; font-weight: 650; color: #3f3a36;
+    }
+    .hero-hl-item { display: inline-flex; align-items: center; gap: 5px; }
+    .hero-hl-item svg { flex-shrink: 0; }
+    .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .btn-primary {
-      min-height: 44px; padding: 0 18px; border-radius: 12px; border: none;
-      background: #1c1917; color: #fff; font-weight: 700; font-size: 13.5px; cursor: pointer;
+      min-height: 44px; padding: 0 16px; border-radius: 12px; border: none; max-width: 100%;
+      background: #1c1917; color: #fff; font-weight: 750; font-size: 12.5px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      box-shadow: 0 8px 20px -8px rgba(28, 25, 23, 0.35); transition: background 0.18s ease, transform 0.18s ease;
     }
-    .btn-primary:hover { opacity: 0.92; }
+    .btn-primary:hover { background: #292524; transform: translateY(-1px); }
     .btn-ws {
-      min-height: 44px; padding: 0 18px; border-radius: 12px;
-      border: 1.5px solid #d99b66; background: var(--brand-soft); color: var(--brand-dark);
-      font-weight: 750; font-size: 13.5px; cursor: pointer;
+      min-height: 44px; padding: 0 15px; border-radius: 12px; max-width: 100%;
+      border: 1.5px solid #d59b62; background: #fff8ee; color: #783f12;
+      font-weight: 750; font-size: 12.5px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
     }
+    .btn-ws > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-ws:hover { background: #fdefdc; border-color: #c28144; transform: translateY(-1px); }
     .btn-outline {
-      min-height: 44px; padding: 0 16px; border-radius: 12px;
-      border: 1px solid var(--line); background: #fff; color: var(--text);
-      font-weight: 650; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      min-height: 44px; padding: 0 14px; border-radius: 12px; max-width: 100%;
+      border: 1px solid #dfd7cc; background: rgba(255,255,255,0.92); color: #292524;
+      font-weight: 650; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease;
     }
-    .trust-stack { display: grid; gap: 10px; }
-    .trust-card {
-      background: rgba(255,255,255,0.92); border: 1px solid var(--line);
-      border-radius: 14px; padding: 13px 15px; display: flex; gap: 12px; align-items: flex-start;
+    .btn-outline:hover { background: #fff; border-color: #c8bdb0; }
+    .hero-showcase-card {
+      border-radius: 22px; padding: 11px; border: 1px solid #e5ddd1;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 20px 44px -20px rgba(45, 33, 20, 0.18), 0 2px 8px rgba(28, 25, 23, 0.04);
     }
-    .trust-icon {
-      width: 36px; height: 36px; border-radius: 10px; background: var(--brand-soft);
-      color: var(--brand-dark); font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    .hero-cover-media {
+      border-radius: 15px; overflow: hidden; border: 1px solid rgba(28, 25, 23, 0.07);
+      background: #efeae2;
     }
-    .trust-card h3 { font-size: 13px; font-weight: 750; margin-bottom: 2px; }
-    .trust-card p { font-size: 12px; color: var(--muted); margin: 0; }
-    main { padding: 28px 0 52px; min-height: 60vh; }
+    .hero-cover-media img {
+      width: 100%; aspect-ratio: 1196 / 518; object-fit: cover; display: block;
+      transition: transform 0.45s ease;
+    }
+    .hero-cover-media:hover img { transform: scale(1.015); }
+    .hero-featured-strip.with-cover { margin-top: 10px; }
+    .hero-featured-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 0 3px 6px; font-size: 11.5px; color: #6b6661;
+    }
+    .hero-featured-head span { font-weight: 750; color: #3f3a36; }
+    .hero-featured-more {
+      border: none; background: transparent; padding: 0; font-size: 11.5px;
+      font-weight: 700; color: #8c4f1e; cursor: pointer;
+    }
+    .hero-featured-more:hover { text-decoration: underline; color: #693811; }
+    .hero-featured-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+    }
+    .hero-mini-item {
+      min-height: 54px; padding: 7px 8px; border-radius: 12px;
+      border: 1px solid #e8e0d5; background: #faf8f4; text-align: left; cursor: pointer;
+      display: flex; align-items: center; gap: 8px; transition: all 0.18s ease;
+    }
+    .hero-mini-item:hover {
+      background: #fff; border-color: #d59b62; transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(28, 25, 23, 0.06);
+    }
+    .hero-mini-item img {
+      width: 40px; height: 40px; border-radius: 9px; object-fit: cover;
+      flex-shrink: 0; border: 1px solid rgba(28, 25, 23, 0.07);
+    }
+    .hero-mini-meta { min-width: 0; flex: 1; }
+    .hero-mini-name {
+      font-size: 11.5px; font-weight: 750; color: #1c1917;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .hero-mini-price { font-size: 11px; font-weight: 800; color: #8c4f1e; margin-top: 1px; }
+    @media (max-width: 559px) {
+      .hero-mini-item { flex-direction: column; align-items: stretch; padding: 6px; gap: 5px; }
+      .hero-mini-item img { width: 100%; height: auto; aspect-ratio: 4 / 3; }
+      .hero-mini-name { font-size: 11px; }
+    }
+    .hero-promise-grid {
+      margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(214, 203, 188, 0.78);
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px;
+    }
+    @media (max-width: 860px) {
+      .hero-promise-grid { grid-template-columns: 1fr; gap: 10px; margin-top: 20px; padding-top: 16px; }
+    }
+    .promise-card {
+      background: rgba(255, 255, 255, 0.82); border: 1px solid #e6ddd0;
+      border-radius: 16px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start;
+      transition: background 0.18s ease, border-color 0.18s ease;
+    }
+    .promise-card:hover { background: rgba(255, 255, 255, 0.96); border-color: #dacbb8; }
+    .promise-icon {
+      width: 38px; height: 38px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .promise-icon.craft { background: #fbf0df; color: #8c4f1e; }
+    .promise-icon.ws { background: #e9f5ee; color: #1b6b50; }
+    .promise-icon.safe { background: #edf3f8; color: #235784; }
+    .promise-card h3 { font-size: 13px; font-weight: 750; color: #1c1917; margin-bottom: 3px; line-height: 1.35; }
+    .promise-card p { font-size: 12px; color: #57534e; margin: 0; line-height: 1.5; }
+    main { padding: 28px 0 52px; min-height: 60vh; scroll-margin-top: 68px; }
     .toolbar {
       background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
       padding: 15px; margin-bottom: 22px; box-shadow: var(--shadow);
@@ -899,11 +1124,6 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
       border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.08); flex-shrink: 0;
     }
-    .hero-cover-card {
-      border-radius: 16px; overflow: hidden; border: 1px solid var(--line);
-      background: var(--card); box-shadow: var(--shadow);
-    }
-    .hero-cover-card img { width: 100%; aspect-ratio: 1196 / 518; object-fit: cover; display: block; }
     .banner-showcase { margin-bottom: 22px; display: grid; gap: 14px; }
     .banner-top-grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; align-items: start; }
     .banner-top-grid.single { grid-template-columns: 1fr; }
@@ -995,7 +1215,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         <button type="button" class="tab-btn active" id="tab-PRODUCTS" onclick="switchTab('PRODUCTS')">
           Sản phẩm (<span id="prodCountNav">${snapshot.products.length}</span>)
         </button>
-        <button type="button" class="tab-btn wholesale${snapshot.config.wholesaleEnabled === false ? ' hidden' : ''}" id="tab-WHOLESALE" onclick="switchTab('WHOLESALE')">
+        <button type="button" class="tab-btn wholesale${wsAllowedInit ? '' : ' hidden'}" id="tab-WHOLESALE" onclick="switchTab('WHOLESALE')">
           Bảng Giá Sỉ <span id="wsNavBadge">${wsRangeLabel}</span>
         </button>
         <button type="button" class="tab-btn" id="tab-CONTACT" onclick="switchTab('CONTACT')">
@@ -1005,75 +1225,101 @@ export function generateStandaloneStorefrontHtml(snapshot) {
           Tra cứu đơn
         </button>
         <button type="button" class="cart-btn" onclick="openCartModal()">
-          🛒 Giỏ hàng (<span id="cartCountBadge">0</span>)
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+          <span>Giỏ hàng (<span id="cartCountBadge">0</span>)</span>
         </button>
       </nav>
     </div>
   </header>
 
   <section class="hero">
-    <div class="container hero-grid">
-      <div>
-        <div class="hero-badge" id="heroBadge">✨ ${escapeHtml(snapshot.config.heroBadge)}</div>
-        <h1 id="heroTitle">${heroTitle}</h1>
-        <p id="heroSubtitle">${heroSub}</p>
-        <div class="hero-actions">
-          <button type="button" class="btn-primary" onclick="switchTab('PRODUCTS'); setPriceMode('RETAIL')">
-            Khám Phá Sản Phẩm
-          </button>
-          <button type="button" id="heroWsBtn" class="btn-ws${snapshot.config.wholesaleEnabled === false ? ' hidden' : ''}" onclick="switchTab('WHOLESALE')">
-            Bảng Giá Sỉ Đại Lý &amp; Quà Tặng OEM
-          </button>
-          <a id="heroShopeeLink" href="${escapeHtml(snapshot.config.contact.shopeeUrl)}" target="_blank" rel="noopener noreferrer" class="btn-outline${snapshot.config.contact.shopeeUrl ? '' : ' hidden'}">
-            Gian hàng Shopee ↗
-          </a>
+    <div class="container">
+      <div class="hero-grid${hasHeroVisualInit ? '' : ' single'}" id="heroMainGrid">
+        <div>
+          <div class="hero-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>
+            <span id="heroBadge">${escapeHtml(snapshot.config.heroBadge)}</span>
+          </div>
+          <h1 id="heroTitle">${heroTitle}</h1>
+          <p class="hero-sub" id="heroSubtitle">${heroSub}</p>
+
+          <div class="hero-highlights">
+            <span class="hero-hl-item">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <span>100% Sáp bơ thực vật không khói</span>
+            </span>
+            <span class="hero-hl-item">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <span>Cốt thạch cao khoáng kháng dầu</span>
+            </span>
+            <span class="hero-hl-item">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <span id="heroHighlightWs">${heroHighlight3Init}</span>
+            </span>
+          </div>
+
+          <div class="hero-actions">
+            <button type="button" class="btn-primary" onclick="scrollToCatalog()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+              <span>Khám Phá Sản Phẩm</span>
+            </button>
+            <button type="button" id="heroWsBtn" class="btn-ws${wsAllowedInit ? '' : ' hidden'}" onclick="switchTab('WHOLESALE')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><path d="M9 9h.01"/><path d="M15 15h.01"/></svg>
+              <span>Bảng Giá Sỉ &amp; OEM <span id="heroWsRangeTxt">${wsRangeLabel}</span></span>
+            </button>
+            <a id="heroShopeeLink" href="${escapeHtml(snapshot.config.contact.shopeeUrl)}" target="_blank" rel="noopener noreferrer" class="btn-outline${snapshot.config.contact.shopeeUrl ? '' : ' hidden'}">
+              <span>Gian hàng Shopee</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            </a>
+          </div>
         </div>
+
+        <div id="heroCoverWrap" class="${hasHeroVisualInit ? 'hero-showcase-card' : 'hidden'}">${heroCoverMediaHtml}${heroFeaturedStripHtml}</div>
       </div>
 
-      <div class="trust-stack">
-        <div id="heroCoverWrap" class="${
-          snapshot.config.enabled !== false &&
-          snapshot.config.banners?.enabled !== false &&
-          snapshot.config.banners?.coverBannerUrl
-            ? 'hero-cover-card'
-            : 'hidden'
-        }">${
-          snapshot.config.enabled !== false &&
-          snapshot.config.banners?.enabled !== false &&
-          snapshot.config.banners?.coverBannerUrl
-            ? `<picture>${
-                snapshot.config.banners.mobileCoverBannerUrl
-                  ? `<source media="(max-width: 640px)" srcset="${escapeHtml(snapshot.config.banners.mobileCoverBannerUrl)}" />`
-                  : ''
-              }<img src="${escapeHtml(snapshot.config.banners.coverBannerUrl)}" alt="${brandName}" referrerpolicy="no-referrer" /></picture>`
-            : ''
-        }</div>
-        <div class="trust-card">
-          <div class="trust-icon">🕯️</div>
+      <div class="hero-promise-grid">
+        <div class="promise-card">
+          <div class="promise-icon craft">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+          </div>
           <div>
             <h3>Đúc Thủ Công &amp; Sáp Bơ Thực Vật Thuần Chay</h3>
             <p>Không khói đen, an toàn cho phòng thiền, bàn trà, spa; bề mặt thạch cao kháng dầu mịn đẹp.</p>
           </div>
         </div>
-        <div class="trust-card">
-          <div class="trust-icon">%</div>
+
+        <div class="promise-card">
+          <div class="promise-icon ws">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><path d="M9 9h.01"/><path d="M15 15h.01"/></svg>
+          </div>
           <div>
-            <h3>Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)</h3>
-            <p>Từ 10 SP giảm 15% · Từ 30 SP giảm 25% · Từ 100 SP giảm 35% + Khắc/in hộp quà OEM.</p>
+            <h3 id="heroWsPromiseTitle">${
+              wsAllowedInit
+                ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
+                : 'Ưu Đãi Vận Chuyển Toàn Quốc'
+            }</h3>
+            <p id="heroWsPromiseDesc">${
+              wsAllowedInit
+                ? wsSummaryInit
+                : `Miễn phí giao hàng toàn quốc đơn lẻ từ ${freeShipInitFmt} · Kiểm hàng trước khi nhận.`
+            }</p>
           </div>
         </div>
-        <div class="trust-card">
-          <div class="trust-icon">🛡️</div>
+
+        <div class="promise-card">
+          <div class="promise-icon safe">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
           <div>
             <h3>Đóng Gói Chống Sốc — Bảo Hành Bể Vỡ 1 Đổi 1</h3>
-            <p>Giao hàng toàn quốc nhanh chóng, kiểm hàng và đổi mới miễn phí trong ${snapshot.config.returnDays} ngày.</p>
+            <p>Xốp định hình nhiều lớp chuyên dụng, kiểm hàng và đổi mới miễn phí trong <span id="heroReturnDays">${snapshot.config.returnDays}</span> ngày.</p>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <main class="container">
+  <main class="container" id="mainContent">
     <!-- TAB 1: PRODUCTS -->
     <section id="sec-PRODUCTS">
       <div id="shopeeBannerShowcase" class="banner-showcase hidden"></div>
@@ -1261,6 +1507,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       selectedCollectionId: 'ALL',
       carouselIdx: 0,
       carouselPaused: false,
+      heroShowcase: [],
       paymentMethod: 'COD',
       cart: [],
       cartHydratedKey: null,
@@ -1675,13 +1922,125 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       return isFinite(n) && n >= 0.5 && n <= 5 ? Math.round(n * 1000) / 1000 : fb;
     }
 
+    function shortHeroLabelClient(rawTitle) {
+      var raw = String(rawTitle || '').split('— Phân loại:')[0].replace(/\\s*\\([^)]*\\)\\s*$/g, '').trim();
+      if (!raw) return 'Sản phẩm thủ công';
+      var seg = raw.split(/\\s+[-–—]\\s+/)[0];
+      var base = (seg && seg.trim().length >= 6) ? seg.trim() : raw;
+      if (base.length <= 26) return base;
+      var stopRx = /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi)$/i;
+      var words = base.split(/\\s+/);
+      var kept = [];
+      for (var i = 0; i < words.length; i++) {
+        var cw = words[i].replace(/[,.;:!?]+$/g, '');
+        if (kept.join(' ').length >= 14 && stopRx.test(cw)) break;
+        kept.push(cw);
+        if (kept.join(' ').length >= 26) break;
+      }
+      return kept.length >= 2 ? kept.join(' ') : base.slice(0, 26).trim();
+    }
+
+    function formatWsSummaryClient(tiers, hasOem) {
+      if (!Array.isArray(tiers) || !tiers.length) {
+        return hasOem
+          ? 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng + Hỗ trợ gia công hộp quà OEM.'
+          : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ tại xưởng.';
+      }
+      var sorted = tiers.slice().filter(function(t) {
+        return Number(t && t.minQty) > 0 && Number(t && t.discountPercent) > 0;
+      }).sort(function(a, b) { return a.minQty - b.minQty; }).slice(0, 4);
+      if (!sorted.length) return 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng.';
+      var parts = sorted.map(function(t) {
+        return 'Từ ' + Math.floor(t.minQty) + ' SP giảm ' + (Math.round(t.discountPercent * 10) / 10) + '%';
+      });
+      return parts.join(' · ') + (hasOem ? ' + Khắc/in hộp quà OEM.' : '.');
+    }
+
+    function selectHeroProductsClient(prods, maxItems) {
+      var limit = maxItems || 3;
+      if (!Array.isArray(prods) || limit <= 0) return [];
+      var withImg = prods.filter(function(p) { return Boolean(p && typeof p.image === 'string' && p.image.trim()); });
+      if (!withImg.length) return [];
+      var orderable = withImg.filter(function(p) { return p.availableToOrder !== false; });
+      var pool = orderable.length ? orderable : withImg;
+      var byTitle = {};
+      var keys = [];
+      pool.forEach(function(p) {
+        var k = String(p.cleanTitle || p.name || p.sku).split('— Phân loại:')[0].trim().toLowerCase();
+        if (!byTitle[k]) {
+          byTitle[k] = p;
+          keys.push(k);
+        } else if (!byTitle[k].inStock && Boolean(p.inStock)) {
+          byTitle[k] = p;
+        }
+      });
+      var distinct = keys.map(function(k) { return byTitle[k]; });
+      var selected = [];
+      var used = {};
+      var familyFns = [
+        function(lead) { return lead.indexOf('hũ ') === 0 || lead.indexOf('cốc ') === 0; },
+        function(lead) { return lead.indexOf('nến ') === 0 || lead.indexOf('nến bơ') >= 0 || lead.indexOf('tealight') >= 0; },
+        function(lead) { return lead.indexOf('khay ') === 0 || lead.indexOf('đế nến') >= 0 || lead.indexOf('chân nến') >= 0; }
+      ];
+      familyFns.forEach(function(fn) {
+        if (selected.length >= limit) return;
+        var hit = distinct.find(function(p) {
+          var lead = String(p.cleanTitle || p.name || '').trim().slice(0, 32).toLowerCase();
+          return !used[p.id] && fn(lead);
+        });
+        if (hit) {
+          selected.push(hit);
+          used[hit.id] = true;
+        }
+      });
+      distinct.forEach(function(p) {
+        if (selected.length < limit && !used[p.id]) {
+          selected.push(p);
+          used[p.id] = true;
+        }
+      });
+      pool.forEach(function(p) {
+        if (selected.length < limit && !used[p.id]) {
+          selected.push(p);
+          used[p.id] = true;
+        }
+      });
+      return selected;
+    }
+
+    function scrollToCatalog() {
+      STATE.tab = 'PRODUCTS';
+      ['PRODUCTS', 'WHOLESALE', 'CONTACT', 'TRACKING'].forEach(function(t) {
+        var sec = document.getElementById('sec-' + t);
+        var btn = document.getElementById('tab-' + t);
+        if (sec) sec.classList.toggle('hidden', t !== 'PRODUCTS');
+        if (btn) btn.classList.toggle('active', t === 'PRODUCTS');
+      });
+      setPriceMode('RETAIL');
+      var mainEl = document.getElementById('mainContent');
+      if (mainEl && mainEl.scrollIntoView) {
+        mainEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function openHeroShowcaseIdx(idx) {
+      var list = STATE.heroShowcase || [];
+      var item = list[idx];
+      if (item && item.id) {
+        openProdModal(item.id);
+      }
+    }
+
     function renderShopeeBanners() {
       var wrap = document.getElementById('shopeeBannerShowcase');
       if (!wrap) return;
       var isClosed = Boolean(STATE.data && (STATE.data.storefrontClosed || (STATE.data.config && STATE.data.config.enabled === false)));
       var banners = (STATE.data && STATE.data.config && STATE.data.config.banners) || null;
       var heroCover = document.getElementById('heroCoverWrap');
+      var heroMainGrid = document.getElementById('heroMainGrid');
       var brandNameTxt = (STATE.data && STATE.data.brand && STATE.data.brand.brandName) || 'Bơ Mộc Decor';
+      var allProdsForHero = (STATE.data && STATE.data.products) || [];
+      STATE.heroShowcase = isClosed ? [] : selectHeroProductsClient(allProdsForHero, 3);
 
       if (banners && banners.shopLogoUrl) {
         var logoWrap = document.getElementById('brandLogoWrap');
@@ -1691,12 +2050,40 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       }
 
       if (heroCover) {
-        if (!isClosed && banners && banners.enabled !== false && banners.coverBannerUrl) {
-          heroCover.className = 'hero-cover-card';
-          heroCover.innerHTML = '<picture>' +
-            (banners.mobileCoverBannerUrl ? '<source media="(max-width: 640px)" srcset="' + esc(banners.mobileCoverBannerUrl) + '" />' : '') +
-            '<img src="' + esc(banners.coverBannerUrl) + '" alt="' + esc(brandNameTxt) + '" referrerpolicy="no-referrer" />' +
-          '</picture>';
+        var hasCover = Boolean(!isClosed && banners && banners.enabled !== false && banners.coverBannerUrl);
+        var heroItems = STATE.heroShowcase || [];
+        var hasVisual = hasCover || heroItems.length > 0;
+        if (heroMainGrid) {
+          heroMainGrid.classList.toggle('single', !hasVisual);
+        }
+        if (hasVisual) {
+          heroCover.className = 'hero-showcase-card';
+          var coverPart = hasCover
+            ? '<div class="hero-cover-media"><picture>' +
+                (banners.mobileCoverBannerUrl ? '<source media="(max-width: 640px)" srcset="' + esc(banners.mobileCoverBannerUrl) + '" />' : '') +
+                '<img src="' + esc(banners.coverBannerUrl) + '" alt="' + esc(brandNameTxt + ' — Không gian chế tác thủ công') + '" referrerpolicy="no-referrer" />' +
+              '</picture></div>'
+            : '';
+          var stripPart = heroItems.length > 0
+            ? '<div class="hero-featured-strip' + (hasCover ? ' with-cover' : '') + '">' +
+                '<div class="hero-featured-head">' +
+                  '<span>Tác phẩm tiêu biểu tại xưởng</span>' +
+                  '<button type="button" class="hero-featured-more" onclick="scrollToCatalog()">Xem trọn bộ ' + allProdsForHero.length + ' mẫu →</button>' +
+                '</div>' +
+                '<div class="hero-featured-grid">' +
+                  heroItems.map(function(it, idx) {
+                    return '<button type="button" class="hero-mini-item" onclick="openHeroShowcaseIdx(' + idx + ')">' +
+                      (it.image ? '<img src="' + esc(it.image) + '" alt="' + esc(it.cleanTitle || it.name) + '" referrerpolicy="no-referrer" loading="lazy" />' : '') +
+                      '<div class="hero-mini-meta">' +
+                        '<div class="hero-mini-name">' + esc(shortHeroLabelClient(it.cleanTitle || it.name)) + '</div>' +
+                        '<div class="hero-mini-price">' + fmtVND(it.retailPrice) + '</div>' +
+                      '</div>' +
+                    '</button>';
+                  }).join('') +
+                '</div>' +
+              '</div>'
+            : '';
+          heroCover.innerHTML = coverPart + stripPart;
         } else {
           heroCover.className = 'hidden';
           heroCover.innerHTML = '';
@@ -2275,7 +2662,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       if (live.config) {
         if (live.config.announcementBar) document.getElementById('announcementBar').textContent = live.config.announcementBar;
         if (live.config.heroBadge) {
-          document.getElementById('heroBadge').textContent = '✨ ' + live.config.heroBadge;
+          document.getElementById('heroBadge').textContent = live.config.heroBadge;
           var subHdr = document.getElementById('brandSubHdr');
           var liveSub = (live.brand && live.brand.brandSubtitle) ? String(live.brand.brandSubtitle).trim() : '';
           if (subHdr) {
@@ -2288,6 +2675,10 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         if (live.config.heroSubtitle) document.getElementById('heroSubtitle').textContent = live.config.heroSubtitle;
         if (live.config.wholesalePolicyNote) document.getElementById('wsPolicyText').textContent = live.config.wholesalePolicyNote;
         if (live.config.oemCustomNote) document.getElementById('oemNoteText').textContent = live.config.oemCustomNote;
+        if (typeof live.config.returnDays === 'number') {
+          var retEl = document.getElementById('heroReturnDays');
+          if (retEl) retEl.textContent = String(live.config.returnDays);
+        }
 
         var wsOn = !live.storefrontClosed && live.config.wholesaleEnabled !== false;
         var tabWs = document.getElementById('tab-WHOLESALE');
@@ -2310,11 +2701,35 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         }
 
         var tList = live.config.wholesaleTiers || [];
+        var rangeTxt = tList.length >= 2
+          ? '(' + tList[0].badge + ' → ' + tList[tList.length - 1].badge + ')'
+          : (tList.length === 1 ? '(' + tList[0].badge + ')' : '');
         var wsBadgeEl = document.getElementById('wsNavBadge');
-        if (wsBadgeEl) {
-          wsBadgeEl.textContent = tList.length >= 2
-            ? '(' + tList[0].badge + ' → ' + tList[tList.length - 1].badge + ')'
-            : (tList.length === 1 ? '(' + tList[0].badge + ')' : '');
+        if (wsBadgeEl) wsBadgeEl.textContent = rangeTxt;
+        var heroRangeEl = document.getElementById('heroWsRangeTxt');
+        if (heroRangeEl) heroRangeEl.textContent = rangeTxt;
+
+        var minWsQtyLive = tList.length
+          ? Math.min.apply(null, tList.map(function(t) { return Math.max(1, Math.floor(Number(t.minQty) || 10)); }))
+          : 10;
+        var freeShipLiveFmt = fmtVND(live.config.freeShipThreshold || 500000);
+        var hlWsEl = document.getElementById('heroHighlightWs');
+        if (hlWsEl) {
+          hlWsEl.textContent = wsOn
+            ? ('Sỉ gộp mẫu tự do từ ' + minWsQtyLive + ' SP')
+            : ('Freeship đơn từ ' + freeShipLiveFmt);
+        }
+        var prTitleEl = document.getElementById('heroWsPromiseTitle');
+        var prDescEl = document.getElementById('heroWsPromiseDesc');
+        if (prTitleEl) {
+          prTitleEl.textContent = wsOn
+            ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
+            : 'Ưu Đãi Vận Chuyển Toàn Quốc';
+        }
+        if (prDescEl) {
+          prDescEl.textContent = wsOn
+            ? formatWsSummaryClient(tList, Boolean(live.config.oemCustomNote))
+            : ('Miễn phí giao hàng toàn quốc đơn lẻ từ ' + freeShipLiveFmt + ' · Kiểm hàng trước khi nhận.');
         }
 
         if (live.config.contact) {

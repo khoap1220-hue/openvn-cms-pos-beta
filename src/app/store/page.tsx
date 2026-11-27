@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  Award,
   BadgePercent,
   BookOpen,
   Building2,
@@ -16,6 +15,7 @@ import {
   ExternalLink,
   Eye,
   FileSearch,
+  Flame,
   Globe,
   Layers,
   LayoutDashboard,
@@ -67,10 +67,13 @@ import {
   buildStorefrontCartStorageKey,
   buildStorefrontProductShareUrl,
   buildStorefrontVietQrUrl,
+  formatHeroShortProductLabel,
   formatStorefrontLookupStatusLabel,
+  formatWholesaleTiersSummary,
   parseStorefrontDeepLinkQuery,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
+  selectHeroShowcaseProducts,
   serializeCartForStorage,
 } from '@/lib/storefront-ux'
 import { cn } from '@/lib/utils'
@@ -410,6 +413,42 @@ export default function OnlineStorefrontPage() {
 
   const isStorefrontClosed = Boolean(storeData?.storefrontClosed || cfg?.enabled === false)
   const isWholesaleAllowed = !isStorefrontClosed && cfg?.wholesaleEnabled !== false
+  const mainCatalogRef = useRef<HTMLElement | null>(null)
+
+  const heroShowcaseProducts = useMemo(
+    () => (isStorefrontClosed ? [] : selectHeroShowcaseProducts(products, 3)),
+    [isStorefrontClosed, products]
+  )
+  const hasHeroCoverImage = Boolean(showShopeeBanners && banners?.coverBannerUrl)
+  const hasHeroVisual = hasHeroCoverImage || heroShowcaseProducts.length > 0
+  const minWholesaleQty = useMemo(
+    () =>
+      wholesaleTiers.length > 0
+        ? Math.min(...wholesaleTiers.map((t) => Math.max(1, Math.floor(t.minQty))))
+        : 10,
+    [wholesaleTiers]
+  )
+  const wsRangeLabel = useMemo(() => {
+    if (wholesaleTiers.length >= 2) {
+      return `(${wholesaleTiers[0].badge} → ${wholesaleTiers[wholesaleTiers.length - 1].badge})`
+    }
+    if (wholesaleTiers.length === 1) {
+      return `(${wholesaleTiers[0].badge})`
+    }
+    return ''
+  }, [wholesaleTiers])
+  const wsTiersSummary = useMemo(
+    () => formatWholesaleTiersSummary(wholesaleTiers, Boolean(cfg?.oemCustomNote)),
+    [wholesaleTiers, cfg?.oemCustomNote]
+  )
+
+  const scrollToCatalog = useCallback(() => {
+    setActiveTab('PRODUCTS')
+    setPriceViewMode('RETAIL')
+    window.requestAnimationFrame(() => {
+      mainCatalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
 
   // Tự động hạ tab/chế độ Giá Sỉ về mặc định nếu CMS tắt kênh Sỉ hoặc tạm ngưng nhận đơn
   useEffect(() => {
@@ -1001,7 +1040,7 @@ export default function OnlineStorefrontPage() {
               <span>Sản phẩm ({products.length})</span>
             </Button>
 
-            {cfg?.wholesaleEnabled !== false && (
+            {isWholesaleAllowed && (
               <Button
                 type="button"
                 variant={activeTab === 'WHOLESALE' ? 'default' : 'ghost'}
@@ -1014,7 +1053,7 @@ export default function OnlineStorefrontPage() {
                 )}
               >
                 <BadgePercent className="h-3.5 w-3.5" />
-                <span>Bảng Giá Sỉ</span>
+                <span>Bảng Giá Sỉ {wsRangeLabel}</span>
               </Button>
             )}
 
@@ -1070,112 +1109,214 @@ export default function OnlineStorefrontPage() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="border-b bg-gradient-to-br from-stone-100/90 via-amber-50/40 to-emerald-50/40 py-8 sm:py-10 dark:from-stone-950 dark:via-slate-900 dark:to-stone-900">
+      {/* Hero Section — Editorial Wabi-Sabi Atelier Layout */}
+      <section className="relative overflow-hidden border-b border-stone-200/80 bg-[radial-gradient(circle_at_0%_0%,rgba(245,213,172,0.28),transparent_48%),radial-gradient(circle_at_100%_100%,rgba(167,214,193,0.22),transparent_46%),linear-gradient(135deg,#fbf9f5_0%,#f7f1e7_52%,#f2f6f3_100%)] py-7 sm:py-9 lg:py-11 dark:border-stone-800 dark:bg-[radial-gradient(circle_at_0%_0%,rgba(180,83,9,0.16),transparent_45%),linear-gradient(135deg,#0c0a09_0%,#1c1917_55%,#0f172a_100%)]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="grid items-center gap-6 lg:grid-cols-12">
-            <div className="space-y-3 lg:col-span-7">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/80 bg-white/90 px-3.5 py-1 text-xs font-semibold text-amber-900 shadow-2xs dark:border-amber-800 dark:bg-stone-900 dark:text-amber-300">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>{cfg?.heroBadge || 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc'}</span>
+          <div
+            className={cn(
+              'grid items-center gap-7 lg:gap-9',
+              hasHeroVisual ? 'lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)]' : 'max-w-3xl'
+            )}
+          >
+            {/* Cột Trái: Câu chuyện Thương hiệu, Điểm nhấn Chất liệu & Hành động Chính */}
+            <div className="min-w-0 space-y-4">
+              <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/75 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-amber-950 shadow-2xs backdrop-blur-xs dark:border-amber-800/80 dark:bg-stone-900/90 dark:text-amber-200">
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
+                <span className="truncate">
+                  {cfg?.heroBadge || 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc'}
+                </span>
               </div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+
+              <h1 className="text-[25px] leading-[1.18] font-extrabold tracking-tight text-stone-900 sm:text-4xl lg:text-[38px] dark:text-stone-50">
                 {cfg?.heroTitle || 'Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công Tinh Tế'}
               </h1>
-              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+
+              <p className="max-w-xl text-sm leading-relaxed text-stone-600 sm:text-[15px] sm:leading-[1.65] dark:text-stone-300">
                 {cfg?.heroSubtitle ||
                   'Chế tác tỉ mỉ từng khay, hũ nến thạch cao kháng dầu chịu nhiệt và nến bơ thực vật thuần chay không khói cho góc thiền, bàn trà, spa & quà tặng doanh nghiệp.'}
               </p>
 
-              <div className="flex flex-wrap items-center gap-2.5 pt-2">
+              {/* Dải điểm nhấn chất liệu thủ công cân bằng nhịp thị giác */}
+              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 pt-0.5 text-xs font-semibold text-stone-700 dark:text-stone-300">
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                  <span>100% Sáp bơ thực vật không khói</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
+                  <span>Cốt thạch cao khoáng kháng dầu</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-400" />
+                  <span>
+                    {isWholesaleAllowed
+                      ? `Sỉ gộp mẫu tự do từ ${minWholesaleQty} SP`
+                      : `Freeship đơn từ ${formatVND(freeShipThreshold)}`}
+                  </span>
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 pt-1.5">
                 <Button
                   type="button"
-                  onClick={() => {
-                    setActiveTab('PRODUCTS')
-                    setPriceViewMode('RETAIL')
-                  }}
-                  className="h-11 gap-2 bg-stone-900 px-5 text-xs font-bold text-white hover:bg-stone-800 dark:bg-amber-600 dark:hover:bg-amber-500"
+                  onClick={scrollToCatalog}
+                  className="h-11 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4.5 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:text-[13px] dark:bg-amber-600 dark:hover:bg-amber-500"
                 >
-                  <ShoppingBag className="h-4 w-4" />
-                  Xem Bộ Sưu Tập Sản Phẩm
+                  <ShoppingBag className="h-4 w-4 shrink-0" />
+                  <span>Khám Phá Sản Phẩm</span>
                 </Button>
-                {cfg?.wholesaleEnabled !== false && (
+
+                {isWholesaleAllowed && (
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setActiveTab('WHOLESALE')}
-                    className="h-11 gap-2 border-amber-400 bg-amber-50/70 px-5 text-xs font-bold text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                    className="h-11 max-w-full cursor-pointer gap-1.5 rounded-xl border-amber-400/90 bg-amber-50/85 px-4 text-xs font-bold text-amber-950 transition hover:bg-amber-100/90 sm:text-[13px] dark:border-amber-700 dark:bg-amber-950/45 dark:text-amber-200 dark:hover:bg-amber-950/70"
                   >
-                    <BadgePercent className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-                    Xem Bảng Giá Sỉ Xưởng (-15% → -35%)
+                    <BadgePercent className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+                    <span className="truncate">Bảng Giá Sỉ &amp; OEM {wsRangeLabel}</span>
                   </Button>
                 )}
+
                 {contact?.shopeeUrl && (
-                  <Button asChild variant="outline" className="h-11 gap-1.5 text-xs font-semibold">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="h-11 gap-1.5 rounded-xl border-stone-300/90 bg-white/90 px-4 text-xs font-semibold text-stone-800 hover:bg-white sm:text-[13px] dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-200"
+                  >
                     <a href={contact.shopeeUrl} target="_blank" rel="noopener noreferrer">
                       <span>Gian hàng Shopee</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                     </a>
                   </Button>
                 )}
               </div>
             </div>
 
-            {/* Ảnh bìa Gian hàng Shopee (nếu có) + 3 Cam kết Xưởng sản xuất */}
-            <div className="space-y-3 lg:col-span-5">
-              {showShopeeBanners && banners?.coverBannerUrl && (
-                <div className="overflow-hidden rounded-2xl border border-stone-200/90 bg-card shadow-sm dark:border-stone-800">
-                  <picture>
-                    {banners.mobileCoverBannerUrl && (
-                      <source
-                        media="(max-width: 640px)"
-                        srcSet={banners.mobileCoverBannerUrl}
+            {/* Cột Phải: Khung Trưng Bày Nghệ Thuật Xưởng Thủ Công & Tác Phẩm Tiêu Biểu */}
+            {hasHeroVisual && (
+              <div className="min-w-0 rounded-[22px] border border-stone-200/90 bg-white/92 p-2.5 shadow-[0_20px_44px_-20px_rgba(45,33,20,0.18)] backdrop-blur-xs sm:p-3 dark:border-stone-800 dark:bg-stone-900/90">
+                {hasHeroCoverImage && banners?.coverBannerUrl && (
+                  <div className="overflow-hidden rounded-2xl border border-stone-200/70 bg-stone-100 dark:border-stone-800 dark:bg-stone-950">
+                    <picture>
+                      {banners.mobileCoverBannerUrl && (
+                        <source
+                          media="(max-width: 640px)"
+                          srcSet={banners.mobileCoverBannerUrl}
+                        />
+                      )}
+                      <img
+                        src={banners.coverBannerUrl}
+                        alt={`${brandName} — Không gian chế tác thủ công`}
+                        referrerPolicy="no-referrer"
+                        className="aspect-[1196/518] w-full object-cover transition-transform duration-500 hover:scale-[1.015]"
                       />
-                    )}
-                    <img
-                      src={banners.coverBannerUrl}
-                      alt={`${brandName} — Không gian thủ công`}
-                      referrerPolicy="no-referrer"
-                      className="aspect-[1196/518] w-full object-cover"
-                    />
-                  </picture>
-                </div>
-              )}
+                    </picture>
+                  </div>
+                )}
 
-              <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
-                <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3 shadow-2xs">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                    <Award className="h-4 w-4" />
+                {heroShowcaseProducts.length > 0 && (
+                  <div className={cn(hasHeroCoverImage && 'mt-2.5')}>
+                    <div className="mb-1.5 flex items-center justify-between gap-2 px-1 text-[11px] text-stone-500 dark:text-stone-400">
+                      <span className="font-bold text-stone-700 dark:text-stone-200">
+                        Tác phẩm tiêu biểu tại xưởng
+                      </span>
+                      <button
+                        type="button"
+                        onClick={scrollToCatalog}
+                        className="cursor-pointer font-semibold text-amber-800 transition hover:text-amber-950 hover:underline dark:text-amber-400"
+                      >
+                        Xem trọn bộ {products.length} mẫu →
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {heroShowcaseProducts.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedImageIdx(0)
+                            setSelectedProduct(item)
+                          }}
+                          className="group flex min-h-[54px] cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border border-stone-200/85 bg-stone-50/85 p-1.5 text-left transition hover:-translate-y-0.5 hover:border-amber-400/80 hover:bg-white hover:shadow-xs min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2.5 min-[560px]:p-2 dark:border-stone-800 dark:bg-stone-950/60 dark:hover:border-amber-600/70 dark:hover:bg-stone-950"
+                        >
+                          {item.image && (
+                            <img
+                              src={item.image}
+                              alt={item.cleanTitle || item.name}
+                              referrerPolicy="no-referrer"
+                              loading="lazy"
+                              className="aspect-[4/3] w-full shrink-0 rounded-lg border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 min-[560px]:aspect-square min-[560px]:h-10 min-[560px]:w-10 dark:border-stone-800"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[11px] font-bold text-stone-800 group-hover:text-amber-900 min-[560px]:text-xs dark:text-stone-100 dark:group-hover:text-amber-300">
+                              {formatHeroShortProductLabel(item.cleanTitle || item.name)}
+                            </p>
+                            <p className="text-[11px] font-extrabold text-amber-800 dark:text-amber-400">
+                              {formatVND(item.retailPrice)}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-xs">
-                    <p className="font-bold text-foreground">Đúc Thủ Công &amp; Sáp Bơ Thuần Chay</p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      Không khói đen, không hóa chất độc hại, bề mặt thạch cao phủ chống thấm mịn màng.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3 shadow-2xs">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                    <BadgePercent className="h-4 w-4" />
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-bold text-foreground">Giá Sỉ Tận Gốc Tại Xưởng (Gộp Mẫu Tự Do)</p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      Từ 10 SP giảm 15% · Từ 30 SP giảm 25% · Từ 100 SP giảm 35% + Gia công quà tặng OEM.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-2xl border bg-card/90 p-3 shadow-2xs">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-bold text-foreground">Bảo Hành Bể Vỡ 1 Đổi 1 Toàn Quốc</p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      Đóng gói xốp định hình nhiều lớp, đổi trả miễn phí trong {cfg?.returnDays ?? 7} ngày.
-                    </p>
-                  </div>
-                </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Tầng Đáy Hero: 3 Cam Kết Xưởng Sản Xuất Trải Ngang Cân Đối */}
+          <div className="mt-6 grid gap-3 border-t border-stone-200/80 pt-5 md:grid-cols-3 md:gap-4 dark:border-stone-800/90">
+            <div className="flex items-start gap-3 rounded-2xl border border-stone-200/85 bg-white/80 p-3.5 shadow-2xs backdrop-blur-xs transition hover:bg-white dark:border-stone-800 dark:bg-stone-900/75">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100/90 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300">
+                <Flame className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 text-xs">
+                <p className="font-bold text-stone-900 dark:text-stone-100">
+                  Đúc Thủ Công &amp; Sáp Bơ Thực Vật Thuần Chay
+                </p>
+                <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
+                  Không khói đen, an toàn cho phòng thiền, bàn trà, spa; bề mặt thạch cao kháng dầu mịn đẹp.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-2xl border border-stone-200/85 bg-white/80 p-3.5 shadow-2xs backdrop-blur-xs transition hover:bg-white dark:border-stone-800 dark:bg-stone-900/75">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100/90 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300">
+                {isWholesaleAllowed ? (
+                  <BadgePercent className="h-4 w-4" />
+                ) : (
+                  <Truck className="h-4 w-4" />
+                )}
+              </div>
+              <div className="min-w-0 text-xs">
+                <p className="font-bold text-stone-900 dark:text-stone-100">
+                  {isWholesaleAllowed
+                    ? 'Chiết Khấu Giá Sỉ Tận Xưởng (Gộp Mẫu Tự Do)'
+                    : 'Ưu Đãi Vận Chuyển Toàn Quốc'}
+                </p>
+                <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
+                  {isWholesaleAllowed
+                    ? wsTiersSummary
+                    : `Miễn phí giao hàng toàn quốc đơn lẻ từ ${formatVND(freeShipThreshold)} · Kiểm hàng trước khi nhận.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-2xl border border-stone-200/85 bg-white/80 p-3.5 shadow-2xs backdrop-blur-xs transition hover:bg-white dark:border-stone-800 dark:bg-stone-900/75">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100/90 text-sky-900 dark:bg-sky-950/80 dark:text-sky-300">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 text-xs">
+                <p className="font-bold text-stone-900 dark:text-stone-100">
+                  Đóng Gói Chống Sốc — Bảo Hành Bể Vỡ 1 Đổi 1
+                </p>
+                <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
+                  Xốp định hình nhiều lớp chuyên dụng, kiểm hàng và đổi mới miễn phí trong{' '}
+                  {cfg?.returnDays ?? 7} ngày.
+                </p>
               </div>
             </div>
           </div>
@@ -1183,7 +1324,10 @@ export default function OnlineStorefrontPage() {
       </section>
 
       {/* MAIN CONTENT */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
+      <main
+        ref={mainCatalogRef}
+        className="mx-auto w-full max-w-7xl flex-1 scroll-mt-16 px-4 py-8 sm:px-6"
+      >
         {/* ==================== TAB 1: DANH MỤC SẢN PHẨM ==================== */}
         {activeTab === 'PRODUCTS' && (
           <div className="space-y-6">

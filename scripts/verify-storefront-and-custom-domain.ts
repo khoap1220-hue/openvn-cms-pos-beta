@@ -33,10 +33,13 @@ import {
   buildStorefrontCartStorageKey,
   buildStorefrontProductShareUrl,
   buildStorefrontVietQrUrl,
+  formatHeroShortProductLabel,
   formatStorefrontLookupStatusLabel,
+  formatWholesaleTiersSummary,
   parseStorefrontDeepLinkQuery,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
+  selectHeroShowcaseProducts,
   serializeCartForStorage,
 } from '../src/lib/storefront-ux'
 import {
@@ -899,6 +902,45 @@ async function main() {
         !closedSitemap.includes('?sku='),
       'S3-JSONLD-PRODUCT-SCHEMA-AND-SITEMAP',
       'Xuất chuẩn JSON-LD @graph (0 costPrice) & Sitemap XML tự ẩn WHOLESALE/SP khi tắt kênh sỉ hoặc đóng cửa hàng'
+    )
+
+    // Verify Hero Atelier Redesign: Diverse Showcase Selection, Dynamic Wholesale Summary & Zero Emoji Icons
+    const heroPickedFromLive = selectHeroShowcaseProducts(
+      (sfJson.products ?? []) as Array<{
+        id: string
+        sku: string
+        name: string
+        cleanTitle: string
+        image?: string | null
+        inStock?: boolean
+        availableToOrder?: boolean
+      }>,
+      3
+    )
+    const uniqueHeroTitles = new Set(heroPickedFromLive.map((p) => p.cleanTitle))
+    const customTierSummary = formatWholesaleTiersSummary(
+      [
+        { minQty: 5, discountPercent: 10 },
+        { minQty: 25, discountPercent: 22 },
+      ],
+      false
+    )
+    const shortSenLabel = formatHeroShortProductLabel(
+      'Hũ Búp Sen Thạch Cao Có Nắp Trắng Mộc - Decor Phòng Ngủ - Bơ Mộc — Phân loại: Trắng mộc'
+    )
+    assert(
+      heroPickedFromLive.length === 3 &&
+        uniqueHeroTitles.size === 3 &&
+        heroPickedFromLive.some((p) => p.sku.startsWith('BM-TEA-')) &&
+        selectHeroShowcaseProducts([], 3).length === 0 &&
+        customTierSummary === 'Từ 5 SP giảm 10% · Từ 25 SP giảm 22%.' &&
+        shortSenLabel === 'Hũ Búp Sen Thạch Cao' &&
+        testStandaloneHtml.includes('class="hero-promise-grid"') &&
+        !testStandaloneHtml.includes('🕯️') &&
+        !testStandaloneHtml.includes('🛡️') &&
+        !testStandaloneHtml.includes('✨'),
+      'S3-HERO-ATELIER-SHOWCASE-AND-SVG-PARITY',
+      'Hero Atelier chọn 3 dòng sản phẩm độc lập (Hũ/Cốc + Nến Bơ + Khay/Đế), rút gọn tên không cắt âm tiết, định dạng động bậc sỉ & dùng 100% icon SVG'
     )
 
     // Verify Credential Test accuracy (no false READY on cleared config) + enabled=false support + MARKETING RBAC

@@ -270,3 +270,134 @@ export function buildStorefrontProductShareUrl(
     return cleanSku ? `?sku=${encodeURIComponent(cleanSku)}` : baseHref
   }
 }
+
+export function formatHeroShortProductLabel(cleanTitleOrName?: string | null): string {
+  const raw = String(cleanTitleOrName || '')
+    .split('— Phân loại:')[0]
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .trim()
+  if (!raw) return 'Sản phẩm thủ công'
+  const firstDashPart = raw.split(/\s+[-–—]\s+/)[0]?.trim() || raw
+  const base = firstDashPart.length >= 6 ? firstDashPart : raw
+  if (base.length <= 26) return base
+
+  const stopAttrPattern =
+    /^(có|không|trắng|kem|xanh|đen|vàng|cam|be|đựng|cúng|lót|cắm|đặt|xi)$/i
+  const words = base.split(/\s+/)
+  const kept: string[] = []
+  for (const w of words) {
+    const cleanWord = w.replace(/[,.;:!?]+$/g, '')
+    if (kept.join(' ').length >= 14 && stopAttrPattern.test(cleanWord)) {
+      break
+    }
+    kept.push(cleanWord)
+    if (kept.join(' ').length >= 26) break
+  }
+  return kept.length >= 2 ? kept.join(' ') : base.slice(0, 26).trim()
+}
+
+export function formatWholesaleTiersSummary(
+  tiers?: Array<{ minQty: number; discountPercent: number; badge?: string }> | null,
+  hasOemNote = true
+): string {
+  if (!Array.isArray(tiers) || tiers.length === 0) {
+    return hasOemNote
+      ? 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng + Hỗ trợ gia công hộp quà OEM.'
+      : 'Chiết khấu trực tiếp theo mốc số lượng đặt sỉ tại xưởng.'
+  }
+  const sorted = [...tiers]
+    .filter((t) => Number(t?.minQty) > 0 && Number(t?.discountPercent) > 0)
+    .sort((a, b) => a.minQty - b.minQty)
+    .slice(0, 4)
+  if (sorted.length === 0) {
+    return 'Chiết khấu trực tiếp theo mốc số lượng tại xưởng.'
+  }
+  const parts = sorted.map(
+    (t) => `Từ ${Math.floor(t.minQty)} SP giảm ${Math.round(t.discountPercent * 10) / 10}%`
+  )
+  return `${parts.join(' · ')}${hasOemNote ? ' + Khắc/in hộp quà OEM.' : '.'}`
+}
+
+export function selectHeroShowcaseProducts<
+  P extends {
+    id: string
+    sku: string
+    name: string
+    cleanTitle?: string | null
+    image?: string | null
+    inStock?: boolean
+    availableToOrder?: boolean
+  },
+>(products: P[], maxItems = 3): P[] {
+  if (!Array.isArray(products) || maxItems <= 0) return []
+  const limit = Math.min(6, Math.max(1, Math.floor(maxItems)))
+  const withImage = products.filter((p) => Boolean(p && typeof p.image === 'string' && p.image.trim()))
+  if (withImage.length === 0) return []
+
+  const orderable = withImage.filter((p) => p.availableToOrder !== false)
+  const pool = orderable.length > 0 ? orderable : withImage
+
+  // Deduplicate by base cleanTitle, preferring in-stock variants so hero tiles represent distinct product lines
+  const byTitle = new Map<string, P>()
+  for (const prod of pool) {
+    const baseKey = String(prod.cleanTitle || prod.name || prod.sku)
+      .split('— Phân loại:')[0]
+      .trim()
+      .toLowerCase()
+    const existing = byTitle.get(baseKey)
+    if (!existing || (!existing.inStock && Boolean(prod.inStock))) {
+      byTitle.set(baseKey, prod)
+    }
+  }
+
+  const distinct = Array.from(byTitle.values())
+  const selected: P[] = []
+  const pickedIds = new Set<string>()
+
+  const familyChecks: Array<(prefix: string) => boolean> = [
+    (prefix) => prefix.startsWith('hũ ') || prefix.startsWith('cốc '),
+    (prefix) =>
+      prefix.startsWith('nến ') ||
+      prefix.includes('nến bơ') ||
+      prefix.includes('tealight'),
+    (prefix) =>
+      prefix.startsWith('khay ') ||
+      prefix.startsWith('đế nến') ||
+      prefix.startsWith('chân nến'),
+  ]
+
+  for (const matchesFamily of familyChecks) {
+    if (selected.length >= limit) break
+    const hit = distinct.find((p) => {
+      if (pickedIds.has(p.id)) return false
+      const lead = String(p.cleanTitle || p.name || '')
+        .trim()
+        .slice(0, 32)
+        .toLowerCase()
+      return matchesFamily(lead)
+    })
+    if (hit) {
+      selected.push(hit)
+      pickedIds.add(hit.id)
+    }
+  }
+
+  for (const prod of distinct) {
+    if (selected.length >= limit) break
+    if (!pickedIds.has(prod.id)) {
+      selected.push(prod)
+      pickedIds.add(prod.id)
+    }
+  }
+
+  for (const prod of pool) {
+    if (selected.length >= limit) break
+    if (!pickedIds.has(prod.id)) {
+      selected.push(prod)
+      pickedIds.add(prod.id)
+    }
+  }
+
+  return selected
+}
+
