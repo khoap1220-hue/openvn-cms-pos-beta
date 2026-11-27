@@ -3,8 +3,81 @@ import { db } from '@/lib/db'
 import { normalizeDomainHostname } from '@/lib/domain-routing'
 import { broadcast, invalidateApiCache } from '@/lib/realtime'
 import { getSettings } from '@/lib/settings'
-import { extractShopProfileFromSettings } from '@/lib/shop-profile'
 import { mergePreservingInternalVaultFields } from '@/lib/shopee-session-vault'
+
+export interface ServerBrandProfile {
+  brandName: string
+  brandShortName: string
+  brandBadge: string
+  brandSubtitle: string
+  brandFooterTagline: string
+  defaultWorkshopName: string
+  workshopPresets: string[]
+  defaultWarehouseLabel: string
+  storefrontUrl: string
+}
+
+const DEFAULT_SERVER_BRAND_PROFILE: ServerBrandProfile = {
+  brandName: 'OPENVN · Ưu Đàm',
+  brandShortName: 'OPENVN',
+  brandBadge: 'OMNI',
+  brandSubtitle: 'Quản lý bán hàng đa kênh',
+  brandFooterTagline: 'Quản lý bán hàng đa kênh · Agent Autopilot 100% · Invoice Pro · Offline-first',
+  defaultWorkshopName: 'Xưởng đúc thủ công',
+  workshopPresets: [
+    'Xưởng đúc thủ công',
+    'Tổ đổ nến bơ tự nhiên',
+    'Tổ hoàn thiện & đóng gói',
+  ],
+  defaultWarehouseLabel: 'Kho Trung Tâm',
+  storefrontUrl: '/store',
+}
+
+function extractServerBrandProfileFromSettings(
+  raw: Record<string, unknown> | null | undefined
+): ServerBrandProfile {
+  if (!raw) return DEFAULT_SERVER_BRAND_PROFILE
+  const str = (key: string, fallback: string): string => {
+    const val = raw[key]
+    if (typeof val === 'string' && val.trim().length > 0) return val.trim()
+    return fallback
+  }
+  const badgeVal =
+    typeof raw.brand_badge === 'string'
+      ? raw.brand_badge.trim()
+      : DEFAULT_SERVER_BRAND_PROFILE.brandBadge
+  const defaultWorkshop = str(
+    'shop_default_workshop',
+    DEFAULT_SERVER_BRAND_PROFILE.defaultWorkshopName
+  )
+  const rawPresets =
+    typeof raw.shop_workshop_presets === 'string' ? raw.shop_workshop_presets.trim() : ''
+  const parsedPresets = rawPresets
+    ? rawPresets
+        .split(/[,;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : DEFAULT_SERVER_BRAND_PROFILE.workshopPresets
+  const presets = parsedPresets.length > 0 ? parsedPresets : DEFAULT_SERVER_BRAND_PROFILE.workshopPresets
+  const mergedPresets = presets.includes(defaultWorkshop)
+    ? presets
+    : [defaultWorkshop, ...presets]
+
+  return {
+    brandName: str('brand_name', DEFAULT_SERVER_BRAND_PROFILE.brandName),
+    brandShortName: str('brand_short_name', DEFAULT_SERVER_BRAND_PROFILE.brandShortName),
+    brandBadge: badgeVal,
+    brandSubtitle: str('brand_subtitle', DEFAULT_SERVER_BRAND_PROFILE.brandSubtitle),
+    brandFooterTagline: str('brand_footer_tagline', DEFAULT_SERVER_BRAND_PROFILE.brandFooterTagline),
+    defaultWorkshopName: defaultWorkshop,
+    workshopPresets: mergedPresets,
+    defaultWarehouseLabel: str(
+      'shop_default_warehouse_label',
+      DEFAULT_SERVER_BRAND_PROFILE.defaultWarehouseLabel
+    ),
+    storefrontUrl: str('shop_storefront_url', DEFAULT_SERVER_BRAND_PROFILE.storefrontUrl),
+  }
+}
 
 export interface WholesaleTierConfig {
   id: string
@@ -294,7 +367,7 @@ export function getCachedStorefrontDomainsSnapshot() {
  */
 export async function getStorefrontConfigForCurrentCms(): Promise<{
   cmsInstanceId: string
-  brandProfile: ReturnType<typeof extractShopProfileFromSettings> & {
+  brandProfile: ServerBrandProfile & {
     companyName: string
     companyPhone: string
     companyAddress: string
@@ -328,7 +401,7 @@ export async function getStorefrontConfigForCurrentCms(): Promise<{
     ]).catch(() => ({} as Record<string, string>)),
   ])
 
-  const shopProfile = extractShopProfileFromSettings(rawSettings)
+  const shopProfile = extractServerBrandProfileFromSettings(rawSettings)
 
   let parsedWebCfg: Record<string, unknown> = {}
   if (websiteCred?.config) {
