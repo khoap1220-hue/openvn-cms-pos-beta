@@ -24,7 +24,20 @@ import {
   parseShopeeDecorationPayloadToBanners,
   selectEffectiveShopeeDraft,
 } from '../src/lib/shopee-banner-sync'
-import { generateStandaloneStorefrontHtml, normalizeSnapshotBanners } from './publish-storefront-domain.mjs'
+import {
+  generateStandaloneStorefrontHtml,
+  generateStorefrontSitemapXml,
+  normalizeSnapshotBanners,
+} from './publish-storefront-domain.mjs'
+import {
+  buildStorefrontCartStorageKey,
+  buildStorefrontProductShareUrl,
+  buildStorefrontVietQrUrl,
+  formatStorefrontLookupStatusLabel,
+  parseStorefrontDeepLinkQuery,
+  reconcilePersistedCartWithCatalog,
+  serializeCartForStorage,
+} from '../src/lib/storefront-ux'
 import {
   computeWholesaleUnitPrice,
   getStorefrontConfigForCurrentCms,
@@ -753,6 +766,102 @@ async function main() {
         !String(sfJson.brand?.brandSubtitle || '').includes('Quản lý bán hàng đa kênh'),
       'S3-STANDALONE-PUBLISHER-XSS-QUOTE-AND-SANITIZER',
       'Standalone HTML loại bỏ hotspot w<=0, kẹp aspectRatio hợp lệ, chặn tuyệt đối nhúng chuỗi thô vào onclick & ẩn tagline POS nội bộ trên giao diện khách hàng'
+    )
+
+    // Verify VietQR Builder, CMS-Isolated Cart Persistence, Deep-Link Parser & Rich JSON-LD / Sitemap
+    const validVietQr = buildStorefrontVietQrUrl({
+      bankCode: ' vcb ',
+      bankAccount: '0071 0012 34567',
+      bankHolder: 'BO MOC DECOR',
+      amount: 501_500,
+      addInfo: 'Đơn Bơ Mộc #BM-WEB-261127-1234 <script>',
+    })
+    const invalidVietQrEmpty = buildStorefrontVietQrUrl({
+      bankCode: '',
+      bankAccount: '0071001234567',
+      amount: 100_000,
+    })
+    const invalidVietQrShortAcct = buildStorefrontVietQrUrl({
+      bankCode: 'VCB',
+      bankAccount: '12',
+      amount: 100_000,
+    })
+    assert(
+      validVietQr.startsWith('https://img.vietqr.io/image/VCB-0071001234567-compact2.png?') &&
+        validVietQr.includes('amount=501500') &&
+        validVietQr.includes('addInfo=Don+Bo+Moc+BM-WEB-261127-1234+script') &&
+        invalidVietQrEmpty === '' &&
+        invalidVietQrShortAcct === '',
+      'S3-VIETQR-BUILDER-AND-SANITIZER',
+      'Tạo URL VietQR chuẩn ngân hàng (khử dấu tiếng Việt/ký tự lạ trong addInfo) & từ chối STK/mã NH rỗng hoặc sai chuẩn'
+    )
+
+    const cartKeyA = buildStorefrontCartStorageKey('cms_bomoc_01')
+    const cartKeyB = buildStorefrontCartStorageKey('cms_other_02')
+    const reconciledCart = reconcilePersistedCartWithCatalog(
+      [
+        { productId: 'p_live', sku: 'BM-TEA-10', quantity: 4, retailPrice: 1 },
+        { productId: '', sku: 'bm-tea-10', quantity: 6 },
+        { productId: 'p_oos', sku: 'BM-OOS', quantity: 5 },
+        { productId: 'p_live', sku: 'BM-TEA-10', quantity: -3 },
+        { productId: 'p_unknown', sku: 'NO-SUCH-SKU', quantity: 2 },
+      ],
+      [
+        { id: 'p_live', sku: 'BM-TEA-10', retailPrice: 59_000, availableToOrder: true },
+        { id: 'p_oos', sku: 'BM-OOS', retailPrice: 99_000, availableToOrder: false },
+      ]
+    )
+    const roundtripSerialized = serializeCartForStorage(reconciledCart)
+    assert(
+      cartKeyA !== cartKeyB &&
+        reconciledCart.length === 1 &&
+        reconciledCart[0].quantity === 10 &&
+        reconciledCart[0].product.retailPrice === 59_000 &&
+        roundtripSerialized.length === 1 &&
+        roundtripSerialized[0].quantity === 10,
+      'S3-ISOLATED-CART-PERSISTENCE-AND-RECONCILE',
+      'Giỏ hàng lưu trữ cô lập theo cmsInstanceId, gộp trùng SKU, bỏ SP hết hàng/số lượng âm & luôn lấy giá mới nhất từ danh mục'
+    )
+
+    const dlProduct = parseStorefrontDeepLinkQuery('?sku=BM-SEN-01-TRANG&mode=si&q=sen')
+    const dlTracking = parseStorefrontDeepLinkQuery('?code=bm-web-261127-9999')
+    const shareUrl = buildStorefrontProductShareUrl(
+      'https://bomocdecor.vn/?tab=WHOLESALE#top',
+      'BM-SEN-01-TRANG'
+    )
+    assert(
+      dlProduct.sku === 'BM-SEN-01-TRANG' &&
+        dlProduct.priceMode === 'WHOLESALE' &&
+        dlProduct.query === 'sen' &&
+        dlTracking.tab === 'TRACKING' &&
+        dlTracking.lookupCode === 'BM-WEB-261127-9999' &&
+        shareUrl === 'https://bomocdecor.vn/?sku=BM-SEN-01-TRANG' &&
+        formatStorefrontLookupStatusLabel('SHIPPING').includes('vận chuyển'),
+      'S3-DEEPLINK-AND-STATUS-LABELS',
+      'Hỗ trợ đầy đủ Deep-Link (?sku=, ?mode=, ?q=, ?code=), tạo link chia sẻ sản phẩm sạch & Việt hóa nhãn trạng thái vận đơn'
+    )
+
+    const ldMatch = testStandaloneHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+    const parsedLd = ldMatch?.[1] ? (JSON.parse(ldMatch[1]) as { '@graph'?: Array<Record<string, unknown>> }) : null
+    const openSitemap = generateStorefrontSitemapXml({
+      storefrontClosed: false,
+      config: { customDomain: 'bomocdecor.vn' },
+      products: [{ sku: 'BM-TEA-10' }, { sku: 'BM-SEN-01-TRANG' }],
+    })
+    const closedSitemap = generateStorefrontSitemapXml({
+      storefrontClosed: true,
+      config: { customDomain: 'bomocdecor.vn' },
+      products: [{ sku: 'BM-TEA-10' }],
+    })
+    assert(
+      Array.isArray(parsedLd?.['@graph']) &&
+        parsedLd!['@graph']!.length === 3 &&
+        !JSON.stringify(parsedLd).includes('costPrice') &&
+        openSitemap.includes('https://bomocdecor.vn/?tab=WHOLESALE') &&
+        openSitemap.includes('https://bomocdecor.vn/?sku=BM-TEA-10') &&
+        !closedSitemap.includes('?sku='),
+      'S3-JSONLD-PRODUCT-SCHEMA-AND-SITEMAP',
+      'Xuất chuẩn JSON-LD @graph (Store + WebSite + Product ItemList 0 costPrice) & Sitemap XML đa đường dẫn tự ẩn SP khi đóng cửa hàng'
     )
 
     const teaProd = sfJson.products!.find((p) => p.sku === 'BM-TEA-10')!

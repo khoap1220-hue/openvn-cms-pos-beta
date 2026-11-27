@@ -549,19 +549,80 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         ? `(${escapeHtml(tiers[0].badge)})`
         : ''
 
+  const sameAsLinks = [
+    snapshot.config.contact?.shopeeUrl,
+    snapshot.config.contact?.facebookUrl,
+    snapshot.config.contact?.tiktokUrl,
+  ].filter((u) => typeof u === 'string' && u.startsWith('https://'))
+
+  const productListElements =
+    !snapshot.storefrontClosed && Array.isArray(snapshot.products)
+      ? snapshot.products.slice(0, 30).map((p, idx) => ({
+          '@type': 'ListItem',
+          position: idx + 1,
+          item: {
+            '@type': 'Product',
+            sku: p.sku,
+            name: p.name,
+            description: String(p.description || p.cleanTitle || p.name).slice(0, 260),
+            ...(p.image ? { image: p.image } : {}),
+            offers: {
+              '@type': 'Offer',
+              priceCurrency: 'VND',
+              price: Math.max(0, Math.round(Number(p.retailPrice) || 0)),
+              availability:
+                p.availableToOrder !== false
+                  ? 'https://schema.org/InStock'
+                  : 'https://schema.org/OutOfStock',
+              url: `https://${snapshot.config.customDomain}/?sku=${encodeURIComponent(p.sku)}`,
+            },
+          },
+        }))
+      : []
+
   const structuredData = JSON.stringify({
     '@context': 'https://schema.org',
-    '@type': 'Store',
-    name: snapshot.brand.brandName,
-    url: `https://${snapshot.config.customDomain}/`,
-    description: snapshot.config.heroSubtitle,
-    telephone: snapshot.config.contact.hotline,
-    email: snapshot.config.contact.email,
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: snapshot.config.contact.address,
-      addressCountry: 'VN',
-    },
+    '@graph': [
+      {
+        '@type': 'Store',
+        name: snapshot.brand.brandName,
+        url: `https://${snapshot.config.customDomain}/`,
+        description: snapshot.config.heroSubtitle,
+        ...(snapshot.config.banners?.shopLogoUrl
+          ? { logo: snapshot.config.banners.shopLogoUrl }
+          : {}),
+        ...(ogBannerImg ? { image: ogBannerImg } : {}),
+        telephone: snapshot.config.contact.hotline,
+        email: snapshot.config.contact.email,
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: snapshot.config.contact.address,
+          addressCountry: 'VN',
+        },
+        ...(sameAsLinks.length > 0 ? { sameAs: sameAsLinks } : {}),
+      },
+      {
+        '@type': 'WebSite',
+        name: snapshot.brand.brandName,
+        url: `https://${snapshot.config.customDomain}/`,
+        inLanguage: 'vi-VN',
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `https://${snapshot.config.customDomain}/?q={search_term_string}`,
+          'query-input': 'required name=search_term_string',
+        },
+      },
+      ...(productListElements.length > 0
+        ? [
+            {
+              '@type': 'ItemList',
+              name: `Danh mục sản phẩm ${snapshot.brand.brandName}`,
+              numberOfItems: productListElements.length,
+              itemListElement: productListElements,
+            },
+          ]
+        : []),
+    ],
   }).replace(/<\//g, '<\\/')
 
   return `<!DOCTYPE html>
@@ -574,10 +635,16 @@ export function generateStandaloneStorefrontHtml(snapshot) {
   <link rel="canonical" href="https://${domain}/" />
   ${shopLogoUrl ? `<link rel="icon" href="${shopLogoUrl}" />` : ''}
   <meta property="og:type" content="website" />
+  <meta property="og:locale" content="vi_VN" />
+  <meta property="og:site_name" content="${brandName}" />
   <meta property="og:title" content="${brandName} — ${heroTitle}" />
   <meta property="og:description" content="${heroSub}" />
   <meta property="og:url" content="https://${domain}/" />
   ${ogBannerImg ? `<meta property="og:image" content="${ogBannerImg}" />` : ''}
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${brandName} — ${heroTitle}" />
+  <meta name="twitter:description" content="${heroSub}" />
+  ${ogBannerImg ? `<meta name="twitter:image" content="${ogBannerImg}" />` : ''}
   <script type="application/ld+json">${structuredData}</script>
   <style>
     :root {
@@ -1233,6 +1300,174 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       window.__toastTimer = setTimeout(function() { el.style.display = 'none'; }, 3200);
     }
 
+    function cartStorageKey() {
+      var cid = String((STATE.data && STATE.data.cmsInstanceId) || 'default')
+        .replace(/[^A-Za-z0-9_-]/g, '_')
+        .slice(0, 64) || 'default';
+      return 'openvn_sf_cart_v1_' + cid;
+    }
+
+    function saveCartToStorage() {
+      try {
+        var key = cartStorageKey();
+        if (!STATE.cart || !STATE.cart.length) {
+          window.localStorage.removeItem(key);
+          return;
+        }
+        var payload = STATE.cart.slice(0, 60).map(function(it) {
+          return {
+            productId: String(it.product.id || ''),
+            sku: String(it.product.sku || ''),
+            quantity: Math.max(1, Math.min(10000, Math.floor(Number(it.quantity) || 1)))
+          };
+        });
+        window.localStorage.setItem(key, JSON.stringify(payload));
+      } catch (e) {}
+    }
+
+    function reconcileCartFromStorage() {
+      try {
+        var prods = (STATE.data && STATE.data.products) || [];
+        if (!prods.length) return;
+        var raw = window.localStorage.getItem(cartStorageKey());
+        if (!raw) return;
+        var saved = JSON.parse(raw);
+        if (!Array.isArray(saved)) return;
+        var next = [];
+        saved.slice(0, 60).forEach(function(item) {
+          if (!item) return;
+          var pid = String(item.productId || '').trim();
+          var sku = String(item.sku || '').trim().toUpperCase();
+          var qty = Math.max(0, Math.min(10000, Math.floor(Number(item.quantity) || 0)));
+          if (qty <= 0 || (!pid && !sku)) return;
+          var matched = prods.find(function(p) {
+            return (pid && p.id === pid) || (sku && String(p.sku || '').toUpperCase() === sku);
+          });
+          if (!matched || matched.availableToOrder === false) return;
+          var hit = next.find(function(c) { return c.product.id === matched.id; });
+          if (hit) hit.quantity = Math.min(10000, hit.quantity + qty);
+          else next.push({ product: matched, quantity: qty });
+        });
+        STATE.cart = next;
+        updateCartBadge();
+      } catch (e) {}
+    }
+
+    function cleanVietQrMemo(raw) {
+      return String(raw || '')
+        .normalize('NFD')
+        .replace(/[\\u0300-\\u036f]/g, '')
+        .replace(/[đĐ]/g, function(ch) { return ch === 'đ' ? 'd' : 'D'; })
+        .replace(/[^A-Za-z0-9 -]/g, ' ')
+        .replace(/\\s+/g, ' ')
+        .trim()
+        .slice(0, 50);
+    }
+
+    function buildVietQrUrl(bank, amount, memo) {
+      if (!bank) return '';
+      var code = String(bank.bankCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var acct = String(bank.bankAccount || '').trim().replace(/[\\s.-]+/g, '').replace(/[^A-Za-z0-9]/g, '');
+      if (code.length < 2 || code.length > 20 || acct.length < 5 || acct.length > 26) return '';
+      var qs = [];
+      var amt = Math.max(0, Math.round(Number(amount) || 0));
+      if (amt > 0) qs.push('amount=' + encodeURIComponent(String(amt)));
+      var cleanMemo = cleanVietQrMemo(memo);
+      if (cleanMemo) qs.push('addInfo=' + encodeURIComponent(cleanMemo));
+      var holder = String(bank.bankHolder || '').trim().slice(0, 70);
+      if (holder) qs.push('accountName=' + encodeURIComponent(holder));
+      return 'https://img.vietqr.io/image/' + code + '-' + acct + '-compact2.png' + (qs.length ? '?' + qs.join('&') : '');
+    }
+
+    function copyTxt(val, label) {
+      if (!val) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(val).then(function() {
+          showToast('Đã sao chép ' + label + ': ' + val);
+        }).catch(function() {
+          showToast(label + ': ' + val);
+        });
+      } else {
+        showToast(label + ': ' + val);
+      }
+    }
+
+    function shareProdLink(sku) {
+      var cleanSku = String(sku || '').trim();
+      var base = window.location.origin + window.location.pathname;
+      var url = cleanSku ? (base + '?sku=' + encodeURIComponent(cleanSku)) : base;
+      copyTxt(url, 'liên kết sản phẩm');
+    }
+
+    function formatLookupStatus(st) {
+      var k = String(st || '').trim().toUpperCase();
+      var map = {
+        RECEIVED_PENDING_CONFIRM: 'Đã tiếp nhận — Đang chờ CSKH xác nhận giao hàng',
+        RECEIVED_WHOLESALE_LEAD: 'Đã tiếp nhận — Bộ phận Sỉ đang lập báo giá chi tiết',
+        RECEIVED: 'Đã tiếp nhận yêu cầu',
+        PENDING: 'Chờ xác nhận đơn hàng',
+        CONFIRMED: 'Đã xác nhận — Đang chuẩn bị hàng tại xưởng',
+        PROCESSING: 'Đang chế tác / đóng gói chống sốc',
+        PACKING: 'Đang đóng gói bàn giao vận chuyển',
+        READY_TO_SHIP: 'Sẵn sàng bàn giao đơn vị vận chuyển',
+        SHIPPING: 'Đang vận chuyển giao hàng',
+        IN_TRANSIT: 'Đang trên đường giao tới bạn',
+        DELIVERED: 'Đã giao hàng thành công',
+        COMPLETED: 'Hoàn tất đơn hàng',
+        CANCELLED: 'Đã hủy đơn',
+        RETURNED: 'Hoàn trả / Đổi hàng'
+      };
+      return map[k] || (st ? String(st) : 'Đã tiếp nhận');
+    }
+
+    function jumpTrackOrder(refCode, phone) {
+      var lkCode = document.getElementById('lkCode');
+      var lkPhone = document.getElementById('lkPhone');
+      if (lkCode && refCode) lkCode.value = refCode;
+      if (lkPhone && phone) lkPhone.value = phone;
+      STATE.completedOrder = null;
+      closeCartModal();
+      switchTab('TRACKING');
+    }
+
+    function applyDeepLinkQuery() {
+      try {
+        var sp = new URLSearchParams(window.location.search || '');
+        var rawTab = String(sp.get('tab') || sp.get('section') || '').trim().toUpperCase();
+        if (rawTab === 'WHOLESALE' || rawTab === 'SI' || rawTab === 'BANGGIASI') switchTab('WHOLESALE');
+        else if (rawTab === 'CONTACT' || rawTab === 'LIENHE') switchTab('CONTACT');
+        else if (rawTab === 'TRACKING' || rawTab === 'TRACUU' || rawTab === 'LOOKUP') switchTab('TRACKING');
+
+        var rawMode = String(sp.get('mode') || '').trim().toUpperCase();
+        if (rawMode === 'WHOLESALE' || rawMode === 'SI') setPriceMode('WHOLESALE');
+        else if (rawMode === 'RETAIL' || rawMode === 'LE') setPriceMode('RETAIL');
+
+        var q = String(sp.get('q') || sp.get('search') || '').trim().slice(0, 80);
+        if (q) {
+          var sIn = document.getElementById('searchInput');
+          if (sIn) {
+            sIn.value = q;
+            renderProducts();
+          }
+        }
+
+        var code = String(sp.get('code') || sp.get('lookupCode') || '').trim().toUpperCase().slice(0, 48);
+        if (code) {
+          var lkIn = document.getElementById('lkCode');
+          if (lkIn) lkIn.value = code;
+          if (!rawTab) switchTab('TRACKING');
+        }
+
+        var sku = String(sp.get('sku') || '').trim().toUpperCase();
+        if (sku) {
+          var hit = ((STATE.data && STATE.data.products) || []).find(function(p) {
+            return String(p.sku || '').toUpperCase() === sku;
+          });
+          if (hit) openProdModal(hit.id);
+        }
+      } catch (e) {}
+    }
+
     function switchTab(tab) {
       STATE.tab = tab;
       ['PRODUCTS', 'WHOLESALE', 'CONTACT', 'TRACKING'].forEach(function(t) {
@@ -1667,7 +1902,10 @@ export function generateStandaloneStorefrontHtml(snapshot) {
                 '<button type="button" class="btn-primary" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',1);closeProdModal();">Mua lẻ (+1)</button>' +
                 '<button type="button" class="btn-ws" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',10);closeProdModal();openCartModal();">Nhập sỉ (+10)</button>' +
               '</div>' +
-              (p.shopeeUrl ? '<a href="' + esc(p.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline" style="justify-content:center;">Xem sản phẩm trên Shopee ↗</a>' : '') +
+              '<div style="display:grid;grid-template-columns:' + (p.shopeeUrl ? '1fr 1fr' : '1fr') + ';gap:8px;">' +
+                '<button type="button" class="btn-outline" style="justify-content:center;" onclick="shareProdLink(\\'' + jsAttr(p.sku) + '\\')">Sao chép link SP</button>' +
+                (p.shopeeUrl ? '<a href="' + esc(p.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline" style="justify-content:center;">Xem trên Shopee ↗</a>' : '') +
+              '</div>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -1682,6 +1920,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var hit = STATE.cart.find(function(i) { return i.product.id === prodId; });
       if (hit) hit.quantity += qty;
       else STATE.cart.push({ product: p, quantity: qty });
+      saveCartToStorage();
       updateCartBadge();
       showToast('Đã thêm ' + qty + ' ' + p.unit + ' "' + p.cleanTitle + '" vào giỏ hàng');
     }
@@ -1693,6 +1932,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       STATE.cart = STATE.cart.map(function(i) {
         return i.product.id === prodId ? { product: i.product, quantity: i.quantity + delta } : i;
       }).filter(function(i) { return i.quantity > 0; });
+      saveCartToStorage();
       updateCartBadge();
       renderCartModal();
     }
@@ -1709,13 +1949,29 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 
     function renderCartModal() {
       var box = document.getElementById('cartModalContent');
+      var bank = STATE.data.bankTransfer || null;
       if (STATE.completedOrder) {
+        var co = STATE.completedOrder;
+        var doneQr = co.paymentMethod === 'BANK_TRANSFER' && bank ? buildVietQrUrl(bank, co.grandTotal, co.refCode) : '';
+        var bankDoneHtml = (co.paymentMethod === 'BANK_TRANSFER' && bank)
+          ? '<div style="margin-top:12px;background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:12px;text-align:left;font-size:12px;color:#1c1917;">' +
+              '<div style="font-weight:800;color:#0052a8;margin-bottom:6px;">Quét mã VietQR thanh toán đơn ' + esc(co.refCode) + '</div>' +
+              (doneQr ? '<div style="text-align:center;margin:8px 0;"><img src="' + esc(doneQr) + '" alt="VietQR" style="max-height:210px;border-radius:10px;border:1px solid #e7e2da;padding:6px;background:#fff;" onerror="this.style.display=\\'none\\'" /></div>' : '') +
+              '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;"><span>Ngân hàng: <strong>' + esc(bank.bankName) + '</strong> · STK: <strong>' + esc(bank.bankAccount) + '</strong></span><button type="button" class="btn-sm-out" style="padding:0 10px;min-height:28px;" onclick="copyTxt(\\'' + jsAttr(bank.bankAccount) + '\\',\\'số tài khoản\\')">Copy STK</button></div>' +
+              (bank.bankHolder ? '<div style="margin-top:3px;">Chủ TK: ' + esc(bank.bankHolder) + '</div>' : '') +
+              '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;"><span>Nội dung CK: <strong style="font-family:monospace;">' + esc(co.refCode) + '</strong></span><button type="button" class="btn-sm-out" style="padding:0 10px;min-height:28px;" onclick="copyTxt(\\'' + jsAttr(co.refCode) + '\\',\\'nội dung chuyển khoản\\')">Copy nội dung</button></div>' +
+            '</div>'
+          : '';
         box.innerHTML = '<button type="button" class="modal-close" onclick="closeCartModal()">✕</button>' +
-          '<div class="alert-ok" style="text-align:center;padding:24px;">' +
+          '<div class="alert-ok" style="text-align:center;padding:22px;">' +
             '<h3 style="font-size:18px;margin-bottom:6px;">🎉 Đặt hàng thành công!</h3>' +
-            '<p>Mã đơn hàng của bạn: <strong style="font-family:monospace;font-size:15px;">' + esc(STATE.completedOrder.refCode) + '</strong></p>' +
-            '<p style="margin-top:6px;">Tổng thanh toán: <strong>' + fmtVND(STATE.completedOrder.grandTotal) + '</strong></p>' +
-            '<button type="button" class="btn-primary" style="margin-top:14px;" onclick="STATE.completedOrder=null;closeCartModal();">Tiếp tục mua sắm</button>' +
+            '<p>Mã đơn hàng của bạn: <strong style="font-family:monospace;font-size:15px;">' + esc(co.refCode) + '</strong> <button type="button" class="btn-sm-out" style="padding:0 8px;min-height:26px;margin-left:4px;" onclick="copyTxt(\\'' + jsAttr(co.refCode) + '\\',\\'mã đơn hàng\\')">Sao chép</button></p>' +
+            '<p style="margin-top:6px;">Tổng thanh toán: <strong>' + fmtVND(co.grandTotal) + '</strong></p>' +
+            bankDoneHtml +
+            '<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px;">' +
+              '<button type="button" class="btn-outline" style="min-height:40px;" onclick="jumpTrackOrder(\\'' + jsAttr(co.refCode) + '\\',\\'' + jsAttr(co.phone || '') + '\\')">Tra cứu đơn này</button>' +
+              '<button type="button" class="btn-primary" style="min-height:40px;" onclick="STATE.completedOrder=null;closeCartModal();">Tiếp tục mua sắm</button>' +
+            '</div>' +
           '</div>';
         return;
       }
@@ -1738,8 +1994,9 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var freeShip = (STATE.data.config && STATE.data.config.freeShipThreshold) || 500000;
       var shipFee = effSub >= freeShip ? 0 : ((STATE.data.config && STATE.data.config.baseShippingFee) || 30000);
       var grand = effSub + shipFee;
-      var bank = STATE.data.bankTransfer || null;
       var pm = STATE.paymentMethod || 'COD';
+      var shortTag = (STATE.data.brand && STATE.data.brand.brandShortName) || 'BM';
+      var previewQr = (pm === 'BANK_TRANSFER' && bank) ? buildVietQrUrl(bank, grand, shortTag + ' WEB DONHANG') : '';
 
       box.innerHTML = '<button type="button" class="modal-close" onclick="closeCartModal()">✕</button>' +
         '<h3 style="font-size:18px;font-weight:800;margin-bottom:4px;">Giỏ hàng &amp; Đặt mua Trực tuyến</h3>' +
@@ -1767,7 +2024,13 @@ export function generateStandaloneStorefrontHtml(snapshot) {
             '<button type="button" class="btn-sm-out" style="' + (pm === 'COD' ? 'border-color:#0066cc;background:#eff6ff;color:#0066cc;font-weight:750;' : '') + '" onclick="setPaymentMethod(\\'COD\\')">Thanh toán khi nhận (COD)</button>' +
             '<button type="button" class="btn-sm-out" style="' + (pm === 'BANK_TRANSFER' ? 'border-color:#0066cc;background:#eff6ff;color:#0066cc;font-weight:750;' : '') + '" onclick="setPaymentMethod(\\'BANK_TRANSFER\\')">Chuyển khoản Ngân hàng</button>' +
           '</div>' +
-          (pm === 'BANK_TRANSFER' && bank ? '<div class="field full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px;font-size:12px;"><strong>Thông tin chuyển khoản:</strong> ' + esc(bank.bankName) + ' · STK: <strong>' + esc(bank.bankAccount) + '</strong>' + (bank.bankHolder ? ' (' + esc(bank.bankHolder) + ')' : '') + '</div>' : '') +
+          (pm === 'BANK_TRANSFER' && bank
+            ? '<div class="field full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px;font-size:12px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><strong>Thông tin chuyển khoản &amp; VietQR:</strong><button type="button" class="btn-sm-out" style="padding:0 10px;min-height:28px;" onclick="copyTxt(\\'' + jsAttr(bank.bankAccount) + '\\',\\'số tài khoản\\')">Copy STK</button></div>' +
+                '<div style="margin-top:4px;">' + esc(bank.bankName) + ' · STK: <strong>' + esc(bank.bankAccount) + '</strong>' + (bank.bankHolder ? ' (' + esc(bank.bankHolder) + ')' : '') + '</div>' +
+                (previewQr ? '<div style="text-align:center;margin-top:8px;"><img src="' + esc(previewQr) + '" alt="VietQR" style="max-height:185px;border-radius:8px;border:1px solid #dbeafe;padding:5px;background:#fff;" onerror="this.style.display=\\'none\\'" /><div style="font-size:11px;color:#6b6661;margin-top:4px;">Mã QR kèm đúng mã đơn BM-WEB-... cũng sẽ hiển thị ngay sau khi bấm Đặt mua</div></div>' : '') +
+              '</div>'
+            : '') +
           '<div class="field full" style="background:#f5f2ec;border-radius:11px;padding:11px;font-size:12.5px;">' +
             '<div style="display:flex;justify-content:space-between;"><span>Tạm tính (' + totalQty + ' SP):</span><strong>' + fmtVND(effSub) + '</strong></div>' +
             '<div style="display:flex;justify-content:space-between;"><span>Phí vận chuyển:</span><strong>' + (shipFee === 0 ? 'Miễn phí' : fmtVND(shipFee)) + '</strong></div>' +
@@ -1797,8 +2060,15 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         });
         var json = await res.json();
         if (!res.ok || !json.ok) throw new Error(json.error || 'Không thể gửi đơn');
-        STATE.completedOrder = { refCode: json.refCode, grandTotal: json.grandTotal };
+        var ordPhoneVal = document.getElementById('ordPhone').value;
+        STATE.completedOrder = {
+          refCode: json.refCode,
+          grandTotal: json.grandTotal,
+          paymentMethod: STATE.paymentMethod || 'COD',
+          phone: ordPhoneVal
+        };
         STATE.cart = [];
+        saveCartToStorage();
         updateCartBadge();
         renderCartModal();
       } catch (e) {
@@ -1881,8 +2151,17 @@ export function generateStandaloneStorefrontHtml(snapshot) {
           out.innerHTML = '<div style="color:#b91c1c;font-size:12.5px;padding:10px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;">' + esc(json.error || 'Không tìm thấy đơn hàng.') + '</div>';
           return;
         }
-        out.innerHTML = '<div class="alert-ok"><strong>Mã: ' + esc(json.code) + '</strong><br/>Trạng thái: ' + esc(json.status) +
-          (typeof json.total === 'number' ? '<br/>Tổng cộng: <strong>' + fmtVND(json.total) + '</strong>' : '') + '</div>';
+        var shipTxt = (json.shipment && json.shipment.trackingCode)
+          ? '<br/>Vận chuyển: <strong>' + esc(json.shipment.carrier || 'ĐVVC') + '</strong> · Mã vận đơn: <strong style="font-family:monospace;">' + esc(json.shipment.trackingCode) + '</strong>'
+          : '';
+        var tierTxt = json.tierApplied ? '<br/>Mức chiết khấu sỉ: ' + esc(json.tierApplied) : '';
+        out.innerHTML = '<div class="alert-ok"><strong>Mã: ' + esc(json.code) + '</strong>' +
+          (json.title ? '<br/>' + esc(json.title) : '') +
+          '<br/>Trạng thái: <strong>' + esc(formatLookupStatus(json.status)) + '</strong>' +
+          (typeof json.total === 'number' ? '<br/>Tổng cộng: <strong>' + fmtVND(json.total) + '</strong>' : '') +
+          tierTxt +
+          shipTxt +
+          '</div>';
       } catch (e) {
         out.innerHTML = '<p style="color:#b91c1c;font-size:12.5px;">Không thể kết nối máy chủ tra cứu lúc này.</p>';
       }
@@ -1952,6 +2231,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
           }
         }
       }
+      reconcileCartFromStorage();
       renderShopeeBanners();
       renderCategoryPills();
       renderProducts();
@@ -1960,11 +2240,13 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     }
 
     // Khởi tạo tức thì 0ms từ dữ liệu bootstrap & đồng bộ ngầm từ CMS API riêng
+    reconcileCartFromStorage();
     renderShopeeBanners();
     renderCategoryPills();
     renderProducts();
     renderWholesaleSection();
     renderContactSection();
+    applyDeepLinkQuery();
     setInterval(function() {
       if (STATE.carouselPaused || STATE.tab !== 'PRODUCTS') return;
       var b = STATE.data && STATE.data.config && STATE.data.config.banners;
@@ -1980,6 +2262,33 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 </body>
 </html>
 `
+}
+
+export function generateStorefrontSitemapXml(snapshot) {
+  const domain = String(snapshot?.config?.customDomain || 'bomocdecor.vn').trim()
+  const urls = [
+    { loc: `https://${domain}/`, changefreq: 'daily', priority: '1.0' },
+    { loc: `https://${domain}/?tab=WHOLESALE`, changefreq: 'daily', priority: '0.9' },
+    { loc: `https://${domain}/?tab=CONTACT`, changefreq: 'weekly', priority: '0.8' },
+  ]
+  if (!snapshot?.storefrontClosed && Array.isArray(snapshot?.products)) {
+    for (const p of snapshot.products.slice(0, 100)) {
+      if (p?.sku) {
+        urls.push({
+          loc: `https://${domain}/?sku=${encodeURIComponent(String(p.sku))}`,
+          changefreq: 'daily',
+          priority: '0.8',
+        })
+      }
+    }
+  }
+  const body = urls
+    .map(
+      (u) =>
+        `  <url><loc>${escapeHtml(u.loc)}</loc><changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`
+    )
+    .join('\n')
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`
 }
 
 async function main() {
@@ -2017,7 +2326,7 @@ async function main() {
   )
   fs.writeFileSync(
     path.join(stageDir, 'sitemap.xml'),
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://${domain}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>\n`,
+    generateStorefrontSitemapXml(snapshot),
     'utf8'
   )
 

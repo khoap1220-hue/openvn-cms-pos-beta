@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   Award,
@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Copy,
   ExternalLink,
   Eye,
   FileSearch,
@@ -25,8 +26,10 @@ import {
   Package,
   Phone,
   Plus,
+  QrCode,
   Search,
   Send,
+  Share2,
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
@@ -60,6 +63,15 @@ import {
   type StorefrontBannersConfig,
   type StorefrontCarouselBanner,
 } from '@/lib/storefront-banners'
+import {
+  buildStorefrontCartStorageKey,
+  buildStorefrontProductShareUrl,
+  buildStorefrontVietQrUrl,
+  formatStorefrontLookupStatusLabel,
+  parseStorefrontDeepLinkQuery,
+  reconcilePersistedCartWithCatalog,
+  serializeCartForStorage,
+} from '@/lib/storefront-ux'
 import { cn } from '@/lib/utils'
 
 interface WholesalePriceEntry {
@@ -260,7 +272,12 @@ export default function OnlineStorefrontPage() {
     grandTotal: number
     wholesaleSaved: number
     tierLabel: string | null
+    paymentMethod: 'COD' | 'BANK_TRANSFER'
   } | null>(null)
+  const [qrLoadFailedUrl, setQrLoadFailedUrl] = useState<string | null>(null)
+  const hydratedCartKeyRef = useRef<string | null>(null)
+  const pendingDeepLinkSkuRef = useRef<string>('')
+  const deepLinkSkuAppliedRef = useRef<boolean>(false)
 
   // Wholesale Inquiry Form state
   const [wsName, setWsName] = useState('')
@@ -288,10 +305,16 @@ export default function OnlineStorefrontPage() {
   const [lookupResult, setLookupResult] = useState<{
     code: string
     status: string
+    paymentStatus?: string | null
     title?: string
     total?: number | null
     tierApplied?: string | null
     createdAt?: string
+    shipment?: {
+      carrier?: string | null
+      trackingCode?: string | null
+      status?: string | null
+    } | null
   } | null>(null)
   const [lookupError, setLookupError] = useState<string | null>(null)
 
@@ -336,6 +359,12 @@ export default function OnlineStorefrontPage() {
         p.endsWith('/store') ||
         p.endsWith('/store/')
       setIsCustomDomainHost(!isInternal)
+      const dl = parseStorefrontDeepLinkQuery(window.location.search)
+      if (dl.tab) setActiveTab(dl.tab)
+      if (dl.priceMode) setPriceViewMode(dl.priceMode)
+      if (dl.query) setSearch(dl.query)
+      if (dl.lookupCode) setLookupCode(dl.lookupCode)
+      if (dl.sku) pendingDeepLinkSkuRef.current = dl.sku
     }
     void loadStorefront()
   }, [loadStorefront])
@@ -373,6 +402,71 @@ export default function OnlineStorefrontPage() {
     [cfg?.wholesaleTiers]
   )
   const contact = cfg?.contact
+  const cartStorageKey = storeData?.cmsInstanceId
+    ? buildStorefrontCartStorageKey(storeData.cmsInstanceId)
+    : null
+
+  // Phục hồi giỏ hàng cô lập theo đúng cmsInstanceId & tự động đối chiếu lại giá/tồn kho mới nhất
+  useEffect(() => {
+    if (typeof window === 'undefined' || !cartStorageKey || products.length === 0) return
+    if (hydratedCartKeyRef.current === cartStorageKey) return
+    hydratedCartKeyRef.current = cartStorageKey
+    try {
+      const raw = window.localStorage.getItem(cartStorageKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as unknown
+      const reconciled = reconcilePersistedCartWithCatalog(parsed, products)
+      if (reconciled.length > 0) {
+        setCart((prev) => {
+          if (prev.length === 0) return reconciled
+          const combined = [...reconciled]
+          for (const item of prev) {
+            const idx = combined.findIndex((c) => c.product.id === item.product.id)
+            if (idx >= 0) {
+              combined[idx] = {
+                ...combined[idx],
+                quantity: Math.min(10_000, combined[idx].quantity + item.quantity),
+              }
+            } else {
+              combined.push(item)
+            }
+          }
+          return combined
+        })
+      }
+    } catch {
+      // Bỏ qua nếu trình duyệt chặn localStorage (chế độ ẩn danh nghiêm ngặt)
+    }
+  }, [cartStorageKey, products])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !cartStorageKey) return
+    if (hydratedCartKeyRef.current !== cartStorageKey) return
+    try {
+      const serialized = serializeCartForStorage(cart)
+      if (serialized.length === 0) {
+        window.localStorage.removeItem(cartStorageKey)
+      } else {
+        window.localStorage.setItem(cartStorageKey, JSON.stringify(serialized))
+      }
+    } catch {
+      // Bỏ qua nếu bộ nhớ đầy hoặc bị chặn
+    }
+  }, [cart, cartStorageKey])
+
+  // Mở thẳng sản phẩm khi truy cập qua Deep-Link ?sku=...
+  useEffect(() => {
+    if (deepLinkSkuAppliedRef.current || !pendingDeepLinkSkuRef.current || products.length === 0) {
+      return
+    }
+    const targetSku = pendingDeepLinkSkuRef.current.trim().toUpperCase()
+    const matched = products.find((p) => p.sku.toUpperCase() === targetSku)
+    deepLinkSkuAppliedRef.current = true
+    if (matched) {
+      setSelectedImageIdx(0)
+      setSelectedProduct(matched)
+    }
+  }, [products])
 
   useEffect(() => {
     if (carouselIdx >= carouselBanners.length && carouselBanners.length > 0) {
@@ -501,6 +595,51 @@ export default function OnlineStorefrontPage() {
       : baseShippingFee
   const grandTotal = effectiveCartSubtotal + shippingFee
 
+  const copyToClipboard = useCallback(
+    async (value: string, label: string) => {
+      if (!value) return
+      try {
+        await navigator.clipboard.writeText(value)
+        toast({
+          title: `Đã sao chép ${label}`,
+          description: value,
+        })
+      } catch {
+        toast({
+          title: label,
+          description: value,
+        })
+      }
+    },
+    [toast]
+  )
+
+  const checkoutPreviewVietQrUrl =
+    paymentMethod === 'BANK_TRANSFER' && storeData?.bankTransfer
+      ? buildStorefrontVietQrUrl({
+          bankCode: storeData.bankTransfer.bankCode,
+          bankAccount: storeData.bankTransfer.bankAccount,
+          bankHolder: storeData.bankTransfer.bankHolder,
+          amount: grandTotal,
+          addInfo: `${storeData.brand?.brandShortName || 'BM'} WEB ${customerPhone.replace(/\D/g, '').slice(-10) || 'DONHANG'}`,
+          template: 'compact2',
+        })
+      : ''
+
+  const completedOrderVietQrUrl =
+    completedOrder &&
+    completedOrder.paymentMethod === 'BANK_TRANSFER' &&
+    storeData?.bankTransfer
+      ? buildStorefrontVietQrUrl({
+          bankCode: storeData.bankTransfer.bankCode,
+          bankAccount: storeData.bankTransfer.bankAccount,
+          bankHolder: storeData.bankTransfer.bankHolder,
+          amount: completedOrder.grandTotal,
+          addInfo: completedOrder.refCode,
+          template: 'compact2',
+        })
+      : ''
+
   const addToCart = (product: StorefrontProduct, qtyToAdd = 1) => {
     setCompletedOrder(null)
     setCart((prev) => {
@@ -574,6 +713,7 @@ export default function OnlineStorefrontPage() {
         grandTotal: json.grandTotal ?? grandTotal,
         wholesaleSaved: json.wholesaleSaved ?? wholesaleSavings,
         tierLabel: json.wholesaleTier?.label ?? activeCartWholesaleTier?.label ?? null,
+        paymentMethod,
       })
       setCart([])
       toast({
@@ -710,10 +850,16 @@ export default function OnlineStorefrontPage() {
         ok?: boolean
         code?: string
         status?: string
+        paymentStatus?: string | null
         title?: string
         total?: number | null
         tierApplied?: string | null
         createdAt?: string
+        shipment?: {
+          carrier?: string | null
+          trackingCode?: string | null
+          status?: string | null
+        } | null
         error?: string
       }
       if (!res.ok || !json.ok) {
@@ -723,10 +869,12 @@ export default function OnlineStorefrontPage() {
       setLookupResult({
         code: json.code || lookupCode.trim().toUpperCase(),
         status: json.status || 'RECEIVED',
+        paymentStatus: json.paymentStatus ?? null,
         title: json.title,
         total: json.total,
         tierApplied: json.tierApplied,
         createdAt: json.createdAt,
+        shipment: json.shipment ?? null,
       })
     } catch {
       setLookupError('Không thể kết nối máy chủ tra cứu lúc này.')
@@ -2020,11 +2168,7 @@ export default function OnlineStorefrontPage() {
                     <p>
                       Trạng thái:{' '}
                       <Badge variant="outline" className="font-semibold">
-                        {lookupResult.status === 'RECEIVED_PENDING_CONFIRM'
-                          ? 'Đã tiếp nhận — Đang chờ CSKH xác nhận giao hàng'
-                          : lookupResult.status === 'RECEIVED_WHOLESALE_LEAD'
-                            ? 'Đã tiếp nhận — Bộ phận Sỉ đang lập báo giá'
-                            : lookupResult.status}
+                        {formatStorefrontLookupStatusLabel(lookupResult.status)}
                       </Badge>
                     </p>
                     {typeof lookupResult.total === 'number' && (
@@ -2034,6 +2178,13 @@ export default function OnlineStorefrontPage() {
                     )}
                     {lookupResult.tierApplied && (
                       <p>Mức chiết khấu sỉ: {lookupResult.tierApplied}</p>
+                    )}
+                    {lookupResult.shipment?.trackingCode && (
+                      <p>
+                        Vận chuyển:{' '}
+                        <strong>{lookupResult.shipment.carrier || 'ĐVVC'}</strong> · Mã vận đơn:{' '}
+                        <strong className="font-mono">{lookupResult.shipment.trackingCode}</strong>
+                      </p>
                     )}
                   </div>
                 )}
@@ -2249,18 +2400,37 @@ export default function OnlineStorefrontPage() {
                         Nhập sỉ (+10)
                       </Button>
                     </div>
-                    {selectedProduct.shopeeUrl && (
-                      <Button asChild variant="ghost" size="sm" className="w-full gap-1.5 text-xs">
-                        <a
-                          href={selectedProduct.shopeeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <span>Xem sản phẩm này trên Shopee</span>
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full gap-1.5 text-xs"
+                        onClick={() => {
+                          if (typeof window === 'undefined') return
+                          const url = buildStorefrontProductShareUrl(
+                            window.location.href,
+                            selectedProduct.sku
+                          )
+                          void copyToClipboard(url, 'liên kết sản phẩm')
+                        }}
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                        <span>Sao chép link SP</span>
                       </Button>
-                    )}
+                      {selectedProduct.shopeeUrl && (
+                        <Button asChild variant="ghost" size="sm" className="w-full gap-1.5 text-xs">
+                          <a
+                            href={selectedProduct.shopeeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <span>Xem trên Shopee</span>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2288,24 +2458,113 @@ export default function OnlineStorefrontPage() {
               <p className="text-base font-bold text-emerald-900 dark:text-emerald-200">
                 Đặt hàng thành công!
               </p>
-              <p className="text-xs text-emerald-800 dark:text-emerald-300">
-                Mã đơn hàng của bạn:{' '}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300">
+                <span>Mã đơn hàng của bạn:</span>
                 <strong className="font-mono text-sm">{completedOrder.refCode}</strong>
-              </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-[11px]"
+                  onClick={() => void copyToClipboard(completedOrder.refCode, 'mã đơn hàng')}
+                >
+                  <Copy className="h-3 w-3" /> Sao chép
+                </Button>
+              </div>
               <p className="text-xs font-semibold">
                 Tổng thanh toán: {formatVND(completedOrder.grandTotal)}
                 {completedOrder.tierLabel ? ` (${completedOrder.tierLabel})` : ''}
               </p>
-              <Button
-                type="button"
-                className="h-10 bg-[#0066CC] text-white hover:bg-[#0055B3]"
-                onClick={() => {
-                  setCompletedOrder(null)
-                  setCartOpen(false)
-                }}
-              >
-                Tiếp tục mua sắm
-              </Button>
+
+              {completedOrder.paymentMethod === 'BANK_TRANSFER' && storeData?.bankTransfer && (
+                <div className="space-y-2 rounded-xl border border-sky-200 bg-white/95 p-3 text-left text-xs dark:border-sky-900 dark:bg-slate-950/80">
+                  <div className="flex items-center gap-1.5 font-bold text-sky-900 dark:text-sky-200">
+                    <QrCode className="h-4 w-4 shrink-0" />
+                    <span>Quét mã VietQR thanh toán đơn {completedOrder.refCode}</span>
+                  </div>
+                  {completedOrderVietQrUrl && qrLoadFailedUrl !== completedOrderVietQrUrl && (
+                    <div className="flex justify-center py-1">
+                      <img
+                        src={completedOrderVietQrUrl}
+                        alt={`VietQR thanh toán ${completedOrder.refCode}`}
+                        className="max-h-56 rounded-lg border bg-white p-1.5 shadow-xs"
+                        onError={() => setQrLoadFailedUrl(completedOrderVietQrUrl)}
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1 text-[11.5px]">
+                    <p>
+                      Ngân hàng: <strong>{storeData.bankTransfer.bankName}</strong>
+                    </p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        Số TK: <strong className="font-mono">{storeData.bankTransfer.bankAccount}</strong>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-[11px]"
+                        onClick={() =>
+                          void copyToClipboard(
+                            storeData.bankTransfer?.bankAccount || '',
+                            'số tài khoản'
+                          )
+                        }
+                      >
+                        <Copy className="h-3 w-3" /> Copy STK
+                      </Button>
+                    </div>
+                    {storeData.bankTransfer.bankHolder && (
+                      <p>Chủ TK: {storeData.bankTransfer.bankHolder}</p>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        Nội dung CK: <strong className="font-mono">{completedOrder.refCode}</strong>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-[11px]"
+                        onClick={() =>
+                          void copyToClipboard(completedOrder.refCode, 'nội dung chuyển khoản')
+                        }
+                      >
+                        <Copy className="h-3 w-3" /> Copy nội dung
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-center gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 text-xs font-semibold"
+                  onClick={() => {
+                    setLookupCode(completedOrder.refCode)
+                    if (customerPhone.trim()) setLookupPhone(customerPhone.trim())
+                    setCompletedOrder(null)
+                    setCartOpen(false)
+                    setActiveTab('TRACKING')
+                  }}
+                >
+                  <FileSearch className="mr-1.5 h-3.5 w-3.5" />
+                  Tra cứu đơn này
+                </Button>
+                <Button
+                  type="button"
+                  className="h-10 bg-[#0066CC] text-xs font-bold text-white hover:bg-[#0055B3]"
+                  onClick={() => {
+                    setCompletedOrder(null)
+                    setCartOpen(false)
+                  }}
+                >
+                  Tiếp tục mua sắm
+                </Button>
+              </div>
             </div>
           ) : cart.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
@@ -2456,16 +2715,46 @@ export default function OnlineStorefrontPage() {
               </div>
 
               {paymentMethod === 'BANK_TRANSFER' && storeData?.bankTransfer && (
-                <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs dark:border-sky-900 dark:bg-sky-950/30">
-                  <p className="font-bold text-sky-900 dark:text-sky-200">
-                    Thông tin chuyển khoản thanh toán:
-                  </p>
+                <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs dark:border-sky-900 dark:bg-sky-950/30">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 font-bold text-sky-900 dark:text-sky-200">
+                      <QrCode className="h-4 w-4 shrink-0" />
+                      <span>Thông tin chuyển khoản &amp; VietQR tự động:</span>
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-[11px]"
+                      onClick={() =>
+                        void copyToClipboard(
+                          storeData.bankTransfer?.bankAccount || '',
+                          'số tài khoản'
+                        )
+                      }
+                    >
+                      <Copy className="h-3 w-3" /> Copy STK
+                    </Button>
+                  </div>
                   <p className="mt-0.5">
                     Ngân hàng: <strong>{storeData.bankTransfer.bankName}</strong> · STK:{' '}
                     <strong className="font-mono">{storeData.bankTransfer.bankAccount}</strong>
                   </p>
                   {storeData.bankTransfer.bankHolder && (
                     <p>Chủ TK: {storeData.bankTransfer.bankHolder}</p>
+                  )}
+                  {checkoutPreviewVietQrUrl && qrLoadFailedUrl !== checkoutPreviewVietQrUrl && (
+                    <div className="flex flex-col items-center gap-1 pt-1">
+                      <img
+                        src={checkoutPreviewVietQrUrl}
+                        alt="Mã VietQR chuyển khoản"
+                        className="max-h-48 rounded-lg border bg-white p-1.5 shadow-xs"
+                        onError={() => setQrLoadFailedUrl(checkoutPreviewVietQrUrl)}
+                      />
+                      <span className="text-[11px] text-muted-foreground">
+                        Mã QR kèm đúng mã đơn BM-WEB-... cũng sẽ hiển thị ngay sau khi bấm Đặt mua
+                      </span>
+                    </div>
                   )}
                 </div>
               )}

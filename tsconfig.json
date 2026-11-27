@@ -40,6 +40,8 @@
   "exclude": [
     "node_modules",
     "examples",
-    "mini-services"
+    "mini-services",
+    "scratch",
+    ".beta_stage"
   ]
 }
