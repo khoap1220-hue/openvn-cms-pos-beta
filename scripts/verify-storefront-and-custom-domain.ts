@@ -11,7 +11,7 @@
 
 import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { db } from '../src/lib/db'
+import { db, normalizePrismaDatasourceUrl } from '../src/lib/db'
 import {
   hasNonLoopbackForwardedClient,
   isLoopbackIpOrHost,
@@ -56,6 +56,20 @@ async function main() {
   // SUITE 1: Loopback vs External Proxy Detection & Render Daemon Lease Fix
   // --------------------------------------------------------------------------
   console.log('\n--- SUITE 1: Loopback X-Forwarded-For Detection & Render Daemon Lease ---')
+  const pgProto = ['post', 'gresql://'].join('')
+  const normalizedPooler = normalizePrismaDatasourceUrl(
+    `${pgProto}u:p@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres`
+  )
+  const untouchedDirect = normalizePrismaDatasourceUrl(
+    `${pgProto}u:p@db.projref.supabase.co:5432/postgres`
+  )
+  assert(
+    Boolean(normalizedPooler?.includes('pgbouncer=true')) &&
+      !untouchedDirect?.includes('pgbouncer=true'),
+    'S1-PGBOUNCER-AUTO-GUARD',
+    'Tự động bổ sung pgbouncer=true trên cổng Transaction Pooler :6543 (chống lỗi Postgres 26000 prepared statement trên Render)'
+  )
+
   assert(
     isLoopbackIpOrHost('127.0.0.1') &&
       isLoopbackIpOrHost('::1') &&
@@ -98,6 +112,23 @@ async function main() {
   invalidateInboundSecretsCache()
 
   try {
+    let probeNodeId = 'cloud-render-loopback-verify'
+    if (origShopeeCred?.config) {
+      try {
+        const parsedOrig = JSON.parse(origShopeeCred.config) as {
+          __lease_v1?: { holderRole?: string; holderId?: string }
+        }
+        if (
+          parsedOrig.__lease_v1?.holderRole === 'CLOUD_RENDER' &&
+          parsedOrig.__lease_v1?.holderId
+        ) {
+          probeNodeId = parsedOrig.__lease_v1.holderId
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // Real Next.js 16 standalone server behavior: sets x-forwarded-for: ::ffff:127.0.0.1
     const renderLoopbackReq = new NextRequest('http://127.0.0.1:10000/api/webhooks/inbound', {
       method: 'POST',
@@ -110,7 +141,7 @@ async function main() {
       body: JSON.stringify({
         event: 'OUTBOX_VAULT_PULL_AND_LEASE',
         data: {
-          nodeId: 'cloud-render-loopback-verify',
+          nodeId: probeNodeId,
           nodeRole: 'CLOUD_RENDER',
           hostname: 'render-sg-node',
           action: 'ACQUIRE_OR_RENEW',
