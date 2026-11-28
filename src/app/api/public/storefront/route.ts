@@ -10,6 +10,8 @@ import {
   resolveActiveWholesaleTier,
 } from '@/lib/storefront-config'
 import {
+  extractProductGalleryImages,
+  extractProductPhysicalMeta,
   formatCustomerStorefrontBrandName,
   formatStorefrontDisplayTitle,
   resolveCustomerHeaderSubtitle,
@@ -261,25 +263,9 @@ export async function GET(req: NextRequest) {
               const retailPrice =
                 webListing?.price && webListing.price > 0 ? webListing.price : prod.sellPrice
 
-              let shopeeItemId: string | null = null
-              let images: string[] = prod.image ? [prod.image] : []
-              if (prod.attributes) {
-                try {
-                  const attr = JSON.parse(prod.attributes) as {
-                    shopeeItemId?: string | number
-                    images?: string[]
-                  }
-                  if (attr.shopeeItemId) shopeeItemId = String(attr.shopeeItemId)
-                  if (Array.isArray(attr.images) && attr.images.length > 0) {
-                    images = attr.images.filter((u) => typeof u === 'string' && u.startsWith('http'))
-                    if (prod.image && !images.includes(prod.image)) {
-                      images = [prod.image, ...images]
-                    }
-                  }
-                } catch {
-                  // ignore
-                }
-              }
+              const images = extractProductGalleryImages(prod.image, prod.attributes, 8)
+              const physicalMeta = extractProductPhysicalMeta(prod.attributes)
+              const shopeeItemId = physicalMeta.shopeeItemId
 
               const { cleanTitle: rawCleanTitle, variantLabel } = splitProductTitleAndVariant(
                 prod.name
@@ -301,6 +287,8 @@ export async function GET(req: NextRequest) {
               return {
                 id: prod.id,
                 sku: prod.sku,
+                parentSku: physicalMeta.parentSku,
+                tierVariationName: physicalMeta.tierVariationName,
                 name: prod.name,
                 cleanTitle,
                 variantLabel,
@@ -312,15 +300,18 @@ export async function GET(req: NextRequest) {
                 unit: prod.unit || 'sp',
                 type: prod.type || 'SIMPLE',
                 fragile: Boolean(prod.fragile),
+                weightGram: physicalMeta.weightGram,
+                dimensionsLabel: physicalMeta.dimensionsLabel,
+                daysToShip: physicalMeta.daysToShip,
                 image: prod.image || images[0] || null,
-                images: images.slice(0, 6),
+                images,
                 inStock: prod.stock > 0,
                 availableToOrder: prod.stock > 0 || config.allowPreorderWhenOutOfStock,
                 stockLabel:
                   prod.stock > 0
                     ? `Sẵn hàng (${prod.stock} ${prod.unit || 'sp'})`
                     : config.allowPreorderWhenOutOfStock
-                      ? 'Đặt chế tác tại xưởng (Giao 1–2 ngày)'
+                      ? `Đặt chế tác tại xưởng (Giao ${physicalMeta.daysToShip || 2} ngày)`
                       : 'Tạm hết hàng',
                 shopeeUrl:
                   shopeeItemId && shopeeShopId

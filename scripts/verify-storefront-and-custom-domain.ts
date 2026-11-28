@@ -42,12 +42,14 @@ import {
   isPlaceholderStorefrontEmail,
   isPlaceholderStorefrontPhone,
   parseStorefrontDeepLinkQuery,
+  parseStorefrontProductDescription,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
   resolveCustomerHeaderSubtitle,
   resolveHeroPrimaryStage,
   resolveStorefrontHeroCopy,
   selectHeroShowcaseProducts,
+  selectRelatedStorefrontProducts,
   serializeCartForStorage,
 } from '../src/lib/storefront-ux'
 import {
@@ -1653,10 +1655,19 @@ async function main() {
       products: Array<{
         id: string
         sku: string
+        parentSku?: string | null
+        tierVariationName?: string | null
         name: string
         cleanTitle: string
         variantLabel: string | null
         description: string
+        retailPrice: number
+        fragile: boolean
+        weightGram?: number | null
+        dimensionsLabel?: string | null
+        image: string | null
+        images: string[]
+        availableToOrder: boolean
         stockLabel: string
         unit: string
       }>
@@ -1921,8 +1932,91 @@ async function main() {
     )
     const senKemProd = livePubData.products.find((p) => p.sku === 'BM-DEC-SEN-KEM')!
     const senSiblings = findSiblingVariantProducts(senKemProd, livePubData.products)
+    const senNauProd = livePubData.products.find((p) => p.sku === 'BM-SEN-01-NAU')!
+    const senNauSiblings = findSiblingVariantProducts(senNauProd, livePubData.products)
+    const miniSenProd = livePubData.products.find((p) => p.sku === 'BM-SEN-01-TRANG')!
+    const miniSenSiblings = findSiblingVariantProducts(miniSenProd, livePubData.products)
+    const tea50Prod = livePubData.products.find((p) => p.sku === 'BM-TEA-50')!
+    const teaSiblings = findSiblingVariantProducts(tea50Prod, livePubData.products)
     const singleCocProd = livePubData.products.find((p) => p.sku === 'BM-DEC-COC-TRON')!
     const singleSiblings = findSiblingVariantProducts(singleCocProd, livePubData.products)
+
+    // Verify Product Detail upgrade: 18/18 products have >= 4 gallery images, structured description without #hashtags, and VM interactive detail sheet
+    const allHaveRichGallery = livePubData.products.every(
+      (p) => Array.isArray(p.images) && p.images.length >= 4 && new Set(p.images).size === p.images.length
+    )
+    const parsedSenDesc = parseStorefrontProductDescription(senKemProd.description, {
+      weightGram: senKemProd.weightGram,
+      dimensionsLabel: senKemProd.dimensionsLabel,
+      fragile: senKemProd.fragile,
+      unit: senKemProd.unit,
+    })
+    const parsedTeaDesc = parseStorefrontProductDescription(tea50Prod.description, {
+      weightGram: tea50Prod.weightGram,
+      dimensionsLabel: tea50Prod.dimensionsLabel,
+      fragile: tea50Prod.fragile,
+      unit: tea50Prod.unit,
+    })
+    const relatedForSen = selectRelatedStorefrontProducts(senKemProd, livePubData.products, 3)
+
+    vm.runInContext(`openProdModal('${senKemProd.id}');`, vmCtx)
+    const prodModalOpenedHtml = domMap.get('prodModalContent')!.innerHTML
+    const hasGalleryCounter = prodModalOpenedHtml.includes(`1 / ${senKemProd.images.length}`)
+    const hasNoRawHashtags = !prodModalOpenedHtml.includes('#hubupsen')
+    const hasThreeTabs =
+      prodModalOpenedHtml.includes('Đặc điểm &amp; Công năng') &&
+      prodModalOpenedHtml.includes('Thông số kỹ thuật') &&
+      prodModalOpenedHtml.includes('Bảo quản &amp; Đóng gói')
+
+    // ArrowRight advances gallery image to 2 / N
+    keydownHandlers.forEach((fn) => fn({ key: 'ArrowRight' }))
+    const advancedGalleryOk = domMap
+      .get('prodModalContent')!
+      .innerHTML.includes(`2 / ${senKemProd.images.length}`)
+
+    // Interactive wholesale tier button: setModalQtyDirect(10) unlocks wholesale discount & live savings
+    vm.runInContext(`setModalQtyDirect(10);`, vmCtx)
+    const wsCalcHtml = domMap.get('prodModalContent')!.innerHTML
+    const wsCalcUnlocked =
+      wsCalcHtml.includes('Đơn giá sỉ đang áp dụng') && wsCalcHtml.includes('Tiết kiệm')
+
+    // Switch tab to SPECS
+    vm.runInContext(`setModalTab('SPECS');`, vmCtx)
+    const specsTabHtml = domMap.get('prodModalContent')!.innerHTML
+    const specsTabRendered = specsTabHtml.includes('Kích thước phủ bì')
+
+    // Lightbox zoom opens & first Escape closes only zoom, second Escape closes prodModal
+    vm.runInContext(`openZoomModal();`, vmCtx)
+    const zoomOpenedOk = domMap.get('prodZoomModal')!.classList.contains('open')
+    keydownHandlers.forEach((fn) => fn({ key: 'Escape' }))
+    const zoomClosedProdStillOpen =
+      !domMap.get('prodZoomModal')!.classList.contains('open') &&
+      domMap.get('prodModal')!.classList.contains('open')
+    keydownHandlers.forEach((fn) => fn({ key: 'Escape' }))
+    const prodClosedOnSecondEscape = !domMap.get('prodModal')!.classList.contains('open')
+
+    assert(
+      allHaveRichGallery &&
+        senNauSiblings.length === 2 &&
+        miniSenSiblings.length === 0 &&
+        teaSiblings.length === 3 &&
+        parsedSenDesc.sections.length >= 3 &&
+        parsedSenDesc.quickSpecs.length >= 3 &&
+        !parsedSenDesc.cleanPlainText.includes('#hubupsen') &&
+        !parsedTeaDesc.sections.some((s) => /trên shopee/i.test(s.title)) &&
+        relatedForSen.length === 3 &&
+        hasGalleryCounter &&
+        hasNoRawHashtags &&
+        hasThreeTabs &&
+        advancedGalleryOk &&
+        wsCalcUnlocked &&
+        specsTabRendered &&
+        zoomOpenedOk &&
+        zoomClosedProdStillOpen &&
+        prodClosedOnSecondEscape,
+      'S7-PRODUCT-DETAIL-GALLERY-SPECS-TABS-SIBLINGS-AND-LIGHTBOX',
+      'Chi tiết SP đạt chuẩn: 18/18 SP có >= 4 ảnh Gallery thật, cô lập parentSku chống trộn biến thể, tách 3 Tab sạch hashtag + thông số nhanh, tính giá sỉ tức thì & Lightbox Zoom 2 cấp Escape'
+    )
     const conflictingColorCards = livePubData.products.filter(
       (p) =>
         p.variantLabel &&

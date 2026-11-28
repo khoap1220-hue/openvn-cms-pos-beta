@@ -518,18 +518,51 @@ async function buildCmsStorefrontSnapshot() {
             : null
           const retailPrice = wl?.price && wl.price > 0 ? wl.price : prod.sellPrice
           let shopeeItemId = null
-          let images = prod.image ? [prod.image] : []
+          let parentSku = null
+          let tierVariationName = null
+          let weightGram = null
+          let dimensionsLabel = null
+          let daysToShip = null
+          const rawImgCandidates = [prod.image]
           if (prod.attributes) {
             try {
               const attr = JSON.parse(prod.attributes)
-              if (attr.shopeeItemId) shopeeItemId = String(attr.shopeeItemId)
-              if (Array.isArray(attr.images) && attr.images.length > 0) {
-                images = attr.images.filter((u) => typeof u === 'string' && u.startsWith('http'))
-                if (prod.image && !images.includes(prod.image)) images = [prod.image, ...images]
+              if (attr.shopeeItemId) shopeeItemId = String(attr.shopeeItemId).trim() || null
+              if (attr.parentSku) parentSku = String(attr.parentSku).trim() || null
+              if (attr.tierVariationName) {
+                tierVariationName = String(attr.tierVariationName).trim() || null
               }
+              const wNum = Number(attr.weightGram)
+              if (Number.isFinite(wNum) && wNum > 0) weightGram = Math.round(wNum)
+              if (attr.dimensionCm && typeof attr.dimensionCm === 'object') {
+                const l = Number(attr.dimensionCm.length)
+                const w = Number(attr.dimensionCm.width)
+                const h = Number(attr.dimensionCm.height)
+                if (l > 0 && w > 0 && h > 0) dimensionsLabel = `${l} × ${w} × ${h} cm`
+              }
+              if (attr.preOrderInfo && typeof attr.preOrderInfo === 'object') {
+                const d = Number(attr.preOrderInfo.days_to_ship)
+                if (Number.isFinite(d) && d > 0 && d <= 30) daysToShip = Math.round(d)
+              }
+              rawImgCandidates.push(attr.variantImage)
+              if (Array.isArray(attr.gallery)) rawImgCandidates.push(...attr.gallery)
+              if (Array.isArray(attr.images)) rawImgCandidates.push(...attr.images)
+              rawImgCandidates.push(attr.coverImage)
+              rawImgCandidates.push(attr.lastSyncedShopeeImage)
             } catch {
               // ignore
             }
+          }
+          const seenImgs = new Set()
+          const images = []
+          for (const u of rawImgCandidates) {
+            if (typeof u !== 'string') continue
+            const cleanU = u.trim()
+            if (!cleanU || (!cleanU.startsWith('http://') && !cleanU.startsWith('https://') && !cleanU.startsWith('/'))) continue
+            if (seenImgs.has(cleanU)) continue
+            seenImgs.add(cleanU)
+            images.push(cleanU)
+            if (images.length >= 8) break
           }
           const { cleanTitle: rawClean, variantLabel } = splitTitle(prod.name)
           const cleanTitle = formatDisplayTitleMjs(rawClean, variantLabel) || rawClean
@@ -548,6 +581,8 @@ async function buildCmsStorefrontSnapshot() {
           return {
             id: prod.id,
             sku: prod.sku,
+            parentSku,
+            tierVariationName,
             name: prod.name,
             cleanTitle,
             variantLabel,
@@ -559,15 +594,18 @@ async function buildCmsStorefrontSnapshot() {
             unit: unitVal,
             type: prod.type || 'SIMPLE',
             fragile: Boolean(prod.fragile),
+            weightGram,
+            dimensionsLabel,
+            daysToShip,
             image: prod.image || images[0] || null,
-            images: images.slice(0, 6),
+            images,
             inStock: prod.stock > 0,
             availableToOrder: prod.stock > 0 || allowPreorder,
             stockLabel:
               prod.stock > 0
                 ? `Sẵn hàng (${prod.stock} ${unitVal})`
                 : allowPreorder
-                  ? 'Đặt chế tác tại xưởng (Giao 1–2 ngày)'
+                  ? `Đặt chế tác tại xưởng (Giao ${daysToShip || 2} ngày)`
                   : 'Tạm hết hàng',
             shopeeUrl:
               shopeeItemId && shopeeShopId
@@ -1125,27 +1163,42 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 
   const productListElements =
     !snapshot.storefrontClosed && Array.isArray(sanitizedBootstrapSnapshot.products)
-      ? sanitizedBootstrapSnapshot.products.slice(0, 30).map((p, idx) => ({
-          '@type': 'ListItem',
-          position: idx + 1,
-          item: {
-            '@type': 'Product',
-            sku: p.sku,
-            name: p.cleanTitle || p.name,
-            description: String(p.description || p.cleanTitle || p.name).slice(0, 260),
-            ...(p.image ? { image: p.image } : {}),
-            offers: {
-              '@type': 'Offer',
-              priceCurrency: 'VND',
-              price: Math.max(0, Math.round(Number(p.retailPrice) || 0)),
-              availability:
-                p.availableToOrder !== false
-                  ? 'https://schema.org/InStock'
-                  : 'https://schema.org/OutOfStock',
-              url: `https://${snapshot.config.customDomain}/?sku=${encodeURIComponent(p.sku)}`,
+      ? sanitizedBootstrapSnapshot.products.slice(0, 30).map((p, idx) => {
+          const cleanLdDesc = String(p.description || p.cleanTitle || p.name)
+            .split('\n')
+            .filter((ln) => !/^#[A-Za-z0-9_\u00C0-\u024F]+/.test(ln.trim()))
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 280)
+          const ldImages =
+            Array.isArray(p.images) && p.images.length > 0
+              ? p.images
+              : p.image
+                ? [p.image]
+                : undefined
+          return {
+            '@type': 'ListItem',
+            position: idx + 1,
+            item: {
+              '@type': 'Product',
+              sku: p.sku,
+              name: p.cleanTitle || p.name,
+              description: cleanLdDesc,
+              ...(ldImages ? { image: ldImages } : {}),
+              offers: {
+                '@type': 'Offer',
+                priceCurrency: 'VND',
+                price: Math.max(0, Math.round(Number(p.retailPrice) || 0)),
+                availability:
+                  p.availableToOrder !== false
+                    ? 'https://schema.org/InStock'
+                    : 'https://schema.org/OutOfStock',
+                url: `https://${snapshot.config.customDomain}/?sku=${encodeURIComponent(p.sku)}`,
+              },
             },
-          },
-        }))
+          }
+        })
       : []
 
   const cleanHotlineLd = String(snapshot.config.contact?.hotline || '').trim()
@@ -1684,37 +1737,195 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     .contact-item strong, .contact-item a { font-size: 14px; font-weight: 750; color: var(--text); }
     .lk-output { margin-top: 14px; }
     .modal-backdrop {
-      position: fixed; inset: 0; z-index: 85; background: rgba(15, 23, 42, 0.58);
+      position: fixed; inset: 0; z-index: 85; background: rgba(15, 23, 42, 0.62);
+      backdrop-filter: blur(3px);
       display: none; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 20px; max-width: 680px; width: 100%;
+      max-height: 91vh; overflow-y: auto; padding: 24px; position: relative; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.26);
+    }
+    .modal.modal-prod { max-width: 940px; padding: 24px 26px 22px; }
+    .modal-cart { max-width: 540px; }
     @media (max-width: 640px) {
       .modal-backdrop { align-items: flex-end; padding: 0; }
-      .modal { border-radius: 20px 20px 0 0 !important; max-height: 92dvh !important; padding: 18px 16px 22px !important; }
+      .modal { border-radius: 22px 22px 0 0 !important; max-height: 93dvh !important; padding: 16px 15px 0 !important; }
+      .modal.modal-cart { padding: 18px 16px 22px !important; }
     }
-    .modal {
-      background: #fff; border-radius: 18px; max-width: 660px; width: 100%;
-      max-height: 90vh; overflow-y: auto; padding: 22px; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.22);
-    }
-    .modal-cart { max-width: 540px; }
     .modal-close {
-      position: absolute; top: 12px; right: 12px; width: 36px; height: 36px;
-      border-radius: 50%; border: 1px solid var(--line); background: #fff; cursor: pointer; font-weight: 800;
-      display: inline-flex; align-items: center; justify-content: center;
+      position: sticky; top: 0; float: right; z-index: 12; margin-left: 8px;
+      width: 38px; height: 38px;
+      border-radius: 50%; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.96); cursor: pointer; font-weight: 800;
+      display: inline-flex; align-items: center; justify-content: center; color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
-    .modal-thumbs { display: flex; gap: 6px; overflow-x: auto; padding-top: 8px; }
+    .modal-close:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-dark); }
+    .pd-layout {
+      display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr); clear: both;
+    }
+    @media (min-width: 768px) {
+      .pd-layout { grid-template-columns: minmax(290px, 0.88fr) minmax(0, 1.12fr); align-items: start; gap: 26px; }
+      .pd-gallery-col { position: sticky; top: 0; }
+    }
+    .pd-stage {
+      position: relative; background: #f3efe9; border-radius: 16px; overflow: hidden;
+      aspect-ratio: 1 / 1; border: 1px solid var(--line);
+    }
+    .pd-stage-img-btn {
+      width: 100%; height: 100%; padding: 0; border: none; background: transparent; cursor: zoom-in; display: block;
+    }
+    .pd-stage-img-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pd-nav-arrow {
+      position: absolute; top: 50%; transform: translateY(-50%); z-index: 4;
+      width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(28, 25, 23, 0.14);
+      background: rgba(255, 255, 255, 0.92); color: var(--text); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .pd-nav-arrow:hover { background: #fff; border-color: var(--brand); color: var(--brand); }
+    .pd-nav-arrow.prev { left: 10px; }
+    .pd-nav-arrow.next { right: 10px; }
+    .pd-counter-pill {
+      position: absolute; bottom: 10px; left: 10px; z-index: 4;
+      background: rgba(28, 25, 23, 0.78); color: #fff; font-size: 11.5px; font-weight: 700;
+      padding: 4px 10px; border-radius: 999px; font-variant-numeric: tabular-nums;
+    }
+    .pd-zoom-pill {
+      position: absolute; bottom: 10px; right: 10px; z-index: 4;
+      background: rgba(255, 255, 255, 0.94); color: var(--text); border: 1px solid var(--line);
+      font-size: 11.5px; font-weight: 700; min-height: 32px; padding: 0 11px; border-radius: 999px;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .pd-zoom-pill:hover { border-color: var(--brand); color: var(--brand-dark); }
+    .modal-thumbs { display: flex; gap: 7px; overflow-x: auto; padding: 9px 2px 3px; scrollbar-width: thin; }
     .modal-thumb-btn {
-      width: 48px; height: 48px; border-radius: 9px; overflow: hidden; border: 2px solid transparent;
-      padding: 0; background: #f3efe9; cursor: pointer; flex-shrink: 0; opacity: 0.72;
+      width: 56px; height: 56px; border-radius: 10px; overflow: hidden; border: 2px solid var(--line);
+      padding: 0; background: #f3efe9; cursor: pointer; flex-shrink: 0; opacity: 0.76; transition: opacity 0.16s ease, border-color 0.16s ease;
     }
-    .modal-thumb-btn.active { border-color: var(--brand); opacity: 1; }
+    .modal-thumb-btn:hover { opacity: 1; }
+    .modal-thumb-btn.active { border-color: var(--brand); opacity: 1; box-shadow: 0 0 0 2px rgba(140, 79, 30, 0.18); }
     .modal-thumb-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .var-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
-    .var-chip {
-      min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line);
-      background: #fff; font-size: 12px; font-weight: 650; cursor: pointer; color: var(--text);
+    .pd-quick-specs {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 10px;
     }
+    .pd-trust-strip {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px;
+    }
+    @media (max-width: 767px) {
+      .pd-gallery-extra { display: none; }
+    }
+      background: #faf8f5; border: 1px solid var(--line); border-radius: 11px; padding: 8px 10px;
+    }
+    .pd-spec-chip small { display: block; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 1px; }
+    .pd-spec-chip strong { display: block; font-size: 12px; color: var(--text); font-weight: 700; line-height: 1.35; }
+    .pd-spec-chip {
+      background: #faf8f5; border: 1px solid var(--line); border-radius: 11px; padding: 8px 10px;
+    }
+    .pd-spec-chip small { display: block; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 1px; }
+    .pd-spec-chip strong { display: block; font-size: 12px; color: var(--text); font-weight: 700; line-height: 1.35; }
+    .pd-trust-badge {
+      display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 650;
+      color: var(--ok); background: var(--ok-soft); border: 1px solid #99f6e4; border-radius: 999px; padding: 4px 10px;
+    }
+    .pd-meta-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px;
+    }
+    .pd-sku-pill {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; font-weight: 700;
+      background: #f5f2ec; color: var(--muted); border: 1px solid var(--line); border-radius: 7px; padding: 2px 8px;
+    }
+    .pd-stock-pill {
+      font-size: 11.5px; font-weight: 700; color: var(--ok); background: var(--ok-soft);
+      border: 1px solid #99f6e4; border-radius: 7px; padding: 2px 8px;
+    }
+    .pd-title { font-size: 20px; font-weight: 850; line-height: 1.28; color: var(--text); margin: 2px 0 6px; }
+    .pd-lead { font-size: 13px; line-height: 1.55; color: var(--muted); margin-bottom: 10px; }
+    .pd-price-panel {
+      background: #faf8f5; border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px; margin-bottom: 11px;
+    }
+    .pd-price-main { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .pd-price-now { font-size: 24px; font-weight: 850; color: var(--brand); font-variant-numeric: tabular-nums; }
+    .pd-price-strike { font-size: 13px; color: var(--muted); text-decoration: line-through; margin-left: 6px; font-weight: 500; }
+    .pd-ws-tier-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 6px; margin-top: 9px;
+    }
+    .pd-ws-tier-btn {
+      text-align: left; border: 1px solid #e6d3bd; background: #fff; border-radius: 10px;
+      padding: 7px 9px; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .pd-ws-tier-btn:hover { border-color: var(--brand); background: var(--brand-soft); }
+    .pd-ws-tier-btn.active { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
+    .pd-ws-tier-btn small { display: block; font-size: 11px; color: var(--brand-dark); font-weight: 700; }
+    .pd-ws-tier-btn strong { display: block; font-size: 12.5px; color: var(--text); font-weight: 800; font-variant-numeric: tabular-nums; }
+    .var-chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 6px 0 12px; }
+    .var-chip {
+      min-height: 38px; padding: 4px 12px 4px 6px; border-radius: 999px; border: 1px solid var(--line);
+      background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--text);
+      display: inline-flex; align-items: center; gap: 7px; transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .var-chip.no-thumb { padding: 4px 13px; }
+    .var-chip:hover { border-color: var(--brand); background: var(--brand-soft); }
     .var-chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .var-chip-thumb { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08); background: #f3efe9; }
+    .var-chip-price { font-size: 11px; font-weight: 600; opacity: 0.88; font-variant-numeric: tabular-nums; }
+    .pd-tabs-nav {
+      display: flex; gap: 4px; background: #f3efe9; padding: 4px; border-radius: 11px; margin-bottom: 10px; overflow-x: auto;
+    }
+    .pd-tab-btn {
+      flex: 1; min-width: max-content; min-height: 34px; border: none; border-radius: 8px; background: transparent;
+      font-size: 12px; font-weight: 700; color: var(--muted); padding: 5px 11px; cursor: pointer;
+    }
+    .pd-tab-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .pd-tab-panel {
+      border: 1px solid var(--line); border-radius: 13px; padding: 12px 14px; background: #fff; margin-bottom: 12px;
+    }
+    .pd-sec-block + .pd-sec-block { margin-top: 11px; padding-top: 10px; border-top: 1px dashed var(--line); }
+    .pd-sec-heading { font-size: 13px; font-weight: 800; color: var(--brand-dark); margin-bottom: 6px; }
+    .pd-bullet-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+    .pd-bullet-item {
+      position: relative; padding-left: 14px; font-size: 12.5px; line-height: 1.52; color: var(--text);
+    }
+    .pd-bullet-item::before {
+      content: ''; position: absolute; left: 0; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--brand);
+    }
+    .pd-bullet-item span { color: var(--muted); }
+    .pd-cta-box {
+      background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px;
+      display: grid; gap: 9px; margin-bottom: 12px;
+    }
+    .pd-share-row {
+      display: grid; gap: 8px; margin-bottom: 6px;
+    }
+    @media (max-width: 640px) {
+      .pd-right-col { display: flex; flex-direction: column; }
+      .pd-cta-box {
+        order: 10; position: sticky; bottom: 0; z-index: 10;
+        margin: 8px -15px 0; border-radius: 0; border-left: none; border-right: none; border-bottom: none;
+        padding: 9px 15px calc(11px + env(safe-area-inset-bottom));
+        background: #ffffff; box-shadow: 0 -8px 20px rgba(0,0,0,0.08);
+      }
+      .pd-buy-label-full { display: none; }
+      .pd-buy-label-compact { display: inline !important; }
+    }
+    .pd-buy-label-compact { display: none; }
+    .pd-related-wrap {
+      margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); clear: both;
+    }
+    @media (max-width: 640px) { .pd-related-wrap { padding-bottom: 14px; } }
+    .pd-related-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 9px;
+    }
+    .pd-rel-card {
+      display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 12px;
+      padding: 8px 10px; background: #faf8f5; cursor: pointer; text-align: left; width: 100%;
+    }
+    .pd-rel-card:hover { border-color: var(--brand); background: var(--brand-soft); }
+    .pd-rel-card img { width: 52px; height: 52px; border-radius: 9px; object-fit: cover; flex-shrink: 0; background: #eee; }
+    .pd-zoom-backdrop {
+      position: fixed; inset: 0; z-index: 95; background: rgba(12, 10, 9, 0.9);
+      display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .pd-zoom-backdrop.open { display: flex; }
+    .pd-zoom-img { max-width: min(92vw, 860px); max-height: 86vh; border-radius: 14px; object-fit: contain; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
     .qty-stepper {
       display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line);
       border-radius: 10px; padding: 3px; background: #faf8f5;
@@ -2200,7 +2411,15 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 
   <!-- Product Detail Modal -->
   <div class="modal-backdrop" id="prodModal" role="dialog" aria-modal="true" aria-labelledby="prodModalTitle" aria-hidden="true" onclick="if(event.target===this)closeProdModal()">
-    <div class="modal" id="prodModalContent"></div>
+    <div class="modal modal-prod" id="prodModalContent"></div>
+  </div>
+
+  <!-- Product Image Lightbox Zoom -->
+  <div class="pd-zoom-backdrop" id="prodZoomModal" role="dialog" aria-modal="true" aria-label="Phóng lớn hình ảnh sản phẩm" aria-hidden="true" onclick="if(event.target===this)closeZoomModal()">
+    <button type="button" class="pd-nav-arrow prev" id="prodZoomPrevBtn" aria-label="Ảnh trước" onclick="stepModalImg(-1)">‹</button>
+    <img id="prodZoomImg" class="pd-zoom-img" src="" alt="" />
+    <button type="button" class="pd-nav-arrow next" id="prodZoomNextBtn" aria-label="Ảnh tiếp theo" onclick="stepModalImg(1)">›</button>
+    <button type="button" class="modal-close" style="position:fixed;top:18px;right:18px;" aria-label="Đóng phóng lớn ảnh" onclick="closeZoomModal()">✕</button>
   </div>
 
   <!-- Cart & Checkout Modal -->
@@ -2228,6 +2447,8 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       modalProdId: '',
       modalImgIdx: 0,
       modalQty: 1,
+      modalTab: 'OVERVIEW',
+      zoomOpen: false,
       lastFocusedEl: null,
       checkoutDraft: { name: '', phone: '', addr: '', note: '' },
       completedOrder: null
@@ -2265,7 +2486,13 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     function isAnyModalOpen() {
       var pm = document.getElementById('prodModal');
       var cm = document.getElementById('cartModal');
-      return Boolean((pm && pm.classList.contains('open')) || (cm && cm.classList.contains('open')));
+      var zm = document.getElementById('prodZoomModal');
+      return Boolean(
+        STATE.zoomOpen ||
+        (zm && zm.classList.contains('open')) ||
+        (pm && pm.classList.contains('open')) ||
+        (cm && cm.classList.contains('open'))
+      );
     }
     function syncBodyScrollLock() {
       document.body.style.overflow = isAnyModalOpen() ? 'hidden' : '';
@@ -2338,15 +2565,165 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     function findSiblingVariantsClient(prod) {
       var prods = (STATE.data && STATE.data.products) || [];
       if (!prod || prods.length <= 1) return [];
+      var curParent = String(prod.parentSku || '').trim().toUpperCase();
       var curKey = extractShopeeKeyClient(prod.shopeeUrl);
       var curTitle = formatDisplayTitleClient(prod.cleanTitle || prod.name, prod.variantLabel).toLowerCase();
       var list = prods.filter(function(it) {
         if (!it.variantLabel && !prod.variantLabel) return false;
-        if (curKey && extractShopeeKeyClient(it.shopeeUrl) === curKey) return true;
-        if (!curTitle || !it.variantLabel || !prod.variantLabel) return false;
-        return formatDisplayTitleClient(it.cleanTitle || it.name, it.variantLabel).toLowerCase() === curTitle;
+        var itParent = String(it.parentSku || '').trim().toUpperCase();
+        if (curParent && itParent) return curParent === itParent;
+        var itTitle = formatDisplayTitleClient(it.cleanTitle || it.name, it.variantLabel).toLowerCase();
+        if (curTitle && itTitle && curTitle === itTitle) return true;
+        if (curKey && extractShopeeKeyClient(it.shopeeUrl) === curKey) {
+          return !curTitle || !itTitle || curTitle === itTitle;
+        }
+        return false;
       });
       return list.length >= 2 ? list : [];
+    }
+
+    function selectRelatedProdsClient(prod, maxItems) {
+      var limit = Math.max(1, Math.min(6, Number(maxItems) || 3));
+      var prods = (STATE.data && STATE.data.products) || [];
+      if (!prod || prods.length <= 1) return [];
+      var curFam = String(prod.parentSku || '').trim().toUpperCase() ||
+        formatDisplayTitleClient(prod.cleanTitle || prod.name, prod.variantLabel).toLowerCase();
+      var seen = {};
+      if (curFam) seen[curFam] = true;
+      var cands = [];
+      prods.forEach(function(it) {
+        if (!it || it.id === prod.id || it.availableToOrder === false) return;
+        var fam = String(it.parentSku || '').trim().toUpperCase() ||
+          formatDisplayTitleClient(it.cleanTitle || it.name, it.variantLabel).toLowerCase() || it.id;
+        if (seen[fam]) return;
+        seen[fam] = true;
+        cands.push(it);
+      });
+      var curTxt = ((prod.cleanTitle || '') + ' ' + (prod.name || '')).toLowerCase();
+      var isCandle = /nến\\s*bơ|tealight/.test(curTxt);
+      var isTray = /khay/.test(curTxt);
+      function scoreIt(c) {
+        var t = ((c.cleanTitle || '') + ' ' + (c.name || '')).toLowerCase();
+        var s = c.image ? 10 : 0;
+        if (isCandle) {
+          if (/chân\\s*nến|đế\\s*nến|hũ/.test(t)) s += 6;
+          else if (/khay/.test(t)) s += 4;
+        } else if (isTray) {
+          if (/hũ|cốc/.test(t)) s += 6;
+          else if (/nến\\s*bơ|tealight/.test(t)) s += 5;
+        } else {
+          if (/nến\\s*bơ|tealight/.test(t)) s += 6;
+          else if (/khay/.test(t)) s += 5;
+        }
+        return s;
+      }
+      cands.sort(function(a, b) { return scoreIt(b) - scoreIt(a); });
+      return cands.slice(0, limit);
+    }
+
+    function parseProdDescClient(rawDesc, prod) {
+      var rawLines = String(rawDesc || '').replace(/\\r\\n/g, '\\n').split('\\n').map(function(l) { return l.trim(); });
+      var hashtagRe = /^#[A-Za-z0-9_\u00C0-\u024F]+(?:\\s+#[A-Za-z0-9_\u00C0-\u024F]+)*$/;
+      var bulletRe = /^(?:[-•*▪▫◦+])\\s+/;
+      var numHeadRe = /^\\d+\\s*[.)]\\s*(.+)$/;
+      var lines = rawLines.filter(function(l) { return l.length > 0 && !hashtagRe.test(l); });
+
+      function cleanHead(h) {
+        var c = h.replace(numHeadRe, '$1')
+          .replace(/:+\\s*$/, '')
+          .replace(/\\s+trên\\s+shopee\\b/gi, '')
+          .replace(/\\s*\\(tham\\s+khảo\\)/gi, '')
+          .replace(/\\s{2,}/g, ' ')
+          .trim();
+        if (!c) return 'Thông tin chi tiết';
+        var letters = c.replace(/[^A-Za-z\u00C0-\u1EF9]/g, '');
+        var uppers = letters.replace(/[^A-Z\u00C0-\u00DE\u0102\u0110\u0128\u0168\u01A0\u01AF]/g, '');
+        if (letters.length >= 4 && (c === c.toUpperCase() || uppers.length / letters.length > 0.75)) {
+          var low = c.toLowerCase();
+          c = low.charAt(0).toUpperCase() + low.slice(1);
+          c = c.replace(/\\btealight\\b/gi, 'Tealight').replace(/\\bwabi-sabi\\b/gi, 'Wabi-Sabi').replace(/\\boem\\b/gi, 'OEM');
+        }
+        return c;
+      }
+
+      function tabForTitle(t) {
+        var low = t.toLowerCase();
+        if (/thông\\s*số|kích\\s*thước|chất\\s*liệu|quy\\s*cách|trọng\\s*lượng|phân\\s*loại\\s*màu|phân\\s*loại\\s*mẫu/.test(low)) return 'SPECS';
+        if (/hướng\\s*dẫn|bảo\\s*quản|đóng\\s*gói|lưu\\s*ý|hỗ\\s*trợ|vận\\s*chuyển/.test(low)) return 'CARE';
+        return 'OVERVIEW';
+      }
+
+      var leads = [];
+      var sections = [];
+      var curSec = null;
+
+      for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i];
+        var nxt = lines[i + 1] || '';
+        var isBul = bulletRe.test(ln);
+        var isNumH = !isBul && numHeadRe.test(ln) && ln.length <= 84;
+        var isUnnumH = !isBul && ln.length >= 6 && ln.length <= 68 && !/[.!?]$/.test(ln) && (ln.slice(-1) === ':' || bulletRe.test(nxt));
+
+        if (isNumH || isUnnumH) {
+          var normT = cleanHead(ln);
+          curSec = { title: normT, tab: tabForTitle(normT), bullets: [], paragraphs: [] };
+          sections.push(curSec);
+          continue;
+        }
+        if (isBul) {
+          if (!curSec) {
+            curSec = { title: 'Điểm nổi bật', tab: 'OVERVIEW', bullets: [], paragraphs: [] };
+            sections.push(curSec);
+          }
+          var bBody = ln.replace(bulletRe, '').trim();
+          var cIdx = bBody.indexOf(':');
+          if (cIdx >= 3 && cIdx <= 46 && !/[.!?]/.test(bBody.slice(0, cIdx))) {
+            curSec.bullets.push({ label: bBody.slice(0, cIdx).trim(), text: bBody.slice(cIdx + 1).trim() });
+          } else {
+            curSec.bullets.push({ label: null, text: bBody });
+          }
+          continue;
+        }
+        var cleanLn = ln.replace(/(?:\\s+#[A-Za-z0-9_\u00C0-\u024F]+){2,}\\s*$/, '').trim();
+        if (!cleanLn) continue;
+        if (!curSec) leads.push(cleanLn);
+        else curSec.paragraphs.push(cleanLn);
+      }
+
+      var quickSpecs = [];
+      function addSpec(lbl, val) {
+        if (!lbl || !val || quickSpecs.length >= 4) return;
+        var cl = lbl.trim();
+        var cv = val.trim().replace(/\\.$/, '');
+        if (!cl || !cv) return;
+        for (var k = 0; k < quickSpecs.length; k++) {
+          if (quickSpecs[k].label.toLowerCase() === cl.toLowerCase()) return;
+        }
+        quickSpecs.push({ label: cl, value: cv.slice(0, 95) });
+      }
+      sections.forEach(function(sec) {
+        if (sec.tab !== 'SPECS') return;
+        sec.bullets.forEach(function(b) {
+          if (!b.label || /phân\\s*loại|^hộp\\s+\\d+|^mẫu\\s+|^combo\\s+|^set\\s+/i.test(b.label)) return;
+          if (b.text.length > 88) return;
+          var sl = b.label
+            .replace(/^Kích thước lòng (?:hũ|khay)$/i, 'Lòng trong')
+            .replace(/^Trọng lượng vỏ hũ cả nắp$/i, 'Trọng lượng tịnh');
+          addSpec(sl, b.text);
+        });
+      });
+      if (quickSpecs.length < 4 && prod && prod.weightGram > 0) {
+        var hasW = quickSpecs.some(function(s) { return /trọng\\s*lượng|khối\\s*lượng/i.test(s.label); });
+        if (!hasW) addSpec('Khối lượng đóng gói', '~' + prod.weightGram + ' gram');
+      }
+      if (quickSpecs.length < 4 && prod && prod.dimensionsLabel) {
+        var hasD = quickSpecs.some(function(s) { return /kích\\s*thước|đường\\s*kính|lòng/i.test(s.label); });
+        if (!hasD) addSpec('Quy cách hộp gửi', prod.dimensionsLabel);
+      }
+      if (quickSpecs.length < 4 && prod && prod.fragile) {
+        addSpec('Đóng gói an toàn', 'Xốp chống sốc đa lớp · Bảo hành 1 đổi 1');
+      }
+      return { leads: leads, sections: sections, quickSpecs: quickSpecs };
     }
 
     function cartStorageKey() {
@@ -3421,17 +3798,76 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       }).join('');
     }
 
+    function syncUrlSkuParam(skuVal) {
+      try {
+        if (!window.history || typeof window.history.replaceState !== 'function' || !window.location || !window.location.href) return;
+        var u = new URL(window.location.href);
+        if (skuVal) u.searchParams.set('sku', skuVal);
+        else u.searchParams.delete('sku');
+        window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+      } catch (e) {}
+    }
+
     function setModalImgIdx(idx) {
-      STATE.modalImgIdx = idx;
+      var p = (STATE.data.products || []).find(function(x) { return x.id === STATE.modalProdId; });
+      if (!p) return;
+      var imgs = (Array.isArray(p.images) && p.images.length) ? p.images : (p.image ? [p.image] : []);
+      var len = imgs.length || 1;
+      STATE.modalImgIdx = ((idx % len) + len) % len;
+      renderProdModalContent();
+      syncZoomModalDom();
+    }
+
+    function stepModalImg(delta) {
+      setModalImgIdx((STATE.modalImgIdx || 0) + delta);
+    }
+
+    function setModalTab(tabKey) {
+      STATE.modalTab = tabKey;
+      renderProdModalContent();
+    }
+
+    function setModalQtyDirect(nextQty) {
+      STATE.modalQty = Math.max(1, Math.min(999, Math.floor(Number(nextQty) || 1)));
       renderProdModalContent();
     }
 
     function stepModalQty(delta) {
-      STATE.modalQty = Math.max(1, Math.min(999, (STATE.modalQty || 1) + delta));
-      var qEl = document.getElementById('prodModalQtyVal');
-      var bEl = document.getElementById('prodModalBuyBtnTxt');
-      if (qEl) qEl.textContent = String(STATE.modalQty);
-      if (bEl) bEl.textContent = 'Thêm vào giỏ (+' + STATE.modalQty + ')';
+      setModalQtyDirect((STATE.modalQty || 1) + delta);
+    }
+
+    function syncZoomModalDom() {
+      var zModal = document.getElementById('prodZoomModal');
+      if (!zModal) return;
+      if (!STATE.zoomOpen) {
+        zModal.classList.remove('open');
+        zModal.setAttribute('aria-hidden', 'true');
+        return;
+      }
+      var p = (STATE.data.products || []).find(function(x) { return x.id === STATE.modalProdId; });
+      var imgs = p && Array.isArray(p.images) && p.images.length ? p.images : (p && p.image ? [p.image] : []);
+      var activeImg = imgs[STATE.modalImgIdx] || (p && p.image) || '';
+      var zImg = document.getElementById('prodZoomImg');
+      var zPrev = document.getElementById('prodZoomPrevBtn');
+      var zNext = document.getElementById('prodZoomNextBtn');
+      if (zImg) {
+        zImg.src = activeImg;
+        zImg.alt = (p && (p.cleanTitle || p.name)) || '';
+      }
+      if (zPrev) zPrev.classList.toggle('hidden', imgs.length <= 1);
+      if (zNext) zNext.classList.toggle('hidden', imgs.length <= 1);
+      zModal.classList.add('open');
+      zModal.setAttribute('aria-hidden', 'false');
+    }
+
+    function openZoomModal() {
+      STATE.zoomOpen = true;
+      syncZoomModalDom();
+    }
+
+    function closeZoomModal() {
+      STATE.zoomOpen = false;
+      syncZoomModalDom();
     }
 
     function renderProdModalContent() {
@@ -3441,101 +3877,286 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var minQModal = minWholesaleQtyClient();
       var canBuy = p.availableToOrder !== false && !isStoreClosed();
       var imgs = (Array.isArray(p.images) && p.images.length) ? p.images : (p.image ? [p.image] : []);
+      if (STATE.modalImgIdx >= imgs.length) STATE.modalImgIdx = 0;
       var activeImg = imgs[STATE.modalImgIdx] || p.image || '';
       var siblings = findSiblingVariantsClient(p);
+      var related = selectRelatedProdsClient(p, 3);
+      var parsed = parseProdDescClient(p.description, p);
       var mTitle = formatDisplayTitleClient(p.cleanTitle || p.name, p.variantLabel) || p.cleanTitle || p.name;
 
+      var existingCartQty = (STATE.cart || []).reduce(function(s, it) { return s + (Number(it.quantity) || 0); }, 0);
+      var selQty = Math.max(1, Number(STATE.modalQty) || 1);
+      var projectedTotalQty = existingCartQty + selQty;
+      var wsList = wsAllowed ? (p.wholesalePrices || []) : [];
+      var activeModalWs = null;
+      if (wsList.length) {
+        var sortedWsDesc = wsList.slice().sort(function(a, b) { return b.minQty - a.minQty; });
+        activeModalWs = sortedWsDesc.find(function(w) { return projectedTotalQty >= w.minQty; }) || null;
+      }
+      var effUnitPrice = activeModalWs ? activeModalWs.unitPrice : p.retailPrice;
+      var lineSubtotal = effUnitPrice * selQty;
+      var lineSaved = Math.max(0, (p.retailPrice - effUnitPrice) * selQty);
+
+      var stageNavHtml = imgs.length > 1
+        ? '<button type="button" class="pd-nav-arrow prev" aria-label="Ảnh sản phẩm trước" onclick="stepModalImg(-1)">‹</button>' +
+          '<button type="button" class="pd-nav-arrow next" aria-label="Ảnh sản phẩm tiếp theo" onclick="stepModalImg(1)">›</button>' +
+          '<span class="pd-counter-pill">' + (STATE.modalImgIdx + 1) + ' / ' + imgs.length + '</span>'
+        : '';
+
+      var zoomBtnHtml = activeImg
+        ? '<button type="button" class="pd-zoom-pill" aria-label="Phóng lớn ảnh sản phẩm" onclick="openZoomModal()"><span>Phóng lớn</span></button>'
+        : '';
+
       var thumbsHtml = imgs.length > 1
-        ? '<div class="modal-thumbs">' + imgs.map(function(u, idx) {
-            return '<button type="button" class="modal-thumb-btn' + (idx === STATE.modalImgIdx ? ' active' : '') + '" aria-label="Ảnh ' + (idx + 1) + '" onclick="setModalImgIdx(' + idx + ')"><img src="' + esc(u) + '" alt="" /></button>';
+        ? '<div class="modal-thumbs" role="tablist" aria-label="Bộ sưu tập ảnh sản phẩm">' + imgs.map(function(u, idx) {
+            return '<button type="button" class="modal-thumb-btn' + (idx === STATE.modalImgIdx ? ' active' : '') + '" aria-label="Ảnh ' + (idx + 1) + '" aria-selected="' + (idx === STATE.modalImgIdx ? 'true' : 'false') + '" onclick="setModalImgIdx(' + idx + ')"><img src="' + esc(u) + '" alt="" loading="lazy" /></button>';
           }).join('') + '</div>'
         : '';
 
-      var siblingsHtml = siblings.length > 1
-        ? '<div style="margin:6px 0 10px;"><div style="font-size:12px;font-weight:750;margin-bottom:4px;">Chọn nhanh phân loại cùng mẫu (' + siblings.length + '):</div>' +
-            '<div class="var-chip-row">' + siblings.map(function(sib) {
-              var act = sib.id === p.id ? ' active' : '';
-              return '<button type="button" class="var-chip' + act + '" onclick="openProdModal(\\'' + jsAttr(sib.id) + '\\')">' + esc(sib.variantLabel || sib.sku) + '</button>';
-            }).join('') + '</div></div>'
+      var quickSpecsHtml = parsed.quickSpecs.length
+        ? '<div class="pd-quick-specs">' + parsed.quickSpecs.map(function(sp) {
+            return '<div class="pd-spec-chip"><small>' + esc(sp.label) + '</small><strong>' + esc(sp.value) + '</strong></div>';
+          }).join('') + '</div>'
         : '';
 
-      var wsHtml = wsAllowed ? (p.wholesalePrices || []).map(function(w) {
-        return '<div class="ws-mini-row"><span>Từ ' + w.minQty + ' ' + esc(p.unit) + ' (' + esc(w.badge) + '):</span><strong class="money">' + fmtVND(w.unitPrice) + ' / ' + esc(p.unit) + '</strong></div>';
-      }).join('') : '';
+      var returnDaysCfg = (STATE.data.config && typeof STATE.data.config.returnDays === 'number') ? STATE.data.config.returnDays : 7;
+      var trustStripHtml = '<div class="pd-trust-strip">' +
+        '<span class="pd-trust-badge">✓ Đúc thủ công tỉ mỉ</span>' +
+        (returnDaysCfg > 0 ? '<span class="pd-trust-badge">✓ Đổi mới bể vỡ ' + returnDaysCfg + ' ngày</span>' : '<span class="pd-trust-badge">✓ Đồng kiểm khi nhận</span>') +
+        (wsAllowed ? '<span class="pd-trust-badge">✓ Gộp mẫu tính sỉ từ ' + minQModal + ' SP</span>' : '') +
+      '</div>';
+
+      var sibDiffPrice = siblings.some(function(s) { return s.retailPrice !== p.retailPrice; });
+      var tierGroupLabel = p.tierVariationName || 'Phân loại cùng mẫu';
+      var siblingsHtml = siblings.length > 1
+        ? '<div style="margin:8px 0 12px;">' +
+            '<div style="font-size:12px;font-weight:750;margin-bottom:6px;color:var(--text);">Chọn ' + esc(tierGroupLabel) + ' (' + siblings.length + '):' + (p.variantLabel ? ' <strong style="color:var(--brand-dark);">' + esc(p.variantLabel) + '</strong>' : '') + '</div>' +
+            '<div class="var-chip-row">' + siblings.map(function(sib) {
+              var act = sib.id === p.id ? ' active' : '';
+              var hasThumb = Boolean(sib.image);
+              return '<button type="button" class="var-chip' + act + (hasThumb ? '' : ' no-thumb') + '" onclick="openProdModal(\\'' + jsAttr(sib.id) + '\\')">' +
+                (hasThumb ? '<img src="' + esc(sib.image) + '" alt="" class="var-chip-thumb" />' : '') +
+                '<span>' + esc(sib.variantLabel || sib.sku) + '</span>' +
+                (sibDiffPrice ? '<span class="var-chip-price">· ' + fmtVND(sib.retailPrice) + '</span>' : '') +
+              '</button>';
+            }).join('') + '</div>' +
+          '</div>'
+        : (p.variantLabel ? '<div style="font-size:12.5px;font-weight:700;color:var(--brand-dark);margin-bottom:8px;">Phân loại: ' + esc(p.variantLabel) + '</div>' : '');
+
+      var wsInteractiveHtml = wsList.length
+        ? '<div style="margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11.5px;margin-bottom:5px;">' +
+              '<strong style="color:var(--brand-dark);">Bảng giá sỉ xưởng (bấm chọn nhanh số lượng):</strong>' +
+              (existingCartQty > 0 ? '<span style="color:var(--muted);">Giỏ đã có ' + existingCartQty + ' SP</span>' : '') +
+            '</div>' +
+            '<div class="pd-ws-tier-grid">' +
+              '<button type="button" class="pd-ws-tier-btn' + (!activeModalWs ? ' active' : '') + '" onclick="setModalQtyDirect(1)">' +
+                '<small>Mua lẻ (1+ ' + esc(p.unit) + ')</small>' +
+                '<strong>' + fmtVND(p.retailPrice) + ' / ' + esc(p.unit) + '</strong>' +
+              '</button>' +
+              wsList.map(function(w) {
+                var isActTier = Boolean(activeModalWs && activeModalWs.tierId === w.tierId);
+                return '<button type="button" class="pd-ws-tier-btn' + (isActTier ? ' active' : '') + '" onclick="setModalQtyDirect(' + w.minQty + ')">' +
+                  '<small>Từ ' + w.minQty + ' ' + esc(p.unit) + ' (' + esc(w.badge) + ')</small>' +
+                  '<strong>' + fmtVND(w.unitPrice) + ' / ' + esc(p.unit) + '</strong>' +
+                '</button>';
+              }).join('') +
+            '</div>' +
+          '</div>'
+        : '';
+
+      var pricePanelHtml = '<div class="pd-price-panel">' +
+        '<div class="pd-price-main">' +
+          '<div>' +
+            '<div style="font-size:11.5px;color:var(--muted);font-weight:600;">' + (activeModalWs ? ('Đơn giá sỉ đang áp dụng (' + esc(activeModalWs.badge) + '):') : 'Giá bán lẻ niêm yết:') + '</div>' +
+            '<div><span class="pd-price-now">' + fmtVND(effUnitPrice) + '</span> <small style="font-size:12px;color:var(--muted);">/ ' + esc(p.unit) + '</small>' +
+              (activeModalWs ? '<span class="pd-price-strike">' + fmtVND(p.retailPrice) + '</span>' : '') +
+            '</div>' +
+          '</div>' +
+          (selQty > 1 || lineSaved > 0
+            ? '<div style="text-align:right;">' +
+                '<div style="font-size:11.5px;color:var(--muted);">Tạm tính (' + selQty + ' ' + esc(p.unit) + '): <strong class="money" style="color:var(--text);">' + fmtVND(lineSubtotal) + '</strong></div>' +
+                (lineSaved > 0 ? '<div style="font-size:11.5px;font-weight:750;color:var(--ok);">Tiết kiệm ' + fmtVND(lineSaved) + '</div>' : '') +
+              '</div>'
+            : '') +
+        '</div>' +
+        wsInteractiveHtml +
+      '</div>';
+
+      var ovSecs = parsed.sections.filter(function(s) { return s.tab === 'OVERVIEW'; });
+      var spSecs = parsed.sections.filter(function(s) { return s.tab === 'SPECS'; });
+      var caSecs = parsed.sections.filter(function(s) { return s.tab === 'CARE'; });
+
+      var availTabs = [];
+      if (ovSecs.length || (!spSecs.length && !caSecs.length && parsed.leads.length > 1)) {
+        availTabs.push({ key: 'OVERVIEW', label: 'Đặc điểm & Công năng', secs: ovSecs });
+      }
+      if (spSecs.length) {
+        availTabs.push({ key: 'SPECS', label: 'Thông số kỹ thuật', secs: spSecs });
+      }
+      if (caSecs.length) {
+        availTabs.push({ key: 'CARE', label: 'Bảo quản & Đóng gói', secs: caSecs });
+      }
+      var activeTabObj = availTabs.find(function(t) { return t.key === STATE.modalTab; }) || availTabs[0] || null;
+
+      function renderSecList(secArr) {
+        return secArr.map(function(sec) {
+          var bHtml = sec.bullets.length
+            ? '<ul class="pd-bullet-list">' + sec.bullets.map(function(b) {
+                return '<li class="pd-bullet-item">' + (b.label ? ('<strong>' + esc(b.label) + ':</strong> <span>' + esc(b.text) + '</span>') : esc(b.text)) + '</li>';
+              }).join('') + '</ul>'
+            : '';
+          var pHtml = sec.paragraphs.map(function(pr) {
+            return '<p style="font-size:12.5px;line-height:1.55;color:var(--muted);margin-top:5px;">' + esc(pr) + '</p>';
+          }).join('');
+          return '<div class="pd-sec-block"><div class="pd-sec-heading">' + esc(sec.title) + '</div>' + bHtml + pHtml + '</div>';
+        }).join('');
+      }
+
+      var detailTabsHtml = '';
+      if (activeTabObj) {
+        var navBtns = availTabs.length > 1
+          ? '<div class="pd-tabs-nav" role="tablist" aria-label="Thông tin chi tiết sản phẩm">' +
+              availTabs.map(function(tb) {
+                var isAct = tb.key === activeTabObj.key;
+                return '<button type="button" role="tab" aria-selected="' + (isAct ? 'true' : 'false') + '" class="pd-tab-btn' + (isAct ? ' active' : '') + '" onclick="setModalTab(\\'' + tb.key + '\\')">' + esc(tb.label) + '</button>';
+              }).join('') +
+            '</div>'
+          : '';
+        var panelBody = activeTabObj.secs.length
+          ? renderSecList(activeTabObj.secs)
+          : parsed.leads.slice(1).map(function(lp) { return '<p style="font-size:12.5px;line-height:1.55;color:var(--muted);">' + esc(lp) + '</p>'; }).join('');
+        detailTabsHtml = navBtns + '<div class="pd-tab-panel" role="tabpanel">' + panelBody + '</div>';
+      }
 
       var qtyPickerHtml = canBuy
-        ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:6px;border-top:1px solid #e5ded5;">' +
-            '<span style="font-size:12px;font-weight:700;">Số lượng chọn:</span>' +
+        ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+            '<div><span style="font-size:12.5px;font-weight:750;color:var(--text);">Số lượng đặt chọn:</span>' +
+              (wsAllowed && !activeModalWs ? '<div style="font-size:11px;color:var(--muted);">Gộp từ ' + minQModal + ' SP bất kỳ tự động giảm giá sỉ</div>' : '') +
+            '</div>' +
             '<div class="qty-stepper">' +
               '<button type="button" class="qty-btn" aria-label="Giảm số lượng" onclick="stepModalQty(-1)">−</button>' +
-              '<strong id="prodModalQtyVal" style="min-width:32px;text-align:center;font-variant-numeric:tabular-nums;">' + STATE.modalQty + '</strong>' +
+              '<strong id="prodModalQtyVal" style="min-width:34px;text-align:center;font-variant-numeric:tabular-nums;">' + selQty + '</strong>' +
               '<button type="button" class="qty-btn" aria-label="Tăng số lượng" onclick="stepModalQty(1)">+</button>' +
             '</div>' +
           '</div>'
         : '';
 
       var buyBtnsHtml = canBuy
-        ? '<div style="display:grid;grid-template-columns:' + (wsAllowed ? '1fr 1fr' : '1fr') + ';gap:8px;">' +
-            '<button type="button" class="btn-primary" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',STATE.modalQty||1);closeProdModal();"><span id="prodModalBuyBtnTxt">Thêm vào giỏ (+' + STATE.modalQty + ')</span></button>' +
-            (wsAllowed ? '<button type="button" class="btn-ws" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',' + minQModal + ');closeProdModal();openCartModal();"><span>Nhập sỉ (+' + minQModal + ')</span></button>' : '') +
+        ? '<div style="display:grid;grid-template-columns:' + (wsAllowed ? '1.15fr 0.85fr' : '1fr') + ';gap:8px;">' +
+            '<button type="button" class="btn-primary" style="min-height:44px;white-space:nowrap;" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',STATE.modalQty||1);closeProdModal();">' +
+              '<span class="pd-buy-label-full" id="prodModalBuyBtnTxt">+ Thêm vào giỏ (' + selQty + ' · ' + fmtVND(lineSubtotal) + ')</span>' +
+              '<span class="pd-buy-label-compact">+ Giỏ (' + selQty + ' · ' + fmtVND(lineSubtotal) + ')</span>' +
+            '</button>' +
+            (wsAllowed ? '<button type="button" class="btn-ws" style="min-height:44px;white-space:nowrap;" onclick="addToCart(\\'' + jsAttr(p.id) + '\\',' + minQModal + ');closeProdModal();openCartModal();"><span>Nhập sỉ (+' + minQModal + ')</span></button>' : '') +
           '</div>'
-        : '<button type="button" class="btn-outline w-full" disabled style="opacity:0.6;cursor:not-allowed;">Tạm hết hàng</button>';
+        : '<button type="button" class="btn-outline w-full" disabled style="opacity:0.6;cursor:not-allowed;min-height:44px;">Tạm hết hàng</button>';
+
+      var shareBtnsHtml = '<div class="pd-share-row" style="grid-template-columns:' + (p.shopeeUrl ? '1fr 1fr' : '1fr') + ';">' +
+        '<button type="button" class="btn-outline" style="min-height:38px;font-size:12px;" onclick="shareProdLink(\\'' + jsAttr(p.sku) + '\\')">Sao chép link SP</button>' +
+        (p.shopeeUrl ? '<a href="' + esc(p.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline" style="min-height:38px;font-size:12px;">Xem trên Shopee ↗</a>' : '') +
+      '</div>';
+
+      var relatedHtml = related.length
+        ? '<div class="pd-related-wrap">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+              '<strong style="font-size:13.5px;color:var(--text);">Gợi ý phối đồng bộ tại xưởng</strong>' +
+              (wsAllowed ? '<span style="font-size:11.5px;color:var(--brand-dark);font-weight:650;">Gộp mẫu tự do hưởng chiết khấu sỉ</span>' : '') +
+            '</div>' +
+            '<div class="pd-related-grid">' +
+              related.map(function(rp) {
+                var rTitle = formatDisplayTitleClient(rp.cleanTitle || rp.name, rp.variantLabel) || rp.cleanTitle || rp.name;
+                return '<button type="button" class="pd-rel-card" onclick="openProdModal(\\'' + jsAttr(rp.id) + '\\')">' +
+                  (rp.image ? '<img src="' + esc(rp.image) + '" alt="" loading="lazy" />' : '') +
+                  '<div style="min-width:0;flex:1;">' +
+                    '<strong style="display:block;font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(rTitle) + '</strong>' +
+                    (rp.variantLabel ? '<div style="font-size:11px;color:var(--muted);">' + esc(rp.variantLabel) + '</div>' : '') +
+                    '<div style="font-size:12.5px;font-weight:800;color:var(--brand);margin-top:2px;font-variant-numeric:tabular-nums;">' + fmtVND(rp.retailPrice) + ' <small style="font-weight:500;color:var(--muted);">/ ' + esc(rp.unit) + '</small></div>' +
+                  '</div>' +
+                '</button>';
+              }).join('') +
+            '</div>' +
+          '</div>'
+        : '';
 
       document.getElementById('prodModalContent').innerHTML =
         '<button type="button" class="modal-close" id="prodModalCloseBtn" aria-label="Đóng chi tiết sản phẩm" onclick="closeProdModal()">✕</button>' +
-        '<div style="display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));">' +
-          '<div>' +
-            '<div style="background:#f3efe9;border-radius:14px;overflow:hidden;aspect-ratio:1/1;">' +
-              (activeImg ? '<img src="' + esc(activeImg) + '" alt="' + esc(mTitle) + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : '') +
+        '<div class="pd-layout">' +
+          '<div class="pd-gallery-col">' +
+            '<div class="pd-stage">' +
+              (activeImg
+                ? '<button type="button" class="pd-stage-img-btn" aria-label="Phóng lớn ảnh ' + esc(mTitle) + '" onclick="openZoomModal()"><img src="' + esc(activeImg) + '" alt="' + esc(mTitle) + '" /></button>'
+                : '') +
+              stageNavHtml +
+              zoomBtnHtml +
             '</div>' +
             thumbsHtml +
+            '<div class="pd-gallery-extra">' + quickSpecsHtml + trustStripHtml + '</div>' +
           '</div>' +
-          '<div style="display:flex;flex-direction:column;justify-content:space-between;gap:12px;">' +
-            '<div>' +
-              '<div style="font-size:11.5px;color:#57534e;padding-right:34px;"><span class="sku-code">SKU: ' + esc(p.sku) + '</span> · <span class="stock-ok">' + esc(p.stockLabel || 'Sẵn sàng đặt') + '</span></div>' +
-              '<h2 id="prodModalTitle" style="font-size:18px;font-weight:800;margin:4px 0;">' + esc(mTitle) + '</h2>' +
-              (p.variantLabel ? '<div style="font-size:13px;font-weight:700;color:#6f3d15;margin-bottom:6px;">Phân loại: ' + esc(p.variantLabel) + '</div>' : '') +
-              '<div class="retail-price" style="font-size:22px;margin-bottom:8px;">' + fmtVND(p.retailPrice) + ' <small style="font-size:12px;font-weight:500;color:#57534e">/ ' + esc(p.unit) + '</small></div>' +
-              siblingsHtml +
-              (wsHtml ? '<div class="ws-mini-table" style="margin-bottom:10px;"><strong style="margin-bottom:2px;">Bảng giá sỉ xưởng (gộp mẫu tự do):</strong>' + wsHtml + '</div>' : '') +
-              (p.description ? '<div style="max-height:125px;overflow-y:auto;font-size:12.5px;color:#57534e;white-space:pre-line;border:1px solid #e5ded5;border-radius:10px;padding:10px;">' + esc(p.description) + '</div>' : '') +
+          '<div class="pd-right-col" style="min-width:0;">' +
+            '<div class="pd-meta-row">' +
+              '<span class="pd-sku-pill">SKU: ' + esc(p.sku) + '</span>' +
+              '<span class="pd-stock-pill">' + esc(p.stockLabel || 'Sẵn sàng đặt') + '</span>' +
             '</div>' +
-            '<div style="display:grid;gap:8px;">' +
+            '<h2 id="prodModalTitle" class="pd-title">' + esc(mTitle) + '</h2>' +
+            (parsed.leads[0] ? '<p class="pd-lead">' + esc(parsed.leads[0]) + '</p>' : '') +
+            pricePanelHtml +
+            siblingsHtml +
+            '<div class="pd-cta-box">' +
               qtyPickerHtml +
               buyBtnsHtml +
-              '<div style="display:grid;grid-template-columns:' + (p.shopeeUrl ? '1fr 1fr' : '1fr') + ';gap:8px;">' +
-                '<button type="button" class="btn-outline" onclick="shareProdLink(\\'' + jsAttr(p.sku) + '\\')">Sao chép link SP</button>' +
-                (p.shopeeUrl ? '<a href="' + esc(p.shopeeUrl) + '" target="_blank" rel="noopener" class="btn-outline">Xem trên Shopee ↗</a>' : '') +
-              '</div>' +
             '</div>' +
+            detailTabsHtml +
+            shareBtnsHtml +
           '</div>' +
-        '</div>';
+        '</div>' +
+        relatedHtml;
     }
 
     function openProdModal(prodId) {
       var p = (STATE.data.products || []).find(function(x) { return x.id === prodId; });
       if (!p) return;
       hideToast();
+      var wasAlreadyOpen = Boolean(document.getElementById('prodModal') && document.getElementById('prodModal').classList.contains('open'));
       if (!isAnyModalOpen()) STATE.lastFocusedEl = document.activeElement;
+      var prevProd = wasAlreadyOpen && STATE.modalProdId
+        ? (STATE.data.products || []).find(function(x) { return x.id === STATE.modalProdId; })
+        : null;
+      var switchingSibling = Boolean(
+        prevProd &&
+        prevProd.id !== prodId &&
+        findSiblingVariantsClient(prevProd).some(function(s) { return s.id === prodId; })
+      );
       STATE.modalProdId = prodId;
       STATE.modalImgIdx = 0;
-      if (!STATE.modalQty || STATE.modalQty < 1) STATE.modalQty = 1;
+      if (!switchingSibling) {
+        STATE.modalTab = 'OVERVIEW';
+        STATE.modalQty = 1;
+      }
       renderProdModalContent();
       var modal = document.getElementById('prodModal');
       modal.classList.add('open');
       modal.setAttribute('aria-hidden', 'false');
+      syncUrlSkuParam(p.sku);
       syncBodyScrollLock();
       updateMobileCartBar();
-      var closeBtn = document.getElementById('prodModalCloseBtn');
-      if (closeBtn) closeBtn.focus();
+      if (!switchingSibling) {
+        var mContent = document.getElementById('prodModalContent');
+        if (mContent) mContent.scrollTop = 0;
+        var closeBtn = document.getElementById('prodModalCloseBtn');
+        if (closeBtn) closeBtn.focus();
+      }
     }
 
     function closeProdModal() {
+      closeZoomModal();
       var modal = document.getElementById('prodModal');
       if (!modal) return;
       modal.classList.remove('open');
       modal.setAttribute('aria-hidden', 'true');
       STATE.modalQty = 1;
+      STATE.modalTab = 'OVERVIEW';
+      syncUrlSkuParam('');
       syncBodyScrollLock();
       updateMobileCartBar();
       if (STATE.lastFocusedEl && STATE.lastFocusedEl.focus && !isAnyModalOpen()) {
@@ -4074,12 +4695,19 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     }
 
     document.addEventListener('keydown', function(ev) {
+      var prodOpen = document.getElementById('prodModal') && document.getElementById('prodModal').classList.contains('open');
       if (ev.key === 'Escape') {
-        if (document.getElementById('prodModal').classList.contains('open')) {
+        if (STATE.zoomOpen) {
+          closeZoomModal();
+        } else if (prodOpen) {
           closeProdModal();
         } else if (document.getElementById('cartModal').classList.contains('open')) {
           closeCartModal();
         }
+      } else if (prodOpen && ev.key === 'ArrowLeft') {
+        stepModalImg(-1);
+      } else if (prodOpen && ev.key === 'ArrowRight') {
+        stepModalImg(1);
       }
     });
 

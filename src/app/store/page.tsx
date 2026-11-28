@@ -39,6 +39,7 @@ import {
   Trash2,
   Truck,
   X,
+  ZoomIn,
 } from 'lucide-react'
 import { ProductAvatar } from '@/components/cms/product-avatar'
 import { ThemeToggle } from '@/components/cms/theme-toggle'
@@ -78,13 +79,16 @@ import {
   isPlaceholderStorefrontEmail,
   isPlaceholderStorefrontPhone,
   parseStorefrontDeepLinkQuery,
+  parseStorefrontProductDescription,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
   resolveCustomerHeaderSubtitle,
   resolveHeroPrimaryStage,
   resolveStorefrontHeroCopy,
   selectHeroShowcaseProducts,
+  selectRelatedStorefrontProducts,
   serializeCartForStorage,
+  type ProductDetailTabKey,
 } from '@/lib/storefront-ux'
 import { cn } from '@/lib/utils'
 
@@ -100,6 +104,8 @@ interface WholesalePriceEntry {
 interface StorefrontProduct {
   id: string
   sku: string
+  parentSku?: string | null
+  tierVariationName?: string | null
   name: string
   cleanTitle: string
   variantLabel: string | null
@@ -111,6 +117,9 @@ interface StorefrontProduct {
   unit: string
   type: string
   fragile: boolean
+  weightGram?: number | null
+  dimensionsLabel?: string | null
+  daysToShip?: number | null
   image: string | null
   images: string[]
   inStock: boolean
@@ -325,6 +334,8 @@ export default function OnlineStorefrontPage() {
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null)
   const [selectedImageIdx, setSelectedImageIdx] = useState(0)
   const [quickViewQty, setQuickViewQty] = useState(1)
+  const [detailTab, setDetailTab] = useState<ProductDetailTabKey>('OVERVIEW')
+  const [detailZoomOpen, setDetailZoomOpen] = useState(false)
 
   const [cart, setCart] = useState<StoreCartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -540,15 +551,43 @@ export default function OnlineStorefrontPage() {
   const freeShipThresholdEarly = cfg?.freeShipThreshold ?? 500_000
   const mainCatalogRef = useRef<HTMLElement | null>(null)
 
+  const syncUrlSkuQuery = useCallback((skuValue: string) => {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return
+    try {
+      const nextUrl = new URL(window.location.href)
+      if (skuValue) {
+        nextUrl.searchParams.set('sku', skuValue)
+      } else {
+        nextUrl.searchParams.delete('sku')
+      }
+      window.history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+    } catch {
+      // ignore URL history restrictions
+    }
+  }, [])
+
   const openQuickView = useCallback(
-    (product: StorefrontProduct) => {
+    (product: StorefrontProduct, preserveTabAndQty = false) => {
       dismiss()
       setSelectedImageIdx(0)
-      setQuickViewQty(1)
+      setDetailZoomOpen(false)
+      if (!preserveTabAndQty) {
+        setQuickViewQty(1)
+        setDetailTab('OVERVIEW')
+      }
       setSelectedProduct(product)
+      syncUrlSkuQuery(product.sku)
     },
-    [dismiss]
+    [dismiss, syncUrlSkuQuery]
   )
+
+  const closeQuickView = useCallback(() => {
+    setDetailZoomOpen(false)
+    setSelectedProduct(null)
+    setQuickViewQty(1)
+    setDetailTab('OVERVIEW')
+    syncUrlSkuQuery('')
+  }, [syncUrlSkuQuery])
 
   const openCartModal = useCallback(() => {
     dismiss()
@@ -559,6 +598,57 @@ export default function OnlineStorefrontPage() {
     () => (selectedProduct ? findSiblingVariantProducts(selectedProduct, products) : []),
     [selectedProduct, products]
   )
+
+  const relatedProducts = useMemo(
+    () => (selectedProduct ? selectRelatedStorefrontProducts(selectedProduct, products, 3) : []),
+    [selectedProduct, products]
+  )
+
+  const parsedSelectedDescription = useMemo(
+    () =>
+      selectedProduct
+        ? parseStorefrontProductDescription(selectedProduct.description, {
+            weightGram: selectedProduct.weightGram,
+            dimensionsLabel: selectedProduct.dimensionsLabel,
+            fragile: selectedProduct.fragile,
+            unit: selectedProduct.unit,
+          })
+        : null,
+    [selectedProduct]
+  )
+
+  const selectedGalleryImages = useMemo(() => {
+    if (!selectedProduct) return []
+    if (Array.isArray(selectedProduct.images) && selectedProduct.images.length > 0) {
+      return selectedProduct.images
+    }
+    return selectedProduct.image ? [selectedProduct.image] : []
+  }, [selectedProduct])
+
+  const stepSelectedImage = useCallback(
+    (delta: number) => {
+      if (selectedGalleryImages.length <= 1) return
+      setSelectedImageIdx(
+        (prev) => ((prev + delta) % selectedGalleryImages.length + selectedGalleryImages.length) % selectedGalleryImages.length
+      )
+    },
+    [selectedGalleryImages.length]
+  )
+
+  useEffect(() => {
+    if (!selectedProduct || selectedGalleryImages.length <= 1) return
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'ArrowLeft') {
+        ev.preventDefault()
+        stepSelectedImage(-1)
+      } else if (ev.key === 'ArrowRight') {
+        ev.preventDefault()
+        stepSelectedImage(1)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedProduct, selectedGalleryImages.length, stepSelectedImage])
 
   const heroShowcaseProducts = useMemo(
     () => (isStorefrontClosed ? [] : selectHeroShowcaseProducts(products, 3)),
@@ -3159,245 +3249,733 @@ export default function OnlineStorefrontPage() {
         </div>
       )}
 
-      {/* Hộp thoại Xem Chi Tiết Sản Phẩm (Quick-View Modal — chuẩn cửa hàng thủ công, không lộ nút ERP Mở rộng) */}
+      {/* Hộp thoại Chi Tiết Sản Phẩm (Artisan Product Sheet — Đa ảnh, Bảng sỉ tương tác, 3 Tab cấu trúc & Gợi ý phối bộ) */}
       <Dialog
         open={Boolean(selectedProduct)}
         onOpenChange={(open) => {
-          if (!open) setSelectedProduct(null)
+          if (!open) closeQuickView()
         }}
       >
-        <DialogContent hideMaximizeButton className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
-          {selectedProduct && (
-            <>
-              <DialogHeader className="sm:pr-10">
-                <DialogTitle className="text-base leading-snug">
-                  {formatStorefrontDisplayTitle(
-                    selectedProduct.cleanTitle || selectedProduct.name,
-                    selectedProduct.variantLabel
-                  ) || selectedProduct.cleanTitle}
-                </DialogTitle>
-                <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                  <span>
-                    Mã SKU: <strong className="font-mono">{selectedProduct.sku}</strong>
-                  </span>
-                  {selectedProduct.variantLabel && (
-                    <span>· Phân loại: <strong>{selectedProduct.variantLabel}</strong></span>
-                  )}
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                    · {selectedProduct.stockLabel}
-                  </span>
-                </DialogDescription>
-              </DialogHeader>
+        <DialogContent
+          hideMaximizeButton
+          className="max-h-[92svh] overflow-y-auto p-4 sm:max-w-4xl sm:p-6 max-sm:pb-0"
+        >
+          {selectedProduct &&
+            (() => {
+              const displayModalTitle =
+                formatStorefrontDisplayTitle(
+                  selectedProduct.cleanTitle || selectedProduct.name,
+                  selectedProduct.variantLabel
+                ) ||
+                selectedProduct.cleanTitle ||
+                selectedProduct.name
+              const activeImgUrl =
+                selectedGalleryImages[selectedImageIdx] || selectedProduct.image || ''
+              const projectedQty = totalCartItems + quickViewQty
+              const activeModalWs =
+                isWholesaleAllowed && selectedProduct.wholesalePrices.length > 0
+                  ? [...selectedProduct.wholesalePrices]
+                      .sort((a, b) => b.minQty - a.minQty)
+                      .find((w) => projectedQty >= w.minQty) ?? null
+                  : null
+              const effectiveUnitPrice = activeModalWs
+                ? activeModalWs.unitPrice
+                : selectedProduct.retailPrice
+              const lineSubtotal = effectiveUnitPrice * quickViewQty
+              const lineSaved = Math.max(
+                0,
+                (selectedProduct.retailPrice - effectiveUnitPrice) * quickViewQty
+              )
+              const siblingsHaveDiffPrice = siblingVariants.some(
+                (s) => s.retailPrice !== selectedProduct.retailPrice
+              )
+              const tierGroupLabel =
+                selectedProduct.tierVariationName || 'Phân loại cùng mẫu'
+              const returnDaysVal =
+                typeof cfg?.returnDays === 'number' ? cfg.returnDays : 7
 
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border bg-stone-100/60 p-2 dark:bg-stone-900/40">
-                    {(selectedProduct.images[selectedImageIdx] || selectedProduct.image) ? (
-                      <img
-                        src={selectedProduct.images[selectedImageIdx] || selectedProduct.image || ''}
-                        alt={selectedProduct.name}
-                        className="h-full w-full rounded-xl object-cover"
-                      />
-                    ) : (
-                      <ProductAvatar name={selectedProduct.name} className="h-24 w-24 text-2xl" />
-                    )}
-                  </div>
-                  {selectedProduct.images.length > 1 && (
-                    <div className="flex gap-1.5 overflow-x-auto pb-1">
-                      {selectedProduct.images.map((imgUrl, idx) => (
-                        <button
-                          key={`${imgUrl}-${idx}`}
-                          type="button"
-                          aria-label={`Ảnh sản phẩm ${idx + 1}`}
-                          onClick={() => setSelectedImageIdx(idx)}
-                          className={cn(
-                            'h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all',
-                            selectedImageIdx === idx
-                              ? 'border-[#8c4f1e] ring-1 ring-[#8c4f1e] dark:border-amber-400'
-                              : 'border-transparent opacity-70 hover:opacity-100'
-                          )}
+              const ovSecs =
+                parsedSelectedDescription?.sections.filter((s) => s.tab === 'OVERVIEW') ?? []
+              const spSecs =
+                parsedSelectedDescription?.sections.filter((s) => s.tab === 'SPECS') ?? []
+              const caSecs =
+                parsedSelectedDescription?.sections.filter((s) => s.tab === 'CARE') ?? []
+              const leadParagraphs = parsedSelectedDescription?.leadParagraphs ?? []
+              const quickSpecs = parsedSelectedDescription?.quickSpecs ?? []
+
+              const availableTabs: Array<{
+                key: ProductDetailTabKey
+                label: string
+                sections: typeof ovSecs
+              }> = []
+              if (
+                ovSecs.length > 0 ||
+                (spSecs.length === 0 && caSecs.length === 0 && leadParagraphs.length > 1)
+              ) {
+                availableTabs.push({
+                  key: 'OVERVIEW',
+                  label: 'Đặc điểm & Công năng',
+                  sections: ovSecs,
+                })
+              }
+              if (spSecs.length > 0) {
+                availableTabs.push({
+                  key: 'SPECS',
+                  label: 'Thông số kỹ thuật',
+                  sections: spSecs,
+                })
+              }
+              if (caSecs.length > 0) {
+                availableTabs.push({
+                  key: 'CARE',
+                  label: 'Bảo quản & Đóng gói',
+                  sections: caSecs,
+                })
+              }
+              const activeDetailTabObj =
+                availableTabs.find((t) => t.key === detailTab) ?? availableTabs[0] ?? null
+
+              return (
+                <>
+                  <DialogHeader className="sr-only">
+                    <DialogTitle>{displayModalTitle}</DialogTitle>
+                    <DialogDescription>
+                      Mã SKU {selectedProduct.sku} · {selectedProduct.stockLabel}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="grid gap-6 md:grid-cols-[minmax(280px,0.88fr)_minmax(0,1.12fr)] md:items-start">
+                    {/* Cột Trái: Sân khấu Gallery đa ảnh + Lưới Thông số Nhanh + Cam kết xưởng */}
+                    <div className="space-y-2.5 md:sticky md:top-0">
+                      <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl border bg-stone-100/70 dark:bg-stone-900/50">
+                        {activeImgUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setDetailZoomOpen(true)}
+                            aria-label={`Phóng lớn ảnh ${displayModalTitle}`}
+                            className="h-full w-full cursor-zoom-in"
+                          >
+                            <img
+                              src={activeImgUrl}
+                              alt={displayModalTitle}
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
+                        ) : (
+                          <ProductAvatar
+                            name={selectedProduct.name}
+                            className="h-24 w-24 text-2xl"
+                          />
+                        )}
+
+                        {selectedGalleryImages.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              aria-label="Ảnh sản phẩm trước"
+                              onClick={() => stepSelectedImage(-1)}
+                              className="absolute top-1/2 left-2.5 inline-flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border bg-white/92 text-stone-900 shadow-sm transition hover:border-[#8c4f1e] hover:text-[#8c4f1e] dark:bg-stone-900/90 dark:text-stone-100"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Ảnh sản phẩm tiếp theo"
+                              onClick={() => stepSelectedImage(1)}
+                              className="absolute top-1/2 right-2.5 inline-flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border bg-white/92 text-stone-900 shadow-sm transition hover:border-[#8c4f1e] hover:text-[#8c4f1e] dark:bg-stone-900/90 dark:text-stone-100"
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                            <span className="pointer-events-none absolute bottom-2.5 left-2.5 rounded-full bg-stone-900/80 px-2.5 py-0.5 text-[11px] font-bold tabular-nums text-white">
+                              {selectedImageIdx + 1} / {selectedGalleryImages.length}
+                            </span>
+                          </>
+                        )}
+
+                        {activeImgUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setDetailZoomOpen(true)}
+                            className="absolute right-2.5 bottom-2.5 inline-flex min-h-8 cursor-pointer items-center gap-1 rounded-full border bg-white/94 px-2.5 text-[11px] font-bold text-stone-900 shadow-xs transition hover:border-[#8c4f1e] hover:text-[#8c4f1e] dark:bg-stone-900/90 dark:text-stone-100"
+                          >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                            <span>Phóng lớn</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {selectedGalleryImages.length > 1 && (
+                        <div
+                          role="tablist"
+                          aria-label="Bộ sưu tập ảnh sản phẩm"
+                          className="flex gap-2 overflow-x-auto py-1"
                         >
-                          <img src={imgUrl} alt="" className="h-full w-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                          {selectedGalleryImages.map((imgUrl, idx) => (
+                            <button
+                              key={`${imgUrl}-${idx}`}
+                              type="button"
+                              role="tab"
+                              aria-label={`Ảnh sản phẩm ${idx + 1}`}
+                              aria-selected={selectedImageIdx === idx}
+                              onClick={() => setSelectedImageIdx(idx)}
+                              className={cn(
+                                'h-14 w-14 shrink-0 cursor-pointer overflow-hidden rounded-xl border-2 transition-all',
+                                selectedImageIdx === idx
+                                  ? 'border-[#8c4f1e] ring-2 ring-[#8c4f1e]/20 dark:border-amber-400'
+                                  : 'border-border/70 opacity-75 hover:opacity-100'
+                              )}
+                            >
+                              <img
+                                src={imgUrl}
+                                alt=""
+                                loading="lazy"
+                                className="h-full w-full object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-                <div className="flex flex-col justify-between space-y-4">
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-xs text-muted-foreground">Giá bán lẻ niêm yết:</span>
-                      <p className="text-2xl font-extrabold whitespace-nowrap tabular-nums text-[#8c4f1e] dark:text-amber-400">
-                        {formatVND(selectedProduct.retailPrice)}{' '}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          / {selectedProduct.unit}
+                      {quickSpecs.length > 0 && (
+                        <div className="hidden grid-cols-2 gap-2 pt-1 md:grid">
+                          {quickSpecs.map((spec) => (
+                            <div
+                              key={spec.label}
+                              className="rounded-xl border bg-muted/25 px-3 py-2 text-xs"
+                            >
+                              <span className="block text-[11px] font-medium text-muted-foreground">
+                                {spec.label}
+                              </span>
+                              <strong className="mt-0.5 block leading-snug font-bold text-foreground">
+                                {spec.value}
+                              </strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="hidden flex-wrap gap-1.5 pt-0.5 md:flex">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Đúc thủ công tỉ mỉ
                         </span>
-                      </p>
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          <ShieldCheck className="h-3 w-3" />
+                          {returnDaysVal > 0
+                            ? `Đổi mới bể vỡ ${returnDaysVal} ngày`
+                            : 'Đồng kiểm khi nhận'}
+                        </span>
+                        {isWholesaleAllowed && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50/80 px-2.5 py-1 text-[11px] font-semibold text-[#7c4316] dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                            <BadgePercent className="h-3 w-3" />
+                            Gộp mẫu sỉ từ {minWholesaleQty} SP
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Chip chuyển nhanh giữa các màu/quy cách cùng dòng sản phẩm */}
-                    {siblingVariants.length > 1 && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-semibold text-foreground">
-                          Chọn nhanh phân loại cùng mẫu ({siblingVariants.length}):
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {siblingVariants.map((sib) => {
-                            const isCurrent = sib.id === selectedProduct.id
-                            return (
+                    {/* Cột Phải: Định danh, Giá & Bảng sỉ tương tác, Biến thể kèm ảnh, 3 Tab cấu trúc & Cụm mua hàng */}
+                    <div className="flex min-w-0 flex-col space-y-3.5 sm:pr-2">
+                      <div className="space-y-1.5 sm:pr-8">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className="rounded-md border bg-muted/50 px-2 py-0.5 font-mono text-[11px] font-semibold text-muted-foreground">
+                            SKU: {selectedProduct.sku}
+                          </span>
+                          <span className="rounded-md border border-emerald-200 bg-emerald-50/80 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            {selectedProduct.stockLabel}
+                          </span>
+                        </div>
+
+                        <h2 className="text-lg leading-snug font-extrabold tracking-tight text-foreground sm:text-xl">
+                          {displayModalTitle}
+                        </h2>
+
+                        {leadParagraphs[0] && (
+                          <p className="text-xs leading-relaxed text-muted-foreground sm:text-[13px]">
+                            {leadParagraphs[0]}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Khung Giá Động & Bộ chọn nhanh mốc Giá Sỉ Xưởng */}
+                      <div className="space-y-2.5 rounded-2xl border bg-muted/25 p-3.5">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <div>
+                            <span className="block text-[11.5px] font-medium text-muted-foreground">
+                              {activeModalWs
+                                ? `Đơn giá sỉ đang áp dụng (${activeModalWs.badge}):`
+                                : 'Giá bán lẻ niêm yết:'}
+                            </span>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-2xl font-extrabold whitespace-nowrap tabular-nums text-[#8c4f1e] dark:text-amber-400">
+                                {formatVND(effectiveUnitPrice)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                / {selectedProduct.unit}
+                              </span>
+                              {activeModalWs && (
+                                <span className="text-xs text-muted-foreground line-through tabular-nums">
+                                  {formatVND(selectedProduct.retailPrice)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {(quickViewQty > 1 || lineSaved > 0) && (
+                            <div className="text-right text-xs">
+                              <span className="block text-muted-foreground">
+                                Tạm tính ({quickViewQty} {selectedProduct.unit}):{' '}
+                                <strong className="font-bold tabular-nums text-foreground">
+                                  {formatVND(lineSubtotal)}
+                                </strong>
+                              </span>
+                              {lineSaved > 0 && (
+                                <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                  Tiết kiệm {formatVND(lineSaved)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {isWholesaleAllowed && selectedProduct.wholesalePrices.length > 0 && (
+                          <div className="space-y-1.5 border-t border-dashed pt-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-1 text-[11.5px]">
+                              <strong className="font-bold text-[#7c4316] dark:text-amber-200">
+                                Bảng giá sỉ xưởng (bấm chọn nhanh mốc số lượng):
+                              </strong>
+                              {totalCartItems > 0 && (
+                                <span className="text-muted-foreground">
+                                  Giỏ đã có {totalCartItems} SP
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                               <button
-                                key={sib.id}
                                 type="button"
-                                onClick={() => {
-                                  setSelectedImageIdx(0)
-                                  setSelectedProduct(sib)
-                                }}
+                                onClick={() => setQuickViewQty(1)}
                                 className={cn(
-                                  'inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all',
-                                  isCurrent
-                                    ? 'border-[#8c4f1e] bg-[#8c4f1e] text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950'
-                                    : 'border-border bg-background text-foreground hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-stone-800'
+                                  'cursor-pointer rounded-xl border p-2 text-left transition-all',
+                                  !activeModalWs
+                                    ? 'border-[#8c4f1e] bg-amber-50/80 ring-1 ring-[#8c4f1e]/30 dark:border-amber-400 dark:bg-amber-950/40'
+                                    : 'border-border bg-background hover:border-amber-400'
                                 )}
                               >
-                                <span>{sib.variantLabel || sib.sku}</span>
+                                <span className="block text-[11px] font-semibold text-[#7c4316] dark:text-amber-300">
+                                  Mua lẻ (1+ {selectedProduct.unit})
+                                </span>
+                                <strong className="block text-xs font-extrabold tabular-nums">
+                                  {formatVND(selectedProduct.retailPrice)}
+                                </strong>
                               </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedProduct.wholesalePrices.length > 0 && (
-                      <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/30">
-                        <p className="font-bold text-amber-950 dark:text-amber-200">
-                          Bảng Giá Sỉ Xưởng (Gộp mẫu tự do):
-                        </p>
-                        {selectedProduct.wholesalePrices.map((wp) => (
-                          <div key={wp.tierId} className="flex items-center justify-between gap-2">
-                            <span>
-                              Từ {wp.minQty} {selectedProduct.unit} ({wp.badge}):
-                            </span>
-                            <strong className="whitespace-nowrap tabular-nums text-[#7c4316] dark:text-amber-300">
-                              {formatVND(wp.unitPrice)} / {selectedProduct.unit}
-                            </strong>
+                              {selectedProduct.wholesalePrices.map((wp) => {
+                                const isActiveTier = activeModalWs?.tierId === wp.tierId
+                                return (
+                                  <button
+                                    key={wp.tierId}
+                                    type="button"
+                                    onClick={() => setQuickViewQty(wp.minQty)}
+                                    className={cn(
+                                      'cursor-pointer rounded-xl border p-2 text-left transition-all',
+                                      isActiveTier
+                                        ? 'border-[#8c4f1e] bg-amber-50/80 ring-1 ring-[#8c4f1e]/30 dark:border-amber-400 dark:bg-amber-950/40'
+                                        : 'border-border bg-background hover:border-amber-400'
+                                    )}
+                                  >
+                                    <span className="block text-[11px] font-semibold text-[#7c4316] dark:text-amber-300">
+                                      Từ {wp.minQty} ({wp.badge})
+                                    </span>
+                                    <strong className="block text-xs font-extrabold tabular-nums">
+                                      {formatVND(wp.unitPrice)}
+                                    </strong>
+                                  </button>
+                                )
+                              })}
+                            </div>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
 
-                    {selectedProduct.description && (
-                      <div className="max-h-32 overflow-y-auto rounded-xl border bg-muted/20 p-3 text-xs leading-relaxed whitespace-pre-line text-muted-foreground">
-                        {selectedProduct.description}
-                      </div>
-                    )}
-                  </div>
+                      {/* Chip chuyển nhanh giữa các màu/quy cách cùng dòng sản phẩm (kèm ảnh & giá) */}
+                      {siblingVariants.length > 1 ? (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-semibold text-foreground">
+                            Chọn {tierGroupLabel} ({siblingVariants.length}):{' '}
+                            {selectedProduct.variantLabel && (
+                              <strong className="text-[#8c4f1e] dark:text-amber-300">
+                                {selectedProduct.variantLabel}
+                              </strong>
+                            )}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {siblingVariants.map((sib) => {
+                              const isCurrent = sib.id === selectedProduct.id
+                              return (
+                                <button
+                                  key={sib.id}
+                                  type="button"
+                                  onClick={() => openQuickView(sib, true)}
+                                  className={cn(
+                                    'inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-full border py-1 pr-3 text-xs font-semibold transition-all',
+                                    sib.image ? 'pl-1.5' : 'pl-3',
+                                    isCurrent
+                                      ? 'border-[#8c4f1e] bg-[#8c4f1e] text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950'
+                                      : 'border-border bg-background text-foreground hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-stone-800'
+                                  )}
+                                >
+                                  {sib.image && (
+                                    <img
+                                      src={sib.image}
+                                      alt=""
+                                      className="h-6 w-6 shrink-0 rounded-full border border-black/10 object-cover"
+                                    />
+                                  )}
+                                  <span>{sib.variantLabel || sib.sku}</span>
+                                  {siblingsHaveDiffPrice && (
+                                    <span className="text-[11px] font-medium tabular-nums opacity-85">
+                                      · {formatVND(sib.retailPrice)}
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        selectedProduct.variantLabel && (
+                          <p className="text-xs font-semibold text-[#7c4316] dark:text-amber-300">
+                            Phân loại: {selectedProduct.variantLabel}
+                          </p>
+                        )
+                      )}
 
-                  <div className="space-y-2.5 border-t pt-3">
-                    {/* Bộ chọn số lượng trước khi thêm vào giỏ */}
-                    {selectedProduct.availableToOrder && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-foreground">Số lượng chọn:</span>
-                        <div className="inline-flex items-center gap-1 rounded-xl border bg-muted/30 p-1">
+                      {/* Khung Số lượng & Mua hàng (Nằm ngay trên vùng fold ở Desktop, ghim đáy gọn gàng ở Mobile) */}
+                      <div className="space-y-2.5 rounded-2xl border bg-background p-3 max-sm:order-10 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:px-4 max-sm:py-2.5 max-sm:shadow-[0_-8px_20px_rgba(0,0,0,0.08)]">
+                        {selectedProduct.availableToOrder && (
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <span className="text-xs font-bold text-foreground">
+                                Số lượng đặt chọn:
+                              </span>
+                              {isWholesaleAllowed && !activeModalWs && (
+                                <p className="text-[11px] text-muted-foreground">
+                                  Gộp từ {minWholesaleQty} SP bất kỳ tự động giảm giá sỉ
+                                </p>
+                              )}
+                            </div>
+                            <div className="inline-flex items-center gap-1 rounded-xl border bg-muted/30 p-1">
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Giảm số lượng chọn"
+                                onClick={() => setQuickViewQty((q) => Math.max(1, q - 1))}
+                                className="h-9 w-9 rounded-lg"
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </Button>
+                              <span className="min-w-9 text-center text-sm font-bold tabular-nums">
+                                {quickViewQty}
+                              </span>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Tăng số lượng chọn"
+                                onClick={() => setQuickViewQty((q) => Math.min(999, q + 1))}
+                                className="h-9 w-9 rounded-lg"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div
+                          className={cn(
+                            'grid gap-2',
+                            isWholesaleAllowed ? 'grid-cols-[1.15fr_0.85fr]' : 'grid-cols-1'
+                          )}
+                        >
                           <Button
                             type="button"
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Giảm số lượng chọn"
-                            onClick={() => setQuickViewQty((q) => Math.max(1, q - 1))}
-                            className="h-8 w-8 rounded-lg"
+                            disabled={!selectedProduct.availableToOrder}
+                            onClick={() => {
+                              addToCart(selectedProduct, quickViewQty)
+                              closeQuickView()
+                            }}
+                            className="h-11 gap-1.5 whitespace-nowrap bg-stone-900 text-xs font-bold text-white hover:bg-[#8c4f1e] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                           >
-                            <Minus className="h-3.5 w-3.5" />
+                            <Plus className="h-4 w-4 shrink-0" />
+                            {selectedProduct.availableToOrder ? (
+                              <>
+                                <span className="hidden sm:inline">
+                                  Thêm vào giỏ ({quickViewQty} · {formatVND(lineSubtotal)})
+                                </span>
+                                <span className="sm:hidden">
+                                  Giỏ ({quickViewQty} · {formatVND(lineSubtotal)})
+                                </span>
+                              </>
+                            ) : (
+                              'Tạm hết hàng'
+                            )}
                           </Button>
-                          <span className="min-w-9 text-center text-sm font-bold tabular-nums">
-                            {quickViewQty}
-                          </span>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Tăng số lượng chọn"
-                            onClick={() => setQuickViewQty((q) => Math.min(999, q + 1))}
-                            className="h-8 w-8 rounded-lg"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </Button>
+                          {isWholesaleAllowed && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={!selectedProduct.availableToOrder}
+                              onClick={() => {
+                                addToCart(selectedProduct, minWholesaleQty)
+                                closeQuickView()
+                                setCartOpen(true)
+                              }}
+                              className="h-11 gap-1.5 whitespace-nowrap border-amber-400 bg-amber-50/70 text-xs font-bold text-[#7c4316] hover:bg-amber-100/80 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                            >
+                              <BadgePercent className="h-4 w-4 shrink-0" />
+                              <span>Nhập sỉ (+{minWholesaleQty})</span>
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    )}
 
-                    <div
-                      className={cn(
-                        'grid gap-2',
-                        isWholesaleAllowed ? 'grid-cols-2' : 'grid-cols-1'
+                      {/* 3 Tab Thông tin Chi tiết có cấu trúc (Xóa sổ khung cuộn 125px kẹt tay) */}
+                      {activeDetailTabObj && (
+                        <div className="space-y-2">
+                          {availableTabs.length > 1 && (
+                            <div
+                              role="tablist"
+                              aria-label="Thông tin chi tiết sản phẩm"
+                              className="flex gap-1 overflow-x-auto rounded-xl bg-muted/60 p-1"
+                            >
+                              {availableTabs.map((tb) => {
+                                const isActiveTab = tb.key === activeDetailTabObj.key
+                                return (
+                                  <button
+                                    key={tb.key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={isActiveTab}
+                                    onClick={() => setDetailTab(tb.key)}
+                                    className={cn(
+                                      'min-h-8 flex-1 shrink-0 cursor-pointer rounded-lg px-2.5 py-1 text-xs font-bold whitespace-nowrap transition-all',
+                                      isActiveTab
+                                        ? 'bg-background text-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                    )}
+                                  >
+                                    {tb.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          <div
+                            role="tabpanel"
+                            className="space-y-3 rounded-2xl border bg-card p-3.5 text-xs leading-relaxed"
+                          >
+                            {activeDetailTabObj.sections.length > 0
+                              ? activeDetailTabObj.sections.map((sec, sIdx) => (
+                                  <div
+                                    key={`${sec.title}-${sIdx}`}
+                                    className={cn(
+                                      'space-y-1.5',
+                                      sIdx > 0 && 'border-t border-dashed pt-2.5'
+                                    )}
+                                  >
+                                    <h3 className="text-[12.5px] font-extrabold text-[#7c4316] dark:text-amber-300">
+                                      {sec.title}
+                                    </h3>
+                                    {sec.bullets.length > 0 && (
+                                      <ul className="space-y-1.5">
+                                        {sec.bullets.map((b, bIdx) => (
+                                          <li
+                                            key={bIdx}
+                                            className="relative pl-3.5 text-foreground"
+                                          >
+                                            <span className="absolute top-2 left-0 h-1.5 w-1.5 rounded-full bg-[#8c4f1e] dark:bg-amber-400" />
+                                            {b.label ? (
+                                              <>
+                                                <strong className="font-bold">{b.label}:</strong>{' '}
+                                                <span className="text-muted-foreground">
+                                                  {b.text}
+                                                </span>
+                                              </>
+                                            ) : (
+                                              <span className="text-muted-foreground">
+                                                {b.text}
+                                              </span>
+                                            )}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                    {sec.paragraphs.map((pr, pIdx) => (
+                                      <p key={pIdx} className="text-muted-foreground">
+                                        {pr}
+                                      </p>
+                                    ))}
+                                  </div>
+                                ))
+                              : leadParagraphs.slice(1).map((lp, lIdx) => (
+                                  <p key={lIdx} className="text-muted-foreground">
+                                    {lp}
+                                  </p>
+                                ))}
+                          </div>
+                        </div>
                       )}
-                    >
-                      <Button
-                        type="button"
-                        disabled={!selectedProduct.availableToOrder}
-                        onClick={() => {
-                          addToCart(selectedProduct, quickViewQty)
-                          setSelectedProduct(null)
-                        }}
-                        className="h-10 gap-1.5 bg-stone-900 text-xs font-bold text-white hover:bg-[#8c4f1e] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
-                      >
-                        <Plus className="h-4 w-4" />
-                        {selectedProduct.availableToOrder
-                          ? `Thêm vào giỏ (+${quickViewQty})`
-                          : 'Tạm hết hàng'}
-                      </Button>
-                      {isWholesaleAllowed && (
+
+                      <div className="grid grid-cols-2 gap-1.5">
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={!selectedProduct.availableToOrder}
+                          size="sm"
+                          className="h-9 w-full gap-1.5 text-xs"
                           onClick={() => {
-                            addToCart(selectedProduct, minWholesaleQty)
-                            setSelectedProduct(null)
-                            setCartOpen(true)
+                            if (typeof window === 'undefined') return
+                            const url = buildStorefrontProductShareUrl(
+                              window.location.href,
+                              selectedProduct.sku
+                            )
+                            void copyToClipboard(url, 'liên kết sản phẩm')
                           }}
-                          className="h-10 gap-1.5 border-amber-400 bg-amber-50/70 text-xs font-bold text-[#7c4316] hover:bg-amber-100/80 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
                         >
-                          <BadgePercent className="h-4 w-4" />
-                          Nhập sỉ (+{minWholesaleQty})
+                          <Share2 className="h-3.5 w-3.5" />
+                          <span>Sao chép link SP</span>
                         </Button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full gap-1.5 text-xs"
-                        onClick={() => {
-                          if (typeof window === 'undefined') return
-                          const url = buildStorefrontProductShareUrl(
-                            window.location.href,
-                            selectedProduct.sku
-                          )
-                          void copyToClipboard(url, 'liên kết sản phẩm')
-                        }}
-                      >
-                        <Share2 className="h-3.5 w-3.5" />
-                        <span>Sao chép link SP</span>
-                      </Button>
-                      {selectedProduct.shopeeUrl && (
-                        <Button asChild variant="ghost" size="sm" className="w-full gap-1.5 text-xs">
-                          <a
-                            href={selectedProduct.shopeeUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {selectedProduct.shopeeUrl && (
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="h-9 w-full gap-1.5 text-xs"
                           >
-                            <span>Xem trên Shopee</span>
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        </Button>
-                      )}
+                            <a
+                              href={selectedProduct.shopeeUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <span>Xem trên Shopee</span>
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </>
+
+                  {/* Gợi ý phối đồng bộ tại xưởng (3 dòng sản phẩm bổ trợ khác nhóm) */}
+                  {relatedProducts.length > 0 && (
+                    <div className="mt-2 space-y-2.5 border-t pt-4 max-sm:pb-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-sm font-extrabold text-foreground">
+                          Gợi ý phối đồng bộ tại xưởng
+                        </h3>
+                        {isWholesaleAllowed && (
+                          <span className="text-xs font-semibold text-[#7c4316] dark:text-amber-300">
+                            Gộp mẫu tự do hưởng chiết khấu sỉ
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid gap-2.5 sm:grid-cols-3">
+                        {relatedProducts.map((rel) => {
+                          const relTitle =
+                            formatStorefrontDisplayTitle(
+                              rel.cleanTitle || rel.name,
+                              rel.variantLabel
+                            ) ||
+                            rel.cleanTitle ||
+                            rel.name
+                          return (
+                            <button
+                              key={rel.id}
+                              type="button"
+                              onClick={() => openQuickView(rel)}
+                              className="flex cursor-pointer items-center gap-2.5 rounded-xl border bg-muted/25 p-2.5 text-left transition hover:border-[#8c4f1e] hover:bg-amber-50/50 dark:hover:bg-stone-800/70"
+                            >
+                              {rel.image ? (
+                                <img
+                                  src={rel.image}
+                                  alt=""
+                                  loading="lazy"
+                                  className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                                />
+                              ) : (
+                                <ProductAvatar name={rel.name} className="h-12 w-12 shrink-0" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-bold text-foreground">
+                                  {relTitle}
+                                </p>
+                                {rel.variantLabel && (
+                                  <p className="truncate text-[11px] text-muted-foreground">
+                                    {rel.variantLabel}
+                                  </p>
+                                )}
+                                <p className="mt-0.5 text-xs font-extrabold tabular-nums text-[#8c4f1e] dark:text-amber-400">
+                                  {formatVND(rel.retailPrice)}{' '}
+                                  <span className="text-[11px] font-normal text-muted-foreground">
+                                    / {rel.unit}
+                                  </span>
+                                </p>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox Phóng Lớn Hình Ảnh Sản Phẩm */}
+      <Dialog open={detailZoomOpen && Boolean(selectedProduct)} onOpenChange={setDetailZoomOpen}>
+        <DialogContent
+          hideMaximizeButton
+          className="border-stone-800 bg-stone-950/95 p-3 text-white sm:max-w-3xl"
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Phóng lớn hình ảnh sản phẩm</DialogTitle>
+            <DialogDescription>
+              Xem chi tiết bề mặt và kiểu dáng sản phẩm độ phân giải gốc.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedProduct && (
+            <div className="relative flex min-h-[50svh] items-center justify-center">
+              <img
+                src={selectedGalleryImages[selectedImageIdx] || selectedProduct.image || ''}
+                alt={selectedProduct.cleanTitle || selectedProduct.name}
+                className="max-h-[82svh] w-auto rounded-xl object-contain"
+              />
+              {selectedGalleryImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Ảnh trước"
+                    onClick={() => stepSelectedImage(-1)}
+                    className="absolute top-1/2 left-2 inline-flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-white/90 text-stone-950 shadow-md hover:bg-white"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Ảnh tiếp theo"
+                    onClick={() => stepSelectedImage(1)}
+                    className="absolute top-1/2 right-2 inline-flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-white/90 text-stone-950 shadow-md hover:bg-white"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/75 px-3 py-1 text-xs font-bold tabular-nums text-white">
+                    {selectedImageIdx + 1} / {selectedGalleryImages.length}
+                  </span>
+                </>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>

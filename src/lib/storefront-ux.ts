@@ -845,9 +845,344 @@ function extractShopeeProductKey(shopeeUrl?: string | null): string {
   return m?.[1] || ''
 }
 
+export interface ProductPhysicalMeta {
+  shopeeItemId: string | null
+  parentSku: string | null
+  tierVariationName: string | null
+  weightGram: number | null
+  dimensionsLabel: string | null
+  daysToShip: number | null
+}
+
+function parseRawAttributesObject(
+  rawAttributes?: string | Record<string, unknown> | null
+): Record<string, unknown> | null {
+  if (!rawAttributes) return null
+  if (typeof rawAttributes === 'object') return rawAttributes
+  if (typeof rawAttributes === 'string') {
+    try {
+      const parsed = JSON.parse(rawAttributes) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+/**
+ * Hợp nhất & khử trùng lặp bộ sưu tập ảnh sản phẩm từ `Product.image` và `Product.attributes`
+ * (`variantImage`, `gallery`, `images`, `coverImage`). Luôn đặt ảnh biến thể hiện tại lên đầu tiên.
+ */
+export function extractProductGalleryImages(
+  primaryImage?: string | null,
+  rawAttributes?: string | Record<string, unknown> | null,
+  maxImages = 8
+): string[] {
+  const limit = Math.max(1, Math.min(12, Math.floor(Number(maxImages) || 8)))
+  const attr = parseRawAttributesObject(rawAttributes)
+  const rawCandidates: unknown[] = [primaryImage]
+
+  if (attr) {
+    rawCandidates.push(attr.variantImage)
+    if (Array.isArray(attr.gallery)) rawCandidates.push(...attr.gallery)
+    if (Array.isArray(attr.images)) rawCandidates.push(...attr.images)
+    rawCandidates.push(attr.coverImage)
+    rawCandidates.push(attr.lastSyncedShopeeImage)
+  }
+
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const item of rawCandidates) {
+    if (typeof item !== 'string') continue
+    const clean = item.trim()
+    if (!clean || (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('/'))) {
+      continue
+    }
+    if (seen.has(clean)) continue
+    seen.add(clean)
+    result.push(clean)
+    if (result.length >= limit) break
+  }
+  return result
+}
+
+/**
+ * Trích xuất siêu dữ liệu vật lý & phân nhóm biến thể an toàn (0 lộ giá vốn / secret).
+ */
+export function extractProductPhysicalMeta(
+  rawAttributes?: string | Record<string, unknown> | null
+): ProductPhysicalMeta {
+  const attr = parseRawAttributesObject(rawAttributes)
+  if (!attr) {
+    return {
+      shopeeItemId: null,
+      parentSku: null,
+      tierVariationName: null,
+      weightGram: null,
+      dimensionsLabel: null,
+      daysToShip: null,
+    }
+  }
+
+  const shopeeItemId = attr.shopeeItemId ? String(attr.shopeeItemId).trim() || null : null
+  const parentSku = attr.parentSku ? String(attr.parentSku).trim() || null : null
+  const tierVariationName = attr.tierVariationName
+    ? String(attr.tierVariationName).trim() || null
+    : null
+
+  const rawWeight = Number(attr.weightGram)
+  const weightGram =
+    Number.isFinite(rawWeight) && rawWeight > 0 ? Math.round(rawWeight) : null
+
+  let dimensionsLabel: string | null = null
+  if (attr.dimensionCm && typeof attr.dimensionCm === 'object') {
+    const dim = attr.dimensionCm as Record<string, unknown>
+    const l = Number(dim.length)
+    const w = Number(dim.width)
+    const h = Number(dim.height)
+    if (l > 0 && w > 0 && h > 0) {
+      dimensionsLabel = `${l} × ${w} × ${h} cm`
+    }
+  }
+
+  let daysToShip: number | null = null
+  if (attr.preOrderInfo && typeof attr.preOrderInfo === 'object') {
+    const d = Number((attr.preOrderInfo as Record<string, unknown>).days_to_ship)
+    if (Number.isFinite(d) && d > 0 && d <= 30) {
+      daysToShip = Math.round(d)
+    }
+  }
+
+  return {
+    shopeeItemId,
+    parentSku,
+    tierVariationName,
+    weightGram,
+    dimensionsLabel,
+    daysToShip,
+  }
+}
+
+export type ProductDetailTabKey = 'OVERVIEW' | 'SPECS' | 'CARE'
+
+export interface ParsedDescriptionBullet {
+  label: string | null
+  text: string
+}
+
+export interface ParsedDescriptionSection {
+  title: string
+  tab: ProductDetailTabKey
+  bullets: ParsedDescriptionBullet[]
+  paragraphs: string[]
+}
+
+export interface ProductQuickSpecItem {
+  label: string
+  value: string
+}
+
+export interface ParsedProductDescription {
+  leadParagraphs: string[]
+  sections: ParsedDescriptionSection[]
+  quickSpecs: ProductQuickSpecItem[]
+  cleanPlainText: string
+}
+
+const HASHTAG_ONLY_LINE_RE = /^#[A-Za-z0-9_\u00C0-\u024F]+(?:\s+#[A-Za-z0-9_\u00C0-\u024F]+)*$/
+const BULLET_PREFIX_RE = /^(?:[-•*▪▫◦+])\s+/
+const NUMBERED_HEADING_RE = /^\d+\s*[.)]\s*(.+)$/
+
+function normalizeSectionHeadingTitle(rawHeading: string): string {
+  let clean = rawHeading
+    .replace(NUMBERED_HEADING_RE, '$1')
+    .replace(/:+\s*$/, '')
+    .replace(/\s+trên\s+shopee\b/gi, '')
+    .replace(/\s*\(tham\s+khảo\)/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  if (!clean) return 'Thông tin chi tiết'
+
+  const letters = clean.replace(/[^A-Za-z\u00C0-\u1EF9]/g, '')
+  const upperLetters = letters.replace(/[^A-Z\u00C0-\u00DE\u0102\u0110\u0128\u0168\u01A0\u01AF]/g, '')
+  const isAllCaps =
+    letters.length >= 4 &&
+    (clean === clean.toUpperCase() || upperLetters.length / letters.length > 0.75)
+
+  if (isAllCaps) {
+    const lower = clean.toLowerCase()
+    clean = lower.charAt(0).toUpperCase() + lower.slice(1)
+    clean = clean
+      .replace(/\bshopee\b/gi, 'Shopee')
+      .replace(/\btealight\b/gi, 'Tealight')
+      .replace(/\bwabi-sabi\b/gi, 'Wabi-Sabi')
+      .replace(/\boem\b/gi, 'OEM')
+  }
+  return clean
+}
+
+function classifyDescriptionSectionTab(title: string): ProductDetailTabKey {
+  const lower = title.toLowerCase()
+  if (/thông\s*số|kích\s*thước|chất\s*liệu|quy\s*cách|trọng\s*lượng|phân\s*loại\s*màu|phân\s*loại\s*mẫu/.test(lower)) {
+    return 'SPECS'
+  }
+  if (/hướng\s*dẫn|bảo\s*quản|đóng\s*gói|lưu\s*ý|hỗ\s*trợ|vận\s*chuyển/.test(lower)) {
+    return 'CARE'
+  }
+  return 'OVERVIEW'
+}
+
+function splitBulletLabelAndValue(rawBullet: string): ParsedDescriptionBullet {
+  const body = rawBullet.replace(BULLET_PREFIX_RE, '').trim()
+  const colonIdx = body.indexOf(':')
+  if (colonIdx >= 3 && colonIdx <= 46) {
+    const label = body.slice(0, colonIdx).trim()
+    const rest = body.slice(colonIdx + 1).trim()
+    if (label && rest && !/[.!?]/.test(label)) {
+      return { label, text: rest }
+    }
+  }
+  return { label: null, text: body }
+}
+
+/**
+ * Chuyển đổi mô tả sản phẩm dài (`1,800–2,300` ký tự) thành cấu trúc Editorial rõ ràng:
+ * - Gỡ sạch dòng `#hashtag` SEO cuối bài và cụm `"TRÊN SHOPEE"`
+ * - Chia thành `leadParagraphs` + `sections` gắn nhãn tab (`OVERVIEW` | `SPECS` | `CARE`)
+ * - Tự động rút trích `quickSpecs` (Kích thước, Lòng hũ, Trọng lượng, Chất liệu...) để khách đọc lướt trong 2 giây.
+ */
+export function parseStorefrontProductDescription(
+  rawDescription?: string | null,
+  fallbackMeta?: {
+    weightGram?: number | null
+    dimensionsLabel?: string | null
+    fragile?: boolean
+    unit?: string | null
+  }
+): ParsedProductDescription {
+  const rawLines = String(rawDescription || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+$/g, '').trim())
+
+  const filteredLines = rawLines.filter((line) => !HASHTAG_ONLY_LINE_RE.test(line))
+  const cleanPlainText = filteredLines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  const leadParagraphs: string[] = []
+  const sections: ParsedDescriptionSection[] = []
+  let currentSection: ParsedDescriptionSection | null = null
+
+  const nonEmptyLines = filteredLines.filter((l) => l.length > 0)
+  for (let i = 0; i < nonEmptyLines.length; i += 1) {
+    const line = nonEmptyLines[i]
+    const nextLine = nonEmptyLines[i + 1] || ''
+    const isBullet = BULLET_PREFIX_RE.test(line)
+    const isNumberedHeading =
+      !isBullet && NUMBERED_HEADING_RE.test(line) && line.length <= 84
+    const isUnnumberedHeading =
+      !isBullet &&
+      line.length >= 6 &&
+      line.length <= 68 &&
+      !/[.!?]$/.test(line) &&
+      (line.endsWith(':') || BULLET_PREFIX_RE.test(nextLine))
+
+    if (isNumberedHeading || isUnnumberedHeading) {
+      const normalizedTitle = normalizeSectionHeadingTitle(line)
+      currentSection = {
+        title: normalizedTitle,
+        tab: classifyDescriptionSectionTab(normalizedTitle),
+        bullets: [],
+        paragraphs: [],
+      }
+      sections.push(currentSection)
+      continue
+    }
+
+    if (isBullet) {
+      if (!currentSection) {
+        currentSection = {
+          title: 'Điểm nổi bật',
+          tab: 'OVERVIEW',
+          bullets: [],
+          paragraphs: [],
+        }
+        sections.push(currentSection)
+      }
+      currentSection.bullets.push(splitBulletLabelAndValue(line))
+      continue
+    }
+
+    const strippedInlineTags = line.replace(/(?:\s+#[A-Za-z0-9_\u00C0-\u024F]+){2,}\s*$/, '').trim()
+    if (!strippedInlineTags) continue
+
+    if (!currentSection) {
+      leadParagraphs.push(strippedInlineTags)
+    } else {
+      currentSection.paragraphs.push(strippedInlineTags)
+    }
+  }
+
+  const quickSpecs: ProductQuickSpecItem[] = []
+  const pushSpec = (label: string, value: string) => {
+    const cleanLbl = label.trim()
+    const cleanVal = value.trim().replace(/\.$/, '')
+    if (!cleanLbl || !cleanVal || quickSpecs.length >= 4) return
+    if (quickSpecs.some((s) => s.label.toLowerCase() === cleanLbl.toLowerCase())) return
+    quickSpecs.push({ label: cleanLbl, value: cleanVal.slice(0, 95) })
+  }
+
+  for (const sec of sections) {
+    if (sec.tab !== 'SPECS') continue
+    for (const b of sec.bullets) {
+      if (!b.label) continue
+      const low = b.label.toLowerCase()
+      if (/phân\s*loại|^hộp\s+\d+|^mẫu\s+|^combo\s+|^set\s+/.test(low)) continue
+      if (b.text.length > 88) continue
+      const shortLabel = b.label
+        .replace(/^Kích thước phủ bì$/i, 'Kích thước phủ bì')
+        .replace(/^Kích thước lòng (?:hũ|khay)$/i, 'Lòng trong')
+        .replace(/^Trọng lượng vỏ hũ cả nắp$/i, 'Trọng lượng tịnh')
+      pushSpec(shortLabel, b.text)
+    }
+  }
+
+  if (quickSpecs.length < 4 && fallbackMeta?.weightGram && fallbackMeta.weightGram > 0) {
+    const hasWeight = quickSpecs.some((s) => /trọng\s*lượng|khối\s*lượng/i.test(s.label))
+    if (!hasWeight) {
+      pushSpec('Khối lượng đóng gói', `~${fallbackMeta.weightGram} gram`)
+    }
+  }
+  if (quickSpecs.length < 4 && fallbackMeta?.dimensionsLabel) {
+    const hasDim = quickSpecs.some((s) => /kích\s*thước|đường\s*kính|lòng/i.test(s.label))
+    if (!hasDim) {
+      pushSpec('Quy cách hộp gửi', fallbackMeta.dimensionsLabel)
+    }
+  }
+  if (quickSpecs.length < 4 && fallbackMeta?.fragile) {
+    pushSpec('Đóng gói an toàn', 'Xốp chống sốc đa lớp · Bảo hành 1 đổi 1')
+  }
+
+  return {
+    leadParagraphs,
+    sections,
+    quickSpecs,
+    cleanPlainText,
+  }
+}
+
 /**
  * Tìm danh sách các phân loại màu/quy cách cùng dòng sản phẩm để khách chuyển nhanh
- * trong hộp thoại Quick-View mà vẫn giữ đủ thẻ riêng lẻ ngoài lưới cho khách sỉ.
+ * trong hộp thoại Chi tiết sản phẩm:
+ * - Ưu tiên khớp chính xác `parentSku` để chống gom nhầm khi 2 dòng sản phẩm khác nhau
+ *   từng dùng chung `shopeeItemId` (ví dụ `BM-SEN-01` vs `BM-L08-DE-MINI`).
+ * - Fallback an toàn về tên hiển thị đã chuẩn hóa khi sản phẩm chưa có `parentSku`.
  */
 export function findSiblingVariantProducts<
   P extends {
@@ -857,11 +1192,13 @@ export function findSiblingVariantProducts<
     cleanTitle?: string | null
     variantLabel?: string | null
     shopeeUrl?: string | null
+    parentSku?: string | null
   },
 >(current: P, catalogProducts: P[]): P[] {
   if (!current || !Array.isArray(catalogProducts) || catalogProducts.length <= 1) {
     return []
   }
+  const curParentSku = String(current.parentSku || '').trim().toUpperCase()
   const curShopeeKey = extractShopeeProductKey(current.shopeeUrl)
   const curDisplay = formatStorefrontDisplayTitle(
     current.cleanTitle || current.name,
@@ -870,18 +1207,97 @@ export function findSiblingVariantProducts<
 
   const siblings = catalogProducts.filter((item) => {
     if (!item.variantLabel && !current.variantLabel) return false
-    if (curShopeeKey && extractShopeeProductKey(item.shopeeUrl) === curShopeeKey) {
-      return true
+    const itemParentSku = String(item.parentSku || '').trim().toUpperCase()
+
+    if (curParentSku && itemParentSku) {
+      return curParentSku === itemParentSku
     }
-    if (!curDisplay || !item.variantLabel || !current.variantLabel) return false
+
     const itemDisplay = formatStorefrontDisplayTitle(
       item.cleanTitle || item.name,
       item.variantLabel
     ).toLowerCase()
-    return itemDisplay === curDisplay
+
+    if (curDisplay && itemDisplay && curDisplay === itemDisplay) {
+      return true
+    }
+    if (curShopeeKey && extractShopeeProductKey(item.shopeeUrl) === curShopeeKey) {
+      return !curDisplay || !itemDisplay || curDisplay === itemDisplay
+    }
+    return false
   })
 
   return siblings.length >= 2 ? siblings : []
 }
+
+/**
+ * Chọn danh sách sản phẩm gợi ý phối đồng bộ khác dòng (`3` mẫu đại diện từ các nhóm sản phẩm khác)
+ * giúp khách lẻ dễ phối bộ decor và khách sỉ dễ gộp đủ mốc chiết khấu.
+ */
+export function selectRelatedStorefrontProducts<
+  P extends {
+    id: string
+    sku: string
+    name: string
+    cleanTitle?: string | null
+    variantLabel?: string | null
+    parentSku?: string | null
+    image?: string | null
+    availableToOrder?: boolean
+  },
+>(current: P, catalogProducts: P[], maxItems = 3): P[] {
+  const limit = Math.max(1, Math.min(6, Math.floor(Number(maxItems) || 3)))
+  if (!current || !Array.isArray(catalogProducts) || catalogProducts.length <= 1) {
+    return []
+  }
+
+  const curFamilyKey =
+    String(current.parentSku || '').trim().toUpperCase() ||
+    formatStorefrontDisplayTitle(current.cleanTitle || current.name, current.variantLabel)
+      .trim()
+      .toLowerCase()
+
+  const seenFamilies = new Set<string>([curFamilyKey])
+  const distinctCandidates: P[] = []
+
+  for (const item of catalogProducts) {
+    if (!item || item.id === current.id || item.availableToOrder === false) continue
+    const familyKey =
+      String(item.parentSku || '').trim().toUpperCase() ||
+      formatStorefrontDisplayTitle(item.cleanTitle || item.name, item.variantLabel)
+        .trim()
+        .toLowerCase() ||
+      item.id
+    if (seenFamilies.has(familyKey)) continue
+    seenFamilies.add(familyKey)
+    distinctCandidates.push(item)
+  }
+
+  // Ưu tiên gợi ý chéo nhóm công năng (Nến bơ Tealight <-> Hũ/Chân nến <-> Khay lót)
+  const curText = `${current.cleanTitle || ''} ${current.name || ''}`.toLowerCase()
+  const isCandle = /nến\s*bơ|tealight/.test(curText)
+  const isTray = /khay/.test(curText)
+
+  const scoreCandidate = (cand: P): number => {
+    const txt = `${cand.cleanTitle || ''} ${cand.name || ''}`.toLowerCase()
+    let score = cand.image ? 10 : 0
+    if (isCandle) {
+      if (/chân\s*nến|đế\s*nến|hũ/.test(txt)) score += 6
+      else if (/khay/.test(txt)) score += 4
+    } else if (isTray) {
+      if (/hũ|cốc/.test(txt)) score += 6
+      else if (/nến\s*bơ|tealight/.test(txt)) score += 5
+    } else {
+      if (/nến\s*bơ|tealight/.test(txt)) score += 6
+      else if (/khay/.test(txt)) score += 5
+    }
+    return score
+  }
+
+  return distinctCandidates
+    .sort((a, b) => scoreCandidate(b) - scoreCandidate(a))
+    .slice(0, limit)
+}
+
 
 
