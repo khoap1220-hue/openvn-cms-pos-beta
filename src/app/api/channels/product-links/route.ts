@@ -1554,7 +1554,7 @@ export async function POST(req: NextRequest) {
       attrs.cmsTargetStock = targetStock
       attrs.cmsTargetStockOrigin = 'MANUAL_OVERRIDE'
       attrs.cmsTargetPrice = targetPrice
-      attrs.cmsTargetUnlisted = Boolean(attrs.isUnlistedOnShopee)
+      delete attrs.cmsTargetUnlisted
       attrs.lastOutboxSyncAt = new Date().toISOString()
       attrs.lastCmsEditAt = new Date().toISOString()
       const nextAttrsJson = JSON.stringify(attrs)
@@ -1579,7 +1579,6 @@ export async function POST(req: NextRequest) {
           shopeeModelId,
           targetStock,
           targetPrice,
-          targetUnlisted: Boolean(attrs.isUnlistedOnShopee),
           queuedWhileDisconnected: !bridgeState.alive,
           reason: 'MANUAL_PUSH_FROM_PRODUCT_FORM',
         },
@@ -1668,9 +1667,32 @@ export async function POST(req: NextRequest) {
             update: { status: nextStatus },
             create: { productId, channelId, status: nextStatus },
           }),
+          logLedger({
+            scope: 'CHANNEL',
+            action: 'OUTBOX_PENDING',
+            entityType: 'Product',
+            entityId: product.id,
+            entityCode: product.sku,
+            title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: ${targetUnlisted ? 'Tạm ẩn' : 'Mở bán lại'} [${product.sku}] (Item #${linkedItemId}) trên Shopee`,
+            detail: {
+              direction: 'CMS_TO_SHOPEE',
+              source: 'OPENVN_CMS',
+              target: 'SHOPEE_SELLER_CENTER',
+              operation: 'TOGGLE_UNLIST',
+              sku: product.sku,
+              shopeeItemId: linkedItemId,
+              shopeeModelId: linkedModelId,
+              targetStock: Math.max(0, product.stock),
+              targetPrice: product.sellPrice,
+              targetUnlisted,
+              reason: 'MANUAL_TOGGLE_VISIBILITY_FROM_CMS',
+            },
+            actor: 'OPERATOR',
+            originSource: 'SHOPEE_SYNC',
+          }),
         ])
 
-        // Thực thi bất đồng bộ đồng bộ các phân loại cùng Item ID và ghi sổ cái để trả về ngay tức thì
+        // Thực thi bất đồng bộ đồng bộ các phân loại cùng Item ID và ghi sổ cái phụ trợ để trả về ngay tức thì
         void (async () => {
           try {
             const siblingProducts = await db.product.findMany({
@@ -1707,29 +1729,6 @@ export async function POST(req: NextRequest) {
               ...siblingUpdates,
               logLedger({
                 scope: 'CHANNEL',
-                action: 'OUTBOX_PENDING',
-                entityType: 'Product',
-                entityId: product.id,
-                entityCode: product.sku,
-                title: `[CMS ➔ SÀN SHOPEE] Hàng đợi Outbox: ${targetUnlisted ? 'Tạm ẩn' : 'Mở bán lại'} [${product.sku}] (Item #${linkedItemId}) trên Shopee`,
-                detail: {
-                  direction: 'CMS_TO_SHOPEE',
-                  source: 'OPENVN_CMS',
-                  target: 'SHOPEE_SELLER_CENTER',
-                  operation: 'TOGGLE_UNLIST',
-                  sku: product.sku,
-                  shopeeItemId: linkedItemId,
-                  shopeeModelId: linkedModelId,
-                  targetStock: Math.max(0, product.stock),
-                  targetPrice: product.sellPrice,
-                  targetUnlisted,
-                  reason: 'MANUAL_TOGGLE_VISIBILITY_FROM_CMS',
-                },
-                actor: 'OPERATOR',
-                originSource: 'SHOPEE_SYNC',
-              }),
-              logLedger({
-                scope: 'CHANNEL',
                 action: 'CHANNEL_LISTING_STATUS_CHANGED',
                 entityType: 'Product',
                 entityId: product.id,
@@ -1743,7 +1742,7 @@ export async function POST(req: NextRequest) {
                   shopeeModelId: attrs.shopeeModelId,
                 },
                 actor: 'OPERATOR',
-                originSource: 'MANUAL_ADMIN',
+                originSource: 'SHOPEE_SYNC',
               }),
             ])
           } catch (bgErr) {
@@ -1834,7 +1833,7 @@ export async function POST(req: NextRequest) {
             attrs.pendingOutboxSync = true
             attrs.cmsTargetStock = targetStock
             attrs.cmsTargetPrice = targetPrice
-            attrs.cmsTargetUnlisted = Boolean(attrs.isUnlistedOnShopee)
+            delete attrs.cmsTargetUnlisted
             attrs.lastOutboxSyncAt = nowIso
             attrs.lastCmsEditAt = nowIso
 
@@ -1859,7 +1858,6 @@ export async function POST(req: NextRequest) {
                   shopeeModelId: sModelId,
                   targetStock,
                   targetPrice,
-                  targetUnlisted: Boolean(attrs.isUnlistedOnShopee),
                   reason: 'BULK_PUSH_FROM_CMS',
                 },
                 actor: 'OPERATOR',

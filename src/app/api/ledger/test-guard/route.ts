@@ -1426,13 +1426,22 @@ export async function POST(req: NextRequest) {
         if (!nextAttrsJson && existingProd?.attributes) {
           try {
             const parsedAttrs = JSON.parse(existingProd.attributes) as Record<string, unknown>
-            parsedAttrs.lastSyncedShopeeStock = sp.stock
-            parsedAttrs.liveShopeeStock = sp.stock
+            const hasLiveShopeeItem = Boolean(
+              parsedAttrs.shopeeItemId && String(parsedAttrs.shopeeItemId).trim() !== '0'
+            )
+            if (!hasLiveShopeeItem) {
+              parsedAttrs.lastSyncedShopeeStock = sp.stock
+              parsedAttrs.liveShopeeStock = sp.stock
+              parsedAttrs.lastSyncedShopeeName = sp.name
+              parsedAttrs.reconciliationStatus = 'RECONCILED_OK'
+              parsedAttrs.unreconciledShopeeDelta = 0
+            } else {
+              const liveUnlisted = Boolean(parsedAttrs.isUnlistedOnShopee)
+              parsedAttrs.lastSyncedShopeeUnlisted = liveUnlisted
+              parsedAttrs.cmsRequestedUnlisted = liveUnlisted
+            }
             parsedAttrs.lastSyncedShopeePrice = preservedShopeeChannelPrice
-            parsedAttrs.lastSyncedShopeeName = sp.name
             parsedAttrs.openingStockQty = sp.sku === 'BM-COMBO-SEN-01-TRANG' ? 16 : sp.stock
-            parsedAttrs.reconciliationStatus = 'RECONCILED_OK'
-            parsedAttrs.unreconciledShopeeDelta = 0
             parsedAttrs.pendingOutboxSync = false
             delete parsedAttrs.cmsCustomName
             delete parsedAttrs.lastCmsNameUpdatedAt

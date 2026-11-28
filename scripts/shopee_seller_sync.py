@@ -2145,6 +2145,7 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token, idle_poll=Fal
         stock_drifted = bool(job.get("stockDrifted", True))
         price_drifted = bool(job.get("priceDrifted", False))
         unlisted_drifted = bool(job.get("unlistedDrifted", False))
+        explicit_unlist_intent = bool(job.get("explicitUnlistIntent", False))
         image_drifted = bool(job.get("imageDrifted", False))
         location_id = job.get("locationId", "VNZ")
         idem_key = job.get("idempotencyKey")
@@ -2195,8 +2196,18 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token, idle_poll=Fal
                 all_ok = False
                 errors.append(f"Price: {p_res}")
 
-        # 3. Đẩy trạng thái Ẩn / Mở bán nếu có thay đổi (khử trùng lặp theo item_id trong cùng lô Outbox để chống Rate-Limit Shopee)
-        if has_shopee_link and unlisted_drifted:
+        # 3. Đẩy trạng thái Ẩn / Mở bán nếu có thay đổi CÓ CHỦ ĐÍCH TƯỜNG MINH từ người vận hành CMS
+        # CHỐT CHẶN CỨNG CHỐNG TỰ TẮT SẢN PHẨM ĐANG BÁN: Tuyệt đối cấm gọi update_shopee_product_status(..., unlisted=True)
+        # cho mọi job AUTO_OUTBOX_* hoặc job thiếu cờ explicitUnlistIntent=True!
+        unlisted_pushed_ok = False
+        is_auto_outbox_job = str(outbox_id or "").startswith("AUTO_OUTBOX_")
+        allow_status_mutation = (
+            bool(has_shopee_link and unlisted_drifted)
+            and (not target_unlisted or (explicit_unlist_intent and not is_auto_outbox_job))
+        )
+        if has_shopee_link and unlisted_drifted and not allow_status_mutation:
+            print(f"[OUTBOUND SAFETY GUARD] Chặn lệnh tự động ẩn sản phẩm [{sku}] (Item #{item_id}) do không có thao tác Tạm ẩn tường minh từ người vận hành (outboxId={outbox_id})!")
+        if allow_status_mutation:
             status_cache_key = (str(item_id), bool(target_unlisted))
             if status_cache_key in handled_status_items:
                 u_ok, u_res = handled_status_items[status_cache_key]
@@ -2208,7 +2219,9 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token, idle_poll=Fal
                     unlisted=target_unlisted
                 )
                 handled_status_items[status_cache_key] = (u_ok, u_res)
-            if not u_ok:
+            if u_ok:
+                unlisted_pushed_ok = True
+            else:
                 all_ok = False
                 errors.append(f"Status: {u_res}")
 
@@ -2246,14 +2259,15 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token, idle_poll=Fal
                 "shopeeItemId": item_id,
                 "shopeeModelId": model_id,
                 "syncedStock": effective_synced_stock,
-                "syncedUnlisted": target_unlisted,
                 "syncedImage": synced_cdn_image or None,
                 "status": "COMPLETED",
                 "idempotencyKey": idem_key
             }
+            if allow_status_mutation and unlisted_pushed_ok:
+                ack_payload["syncedUnlisted"] = target_unlisted
             if pushed_price and price_pushed_ok:
                 ack_payload["syncedPrice"] = target_price
-            # Gửi ACK COMPLETED về CMS (chỉ đính kèm syncedPrice khi thực sự đẩy giá lên Shopee)
+            # Gửi ACK COMPLETED về CMS (chỉ đính kèm syncedPrice / syncedUnlisted khi thực sự đẩy lên Shopee)
             call_cms_webhook("OUTBOX_ACK_RESULT", ack_payload)
 
             # Cập nhật sync_state để tránh vòng lặp echo khi Inbound quét lại
@@ -2266,10 +2280,11 @@ def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token, idle_poll=Fal
                         prod_map[k]["stock"] = target_stock
                     if pushed_price:
                         prod_map[k]["sellPrice"] = target_price
-                    prod_map[k]["isUnlisted"] = target_unlisted
+                    if allow_status_mutation and unlisted_pushed_ok:
+                        prod_map[k]["isUnlisted"] = target_unlisted
                     prod_map[k]["syncedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
                     sync_state_dirty = True
-            if unlisted_drifted:
+            if allow_status_mutation and unlisted_pushed_ok:
                 if str(item_id) in item_meta_map:
                     item_meta_map[str(item_id)]["isUnlisted"] = target_unlisted
                     sync_state_dirty = True

@@ -1534,12 +1534,12 @@ export async function POST(req: NextRequest) {
         const shopeePriceChanged = !existing || sellPrice !== prevSyncedPrice
         const shopeeUnlistedChanged = !existing || rawShopeeUnlisted !== prevSyncedUnlisted
 
-        // Nếu trạng thái trên sàn KHÔNG thay đổi so với lần đồng bộ trước (!shopeeUnlistedChanged) mà CMS đã chủ động đặt cmsRequestedUnlisted (true hoặc false),
-        // giữ nguyên trạng thái của CMS, không cho phép dữ liệu cũ từ sàn ghi đè ngược!
-        const incomingIsUnlisted =
-          !shopeeUnlistedChanged && typeof prevAttrs.cmsRequestedUnlisted === 'boolean'
-            ? prevAttrs.cmsRequestedUnlisted
-            : rawShopeeUnlisted
+        // Bất biến an toàn Kênh Người Bán Shopee:
+        // Các sản phẩm đang chờ đẩy Outbox từ CMS đã được chặn bảo vệ phía trên (SKIPPED_PENDING_OUTBOX).
+        // Do đó khi luồng Inbound từ Shopee đi tới đây (!hasPendingOutbox), trạng thái hiển thị trực tiếp trên Shopee
+        // (rawShopeeUnlisted) LÀ SỰ THẬT GỐC — tuyệt đối không phục hồi cờ cmsRequestedUnlisted cũ gây lệch
+        // isUnlistedOnShopee !== lastSyncedShopeeUnlisted và kích hoạt nhầm AUTO_OUTBOX tắt sản phẩm đang bán!
+        const incomingIsUnlisted = rawShopeeUnlisted
         const prevIsUnlisted = Boolean(prevAttrs.isUnlistedOnShopee)
         const unlistedChanged = prevIsUnlisted !== incomingIsUnlisted
 
@@ -1791,11 +1791,13 @@ export async function POST(req: NextRequest) {
           shopId: String(d.shopId || prevAttrs.shopId || ''),
           shopUsername: d.shopUsername || prevAttrs.shopUsername || '',
           isUnlistedOnShopee: incomingIsUnlisted,
+          cmsRequestedUnlisted: incomingIsUnlisted,
           gallery: d.images && d.images.length > 0 ? d.images : prevAttrs.gallery || [],
           lastSyncedShopeeName: name || prevAttrs.lastSyncedShopeeName || null,
           lastSyncedShopeeImage: d.image || prevAttrs.lastSyncedShopeeImage || null,
           ...(d.attributes || {}),
         }
+        delete nextAttrsObj.cmsTargetUnlisted
         if (autoHealedOldModelId || wasBrokenLink) {
           delete nextAttrsObj.brokenMarketplaceLink
           delete nextAttrsObj.brokenLinkReason
@@ -1916,6 +1918,55 @@ export async function POST(req: NextRequest) {
         )
 
         // Báo động trạng thái sản phẩm Ẩn / Mở bán lại trên sàn về CMS (chỉ khi thực sự thay đổi từ phía sàn Shopee)
+        // Đồng thời đồng bộ cấp Item ID cho các phân loại anh em (kể cả phân loại cũ đã ngưng trên Shopee) để không lệch cờ isUnlistedOnShopee
+        if (shopeeItemIdStr && shopeeItemIdStr !== '0') {
+          const shopeeChForSibs = channels.find((ch) => ch.key === 'SHOPEE')
+          const sibStatus = incomingIsUnlisted ? 'UNLISTED' : 'ACTIVE'
+          for (const sib of allActiveProducts) {
+            if (sib.id === product.id || !sib.attributes) continue
+            try {
+              const sa = JSON.parse(sib.attributes) as Record<string, unknown>
+              if (String(sa.shopeeItemId || '').trim() !== shopeeItemIdStr) continue
+              if (sa.pendingOutboxSync === true || pendingOutboxProductIds.has(sib.id)) continue
+              if (
+                sa.isUnlistedOnShopee !== incomingIsUnlisted ||
+                sa.lastSyncedShopeeUnlisted !== incomingIsUnlisted ||
+                sa.cmsRequestedUnlisted !== incomingIsUnlisted ||
+                sa.cmsTargetUnlisted !== undefined
+              ) {
+                sa.isUnlistedOnShopee = incomingIsUnlisted
+                sa.lastSyncedShopeeUnlisted = incomingIsUnlisted
+                sa.cmsRequestedUnlisted = incomingIsUnlisted
+                delete sa.cmsTargetUnlisted
+                const nextSaJson = JSON.stringify(sa)
+                sib.attributes = nextSaJson
+                await db.product.update({
+                  where: { id: sib.id },
+                  data: { attributes: nextSaJson },
+                })
+                if (shopeeChForSibs) {
+                  await db.channelListing.upsert({
+                    where: {
+                      productId_channelId: {
+                        productId: sib.id,
+                        channelId: shopeeChForSibs.id,
+                      },
+                    },
+                    update: { status: sibStatus },
+                    create: {
+                      productId: sib.id,
+                      channelId: shopeeChForSibs.id,
+                      status: sibStatus,
+                      price: sib.sellPrice,
+                    },
+                  })
+                }
+              }
+            } catch {
+              // ignore malformed sibling attributes
+            }
+          }
+        }
         if (unlistedChanged && shopeeUnlistedChanged) {
           if (incomingIsUnlisted) {
             await logLedger({
@@ -3220,6 +3271,7 @@ export async function POST(req: NextRequest) {
       ])
       const explicitByProductId = new Map<string, string>()
       const explicitPriceByProductId = new Set<string>()
+      const explicitUnlistByProductId = new Set<string>()
       for (const le of pendingLedgerEntries) {
         if (!le.entityId) continue
         explicitByProductId.set(le.entityId, le.id)
@@ -3228,6 +3280,13 @@ export async function POST(req: NextRequest) {
             const det = JSON.parse(le.detail) as Record<string, unknown>
             const op = String(det.operation || '').trim().toUpperCase()
             const reason = String(det.reason || '').trim().toUpperCase()
+            if (
+              op === 'TOGGLE_UNLIST' ||
+              reason === 'MANUAL_TOGGLE_VISIBILITY_FROM_CMS' ||
+              reason === 'BULK_TOGGLE_VISIBILITY_FROM_CMS'
+            ) {
+              explicitUnlistByProductId.add(le.entityId)
+            }
             if (
               typeof det.targetPrice === 'number' &&
               det.targetPrice > 0 &&
@@ -3260,6 +3319,7 @@ export async function POST(req: NextRequest) {
         stockDrifted: boolean
         priceDrifted: boolean
         unlistedDrifted: boolean
+        explicitUnlistIntent: boolean
         imageDrifted: boolean
         idempotencyKey: string
       }> = []
@@ -3312,6 +3372,7 @@ export async function POST(req: NextRequest) {
               stockDrifted: false,
               priceDrifted: false,
               unlistedDrifted: false,
+              explicitUnlistIntent: false,
               imageDrifted: true,
               idempotencyKey: `IMAGE_OFFLOAD_${p.id}_${p.sku}`,
             })
@@ -3341,10 +3402,16 @@ export async function POST(req: NextRequest) {
           typeof attrs.cmsTargetPrice === 'number'
             ? attrs.cmsTargetPrice
             : shopeeListing?.price ?? p.sellPrice
-        const targetUnlisted =
-          typeof attrs.cmsTargetUnlisted === 'boolean'
-            ? attrs.cmsTargetUnlisted
-            : Boolean(attrs.isUnlistedOnShopee)
+        // BẤT BIẾN BẢO VỆ HIỂN THỊ SÀN SHOPEE:
+        // Chỉ cho phép đổi trạng thái Ẩn / Mở bán từ CMS lên Shopee khi người vận hành THỰC SỰ thao tác nút Ẩn/Mở bán trên CMS
+        // (có cmsTargetUnlisted tường minh kèm pendingOutboxSync hoặc OUTBOX_PENDING TOGGLE_UNLIST).
+        // Tuyệt đối KHÔNG tự động sinh AUTO_OUTBOX tắt sản phẩm đang bán chỉ vì lệch cờ lịch sử!
+        const hasExplicitUnlistIntent =
+          typeof attrs.cmsTargetUnlisted === 'boolean' &&
+          (Boolean(attrs.pendingOutboxSync) || explicitUnlistByProductId.has(p.id))
+        const targetUnlisted = hasExplicitUnlistIntent
+          ? Boolean(attrs.cmsTargetUnlisted)
+          : Boolean(attrs.isUnlistedOnShopee)
 
         const stockRes = resolveMarketplaceTargetStock({
           policy: inventoryPolicy,
@@ -3381,14 +3448,16 @@ export async function POST(req: NextRequest) {
             ? lastSyncedPrice !== targetPrice
             : lastSyncedPrice > 0 && lastSyncedPrice !== targetPrice)
         const unlistedDrifted =
-          typeof attrs.cmsTargetUnlisted === 'boolean' ||
-          (lastSyncedUnlisted !== null && lastSyncedUnlisted !== targetUnlisted)
+          hasExplicitUnlistIntent &&
+          (lastSyncedUnlisted === null ||
+            lastSyncedUnlisted !== targetUnlisted ||
+            explicitUnlistByProductId.has(p.id))
         const imageDrifted = Boolean(targetImage)
         const hasActionableExplicitMutation =
           hasExplicitOutbox &&
           (!stockRes.isMarketplaceStockProtected ||
             typeof attrs.cmsTargetPrice === 'number' ||
-            typeof attrs.cmsTargetUnlisted === 'boolean' ||
+            hasExplicitUnlistIntent ||
             Boolean(targetImage))
 
         if (
@@ -3398,7 +3467,10 @@ export async function POST(req: NextRequest) {
           imageDrifted ||
           hasActionableExplicitMutation
         ) {
-          const outboxId = explicitByProductId.get(p.id) || `AUTO_OUTBOX_${p.id}_${targetStock}_${targetPrice}_${targetUnlisted ? 1 : 0}`
+          const outboxPrefix = hasExplicitOutbox ? 'CMS_OUTBOX' : 'AUTO_OUTBOX'
+          const outboxId =
+            explicitByProductId.get(p.id) ||
+            `${outboxPrefix}_${p.id}_${targetStock}_${targetPrice}_${targetUnlisted ? 1 : 0}`
           jobs.push({
             outboxId,
             productId: p.id,
@@ -3417,6 +3489,7 @@ export async function POST(req: NextRequest) {
             stockDrifted,
             priceDrifted,
             unlistedDrifted,
+            explicitUnlistIntent: unlistedDrifted,
             imageDrifted,
             idempotencyKey: `OUTBOX_${shopeeItemId}_${shopeeModelId || '0'}_S${targetStock}_P${targetPrice}_U${targetUnlisted ? 1 : 0}`,
           })
@@ -3492,18 +3565,20 @@ export async function POST(req: NextRequest) {
         const syncedStock =
           typeof d.syncedStock === 'number' ? Math.max(0, d.syncedStock) : Math.max(0, product.stock)
         const syncedPrice = hasExplicitSyncedPrice ? Number(d.syncedPrice) : preservedShopeePrice
-        const syncedUnlisted =
-          typeof d.syncedUnlisted === 'boolean'
-            ? d.syncedUnlisted
-            : Boolean(attrs.isUnlistedOnShopee)
+        const hasExplicitSyncedUnlisted = typeof d.syncedUnlisted === 'boolean'
+        const syncedUnlisted = hasExplicitSyncedUnlisted
+          ? Boolean(d.syncedUnlisted)
+          : Boolean(attrs.isUnlistedOnShopee)
 
         if (isLinkedShopee) {
           attrs.lastSyncedShopeeStock = syncedStock
           attrs.liveShopeeStock = syncedStock
           attrs.lastSyncedShopeePrice = syncedPrice
-          attrs.lastSyncedShopeeUnlisted = syncedUnlisted
-          attrs.isUnlistedOnShopee = syncedUnlisted
-          attrs.cmsRequestedUnlisted = syncedUnlisted
+          if (hasExplicitSyncedUnlisted) {
+            attrs.lastSyncedShopeeUnlisted = syncedUnlisted
+            attrs.isUnlistedOnShopee = syncedUnlisted
+            attrs.cmsRequestedUnlisted = syncedUnlisted
+          }
         }
         attrs.pendingOutboxSync = false
         delete attrs.cmsTargetStock

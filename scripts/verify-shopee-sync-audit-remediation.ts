@@ -461,6 +461,7 @@ print("PYTHON_AUDIT_SUITE_ALL_OK")
         { sku: { startsWith: 'SYNTH-VAR-' } },
         { sku: { startsWith: 'SYNTH-SINGLE-' } },
         { sku: { startsWith: 'TEST-NOAUTO-' } },
+        { sku: { startsWith: 'TEST-RELIST-' } },
       ],
     },
     select: { id: true },
@@ -1699,6 +1700,196 @@ print("PYTHON_AUDIT_SUITE_ALL_OK")
       'S8-LINK-EXISTING-PRESERVES-CUSTOM-POS-NAME',
       `LINK_TO_EXISTING giữ nguyên tên gọn POS qua chu kỳ đồng bộ Inbound kế tiếp (name=${afterLinkInboundProd?.name})`
     )
+
+    // ------------------------------------------------------------------------
+    // SUITE 9: Anti-Auto-Unlist & Shopee Relist Protection Regression Suite
+    //   1. Relisting an item on Shopee Seller Center clears stale cmsRequestedUnlisted=true
+    //      so subsequent Inbound syncs NEVER resurrect isUnlistedOnShopee=true!
+    //   2. Stale isUnlistedOnShopee=true vs lastSyncedShopeeUnlisted=false WITHOUT explicit
+    //      operator TOGGLE_UNLIST NEVER spawns an AUTO_OUTBOX job to turn off Shopee items!
+    //   3. Explicit operator TOGGLE_CHANNEL_STATUS -> UNLISTED DOES enqueue explicitUnlistIntent=true!
+    //   4. Python Daemon physically blocks update_shopee_product_status(..., unlisted=True)
+    //      for any AUTO_OUTBOX_* job or job missing explicitUnlistIntent=True!
+    // ------------------------------------------------------------------------
+    console.log('\n--- SUITE 9: Anti-Auto-Unlist & Shopee Relist Protection ---')
+    const prodRelistGuard = await db.product.create({
+      data: {
+        sku: `TEST-RELIST-${ts}`,
+        name: 'SP Đang Bán Trên Shopee Chống Bị Tắt Ngược',
+        categoryId: category!.id,
+        costPrice: 20000,
+        sellPrice: 79000,
+        stock: 0,
+        status: 'ACTIVE',
+        ownerWarehouseId: defaultWh!.id,
+        attributes: JSON.stringify({
+          shopeeItemId: `998111${ts}`,
+          shopeeModelId: `888111${ts}`,
+          isUnlistedOnShopee: true,
+          lastSyncedShopeeUnlisted: true,
+          cmsRequestedUnlisted: true, // Cờ lịch sử cũ từng ẩn trước đây
+          lastSyncedShopeeStock: 8,
+          liveShopeeStock: 8,
+          lastSyncedShopeePrice: 81000,
+          openingStockOrigin: 'CMS_WAREHOUSE',
+        }),
+      },
+    })
+    createdProductIds.push(prodRelistGuard.id)
+    await db.channelListing.create({
+      data: { productId: prodRelistGuard.id, channelId: shopeeCh.id, price: 81000, status: 'UNLISTED' },
+    })
+
+    // Step 9.1: Seller relists item directly on Shopee Seller Center (isUnlisted: false)
+    await callInbound({
+      event: 'INBOUND_SHOPEE_PRODUCT_SYNC',
+      data: {
+        idempotencyKey: `IDEM_RELIST_STEP1_${ts}`,
+        shopeeItemId: `998111${ts}`,
+        shopeeModelId: `888111${ts}`,
+        sku: prodRelistGuard.sku,
+        modelSku: prodRelistGuard.sku,
+        name: 'SP Đang Bán Trên Shopee Chống Bị Tắt Ngược',
+        sellPrice: 81000,
+        stock: 8,
+        isUnlisted: false,
+        shopeeModifyTime: Math.floor(ts / 1000) + 500,
+      },
+    })
+    // Step 9.2: Seller subsequently edits title on Shopee while item remains live (isUnlisted: false -> !shopeeUnlistedChanged)
+    await callInbound({
+      event: 'INBOUND_SHOPEE_PRODUCT_SYNC',
+      data: {
+        idempotencyKey: `IDEM_RELIST_STEP2_${ts}`,
+        shopeeItemId: `998111${ts}`,
+        shopeeModelId: `888111${ts}`,
+        sku: prodRelistGuard.sku,
+        modelSku: prodRelistGuard.sku,
+        name: 'SP Đang Bán Trên Shopee — Đã Đổi Tiêu Đề Mới',
+        sellPrice: 81000,
+        stock: 8,
+        isUnlisted: false,
+        shopeeModifyTime: Math.floor(ts / 1000) + 600,
+      },
+    })
+    const afterRelistAndRename = await db.product.findUnique({
+      where: { id: prodRelistGuard.id },
+      include: { listings: true },
+    })
+    const afterRelistAttrs = JSON.parse(afterRelistAndRename?.attributes || '{}') as Record<string, unknown>
+    const afterRelistShopeeListing = afterRelistAndRename?.listings.find((l) => l.channelId === shopeeCh.id)
+    assert(
+      afterRelistAttrs.isUnlistedOnShopee === false &&
+        afterRelistAttrs.lastSyncedShopeeUnlisted === false &&
+        afterRelistAttrs.cmsRequestedUnlisted === false &&
+        afterRelistShopeeListing?.status === 'ACTIVE',
+      'S9-RELIST-NOT-REVERTED-BY-STALE-FLAG',
+      `Mở bán lại trên Shopee xóa sạch cờ cmsRequestedUnlisted cũ và giữ ACTIVE bền vững qua các lần đồng bộ sau`
+    )
+
+    // Step 9.3: Even if DB somehow had corrupted/drifted flags (isUnlistedOnShopee=true, lastSyncedShopeeUnlisted=false) WITHOUT explicit cmsTargetUnlisted, OUTBOX_FETCH_PENDING must emit 0 jobs!
+    afterRelistAttrs.isUnlistedOnShopee = true
+    afterRelistAttrs.lastSyncedShopeeUnlisted = false
+    delete afterRelistAttrs.cmsTargetUnlisted
+    afterRelistAttrs.pendingOutboxSync = false
+    await db.product.update({
+      where: { id: prodRelistGuard.id },
+      data: { attributes: JSON.stringify(afterRelistAttrs) },
+    })
+    const outboxDriftCheck = await callInbound({
+      event: 'OUTBOX_FETCH_PENDING',
+      data: { onlySyntheticTest: true },
+    })
+    const driftJobs =
+      (outboxDriftCheck.json.jobs as Array<{ productId: string; unlistedDrifted: boolean }>) || []
+    assert(
+      !driftJobs.some((j) => j.productId === prodRelistGuard.id),
+      'S9-NO-AUTO-UNLIST-WITHOUT-OPERATOR-INTENT',
+      'OUTBOX_FETCH_PENDING tuyệt đối không tự sinh AUTO_OUTBOX ẩn sản phẩm khi người vận hành không bấm nút Tạm ẩn trên CMS'
+    )
+
+    // Step 9.4: Explicit operator click TOGGLE_CHANNEL_STATUS -> UNLISTED DOES enqueue explicitUnlistIntent=true
+    await productLinksPost(
+      new NextRequest('http://localhost:3010/api/channels/product-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'TOGGLE_CHANNEL_STATUS',
+          productId: prodRelistGuard.id,
+          channelKey: 'SHOPEE',
+          nextStatus: 'UNLISTED',
+        }),
+      })
+    )
+    await new Promise((r) => setTimeout(r, 120))
+    const outboxExplicitUnlist = await callInbound({
+      event: 'OUTBOX_FETCH_PENDING',
+      data: { onlySyntheticTest: true },
+    })
+    const explicitUnlistJob = (
+      (outboxExplicitUnlist.json.jobs as Array<{
+        outboxId: string
+        productId: string
+        unlistedDrifted: boolean
+        explicitUnlistIntent: boolean
+        targetUnlisted: boolean
+      }>) || []
+    ).find((j) => j.productId === prodRelistGuard.id)
+    assert(
+      Boolean(
+        explicitUnlistJob &&
+          explicitUnlistJob.unlistedDrifted === true &&
+          explicitUnlistJob.explicitUnlistIntent === true &&
+          explicitUnlistJob.targetUnlisted === true &&
+          !explicitUnlistJob.outboxId.startsWith('AUTO_OUTBOX_')
+      ),
+      'S9-EXPLICIT-OPERATOR-UNLIST-WORKS',
+      'Khi người vận hành chủ động bấm Tạm ẩn trên CMS, Outbox gắn đúng explicitUnlistIntent=true'
+    )
+
+    // Step 9.5: Python Daemon hardware fuse blocks AUTO_OUTBOX_* or missing explicitUnlistIntent from calling update_shopee_product_status(..., unlisted=True)
+    const pyUnlistGuardOut = execSync('python -B -', {
+      input: `
+import scripts.shopee_seller_sync as sm
+sm.GLOBAL_STATE["alive"] = True
+status_calls = []
+orig_call = sm.call_cms_webhook
+orig_status = sm.update_shopee_product_status
+orig_stock = sm.update_shopee_product_stock
+orig_load = sm.load_sync_state
+orig_save = sm.save_sync_state
+def fake_webhook(ev, data, timeout=12):
+    if ev == "OUTBOX_FETCH_PENDING":
+        return True, {"ok": True, "jobs": [
+            {"outboxId": "AUTO_OUTBOX_123", "productId": "p1", "sku": "SYNTH-1", "shopeeItemId": "9991", "shopeeModelId": "1", "targetStock": 8, "targetPrice": 50000, "targetUnlisted": True, "stockDrifted": False, "priceDrifted": False, "unlistedDrifted": True, "explicitUnlistIntent": True},
+            {"outboxId": "MANUAL_OB_456", "productId": "p2", "sku": "SYNTH-2", "shopeeItemId": "9992", "shopeeModelId": "1", "targetStock": 8, "targetPrice": 50000, "targetUnlisted": True, "stockDrifted": False, "priceDrifted": False, "unlistedDrifted": True, "explicitUnlistIntent": False},
+            {"outboxId": "MANUAL_OB_789", "productId": "p3", "sku": "SYNTH-3", "shopeeItemId": "9993", "shopeeModelId": "1", "targetStock": 8, "targetPrice": 50000, "targetUnlisted": True, "stockDrifted": False, "priceDrifted": False, "unlistedDrifted": True, "explicitUnlistIntent": True},
+        ]}
+    return True, {"ok": True}
+sm.call_cms_webhook = fake_webhook
+sm.update_shopee_product_status = lambda c, s, t, item_id=None, unlisted=False: (status_calls.append((str(item_id), bool(unlisted))) or (True, {"code": 0}))
+sm.update_shopee_product_stock = lambda *a, **kw: (True, {"code": 0})
+sm.load_sync_state = lambda: {"products": {}, "itemMeta": {}}
+sm.save_sync_state = lambda st: None
+try:
+    sm.process_outbound_outbox_from_cms({"SPC_ST": "x"}, "cds", "csrf")
+    assert status_calls == [("9993", True)], f"Expected ONLY explicit manual job 9993 to call update_shopee_product_status, got {status_calls}"
+    print("PY_UNLIST_HARDWARE_FUSE_OK")
+finally:
+    sm.call_cms_webhook = orig_call
+    sm.update_shopee_product_status = orig_status
+    sm.update_shopee_product_stock = orig_stock
+    sm.load_sync_state = orig_load
+    sm.save_sync_state = orig_save
+`,
+      encoding: 'utf-8',
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+    })
+    assert(
+      pyUnlistGuardOut.includes('PY_UNLIST_HARDWARE_FUSE_OK'),
+      'S9-PYTHON-DAEMON-UNLIST-HARDWARE-FUSE',
+      'Python Daemon chặn cứng 100% mọi lệnh tắt sản phẩm Shopee từ AUTO_OUTBOX_* hoặc thiếu explicitUnlistIntent'
+    )
   } finally {
     // Allow fire-and-forget lineage/activity writes to settle before clean teardown
     await new Promise((r) => setTimeout(r, 250))
@@ -1738,6 +1929,7 @@ print("PYTHON_AUDIT_SUITE_ALL_OK")
         createdAt: { gte: startedAt },
         OR: [
           { entityCode: { startsWith: 'SYNTH-' } },
+          { entityCode: { startsWith: 'TEST-RELIST-' } },
           { entityCode: { startsWith: `997888${ts}` } },
           { entityCode: { contains: `261124GIFT` } },
           { title: { contains: 'SYNTH-' } },
