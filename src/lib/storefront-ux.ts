@@ -121,6 +121,39 @@ export function buildStorefrontCartStorageKey(cmsInstanceId?: string | null): st
   return `openvn_sf_cart_v1_${cleanId}`
 }
 
+export function buildStorefrontOfflineOutboxKey(cmsInstanceId?: string | null): string {
+  const cleanId =
+    String(cmsInstanceId || '')
+      .trim()
+      .replace(/[^A-Za-z0-9_-]/g, '_')
+      .slice(0, 64) || 'default'
+  return `openvn_sf_outbox_v1_${cleanId}`
+}
+
+export function generateDeterministicClientRefCode(
+  prefixRaw: string | null | undefined,
+  kind: 'WEB' | 'SI' | 'LH',
+  now = new Date()
+): string {
+  const prefix =
+    String(prefixRaw || 'BM')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 4) || 'BM'
+  const datePart = now.toISOString().slice(2, 10).replace(/-/g, '')
+  const rand4 = Math.floor(1000 + Math.random() * 9000)
+  return `${prefix}-${kind}-${datePart}-${rand4}`
+}
+
+export interface OfflineOutboxRecord {
+  refCode: string
+  endpoint: string
+  payload: Record<string, unknown>
+  createdAt: string
+  grandTotal?: number
+  summaryText: string
+}
+
 export function serializeCartForStorage<
   T extends { product: { id: string; sku: string }; quantity: number },
 >(cart: T[]): PersistedCartLineRef[] {

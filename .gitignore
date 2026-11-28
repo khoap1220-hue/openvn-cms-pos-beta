@@ -66,6 +66,9 @@ db/*.db-shm
 db/*.bak*
 db/*.sql
 db/.maintenance_state.json*
+db/.storefront_lkg_snapshot.json*
+db/.storefront_failover_spool.json*
+db/backups/
 db/bo-moc-baocao*-state.json*
 *.db-wal
 *.db-shm

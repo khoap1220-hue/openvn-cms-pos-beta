@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   BadgePercent,
   CheckCircle2,
+  Download,
   ExternalLink,
   Globe,
   Images,
@@ -533,6 +534,12 @@ export function StorefrontDomainCard() {
                 {enabled ? 'Đang mở Website' : 'Tạm ẩn'}
               </Label>
             </div>
+            <Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-semibold">
+              <a href="/api/system/backup?format=json" download>
+                <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Sao lưu 24 Bảng (.json)</span>
+              </a>
+            </Button>
             <Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-semibold">
               <Link href="/store" target="_blank" rel="noopener noreferrer">
                 <span>Xem thử /store</span>

@@ -67,7 +67,10 @@ import {
   type StorefrontCarouselBanner,
 } from '@/lib/storefront-banners'
 import {
+  type OfflineOutboxRecord,
+  type ProductDetailTabKey,
   buildStorefrontCartStorageKey,
+  buildStorefrontOfflineOutboxKey,
   buildStorefrontProductShareUrl,
   buildStorefrontVietQrUrl,
   findSiblingVariantProducts,
@@ -76,6 +79,7 @@ import {
   formatStorefrontDisplayTitle,
   formatStorefrontLookupStatusLabel,
   formatWholesaleTiersSummary,
+  generateDeterministicClientRefCode,
   isPlaceholderStorefrontEmail,
   isPlaceholderStorefrontPhone,
   parseStorefrontDeepLinkQuery,
@@ -88,7 +92,6 @@ import {
   selectHeroShowcaseProducts,
   selectRelatedStorefrontProducts,
   serializeCartForStorage,
-  type ProductDetailTabKey,
 } from '@/lib/storefront-ux'
 import { cn } from '@/lib/utils'
 
@@ -353,8 +356,11 @@ export default function OnlineStorefrontPage() {
     wholesaleSaved: number
     tierLabel: string | null
     paymentMethod: 'COD' | 'BANK_TRANSFER'
+    offlineQueued?: boolean
+    summaryText?: string
   } | null>(null)
   const [qrLoadFailedUrl, setQrLoadFailedUrl] = useState<string | null>(null)
+  const lastPrewarmAtRef = useRef<number>(0)
   const hydratedCartKeyRef = useRef<string | null>(null)
   const [hydratedCartKey, setHydratedCartKey] = useState<string | null>(null)
   const pendingDeepLinkSkuRef = useRef<string>('')
@@ -589,10 +595,23 @@ export default function OnlineStorefrontPage() {
     syncUrlSkuQuery('')
   }, [syncUrlSkuQuery])
 
+  const prewarmBackendHealth = useCallback(() => {
+    if (typeof window === 'undefined' || isStaticBetaHost()) return
+    const now = Date.now()
+    if (now - lastPrewarmAtRef.current < 90_000) return
+    lastPrewarmAtRef.current = now
+    const endpoint = resolveStorefrontApiEndpoint(storeData)
+    const healthUrl = endpoint.endsWith('/api/public/storefront')
+      ? endpoint.replace(/\/api\/public\/storefront$/, '/api/health')
+      : '/api/health'
+    void fetch(healthUrl, { cache: 'no-store' }).catch(() => null)
+  }, [storeData])
+
   const openCartModal = useCallback(() => {
     dismiss()
+    prewarmBackendHealth()
     setCartOpen(true)
-  }, [dismiss])
+  }, [dismiss, prewarmBackendHealth])
 
   const siblingVariants = useMemo(
     () => (selectedProduct ? findSiblingVariantProducts(selectedProduct, products) : []),
@@ -738,6 +757,9 @@ export default function OnlineStorefrontPage() {
   const selectNavTab = useCallback(
     (nextTab: ActiveNavSection) => {
       setActiveTab(nextTab)
+      if (nextTab !== 'PRODUCTS') {
+        prewarmBackendHealth()
+      }
       if (typeof window !== 'undefined') {
         const scrollBehavior: ScrollBehavior = prefersReducedMotion ? 'auto' : 'smooth'
         window.requestAnimationFrame(() => {
@@ -1086,6 +1108,181 @@ export default function OnlineStorefrontPage() {
     )
   }
 
+  const offlineOutboxKey = storeData?.cmsInstanceId
+    ? buildStorefrontOfflineOutboxKey(storeData.cmsInstanceId)
+    : null
+
+  const flushOfflineStorefrontOutbox = useCallback(async () => {
+    if (typeof window === 'undefined' || !offlineOutboxKey || isStaticBetaHost()) return
+    try {
+      const raw = window.localStorage.getItem(offlineOutboxKey)
+      if (!raw) return
+      const records = JSON.parse(raw) as OfflineOutboxRecord[]
+      if (!Array.isArray(records) || records.length === 0) return
+
+      const remaining: OfflineOutboxRecord[] = []
+      for (const rec of records) {
+        if (!rec?.refCode || !rec?.endpoint || !rec?.payload) continue
+        try {
+          const res = await fetch(rec.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(rec.payload),
+          })
+          const json = (await res.json().catch(() => ({}))) as { ok?: boolean }
+          if (res.ok && json.ok) {
+            continue
+          }
+          if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+            continue
+          }
+          remaining.push(rec)
+        } catch {
+          remaining.push(rec)
+        }
+      }
+
+      if (remaining.length === 0) {
+        window.localStorage.removeItem(offlineOutboxKey)
+      } else {
+        window.localStorage.setItem(offlineOutboxKey, JSON.stringify(remaining.slice(-40)))
+      }
+    } catch {
+      // ignore storage restrictions
+    }
+  }, [offlineOutboxKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !offlineOutboxKey) return
+    const timer = window.setTimeout(() => {
+      void flushOfflineStorefrontOutbox()
+    }, 1500)
+    const onOnline = () => {
+      void flushOfflineStorefrontOutbox()
+    }
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [offlineOutboxKey, flushOfflineStorefrontOutbox])
+
+  const submitStorefrontWithContinuity = useCallback(
+    async (options: {
+      kind: 'WEB' | 'SI' | 'LH'
+      payload: Record<string, unknown>
+      grandTotal?: number
+      summaryText: string
+    }): Promise<{
+      ok: boolean
+      refCode: string
+      grandTotal?: number
+      wholesaleSaved?: number
+      wholesaleTier?: { label?: string } | null
+      message?: string
+      offlineQueued?: boolean
+    }> => {
+      const endpoint = resolveStorefrontApiEndpoint(storeData)
+      const clientRefCode = generateDeterministicClientRefCode(
+        storeData?.brand?.brandShortName || 'BM',
+        options.kind
+      )
+      const bodyPayload = {
+        ...options.payload,
+        clientRefCode,
+      }
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const ctrl = new AbortController()
+          const timer = window.setTimeout(() => ctrl.abort(), attempt === 0 ? 28_000 : 30_000)
+          let res: Response
+          try {
+            res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(bodyPayload),
+              signal: ctrl.signal,
+            })
+          } finally {
+            window.clearTimeout(timer)
+          }
+          const json = (await res.json().catch(() => ({}))) as {
+            ok?: boolean
+            code?: string
+            refCode?: string
+            grandTotal?: number
+            wholesaleSaved?: number
+            wholesaleTier?: { label?: string } | null
+            message?: string
+            error?: string
+          }
+
+          if (res.ok && json.ok) {
+            return {
+              ok: true,
+              refCode: json.refCode || clientRefCode,
+              grandTotal: json.grandTotal,
+              wholesaleSaved: json.wholesaleSaved,
+              wholesaleTier: json.wholesaleTier,
+              message: json.message,
+            }
+          }
+
+          // Không lưu hàng đợi Offline nếu là lỗi nhập liệu (400/429) hoặc cửa hàng chủ động đóng (STOREFRONT_DISABLED)
+          if (
+            res.status === 400 ||
+            res.status === 429 ||
+            json.code === 'STOREFRONT_DISABLED' ||
+            json.code === 'OUT_OF_STOCK'
+          ) {
+            const clientErr = new Error(json.error || 'Dữ liệu gửi chưa hợp lệ.')
+            ;(clientErr as Error & { nonRetryable?: boolean }).nonRetryable = true
+            throw clientErr
+          }
+        } catch (err) {
+          if ((err as Error & { nonRetryable?: boolean })?.nonRetryable) {
+            throw err
+          }
+          if (attempt === 0) {
+            await new Promise((r) => window.setTimeout(r, 2_000))
+          }
+        }
+      }
+
+      // Cả 2 lượt mạng đều gặp sự cố (ví dụ đứt mạng di động hoặc máy chủ bảo trì): bảo toàn 100% vào Offline Outbox
+      if (typeof window !== 'undefined' && offlineOutboxKey) {
+        try {
+          const existingRaw = window.localStorage.getItem(offlineOutboxKey)
+          const existingList = existingRaw ? (JSON.parse(existingRaw) as OfflineOutboxRecord[]) : []
+          const nextList: OfflineOutboxRecord[] = [
+            ...(Array.isArray(existingList) ? existingList : []),
+            {
+              refCode: clientRefCode,
+              endpoint,
+              payload: bodyPayload,
+              createdAt: new Date().toISOString(),
+              grandTotal: options.grandTotal,
+              summaryText: options.summaryText,
+            },
+          ].slice(-40)
+          window.localStorage.setItem(offlineOutboxKey, JSON.stringify(nextList))
+        } catch {
+          // ignore quota
+        }
+      }
+
+      return {
+        ok: true,
+        offlineQueued: true,
+        refCode: clientRefCode,
+        grandTotal: options.grandTotal,
+        message: `Đã lưu bảo toàn mã ${clientRefCode} trong Bộ nhớ Dự phòng 24/7 — hệ thống sẽ tự động gửi bù về xưởng ngay khi kết nối mạng/máy chủ phục hồi.`,
+      }
+    },
+    [storeData, offlineOutboxKey]
+  )
+
   const handleCheckout = async () => {
     if (cart.length === 0) return
     if (!customerName.trim() || !customerPhone.trim() || !shippingAddress.trim()) {
@@ -1098,11 +1295,22 @@ export default function OnlineStorefrontPage() {
     }
     setSubmittingOrder(true)
     try {
-      const endpoint = resolveStorefrontApiEndpoint(storeData)
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const orderSummaryText = [
+        `Đơn đặt hàng: ${brandName}`,
+        `Khách nhận: ${customerName.trim()} - ${customerPhone.trim()}`,
+        `Địa chỉ: ${shippingAddress.trim()}`,
+        ...cart.map((it) => `- ${it.product.sku} x${it.quantity} (${it.product.cleanTitle})`),
+        `Tổng cộng: ${formatVND(grandTotal)} (${paymentMethod === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'COD'})`,
+        orderNote.trim() ? `Ghi chú: ${orderNote.trim()}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+
+      const json = await submitStorefrontWithContinuity({
+        kind: 'WEB',
+        grandTotal,
+        summaryText: orderSummaryText,
+        payload: {
           action: 'SUBMIT_WEB_ORDER',
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
@@ -1114,38 +1322,31 @@ export default function OnlineStorefrontPage() {
             sku: it.product.sku,
             quantity: it.quantity,
           })),
-        }),
+        },
       })
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean
-        refCode?: string
-        grandTotal?: number
-        wholesaleSaved?: number
-        wholesaleTier?: { label?: string } | null
-        message?: string
-        error?: string
-      }
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || 'Không thể gửi đơn hàng lúc này.')
-      }
-      const refCode = json.refCode || `BM-WEB-${Date.now().toString().slice(-6)}`
+
+      const refCode = json.refCode
       setCompletedOrder({
         refCode,
         grandTotal: json.grandTotal ?? grandTotal,
         wholesaleSaved: json.wholesaleSaved ?? wholesaleSavings,
         tierLabel: json.wholesaleTier?.label ?? activeCartWholesaleTier?.label ?? null,
         paymentMethod,
+        offlineQueued: json.offlineQueued,
+        summaryText: `${orderSummaryText}\nMã tham chiếu: ${refCode}`,
       })
       setCart([])
       setOrderNote('')
       toast({
-        title: `Đặt hàng thành công (${refCode})`,
+        title: json.offlineQueued
+          ? `Đã lưu bảo toàn đơn hàng (${refCode})`
+          : `Đặt hàng thành công (${refCode})`,
         description: json.message || 'Cửa hàng sẽ liên hệ xác nhận giao hàng sớm nhất.',
       })
     } catch (e) {
       toast({
         title: 'Không thể gửi đơn đặt hàng',
-        description: e instanceof Error ? e.message : 'Vui lòng thử lại hoặc gửi tin nhắn liên hệ.',
+        description: e instanceof Error ? e.message : 'Vui lòng kiểm tra lại thông tin nhận hàng.',
         variant: 'destructive',
       })
     } finally {
@@ -1165,39 +1366,30 @@ export default function OnlineStorefrontPage() {
     }
     setSubmittingWholesale(true)
     try {
-      const endpoint = resolveStorefrontApiEndpoint(storeData)
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const estQtyVal = Number(wsEstimatedQty) || 30
+      const json = await submitStorefrontWithContinuity({
+        kind: 'SI',
+        summaryText: `Yêu cầu báo giá sỉ: ${wsName.trim()} (${wsPhone.trim()}) - SL ~${estQtyVal} SP`,
+        payload: {
           action: 'SUBMIT_WHOLESALE_INQUIRY',
           customerName: wsName.trim(),
           companyOrShopName: wsShopName.trim(),
           customerPhone: wsPhone.trim(),
           customerEmail: wsEmail.trim(),
           address: wsAddress.trim(),
-          estimatedQty: Number(wsEstimatedQty) || 30,
+          estimatedQty: estQtyVal,
           note: wsNote.trim(),
-        }),
+        },
       })
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean
-        refCode?: string
-        message?: string
-        error?: string
-      }
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || 'Không thể gửi yêu cầu báo giá sỉ.')
-      }
       setWholesaleSubmittedCode(json.refCode || 'BM-SI-OK')
       toast({
-        title: `Đã gửi yêu cầu báo giá sỉ (${json.refCode})`,
+        title: `Đã tiếp nhận yêu cầu báo giá sỉ (${json.refCode})`,
         description: json.message,
       })
     } catch (err) {
       toast({
         title: 'Lỗi gửi yêu cầu báo giá sỉ',
-        description: err instanceof Error ? err.message : 'Vui lòng thử lại sau ít phút.',
+        description: err instanceof Error ? err.message : 'Vui lòng kiểm tra lại thông tin.',
         variant: 'destructive',
       })
     } finally {
@@ -1217,37 +1409,27 @@ export default function OnlineStorefrontPage() {
     }
     setSubmittingContact(true)
     try {
-      const endpoint = resolveStorefrontApiEndpoint(storeData)
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const json = await submitStorefrontWithContinuity({
+        kind: 'LH',
+        summaryText: `Liên hệ tư vấn: ${ctName.trim()} (${ctPhone.trim()}) - ${ctMessage.trim()}`,
+        payload: {
           action: 'SUBMIT_CONTACT',
           customerName: ctName.trim(),
           customerPhone: ctPhone.trim(),
           customerEmail: ctEmail.trim(),
           note: ctMessage.trim(),
-        }),
+        },
       })
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean
-        refCode?: string
-        message?: string
-        error?: string
-      }
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || 'Không thể gửi tin nhắn liên hệ.')
-      }
       setContactSubmittedCode(json.refCode || 'BM-LH-OK')
       setCtMessage('')
       toast({
-        title: `Đã gửi tin nhắn thành công (${json.refCode})`,
+        title: `Đã tiếp nhận liên hệ (${json.refCode})`,
         description: json.message,
       })
     } catch (err) {
       toast({
         title: 'Không thể gửi liên hệ',
-        description: err instanceof Error ? err.message : 'Vui lòng thử lại sau.',
+        description: err instanceof Error ? err.message : 'Vui lòng kiểm tra lại thông tin.',
         variant: 'destructive',
       })
     } finally {
@@ -4022,6 +4204,29 @@ export default function OnlineStorefrontPage() {
                 Tổng thanh toán: {formatVND(completedOrder.grandTotal)}
                 {completedOrder.tierLabel ? ` (${completedOrder.tierLabel})` : ''}
               </p>
+
+              {completedOrder.offlineQueued && (
+                <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50/90 p-3 text-left text-xs text-stone-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                  <p className="font-semibold">
+                    Đơn hàng đã được lưu bảo toàn trong Bộ nhớ Dự phòng 24/7 và sẽ tự động đồng bộ
+                    về xưởng ngay khi kết nối mạng/máy chủ phục hồi.
+                  </p>
+                  {completedOrder.summaryText && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs font-semibold"
+                      onClick={() =>
+                        void copyToClipboard(completedOrder.summaryText || '', 'chi tiết đơn hàng')
+                      }
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>Sao chép chi tiết đơn để gửi nhanh</span>
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {completedOrder.paymentMethod === 'BANK_TRANSFER' && effectiveBankTransfer ? (
                 <div className="space-y-2 rounded-xl border border-amber-200 bg-white/95 p-3 text-left text-xs dark:border-amber-900 dark:bg-stone-950/80">

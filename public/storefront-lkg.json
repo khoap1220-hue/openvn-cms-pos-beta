@@ -1,0 +1,1260 @@
+{
+  "ok": true,
+  "storefrontClosed": false,
+  "cmsInstanceId": "cms_69966b123b91",
+  "generatedAt": "2026-11-28T07:02:05.525Z",
+  "brand": {
+    "brandName": "Bơ Mộc Decor",
+    "brandShortName": "BƠ MỘC",
+    "brandBadge": "OMNI",
+    "brandSubtitle": "Xưởng đúc thủ công Bơ Mộc",
+    "footerTagline": "Quản lý bán hàng đa kênh · Agent Autopilot 100% · Invoice Pro · Offline-first",
+    "workshopName": "Xưởng đúc thủ công Bơ Mộc",
+    "companyName": "Bơ Mộc Decor"
+  },
+  "config": {
+    "enabled": true,
+    "customDomain": "bomocdecor.vn",
+    "additionalDomains": [
+      "www.bomocdecor.vn"
+    ],
+    "cmsBackendOrigin": "https://openvn-cms-pos-backend.onrender.com",
+    "heroBadge": "Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc",
+    "heroTitle": "Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công Tinh Tế",
+    "heroSubtitle": "Chế tác tỉ mỉ từng khay, hũ nến thạch cao kháng dầu chịu nhiệt và nến bơ thực vật thuần chay không khói cho góc thiền, bàn trà, spa & quà tặng doanh nghiệp.",
+    "announcementBar": "Miễn phí vận chuyển toàn quốc đơn lẻ từ 500.000 ₫ · Chiết khấu Giá Sỉ tận xưởng từ 10 sản phẩm (-15% đến -35%)",
+    "wholesaleEnabled": true,
+    "wholesaleTiers": [
+      {
+        "id": "tier_10",
+        "minQty": 10,
+        "discountPercent": 15,
+        "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+        "badge": "-15%",
+        "description": "Áp dụng đơn gộp từ 10 sản phẩm bất kỳ · Hỗ trợ Shop Decor, Phòng trà, Homestay."
+      },
+      {
+        "id": "tier_30",
+        "minQty": 30,
+        "discountPercent": 25,
+        "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+        "badge": "-25%",
+        "description": "Chiết khấu sâu 25% tại xưởng · Hỗ trợ hình ảnh/video gốc & ưu tiên xuất kho."
+      },
+      {
+        "id": "tier_100",
+        "minQty": 100,
+        "discountPercent": 35,
+        "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+        "badge": "-35%",
+        "description": "Giá xuất xưởng tốt nhất · Hỗ trợ phối màu riêng, khắc/in logo hộp quà doanh nghiệp (OEM)."
+      }
+    ],
+    "wholesalePolicyNote": "Được gộp tự do nhiều mẫu/phân loại trong cùng đơn sỉ để đạt mốc số lượng 10 · 30 · 100 sản phẩm. Xuất hóa đơn chứng từ đầy đủ, đóng gói chống sốc chuyên dụng bảo hành bể vỡ 1 đổi 1.",
+    "oemCustomNote": "Nhận gia công OEM theo màu sắc riêng, đổ nến bơ/sáp đậu nành theo mùi hương yêu cầu & thiết kế hộp quà tặng sự kiện, lễ Tết cho doanh nghiệp, spa, thiền viện.",
+    "freeShipThreshold": 500000,
+    "baseShippingFee": 30000,
+    "returnDays": 7,
+    "allowPreorderWhenOutOfStock": true,
+    "contact": {
+      "hotline": "",
+      "zaloPhone": "",
+      "zaloUrl": "",
+      "email": "",
+      "address": "Xưởng Đúc Thủ Công & Showroom Bơ Mộc Decor — TP. Hồ Chí Minh",
+      "workingHours": "08:30 – 21:00 (Thứ 2 – Chủ Nhật)",
+      "shopeeUrl": "https://shopee.vn/bomocdecor",
+      "facebookUrl": "https://facebook.com/bomocdecor",
+      "tiktokUrl": "https://tiktok.com/@bomocdecor"
+    },
+    "bankTransfer": null,
+    "banners": {
+      "enabled": true,
+      "shopLogoUrl": "https://down-vn.img.susercontent.com/file/vn-11134216-81ztc-mv7hyg7qj6yv24",
+      "coverBannerUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526kpkjd2e8",
+      "mobileCoverBannerUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx59kf31gcn9b",
+      "carouselBanners": [
+        {
+          "id": "carousel_1_1",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526ksrpxg15",
+          "mobileImageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx59kf2yn7r71",
+          "title": "",
+          "subtitle": "",
+          "aspectRatio": 2,
+          "shopeeProductId": "",
+          "targetSku": "",
+          "filterKeyword": "",
+          "linkUrl": ""
+        },
+        {
+          "id": "carousel_1_2",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx526kst4hwea",
+          "mobileImageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx59kf301s703",
+          "title": "",
+          "subtitle": "",
+          "aspectRatio": 2,
+          "shopeeProductId": "",
+          "targetSku": "",
+          "filterKeyword": "",
+          "linkUrl": ""
+        },
+        {
+          "id": "carousel_1_3",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx5xpf3j9xib4",
+          "mobileImageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx5wtlvk1l0e7",
+          "title": "",
+          "subtitle": "",
+          "aspectRatio": 2,
+          "shopeeProductId": "",
+          "targetSku": "",
+          "filterKeyword": "",
+          "linkUrl": ""
+        }
+      ],
+      "spotlightBanners": [
+        {
+          "id": "065fe2ac-17fa-422e-a741-30f9b1cb9fba",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx8btw5w0lff8",
+          "mobileImageUrl": "https://down-vn.img.susercontent.com/file/vn-11134210-81ztc-mvx89nmbmwaub5",
+          "title": "",
+          "aspectRatio": 1.796,
+          "hotspots": [
+            {
+              "id": "hs_1_1",
+              "x": 0,
+              "y": 0,
+              "w": 66.8,
+              "h": 100,
+              "shopeeProductId": "47971384068",
+              "targetSku": "BM-DEC-VAT-BACAU-CAM",
+              "label": "Hũ Thạch Cao Trụ Trơn Nắp Đĩa 9.8cm Trắng Mộc, Vàng Bơ, Cam Đất Đổ Nến Thơm, Đựng Trang Sức Wabi Sabi - Bơ Mộc",
+              "linkUrl": "https://shopee.vn/product/197195817/47971384068"
+            },
+            {
+              "id": "hs_1_2",
+              "x": 66.93,
+              "y": 0,
+              "w": 33.07,
+              "h": 49.4,
+              "shopeeProductId": "40686632066",
+              "targetSku": "BM-DEC-LAMA-CAO",
+              "label": "Hũ Thạch Cao Trụ Sọc Cao Có Nắp 11.8cm Trắng Mộc Đựng Nến, Tăm Bông, Cọ Trang Điểm Decor Bắc Âu - Bơ Mộc",
+              "linkUrl": "https://shopee.vn/product/197195817/40686632066"
+            },
+            {
+              "id": "hs_1_3",
+              "x": 66.93,
+              "y": 49.64,
+              "w": 33.07,
+              "h": 50.36,
+              "shopeeProductId": "54421411904",
+              "targetSku": "BM-DEC-COC-TRON",
+              "label": "Cốc Thạch Cao Trụ Trơn Không Nắp Trắng Mộc 8.3cm Cắm Bút, Cọ Trang Điểm, Đổ Nến Thơm Decor Bàn Làm Việc - Bơ Mộc",
+              "linkUrl": "https://shopee.vn/product/197195817/54421411904"
+            }
+          ]
+        }
+      ],
+      "collectionBanners": [
+        {
+          "id": "col_278967598",
+          "collectionId": "278967598",
+          "name": "Hũ & Cốc",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134204-81ztc-mvx67zsxoefbfd",
+          "productCount": 1,
+          "filterKeyword": "hũ|cốc",
+          "shopeeUrl": "https://shopee.vn/bomocdecor?shopCollection=278967598#product_list"
+        },
+        {
+          "id": "col_278967604",
+          "collectionId": "278967604",
+          "name": "Khay & Đế Nến",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134204-81ztc-mvx67zsxpszr93",
+          "productCount": 1,
+          "filterKeyword": "khay|đế nến|chân nến",
+          "shopeeUrl": "https://shopee.vn/bomocdecor?shopCollection=278967604#product_list"
+        },
+        {
+          "id": "col_278967606",
+          "collectionId": "278967606",
+          "name": "Nguyên Liệu DIY",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134204-81ztc-mvx67zsxmzuv32",
+          "productCount": 5,
+          "filterKeyword": "đổ nến|nguyên liệu|bột thạch cao|khuôn|diy",
+          "shopeeUrl": "https://shopee.vn/bomocdecor?shopCollection=278967606#product_list"
+        },
+        {
+          "id": "col_278967967",
+          "collectionId": "278967967",
+          "name": "Nến",
+          "imageUrl": "https://down-vn.img.susercontent.com/file/vn-11134204-81ztc-mvx9xxjm6m881d",
+          "productCount": 0,
+          "filterKeyword": "__CANDLE_ONLY__",
+          "shopeeUrl": "https://shopee.vn/bomocdecor?shopCollection=278967967#product_list"
+        }
+      ],
+      "sourceShopId": "197195817",
+      "sourceShopUsername": "bomocdecor",
+      "sourceDraftId": "13977721:32368686",
+      "syncedAt": "2026-11-27T08:13:53.487Z"
+    }
+  },
+  "bankTransfer": null,
+  "categories": [
+    {
+      "id": "cmvqainai0000ve3wcldb6o61",
+      "name": "Nến & Đồ đựng nến",
+      "slug": "nen-do-dung-nen"
+    }
+  ],
+  "products": [
+    {
+      "id": "cmw6m4nuf0033velo2urrcxfw",
+      "sku": "BM-DEC-SEN-KEM",
+      "parentSku": "BM-L02-BUPSEN",
+      "tierVariationName": "Màu sắc",
+      "name": "Hũ Búp Sen Thạch Cao Có Nắp Trắng Mộc Đựng Nến, Nhẫn, Trang Sức - Decor Phòng Ngủ, Quà Handmade - Bơ Mộc — Phân loại: Kem bơ",
+      "cleanTitle": "Hũ Búp Sen Thạch Cao Có Nắp",
+      "variantLabel": "Kem bơ",
+      "description": "Hũ búp sen thạch cao có nắp từ Bơ Mộc được đúc tỉ mỉ theo dáng nụ sen thanh tao, mang lại cảm giác an nhiên và nhẹ nhàng cho bàn trà, góc phòng ngủ hay bàn làm việc. Thiết kế nắp núm búp sen mềm mại giúp chiếc hũ nổi bật như một món decor thủ công tinh tế, phù hợp để đổ nến thơm, cất giữ nhẫn hay làm quà tặng nhỏ xinh.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng đầm chắc: Phối trộn thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn giúp cánh sen lên nét rõ ràng, cầm chắc tay và chịu nhiệt tốt khi đổ sáp nến.\n- Bề mặt phủ bảo vệ dễ vệ sinh: Hạn chế bám bụi và thấm ẩm nhẹ, thuận tiện lau sạch bằng khăn ẩm mềm sau khi sử dụng.\n- Nắp búp sen đồng điệu: Đậy kín giúp lưu hương nến thơm lâu hơn hoặc giữ trang sức, nụ trầm luôn gọn gàng, sạch sẽ.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ / nến thơm handmade cỡ nhỏ xinh (chứa khoảng 75g sáp, rót sáp ấm khoảng 60–70°C).\n- Hộp đựng nhẫn, bông tai, trang sức nhỏ, kẹo trà hoặc nụ trầm nơi bàn trà, góc thiền.\n- Trang trí phòng ngủ, bàn trang điểm theo phong cách Á Đông & Wabi-Sabi, hoặc làm quà tặng handmade ý nghĩa.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Bầu rộng 7.7 cm × chiều cao tổng cả nắp ~8.5 cm (thân 5.2 cm, nắp sen 3.3 cm).\n- Kích thước lòng hũ: Miệng trong 4.4 cm × sâu 3.8 cm (chứa khoảng 75 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~280 gram.\n- Phân loại màu sắc thực tế: Trắng Mộc (màu chủ đạo luôn có sẵn) • Kem Bơ (pha màu khoáng oxit sắt thủ công theo mẻ nhỏ) • Xanh Sage (hiện tạm hết hàng).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Vệ sinh nhẹ bằng khăn ẩm mềm rồi lau khô; tránh ngâm nước lâu hoặc làm rơi va đập mạnh.\n- Lỗ bọt khí nhỏ li ti và sắc độ đậm nhạt nhẹ ở phiên bản Kem Bơ pha tay là nét đặc trưng tự nhiên của đồ khoáng đúc thủ công, không ảnh hưởng độ bền.\n- Giá bán tính theo từng vỏ hũ ứng với phân loại màu đã chọn, không kèm nến và đồ trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#hubupsen #huhoasen #hudungnhan #hudungnen #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 50000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 42500
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 37500
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 32500
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 630,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv95172iox6t5c",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv95172iox6t5c",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvborg5e5yisa5",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv94ojdjvnk61e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3lrdub1u159",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3lv33i9l491"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/49371384307"
+    },
+    {
+      "id": "cmw6m4qpl003dvelog1xj3oae",
+      "sku": "BM-DEC-SEN-TRANG",
+      "parentSku": "BM-L02-BUPSEN",
+      "tierVariationName": "Màu sắc",
+      "name": "Hũ Búp Sen Thạch Cao Có Nắp Trắng Mộc Đựng Nến, Nhẫn, Trang Sức - Decor Phòng Ngủ, Quà Handmade - Bơ Mộc — Phân loại: Trắng mộc",
+      "cleanTitle": "Hũ Búp Sen Thạch Cao Có Nắp",
+      "variantLabel": "Trắng mộc",
+      "description": "Hũ búp sen thạch cao có nắp từ Bơ Mộc được đúc tỉ mỉ theo dáng nụ sen thanh tao, mang lại cảm giác an nhiên và nhẹ nhàng cho bàn trà, góc phòng ngủ hay bàn làm việc. Thiết kế nắp núm búp sen mềm mại giúp chiếc hũ nổi bật như một món decor thủ công tinh tế, phù hợp để đổ nến thơm, cất giữ nhẫn hay làm quà tặng nhỏ xinh.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng đầm chắc: Phối trộn thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn giúp cánh sen lên nét rõ ràng, cầm chắc tay và chịu nhiệt tốt khi đổ sáp nến.\n- Bề mặt phủ bảo vệ dễ vệ sinh: Hạn chế bám bụi và thấm ẩm nhẹ, thuận tiện lau sạch bằng khăn ẩm mềm sau khi sử dụng.\n- Nắp búp sen đồng điệu: Đậy kín giúp lưu hương nến thơm lâu hơn hoặc giữ trang sức, nụ trầm luôn gọn gàng, sạch sẽ.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ / nến thơm handmade cỡ nhỏ xinh (chứa khoảng 75g sáp, rót sáp ấm khoảng 60–70°C).\n- Hộp đựng nhẫn, bông tai, trang sức nhỏ, kẹo trà hoặc nụ trầm nơi bàn trà, góc thiền.\n- Trang trí phòng ngủ, bàn trang điểm theo phong cách Á Đông & Wabi-Sabi, hoặc làm quà tặng handmade ý nghĩa.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Bầu rộng 7.7 cm × chiều cao tổng cả nắp ~8.5 cm (thân 5.2 cm, nắp sen 3.3 cm).\n- Kích thước lòng hũ: Miệng trong 4.4 cm × sâu 3.8 cm (chứa khoảng 75 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~280 gram.\n- Phân loại màu sắc thực tế: Trắng Mộc (màu chủ đạo luôn có sẵn) • Kem Bơ (pha màu khoáng oxit sắt thủ công theo mẻ nhỏ) • Xanh Sage (hiện tạm hết hàng).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Vệ sinh nhẹ bằng khăn ẩm mềm rồi lau khô; tránh ngâm nước lâu hoặc làm rơi va đập mạnh.\n- Lỗ bọt khí nhỏ li ti và sắc độ đậm nhạt nhẹ ở phiên bản Kem Bơ pha tay là nét đặc trưng tự nhiên của đồ khoáng đúc thủ công, không ảnh hưởng độ bền.\n- Giá bán tính theo từng vỏ hũ ứng với phân loại màu đã chọn, không kèm nến và đồ trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#hubupsen #huhoasen #hudungnhan #hudungnen #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 50000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 42500
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 37500
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 32500
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 630,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv94yx86u96y18",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv94yx86u96y18",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvborg5e5yisa5",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv94ojdjvnk61e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3lrdub1u159",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3lv33i9l491"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/49371384307"
+    },
+    {
+      "id": "cmw6m4kxi002tvelohordb5zu",
+      "sku": "BM-DEC-SEN-XANHSAGE",
+      "parentSku": "BM-L02-BUPSEN",
+      "tierVariationName": "Màu sắc",
+      "name": "Hũ Búp Sen Thạch Cao Có Nắp Trắng Mộc Đựng Nến, Nhẫn, Trang Sức - Decor Phòng Ngủ, Quà Handmade - Bơ Mộc — Phân loại: Xanh sage",
+      "cleanTitle": "Hũ Búp Sen Thạch Cao Có Nắp",
+      "variantLabel": "Xanh sage",
+      "description": "Hũ búp sen thạch cao có nắp từ Bơ Mộc được đúc tỉ mỉ theo dáng nụ sen thanh tao, mang lại cảm giác an nhiên và nhẹ nhàng cho bàn trà, góc phòng ngủ hay bàn làm việc. Thiết kế nắp núm búp sen mềm mại giúp chiếc hũ nổi bật như một món decor thủ công tinh tế, phù hợp để đổ nến thơm, cất giữ nhẫn hay làm quà tặng nhỏ xinh.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng đầm chắc: Phối trộn thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn giúp cánh sen lên nét rõ ràng, cầm chắc tay và chịu nhiệt tốt khi đổ sáp nến.\n- Bề mặt phủ bảo vệ dễ vệ sinh: Hạn chế bám bụi và thấm ẩm nhẹ, thuận tiện lau sạch bằng khăn ẩm mềm sau khi sử dụng.\n- Nắp búp sen đồng điệu: Đậy kín giúp lưu hương nến thơm lâu hơn hoặc giữ trang sức, nụ trầm luôn gọn gàng, sạch sẽ.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ / nến thơm handmade cỡ nhỏ xinh (chứa khoảng 75g sáp, rót sáp ấm khoảng 60–70°C).\n- Hộp đựng nhẫn, bông tai, trang sức nhỏ, kẹo trà hoặc nụ trầm nơi bàn trà, góc thiền.\n- Trang trí phòng ngủ, bàn trang điểm theo phong cách Á Đông & Wabi-Sabi, hoặc làm quà tặng handmade ý nghĩa.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Bầu rộng 7.7 cm × chiều cao tổng cả nắp ~8.5 cm (thân 5.2 cm, nắp sen 3.3 cm).\n- Kích thước lòng hũ: Miệng trong 4.4 cm × sâu 3.8 cm (chứa khoảng 75 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~280 gram.\n- Phân loại màu sắc thực tế: Trắng Mộc (màu chủ đạo luôn có sẵn) • Kem Bơ (pha màu khoáng oxit sắt thủ công theo mẻ nhỏ) • Xanh Sage (hiện tạm hết hàng).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Vệ sinh nhẹ bằng khăn ẩm mềm rồi lau khô; tránh ngâm nước lâu hoặc làm rơi va đập mạnh.\n- Lỗ bọt khí nhỏ li ti và sắc độ đậm nhạt nhẹ ở phiên bản Kem Bơ pha tay là nét đặc trưng tự nhiên của đồ khoáng đúc thủ công, không ảnh hưởng độ bền.\n- Giá bán tính theo từng vỏ hũ ứng với phân loại màu đã chọn, không kèm nến và đồ trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#hubupsen #huhoasen #hudungnhan #hudungnen #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 50000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 42500
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 37500
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 32500
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 630,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv9519qcuxai1c",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv9519qcuxai1c",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvborg5e5yisa5",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv94ojdjvnk61e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3lrdub1u159",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3lv33i9l491"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/49371384307"
+    },
+    {
+      "id": "cmw83ktaf002lveygdbwrh3g0",
+      "sku": "BM-SEN-01-NAU",
+      "parentSku": "BM-SEN-01",
+      "tierVariationName": "Phân loại",
+      "name": "Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công Chịu Nhiệt (Tặng Kèm 1 Nến Bơ Tự Nhiên Không Khói) - Bơ Mộc — Phân loại: Nâu",
+      "cleanTitle": "Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công",
+      "variantLabel": "Nâu",
+      "description": "Chân Nến Hoa Sen & Chum Sọc Khoáng Đựng Nến Tealight - Bơ Mộc (Tặng kèm 01 viên nến Tealight sáp bơ) mang đến vẻ đẹp thanh tịnh, ấm áp cho bàn thờ Phật, bàn thờ gia tiên, bàn trà đạo và không gian thiền định thư giãn.\n\n1. PHÂN LOẠI KIỂU DÁNG & CÔNG DỤNG:\n• Mẫu Chân Sen nhỏ gọn: Tạo hình cánh hoa sen nở trang nhã, đáy mài phẳng đứng vững, lòng nhụy thiết kế vừa vặn để đặt viên nến Tealight.\n• Mẫu Chum Nến Sọc có chân đế: Dáng ly chum bầu với đường vân sọc dọc tinh tế và phần chân đế đứng chắc chắn, giúp gom ánh sáng dịu nhẹ qua miệng chum.\n• Tặng kèm 01 viên nến bơ Tealight tiêu chuẩn trong mỗi đơn để quý khách thắp trải nghiệm ngay khi nhận hàng. Khi đốt hết chỉ cần nhấc vỏ nhôm thay viên Tealight mới rất sạch sẽ.\n\n2. KHÔNG GIAN SỬ DỤNG PHÙ HỢP:\n• Bàn thờ Phật, bàn thờ gia tiên: Giữ nến gọn gàng, sạch sẽ, ánh lửa ấm áp trang nghiêm.\n• Bàn trà, góc thiền, đọc sách: Tạo điểm nhấn tĩnh tại theo phong cách mộc mạc / tối giản.\n• Khi không thắp nến có thể dùng để đặt nụ trầm hoặc đựng nhẫn, bông tai nhỏ.\n\n3. CHẤT LIỆU & THÔNG SỐ KỸ THUẬT:\n• Chất liệu: Cốt liệu khoáng đúc thủ công từ xi măng trắng, cát thạch anh mịn và thạch cao chịu nhiệt tốt, đầm tay.\n• Chân Sen: Phủ bì Ø 9.0 cm × Cao 4.5 cm | Lòng đặt nến Ø 4.5 cm × Sâu 2.5 cm | Trọng lượng chân sen ~180g.\n• Chum Sọc có chân đế: Thiết kế cỡ nhỏ đựng vừa viên Tealight chuẩn Ø 3.8 cm.\n• Phân loại sẵn có: Chân Sen (Trắng, Nâu, Vàng) • Chum Sọc (Trắng).\n\n4. HƯỚNG DẪN SỬ DỤNG & LƯU Ý ĐÓNG GÓI:\n• Đặt viên nến vào giữa lòng đế/chum trên mặt phẳng khô ráo; cắt ngắn đầu bấc còn ~0.4–0.5 cm trước khi đốt.\n• Lau nhẹ bằng khăn ẩm mềm khi cần vệ sinh; không ngâm nước lâu ngày.\n• Lỗ bọt khí nhỏ li ti trên bề mặt là nét tự nhiên của đồ khoáng đúc thủ công từng chiếc. Shop đóng gói cẩn thận trước khi giao; quý khách vui lòng quay video quá trình mở hộp để Bơ Mộc kịp thời hỗ trợ nếu có sự cố phát sinh.\n\n#channentealight #channenhoasen #chumnen #nenbo #nentraidao #cungphat #thiendinh #channendecor #bomoc",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 59000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 50150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 44250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 38350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 250,
+      "dimensionsLabel": "10 × 10 × 8 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalycpxxq875e",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalycpxxq875e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvanjvgfj6rled",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalvsxnjimd1c",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalt6vbrklk34",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvam7zyk6lu134",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalm7i2in7n2e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva6w9hq09vn8a",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvkgm0a2xhc4dd"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/50521234295"
+    },
+    {
+      "id": "cmw83kwhu002xveygxxa8sr85",
+      "sku": "BM-SEN-01-VANG",
+      "parentSku": "BM-SEN-01",
+      "tierVariationName": "Phân loại",
+      "name": "Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công Chịu Nhiệt (Tặng Kèm 1 Nến Bơ Tự Nhiên Không Khói) - Bơ Mộc — Phân loại: Vàng",
+      "cleanTitle": "Chân Nến Hoa Sen Thạch Cao Xi Măng Đúc Thủ Công",
+      "variantLabel": "Vàng",
+      "description": "Chân Nến Hoa Sen & Chum Sọc Khoáng Đựng Nến Tealight - Bơ Mộc (Tặng kèm 01 viên nến Tealight sáp bơ) mang đến vẻ đẹp thanh tịnh, ấm áp cho bàn thờ Phật, bàn thờ gia tiên, bàn trà đạo và không gian thiền định thư giãn.\n\n1. PHÂN LOẠI KIỂU DÁNG & CÔNG DỤNG:\n• Mẫu Chân Sen nhỏ gọn: Tạo hình cánh hoa sen nở trang nhã, đáy mài phẳng đứng vững, lòng nhụy thiết kế vừa vặn để đặt viên nến Tealight.\n• Mẫu Chum Nến Sọc có chân đế: Dáng ly chum bầu với đường vân sọc dọc tinh tế và phần chân đế đứng chắc chắn, giúp gom ánh sáng dịu nhẹ qua miệng chum.\n• Tặng kèm 01 viên nến bơ Tealight tiêu chuẩn trong mỗi đơn để quý khách thắp trải nghiệm ngay khi nhận hàng. Khi đốt hết chỉ cần nhấc vỏ nhôm thay viên Tealight mới rất sạch sẽ.\n\n2. KHÔNG GIAN SỬ DỤNG PHÙ HỢP:\n• Bàn thờ Phật, bàn thờ gia tiên: Giữ nến gọn gàng, sạch sẽ, ánh lửa ấm áp trang nghiêm.\n• Bàn trà, góc thiền, đọc sách: Tạo điểm nhấn tĩnh tại theo phong cách mộc mạc / tối giản.\n• Khi không thắp nến có thể dùng để đặt nụ trầm hoặc đựng nhẫn, bông tai nhỏ.\n\n3. CHẤT LIỆU & THÔNG SỐ KỸ THUẬT:\n• Chất liệu: Cốt liệu khoáng đúc thủ công từ xi măng trắng, cát thạch anh mịn và thạch cao chịu nhiệt tốt, đầm tay.\n• Chân Sen: Phủ bì Ø 9.0 cm × Cao 4.5 cm | Lòng đặt nến Ø 4.5 cm × Sâu 2.5 cm | Trọng lượng chân sen ~180g.\n• Chum Sọc có chân đế: Thiết kế cỡ nhỏ đựng vừa viên Tealight chuẩn Ø 3.8 cm.\n• Phân loại sẵn có: Chân Sen (Trắng, Nâu, Vàng) • Chum Sọc (Trắng).\n\n4. HƯỚNG DẪN SỬ DỤNG & LƯU Ý ĐÓNG GÓI:\n• Đặt viên nến vào giữa lòng đế/chum trên mặt phẳng khô ráo; cắt ngắn đầu bấc còn ~0.4–0.5 cm trước khi đốt.\n• Lau nhẹ bằng khăn ẩm mềm khi cần vệ sinh; không ngâm nước lâu ngày.\n• Lỗ bọt khí nhỏ li ti trên bề mặt là nét tự nhiên của đồ khoáng đúc thủ công từng chiếc. Shop đóng gói cẩn thận trước khi giao; quý khách vui lòng quay video quá trình mở hộp để Bơ Mộc kịp thời hỗ trợ nếu có sự cố phát sinh.\n\n#channentealight #channenhoasen #chumnen #nenbo #nentraidao #cungphat #thiendinh #channendecor #bomoc",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 59000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 50150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 44250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 38350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 250,
+      "dimensionsLabel": "10 × 10 × 8 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvam8mtwz09389",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvam8mtwz09389",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvanjvgfj6rled",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalvsxnjimd1c",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalt6vbrklk34",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvam7zyk6lu134",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalm7i2in7n2e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva6w9hq09vn8a",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvkgm0a2xhc4dd"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/50521234295"
+    },
+    {
+      "id": "cmw4r4cks000tveqgqrz0rxlf",
+      "sku": "BM-SEN-01-TRANG",
+      "parentSku": "BM-L08-DE-MINI",
+      "tierVariationName": "Mẫu",
+      "name": "Đế Nến Mini Thạch Cao Trắng Mộc: Hoa Sen 9cm, Chum Sọc Đặt Tealight, Khay Trái Tim - Decor Bàn Trà, Góc Thiền - Bơ Mộc — Phân loại: Hoa sen 9cm",
+      "cleanTitle": "Đế Nến Mini Thạch Cao Trắng Mộc",
+      "variantLabel": "Hoa sen 9cm",
+      "description": "Bộ đế nến mini thạch cao trắng mộc từ Bơ Mộc gồm 3 dáng nhỏ xinh đồng tông — Hoa Sen 9cm, Chum Sọc đặt tealight và Khay Trái Tim mộc mạc. Thiết kế nhỏ gọn dễ bài trí giúp bạn thoải mái chọn lẻ từng mẫu hoặc phối nhiều dáng cùng nhau để tạo góc bàn trà, bàn thờ hay bàn trang điểm thật ấm áp.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu khoáng đúc thủ công chắc tay: Làm từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; đế nặng tay, mài phẳng đáy giúp đứng vững trên mặt bàn.\n- Bề mặt xử lý chống thấm nhẹ: Hạn chế bám bẩn, dễ lau chùi nhẹ nhàng bằng khăn ẩm mềm sau khi sử dụng.\n- 3 kiểu dáng đồng màu Trắng Mộc: Dễ phối cùng nhau hoặc kết hợp với khay oval, hũ nến Bơ Mộc để tạo góc decor hài hòa.\n\nCông năng sử dụng\n- Hoa sen 9cm & Chum sọc tealight: Đặt vừa khít 1 viên nến tealight chuẩn để thắp bàn thờ, bàn trà, góc thiền, đọc sách hoặc thư giãn spa; khi không đốt nến có thể đặt nụ trầm.\n- Khay trái tim: Khuôn dáng thô mộc, thích hợp kê nhẫn, bông tai, kẹp tóc nhỏ hoặc làm điểm nhấn decor trên bàn trang điểm (lưu ý: mẫu trái tim không dùng đặt nến tealight).\n\nThông số kỹ thuật & phân loại mẫu\n- Phân loại Hoa sen 9cm: Phủ bì Ø 9.0 cm × cao 4.5 cm; lòng đặt nến Ø 4.5 cm × sâu 2.5 cm (vừa viên tealight 3.8 cm); trọng lượng ~180 gram.\n- Phân loại Chum sọc tealight: Dáng chum sọc cổ điển đặt vừa 1 viên nến tealight chuẩn; trọng lượng vỏ ~160 gram.\n- Phân loại Khay trái tim: Khuôn trái tim mini phong cách mộc mạc dùng trang trí và đựng phụ kiện nhỏ.\n- Màu sắc thực tế: Trắng Mộc tự nhiên cho cả 3 phân loại.\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Khi thắp nến với mẫu Hoa sen hoặc Chum sọc, hãy dùng nến tealight có vỏ nhôm chịu nhiệt, đặt trên mặt phẳng khô ráo và không rời khỏi khi nến đang cháy.\n- Vệ sinh bằng khăn ẩm mềm, không ngâm nước lâu và tránh rơi vỡ. Lỗ bọt khí li ti là nét tự nhiên của sản phẩm đúc tay thủ công.\n- Giá bán áp dụng cho 01 sản phẩm theo phân loại mẫu bạn chọn, KHÔNG kèm nến tealight và đồ trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#denentealight #denenhoasen #chumnen #channentealight #khaytraitim #decormini #decorbantra #gocthien #thachcaodecor #handmade #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 59000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 50150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 44250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 38350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 310,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvaly9krjwue93",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvaly9krjwue93",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvmzfkqsjaiu9a",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvamacjm9gy2c2",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalm7i2in7n2e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvalvsxnjimd1c",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvkn6m9sgjr52b",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvkn6k7ep9u2d6"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/50521234295"
+    },
+    {
+      "id": "cmwbz428a000jveqcwlq0b45c",
+      "sku": "BM-DEC-OVAL-BE",
+      "parentSku": "BM-L07-KHAY-OVAL",
+      "tierVariationName": "Màu sắc",
+      "name": "Khay Thạch Cao Oval 18cm Trắng, Be, Đen Lót Nến, Đựng Trang Sức, Mỹ Phẩm - Khay Decor Bàn Trang Điểm - Bơ Mộc — Phân loại: Be",
+      "cleanTitle": "Khay Thạch Cao Oval 18cm",
+      "variantLabel": "Be",
+      "description": "Khay thạch cao oval từ Bơ Mộc mang nét đẹp tối giản chuẩn phong cách Bắc Âu và Japandi với dáng bầu dục mềm mại, bề mặt nhẵn mịn đầm tay. Chỉ cần đặt chiếc khay nhỏ gọn này lên bàn trang điểm, bàn làm việc hay kệ đầu giường, mọi món đồ nhỏ từ hũ nến thơm đến trang sức đều trở nên ngăn nắp và có gu hơn hẳn.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng đầm chắc: Chế tác thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; viền gờ mềm mại giúp giữ đồ gọn gàng.\n- Bề mặt phủ chống thấm nhẹ: Hạn chế ố bẩn và thấm nước, dễ dàng lau sạch bụi hoặc vết sáp chỉ với khăn ẩm mềm.\n- Đáy khay mài phẳng cẩn thận: Đặt vững chãi trên mặt bàn gỗ, bàn kính và hạn chế trầy xước bề mặt nội thất.\n\nCông năng sử dụng\n- Đế lót hũ nến thơm, chân nến và lọ diêm, giúp bảo vệ mặt bàn và tạo góc thắp nến đồng bộ cùng các mẫu hũ Bơ Mộc.\n- Khay đựng nhẫn, khuyên tai, đồng hồ, son môi, nước hoa mini trên bàn trang điểm tránh thất lạc.\n- Đựng chìa khóa, tai nghe tại bàn làm việc hoặc làm khay nền chụp ảnh sản phẩm phong cách mộc.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Dài 18.0 cm × rộng 9.5 cm × cao 1.6 cm.\n- Kích thước lòng khay: Dài 17.0 cm × rộng 8.5 cm × sâu 1.2 cm (có gờ viền giữ đồ).\n- Trọng lượng: ~210 gram.\n- Phân loại màu sắc thực tế: Trắng (tối giản tinh khôi, luôn có sẵn) • Be (ấm áp Wabi-Sabi) • Đen (cá tính hiện đại). Hai tông Be và Đen được pha thủ công từ bột màu khoáng oxit sắt theo mẻ nhỏ.\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Đặt nơi khô ráo, lau nhẹ bằng khăn ẩm rồi lau khô; tránh ngâm ngập nước lâu và tránh va đập mạnh.\n- Những lỗ bọt khí siêu nhỏ và sắc độ chênh nhẹ ở màu pha thủ công là đặc trưng tự nhiên của đồ khoáng đúc tay, không ảnh hưởng độ bền.\n- Giá bán áp dụng cho 01 khay theo phân loại màu đã chọn, không kèm hũ nến và trang sức minh họa.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#khaythachcao #khayoval #khaydecor #khaylotnen #khaydungtrangsuc #khaymypham #decorbantrangdiem #decorbacau #handmade #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 59000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 50150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 44250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 38350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 470,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwo5zf88hx84",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwo5zf88hx84",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwjhw5j0udf3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwop1jw4xyc6",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcpztgp6bd05a",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwuvn9cvm2d3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcx24ki5ts815",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcycq7lou847f"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/51071466000"
+    },
+    {
+      "id": "cmwbz3zw4000bveqcip1y2334",
+      "sku": "BM-DEC-OVAL-DEN",
+      "parentSku": "BM-L07-KHAY-OVAL",
+      "tierVariationName": "Màu sắc",
+      "name": "Khay Thạch Cao Oval 18cm Trắng, Be, Đen Lót Nến, Đựng Trang Sức, Mỹ Phẩm - Khay Decor Bàn Trang Điểm - Bơ Mộc — Phân loại: Đen",
+      "cleanTitle": "Khay Thạch Cao Oval 18cm",
+      "variantLabel": "Đen",
+      "description": "Khay thạch cao oval từ Bơ Mộc mang nét đẹp tối giản chuẩn phong cách Bắc Âu và Japandi với dáng bầu dục mềm mại, bề mặt nhẵn mịn đầm tay. Chỉ cần đặt chiếc khay nhỏ gọn này lên bàn trang điểm, bàn làm việc hay kệ đầu giường, mọi món đồ nhỏ từ hũ nến thơm đến trang sức đều trở nên ngăn nắp và có gu hơn hẳn.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng đầm chắc: Chế tác thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; viền gờ mềm mại giúp giữ đồ gọn gàng.\n- Bề mặt phủ chống thấm nhẹ: Hạn chế ố bẩn và thấm nước, dễ dàng lau sạch bụi hoặc vết sáp chỉ với khăn ẩm mềm.\n- Đáy khay mài phẳng cẩn thận: Đặt vững chãi trên mặt bàn gỗ, bàn kính và hạn chế trầy xước bề mặt nội thất.\n\nCông năng sử dụng\n- Đế lót hũ nến thơm, chân nến và lọ diêm, giúp bảo vệ mặt bàn và tạo góc thắp nến đồng bộ cùng các mẫu hũ Bơ Mộc.\n- Khay đựng nhẫn, khuyên tai, đồng hồ, son môi, nước hoa mini trên bàn trang điểm tránh thất lạc.\n- Đựng chìa khóa, tai nghe tại bàn làm việc hoặc làm khay nền chụp ảnh sản phẩm phong cách mộc.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Dài 18.0 cm × rộng 9.5 cm × cao 1.6 cm.\n- Kích thước lòng khay: Dài 17.0 cm × rộng 8.5 cm × sâu 1.2 cm (có gờ viền giữ đồ).\n- Trọng lượng: ~210 gram.\n- Phân loại màu sắc thực tế: Trắng (tối giản tinh khôi, luôn có sẵn) • Be (ấm áp Wabi-Sabi) • Đen (cá tính hiện đại). Hai tông Be và Đen được pha thủ công từ bột màu khoáng oxit sắt theo mẻ nhỏ.\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Đặt nơi khô ráo, lau nhẹ bằng khăn ẩm rồi lau khô; tránh ngâm ngập nước lâu và tránh va đập mạnh.\n- Những lỗ bọt khí siêu nhỏ và sắc độ chênh nhẹ ở màu pha thủ công là đặc trưng tự nhiên của đồ khoáng đúc tay, không ảnh hưởng độ bền.\n- Giá bán áp dụng cho 01 khay theo phân loại màu đã chọn, không kèm hũ nến và trang sức minh họa.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#khaythachcao #khayoval #khaydecor #khaylotnen #khaydungtrangsuc #khaymypham #decorbantrangdiem #decorbacau #handmade #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 59000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 50150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 44250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 38350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 470,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcxxaj3gy6c21",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcxxaj3gy6c21",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwjhw5j0udf3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwop1jw4xyc6",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcpztgp6bd05a",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwuvn9cvm2d3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcx24ki5ts815",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcycq7lou847f"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/51071466000"
+    },
+    {
+      "id": "cmwbz44k4000rveqc9zs51chz",
+      "sku": "BM-DEC-OVAL-TRANG",
+      "parentSku": "BM-L07-KHAY-OVAL",
+      "tierVariationName": "Màu sắc",
+      "name": "Khay Thạch Cao Oval 18cm Trắng, Be, Đen Lót Nến, Đựng Trang Sức, Mỹ Phẩm - Khay Decor Bàn Trang Điểm - Bơ Mộc — Phân loại: Trắng",
+      "cleanTitle": "Khay Thạch Cao Oval 18cm",
+      "variantLabel": "Trắng",
+      "description": "Khay thạch cao oval từ Bơ Mộc mang nét đẹp tối giản chuẩn phong cách Bắc Âu và Japandi với dáng bầu dục mềm mại, bề mặt nhẵn mịn đầm tay. Chỉ cần đặt chiếc khay nhỏ gọn này lên bàn trang điểm, bàn làm việc hay kệ đầu giường, mọi món đồ nhỏ từ hũ nến thơm đến trang sức đều trở nên ngăn nắp và có gu hơn hẳn.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng đầm chắc: Chế tác thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; viền gờ mềm mại giúp giữ đồ gọn gàng.\n- Bề mặt phủ chống thấm nhẹ: Hạn chế ố bẩn và thấm nước, dễ dàng lau sạch bụi hoặc vết sáp chỉ với khăn ẩm mềm.\n- Đáy khay mài phẳng cẩn thận: Đặt vững chãi trên mặt bàn gỗ, bàn kính và hạn chế trầy xước bề mặt nội thất.\n\nCông năng sử dụng\n- Đế lót hũ nến thơm, chân nến và lọ diêm, giúp bảo vệ mặt bàn và tạo góc thắp nến đồng bộ cùng các mẫu hũ Bơ Mộc.\n- Khay đựng nhẫn, khuyên tai, đồng hồ, son môi, nước hoa mini trên bàn trang điểm tránh thất lạc.\n- Đựng chìa khóa, tai nghe tại bàn làm việc hoặc làm khay nền chụp ảnh sản phẩm phong cách mộc.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Dài 18.0 cm × rộng 9.5 cm × cao 1.6 cm.\n- Kích thước lòng khay: Dài 17.0 cm × rộng 8.5 cm × sâu 1.2 cm (có gờ viền giữ đồ).\n- Trọng lượng: ~210 gram.\n- Phân loại màu sắc thực tế: Trắng (tối giản tinh khôi, luôn có sẵn) • Be (ấm áp Wabi-Sabi) • Đen (cá tính hiện đại). Hai tông Be và Đen được pha thủ công từ bột màu khoáng oxit sắt theo mẻ nhỏ.\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Đặt nơi khô ráo, lau nhẹ bằng khăn ẩm rồi lau khô; tránh ngâm ngập nước lâu và tránh va đập mạnh.\n- Những lỗ bọt khí siêu nhỏ và sắc độ chênh nhẹ ở màu pha thủ công là đặc trưng tự nhiên của đồ khoáng đúc tay, không ảnh hưởng độ bền.\n- Giá bán áp dụng cho 01 khay theo phân loại màu đã chọn, không kèm hũ nến và trang sức minh họa.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#khaythachcao #khayoval #khaydecor #khaylotnen #khaydungtrangsuc #khaymypham #decorbantrangdiem #decorbacau #handmade #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 59000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 50150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 44250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 38350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 470,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwo3wuvklm6a",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwo3wuvklm6a",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwjhw5j0udf3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwop1jw4xyc6",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcpztgp6bd05a",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcwuvn9cvm2d3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcx24ki5ts815",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcycq7lou847f"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/51071466000"
+    },
+    {
+      "id": "cmw4s4s5u000jvegolc1atjvl",
+      "sku": "BM-TEA-10",
+      "parentSku": "BM-TEA",
+      "tierVariationName": "Quy cách",
+      "name": "Nến Bơ Tealight Dịu Ấm Cúng Phật, Thiền Định, Thư Giãn Spa - Bơ Mộc (Hộp 10 - 50 - 100 Viên) — Phân loại: Hộp 10 viên",
+      "cleanTitle": "Nến Bơ Tealight Dịu Ấm",
+      "variantLabel": "Hộp 10 viên",
+      "description": "Nến Bơ Tealight - Bơ Mộc mang ánh sáng vàng ấm áp và cảm giác thanh tịnh nhẹ nhàng cho bàn thờ Phật, bàn thờ gia tiên, góc thiền định, bàn trà và không gian thư giãn Spa.\n\n1. ĐẶC ĐIỂM NỔI BẬT:\n• Sáp bơ vàng dịu ấm: Tỏa sắc lửa ấm dịu, hương thơm bơ nhẹ nhàng tự nhiên, dễ chịu khi thắp trong không gian sinh hoạt.\n• Bấc cotton bấm đế gọn gàng: Giúp giữ ngọn lửa ổn định trong suốt quá trình đốt (hạn chế gió lùa trực tiếp để nến cháy êm hơn).\n• Vỏ nhôm bo viền an toàn: Cốc nhôm chuẩn kích thước Tealight giúp hứng trọn phần sáp lỏng gọn sạch, dễ đặt vừa các loại chân nến hoa sen hoặc đèn đốt tinh dầu.\n\n2. QUY CÁCH PHÂN LOẠI TRÊN SHOPEE:\n• Hộp 10 viên (Dùng thử): Gồm 10 viên nến Tealight. Gọn nhẹ để thắp trải nghiệm hoặc mua kèm chân nến hoa sen.\n• Hộp 50 viên (Tiết kiệm): Gồm 50 viên nến Tealight. Đóng hộp carton gọn gàng, phù hợp thắp đều đặn bàn thờ, bàn trà.\n• Hộp 100 viên (Kinh tế): Gồm 100 viên nến Tealight. Phù hợp dùng thường xuyên cho không gian thiền, gia đình hoặc tiệm Spa.\n\n3. THÔNG SỐ TỪNG VIÊN (THAM KHẢO):\n• Đường kính viên: 3.8 cm × Chiều cao: 1.4 cm (kích thước Tealight tiêu chuẩn).\n• Khối lượng sáp: ~13.5 gram / viên.\n• Màu sắc: Vàng mộc dịu mắt của sáp bơ.\n(Lưu ý: Thời gian cháy thực tế tùy thuộc vào mức độ kín gió và nhiệt độ phòng.)\n\n4. HƯỚNG DẪN SỬ DỤNG & BẢO QUẢN:\n• Đặt viên nến trên chân nến chịu nhiệt (chân nến xi măng, đĩa gốm hoặc đèn xông).\n• Cắt gọn đầu bấc còn khoảng 0.4 – 0.5 cm trước khi châm lửa để ngọn lửa cháy êm và đều.\n• Bảo quản nơi khô ráo, thoáng mát (dưới 35°C), tránh ánh nắng trực tiếp làm mềm sáp.\n\n5. ĐÓNG GÓI & HỖ TRỢ ĐƠN HÀNG:\n• Shop đóng gói cẩn thận để hạn chế móp méo vỏ nhôm trong quá trình vận chuyển.\n• Quý khách vui lòng quay video lúc mở hộp để shop kiểm tra và hỗ trợ nhanh nhất nếu đơn hàng gặp sự cố.\n\n#nentealight #nenbo #nenbotealight #nencungphat #nenthiendinh #nenthugian #nenspa #tealight #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 59000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 50150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 44250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 38350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 200,
+      "dimensionsLabel": "15 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd2xw3t3mypb3",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd2xw3t3mypb3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd270cejbpm05",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd20wb3z7ka7f",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd4nfp6vojn3d",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd26w8zlkw7df"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/57921209130"
+    },
+    {
+      "id": "cmw6jt82b002hvedgdzf7wxnd",
+      "sku": "BM-DEC-LAMA-LUN",
+      "parentSku": "BM-DEC-LAMA-LUN",
+      "tierVariationName": null,
+      "name": "Hũ Thạch Cao Sọc Lùn Nắp Chóp Trắng Mộc 8.3cm Đựng Nến Thơm, Trang Sức, Bông Tai Decor Bàn Trang Điểm - Bơ Mộc",
+      "cleanTitle": "Hũ Thạch Cao Sọc Lùn Nắp Chóp Trắng Mộc 8.3cm",
+      "variantLabel": null,
+      "description": "Hũ thạch cao sọc lùn nắp chóp từ Bơ Mộc mang nét đẹp mộc mạc, gọn xinh và ấm cúng cho bàn trang điểm, kệ sách hay góc bàn trà nhỏ. Dáng tròn thấp kết hợp đường vân sọc cổ điển cùng phần nắp chóp thanh nhã giúp chiếc hũ vừa là phôi đổ nến handmade đầm tay, vừa là hộp cất giữ trang sức kín đáo mỗi ngày.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng cứng cáp: Đúc thủ công từng chiếc từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; đường vân sọc sắc nét, cầm chắc tay và chịu nhiệt khi đổ sáp nến ấm.\n- Bề mặt nhẵn mịn, dễ lau chùi: Được phủ lớp bảo vệ chống thấm nhẹ giúp hạn chế bám bụi và ố sáp, dễ dàng vệ sinh bằng khăn ẩm mềm.\n- Nắp chóp đậy kín gọn gàng: Giữ mùi thơm cho nến khi không đốt và chắn bụi hiệu quả cho nhẫn, bông tai hay phụ kiện nhỏ.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ hoặc nến thơm handmade (dung tích lòng hũ chứa khoảng 65g sáp, thích hợp rót sáp ấm khoảng 60–70°C).\n- Hộp đựng nhẫn, bông tai, kẹp tóc, tăm bông trên bàn trang điểm và kệ đầu giường.\n- Vật phẩm decor tối giản cho phòng ngủ, bàn làm việc hoặc làm quà tặng handmade tinh tế.\n\nThông số kỹ thuật & màu sắc\n- Kích thước phủ bì: Đường kính ngoài 8.3 cm × chiều cao tổng cả nắp ~8.3 cm (thân 4.1 cm, nắp chóp 4.2 cm).\n- Kích thước lòng hũ: Rộng 6.0 cm × sâu 2.8 cm (chứa khoảng 65 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~300 gram.\n- Màu sắc thực tế: Trắng Mộc tự nhiên (có thể để mộc tối giản hoặc tự tô màu DIY).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Đặt hũ ở nơi khô ráo, lau nhẹ bằng khăn ẩm mềm rồi để khô; không ngâm nước lâu và tránh va đập mạnh.\n- Lỗ bọt khí li ti tự nhiên và sai số nhỏ (±0.3 cm) là nét riêng của sản phẩm khoáng đúc tay từng chiếc, không ảnh hưởng đến độ bền.\n- Giá bán áp dụng cho vỏ hũ trắng mộc có nắp, không kèm nến và phụ kiện chụp ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#husoclun #hudungnen #hudungtrangsuc #huconap #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 65000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 55250
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 48750
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 42250
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 630,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3udtlb3m05e",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3udtlb3m05e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc2nrjjg45j7f",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc32unwt62yb3",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvcpdbih416va1",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc4drvy9mgyb8"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/48921332589"
+    },
+    {
+      "id": "cmwbz3xj00003veqcpub40ldz",
+      "sku": "BM-DEC-COC-TRON",
+      "parentSku": "BM-DEC-COC-TRON",
+      "tierVariationName": null,
+      "name": "Cốc Thạch Cao Trụ Trơn Không Nắp Trắng Mộc 8.3cm Cắm Bút, Cọ Trang Điểm, Đổ Nến Thơm Decor Bàn Làm Việc - Bơ Mộc",
+      "cleanTitle": "Cốc Thạch Cao Trụ Trơn Không Nắp Trắng Mộc 8.3cm",
+      "variantLabel": null,
+      "description": "Cốc thạch cao trụ trơn không nắp từ Bơ Mộc mang dáng vẻ tối giản theo phong cách Bắc Âu và Japandi với đường trụ đứng thanh gọn, thành dày đầm chắc và bề mặt mịn màng. Chiếc cốc trắng mộc đa năng này giúp góc làm việc, bàn học hay bàn trang điểm luôn ngăn nắp, đồng thời sẵn sàng làm phôi cốc đổ nến thơm handmade tinh tế.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng cứng cáp: Đúc thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; thành cốc dày dặn, cầm chắc tay và chịu nhiệt khi đổ sáp nến ấm.\n- Bề mặt nhẵn mịn, dễ lau chùi: Được phủ lớp bảo vệ chống thấm nhẹ giúp hạn chế bám bụi, dễ vệ sinh nhanh bằng khăn ẩm mềm.\n- Đế nặng, mài phẳng gọn gàng: Đứng vững chãi trên mặt bàn gỗ, bàn kính, cắm nhiều bút hay cọ trang điểm vẫn không lo nghiêng đổ.\n\nCông năng sử dụng\n- Ống cắm bút bàn làm việc, bàn học: Cắm bút ký, thước kẻ, kéo nhỏ gọn gàng mà vẫn đẹp như một món decor tối giản.\n- Cốc đựng cọ trang điểm: Sắp xếp ngay ngắn cọ makeup, mascara, chì kẻ mắt, son dưỡng giúp bàn phấn luôn ngăn nắp.\n- Phôi cốc đổ nến handmade (~150g sáp, rót sáp ấm khoảng 60–70°C), trồng sen đá mini hoặc làm đạo cụ chụp ảnh decor.\n\nThông số kỹ thuật & màu sắc\n- Kích thước phủ bì: Đường kính ngoài 8.15 cm × chiều cao 8.3 cm (dáng trụ trơn không nắp).\n- Kích thước lòng cốc: Rộng ~6.2 cm × sâu ~7.3 cm (chứa khoảng 150 gram sáp nến).\n- Trọng lượng: ~260g – 280g.\n- Màu sắc thực tế: Trắng Mộc tự nhiên (có thể để mộc tối giản hoặc tự tô màu DIY).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Đặt nơi khô ráo, lau nhẹ bằng khăn ẩm mềm rồi để khô; không ngâm nước lâu và tránh rơi vỡ va đập mạnh.\n- Lỗ bọt khí li ti tự nhiên cùng sai số đo thủ công (±0.3 cm) là nét riêng của sản phẩm khoáng đúc tay từng chiếc, không ảnh hưởng độ bền.\n- Giá bán chỉ gồm cốc trắng mộc không nắp, không kèm bút, cọ, nến hay vật dụng trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#cocthachcao #coccambut #cocdungco #cocdonen #ongcambut #decorbanlamviec #decortrangmoc #toigian #handmade #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 79000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 67150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 59250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 51350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 630,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvmzk6bblzwqd5",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvmzk6bblzwqd5",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvdg7t1pv09628",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvdeu3o0uux4e1",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvdfwnjhvvuv24"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/54421411904"
+    },
+    {
+      "id": "cmw7n6dfk0040ve74bpjhgynp",
+      "sku": "BM-DEC-LAMA-CAO",
+      "parentSku": "BM-DEC-LAMA-CAO",
+      "tierVariationName": null,
+      "name": "Hũ Thạch Cao Trụ Sọc Cao Có Nắp 11.8cm Trắng Mộc Đựng Nến, Tăm Bông, Cọ Trang Điểm Decor Bắc Âu - Bơ Mộc",
+      "cleanTitle": "Hũ Thạch Cao Trụ Sọc Cao Có Nắp 11.8cm Trắng Mộc",
+      "variantLabel": null,
+      "description": "Hũ thạch cao trụ sọc cao có nắp từ Bơ Mộc mang dáng dấp cột La Mã cổ điển kết hợp nắp núm tròn thanh lịch, tạo điểm nhấn gọn gàng và trang nhã cho bàn trang điểm, phòng tắm hay góc làm việc phong cách Bắc Âu. Với thiết kế thân cao và lòng hũ sâu, đây là mẫu hũ chứa được nhiều đồ tiện dụng và đổ được lượng sáp nến cháy lâu.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng cứng cáp: Đúc thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; đường sọc dọc đều sắc nét, thành dày cầm đầm tay và chịu nhiệt khi đổ sáp nến.\n- Bề mặt mịn màng, hạn chế bám bẩn: Phủ lớp bảo vệ chống thấm nhẹ giúp dễ lau sạch bụi hoặc vết sáp bằng khăn ẩm mềm.\n- Đáy hũ mài phẳng gọn gàng: Đứng vững chãi trên mặt bàn gỗ, bàn đá hay kệ trang trí, hạn chế trầy xước bề mặt.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ / nến thơm handmade dung tích vừa lớn (chứa khoảng 115g sáp, rót sáp ấm khoảng 60–70°C).\n- Đựng tăm bông, bông tẩy trang, trang sức hoặc đồ cá nhân nhỏ có nắp đậy chống bụi sạch sẽ.\n- Mở nắp tận dụng làm ống cắm cọ trang điểm, cắm bút viết gọn gàng trên bàn học và bàn làm việc.\n\nThông số kỹ thuật & màu sắc\n- Kích thước phủ bì: Đường kính ngoài 8.5 cm × chiều cao tổng cả nắp ~11.8 cm (thân 8.5 cm, nắp núm 3.3 cm).\n- Kích thước lòng hũ: Miệng trong 5.4 cm × sâu 6.8 cm (chứa khoảng 115 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~400 gram.\n- Màu sắc thực tế: Trắng Mộc tự nhiên (có thể để mộc tối giản hoặc tự tô màu DIY).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Đặt nơi khô ráo, lau chùi nhẹ nhàng bằng khăn ẩm mềm; không ngâm nước lâu và tránh va đập mạnh.\n- Những lỗ bọt khí nhỏ tự nhiên cùng sai số thủ công (±0.3 cm) là nét riêng của sản phẩm khoáng đúc tay, không ảnh hưởng chất lượng sử dụng.\n- Giá bán chỉ gồm vỏ hũ trắng mộc có nắp, không kèm nến và vật dụng minh họa trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#hutrusoc #hudungtambong #hudungnen #decorbatam #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 79000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 67150
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 59250
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 51350
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 650,
+      "dimensionsLabel": "20 × 15 × 15 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvbw8fi7s9vm4e",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvbw8fi7s9vm4e",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvbvujrdyw3r63",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvbx45gnjo5k74",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvc3poehape021"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/40686632066"
+    },
+    {
+      "id": "cmw6m4zdf0047velo5jmacnn5",
+      "sku": "BM-DEC-VAT-BACAU-CAM",
+      "parentSku": "BM-L04-TRU-TRON",
+      "tierVariationName": "Màu sắc",
+      "name": "Hũ Thạch Cao Trụ Trơn Nắp Đĩa 9.8cm Trắng Mộc, Vàng Bơ, Cam Đất Đổ Nến Thơm, Đựng Trang Sức Wabi Sabi - Bơ Mộc — Phân loại: Cam đất",
+      "cleanTitle": "Hũ Thạch Cao Trụ Trơn Nắp Đĩa 9.8cm",
+      "variantLabel": "Cam đất",
+      "description": "Hũ thạch cao trụ trơn có nắp đậy từ Bơ Mộc mang phong cách tối giản Wabi-Sabi mộc mạc, tạo điểm nhấn ấm cúng và thư giãn cho góc decor của bạn. Thiết kế đơn giản nhưng đầm tay cùng miệng hũ rộng thoáng, phù hợp làm phôi đổ nến handmade cỡ lớn, hộp đựng phụ kiện nhỏ gọn hoặc chậu sen đá mini decor.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng cứng cáp: Đúc thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; thành dày, chịu nhiệt khi đổ sáp nến.\n- Bề mặt nhẵn mịn, dễ lau chùi: Được phủ lớp bảo vệ chống thấm nhẹ giúp hạn chế bám bẩn, dễ vệ sinh bằng khăn ẩm mềm.\n- Nắp đĩa đa năng: Có thể đậy kín chống bụi, giữ hương nến hoặc tận dụng làm đế lót bên dưới khi thắp nến.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ / nến thơm handmade cỡ lớn (dung tích chứa khoảng 150g sáp, rót sáp ấm khoảng 60–70°C).\n- Hộp đựng phụ kiện, chìa khóa, tăm bông, đồ dùng nhỏ trên bàn học, bàn trang điểm & bàn làm việc.\n- Mở nắp làm chậu trồng sen đá mini hoặc đạo cụ chụp ảnh decor tối giản.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Đường kính ngoài 9.8 cm × chiều cao thân 8.3 cm (tổng cao cả nắp ~9.6 cm; nắp đĩa Ø 8.1 cm × dày 1.3 cm).\n- Kích thước lòng hũ: Rộng 7.2 cm × sâu 6.5 cm (chứa khoảng 150 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~450 gram.\n- Màu sắc phân loại thực tế: Trắng Mộc (luôn có sẵn) • Vàng Bơ • Cam Đất (2 tông màu pha thủ công từ bột màu khoáng oxit sắt theo mẻ nhỏ).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Lau sạch nhẹ bằng khăn ẩm mềm rồi để khô; không ngâm nước lâu và tránh va đập mạnh.\n- Lỗ bọt khí tự nhiên và sắc độ chênh nhẹ giữa các mẻ pha màu tay là nét riêng của sản phẩm khoáng đúc thủ công, không ảnh hưởng độ bền.\n- Giá bán áp dụng cho vỏ hũ có nắp theo phân loại màu đã chọn, không kèm nến và đồ trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#hutrutron #hunapdia #hudonen #toigian #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 85000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 72250
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 63750
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 55250
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 650,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58qlcu2h6bd",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58qlcu2h6bd",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv933qxhyvb9ee",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660ycqz2hb2",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660akzvup0b",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660b9qfwlb8",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva5g6ot730h9b",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58x910t1l56",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva5g35jyolmb6"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/47971384068"
+    },
+    {
+      "id": "cmw6m4tk3003nvelorlzhibs2",
+      "sku": "BM-DEC-VAT-BACAU-TRANG",
+      "parentSku": "BM-L04-TRU-TRON",
+      "tierVariationName": "Màu sắc",
+      "name": "Hũ Thạch Cao Trụ Trơn Nắp Đĩa 9.8cm Trắng Mộc, Vàng Bơ, Cam Đất Đổ Nến Thơm, Đựng Trang Sức Wabi Sabi - Bơ Mộc — Phân loại: Trắng mộc",
+      "cleanTitle": "Hũ Thạch Cao Trụ Trơn Nắp Đĩa 9.8cm",
+      "variantLabel": "Trắng mộc",
+      "description": "Hũ thạch cao trụ trơn có nắp đậy từ Bơ Mộc mang phong cách tối giản Wabi-Sabi mộc mạc, tạo điểm nhấn ấm cúng và thư giãn cho góc decor của bạn. Thiết kế đơn giản nhưng đầm tay cùng miệng hũ rộng thoáng, phù hợp làm phôi đổ nến handmade cỡ lớn, hộp đựng phụ kiện nhỏ gọn hoặc chậu sen đá mini decor.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng cứng cáp: Đúc thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; thành dày, chịu nhiệt khi đổ sáp nến.\n- Bề mặt nhẵn mịn, dễ lau chùi: Được phủ lớp bảo vệ chống thấm nhẹ giúp hạn chế bám bẩn, dễ vệ sinh bằng khăn ẩm mềm.\n- Nắp đĩa đa năng: Có thể đậy kín chống bụi, giữ hương nến hoặc tận dụng làm đế lót bên dưới khi thắp nến.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ / nến thơm handmade cỡ lớn (dung tích chứa khoảng 150g sáp, rót sáp ấm khoảng 60–70°C).\n- Hộp đựng phụ kiện, chìa khóa, tăm bông, đồ dùng nhỏ trên bàn học, bàn trang điểm & bàn làm việc.\n- Mở nắp làm chậu trồng sen đá mini hoặc đạo cụ chụp ảnh decor tối giản.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Đường kính ngoài 9.8 cm × chiều cao thân 8.3 cm (tổng cao cả nắp ~9.6 cm; nắp đĩa Ø 8.1 cm × dày 1.3 cm).\n- Kích thước lòng hũ: Rộng 7.2 cm × sâu 6.5 cm (chứa khoảng 150 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~450 gram.\n- Màu sắc phân loại thực tế: Trắng Mộc (luôn có sẵn) • Vàng Bơ • Cam Đất (2 tông màu pha thủ công từ bột màu khoáng oxit sắt theo mẻ nhỏ).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Lau sạch nhẹ bằng khăn ẩm mềm rồi để khô; không ngâm nước lâu và tránh va đập mạnh.\n- Lỗ bọt khí tự nhiên và sắc độ chênh nhẹ giữa các mẻ pha màu tay là nét riêng của sản phẩm khoáng đúc thủ công, không ảnh hưởng độ bền.\n- Giá bán áp dụng cho vỏ hũ có nắp theo phân loại màu đã chọn, không kèm nến và đồ trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#hutrutron #hunapdia #hudonen #toigian #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 85000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 72250
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 63750
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 55250
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 650,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58fhprd3b82",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58fhprd3b82",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv933qxhyvb9ee",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660ycqz2hb2",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660akzvup0b",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660b9qfwlb8",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva5g6ot730h9b",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58x910t1l56",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva5g35jyolmb6"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/47971384068"
+    },
+    {
+      "id": "cmw6m4wh4003xveloqlyfl619",
+      "sku": "BM-DEC-VAT-BACAU-VANG",
+      "parentSku": "BM-L04-TRU-TRON",
+      "tierVariationName": "Màu sắc",
+      "name": "Hũ Thạch Cao Trụ Trơn Nắp Đĩa 9.8cm Trắng Mộc, Vàng Bơ, Cam Đất Đổ Nến Thơm, Đựng Trang Sức Wabi Sabi - Bơ Mộc — Phân loại: Vàng bơ",
+      "cleanTitle": "Hũ Thạch Cao Trụ Trơn Nắp Đĩa 9.8cm",
+      "variantLabel": "Vàng bơ",
+      "description": "Hũ thạch cao trụ trơn có nắp đậy từ Bơ Mộc mang phong cách tối giản Wabi-Sabi mộc mạc, tạo điểm nhấn ấm cúng và thư giãn cho góc decor của bạn. Thiết kế đơn giản nhưng đầm tay cùng miệng hũ rộng thoáng, phù hợp làm phôi đổ nến handmade cỡ lớn, hộp đựng phụ kiện nhỏ gọn hoặc chậu sen đá mini decor.\n\nĐiểm nổi bật hoàn thiện\n- Cốt liệu thạch cao xi măng cứng cáp: Đúc thủ công từ thạch cao Thái Lan, xi măng trắng và cát thạch anh mịn; thành dày, chịu nhiệt khi đổ sáp nến.\n- Bề mặt nhẵn mịn, dễ lau chùi: Được phủ lớp bảo vệ chống thấm nhẹ giúp hạn chế bám bẩn, dễ vệ sinh bằng khăn ẩm mềm.\n- Nắp đĩa đa năng: Có thể đậy kín chống bụi, giữ hương nến hoặc tận dụng làm đế lót bên dưới khi thắp nến.\n\nCông năng sử dụng\n- Làm phôi hũ đổ nến bơ / nến thơm handmade cỡ lớn (dung tích chứa khoảng 150g sáp, rót sáp ấm khoảng 60–70°C).\n- Hộp đựng phụ kiện, chìa khóa, tăm bông, đồ dùng nhỏ trên bàn học, bàn trang điểm & bàn làm việc.\n- Mở nắp làm chậu trồng sen đá mini hoặc đạo cụ chụp ảnh decor tối giản.\n\nThông số kỹ thuật & phân loại màu sắc\n- Kích thước phủ bì: Đường kính ngoài 9.8 cm × chiều cao thân 8.3 cm (tổng cao cả nắp ~9.6 cm; nắp đĩa Ø 8.1 cm × dày 1.3 cm).\n- Kích thước lòng hũ: Rộng 7.2 cm × sâu 6.5 cm (chứa khoảng 150 gram sáp nến).\n- Trọng lượng vỏ hũ cả nắp: ~450 gram.\n- Màu sắc phân loại thực tế: Trắng Mộc (luôn có sẵn) • Vàng Bơ • Cam Đất (2 tông màu pha thủ công từ bột màu khoáng oxit sắt theo mẻ nhỏ).\n\nHướng dẫn sử dụng & lưu ý đóng gói\n- Lau sạch nhẹ bằng khăn ẩm mềm rồi để khô; không ngâm nước lâu và tránh va đập mạnh.\n- Lỗ bọt khí tự nhiên và sắc độ chênh nhẹ giữa các mẻ pha màu tay là nét riêng của sản phẩm khoáng đúc thủ công, không ảnh hưởng độ bền.\n- Giá bán áp dụng cho vỏ hũ có nắp theo phân loại màu đã chọn, không kèm nến và đồ trang trí trong ảnh.\n- Shop đóng gói chống sốc cẩn thận trước khi gửi hàng. Quý khách vui lòng quay video lúc mở hộp để Bơ Mộc hỗ trợ nhanh chóng nếu có sự cố trong quá trình vận chuyển.\n\n#hutrutron #hunapdia #hudonen #toigian #huthachcao #thachcaodecor #decortrangmoc #decorphongngu #decorbanlamviec #handmade #quatanghandmade #wabisabi #decorbacau #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 85000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 72250
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 63750
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 55250
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 650,
+      "dimensionsLabel": "20 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58mhaojrdb6",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58mhaojrdb6",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mv933qxhyvb9ee",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660ycqz2hb2",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660akzvup0b",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvk660b9qfwlb8",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva5g6ot730h9b",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva58x910t1l56",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mva5g35jyolmb6"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/47971384068"
+    },
+    {
+      "id": "cmw4rj3g6000cvez4n2geiqqc",
+      "sku": "BM-TEA-50",
+      "parentSku": "BM-TEA",
+      "tierVariationName": "Quy cách",
+      "name": "Nến Bơ Tealight Dịu Ấm Cúng Phật, Thiền Định, Thư Giãn Spa - Bơ Mộc (Hộp 10 - 50 - 100 Viên) — Phân loại: Hộp 50 viên",
+      "cleanTitle": "Nến Bơ Tealight Dịu Ấm",
+      "variantLabel": "Hộp 50 viên",
+      "description": "Nến Bơ Tealight - Bơ Mộc mang ánh sáng vàng ấm áp và cảm giác thanh tịnh nhẹ nhàng cho bàn thờ Phật, bàn thờ gia tiên, góc thiền định, bàn trà và không gian thư giãn Spa.\n\n1. ĐẶC ĐIỂM NỔI BẬT:\n• Sáp bơ vàng dịu ấm: Tỏa sắc lửa ấm dịu, hương thơm bơ nhẹ nhàng tự nhiên, dễ chịu khi thắp trong không gian sinh hoạt.\n• Bấc cotton bấm đế gọn gàng: Giúp giữ ngọn lửa ổn định trong suốt quá trình đốt (hạn chế gió lùa trực tiếp để nến cháy êm hơn).\n• Vỏ nhôm bo viền an toàn: Cốc nhôm chuẩn kích thước Tealight giúp hứng trọn phần sáp lỏng gọn sạch, dễ đặt vừa các loại chân nến hoa sen hoặc đèn đốt tinh dầu.\n\n2. QUY CÁCH PHÂN LOẠI TRÊN SHOPEE:\n• Hộp 10 viên (Dùng thử): Gồm 10 viên nến Tealight. Gọn nhẹ để thắp trải nghiệm hoặc mua kèm chân nến hoa sen.\n• Hộp 50 viên (Tiết kiệm): Gồm 50 viên nến Tealight. Đóng hộp carton gọn gàng, phù hợp thắp đều đặn bàn thờ, bàn trà.\n• Hộp 100 viên (Kinh tế): Gồm 100 viên nến Tealight. Phù hợp dùng thường xuyên cho không gian thiền, gia đình hoặc tiệm Spa.\n\n3. THÔNG SỐ TỪNG VIÊN (THAM KHẢO):\n• Đường kính viên: 3.8 cm × Chiều cao: 1.4 cm (kích thước Tealight tiêu chuẩn).\n• Khối lượng sáp: ~13.5 gram / viên.\n• Màu sắc: Vàng mộc dịu mắt của sáp bơ.\n(Lưu ý: Thời gian cháy thực tế tùy thuộc vào mức độ kín gió và nhiệt độ phòng.)\n\n4. HƯỚNG DẪN SỬ DỤNG & BẢO QUẢN:\n• Đặt viên nến trên chân nến chịu nhiệt (chân nến xi măng, đĩa gốm hoặc đèn xông).\n• Cắt gọn đầu bấc còn khoảng 0.4 – 0.5 cm trước khi châm lửa để ngọn lửa cháy êm và đều.\n• Bảo quản nơi khô ráo, thoáng mát (dưới 35°C), tránh ánh nắng trực tiếp làm mềm sáp.\n\n5. ĐÓNG GÓI & HỖ TRỢ ĐƠN HÀNG:\n• Shop đóng gói cẩn thận để hạn chế móp méo vỏ nhôm trong quá trình vận chuyển.\n• Quý khách vui lòng quay video lúc mở hộp để shop kiểm tra và hỗ trợ nhanh nhất nếu đơn hàng gặp sự cố.\n\n#nentealight #nenbo #nenbotealight #nencungphat #nenthiendinh #nenthugian #nenspa #tealight #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 169000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 143650
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 126750
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 109850
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 700,
+      "dimensionsLabel": "15 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd2y31glxc340",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd2y31glxc340",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd270cejbpm05",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd20wb3z7ka7f",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd4nfp6vojn3d",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd26w8zlkw7df"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/57921209130"
+    },
+    {
+      "id": "cmw4rj5ts000nvez49mu7b1zt",
+      "sku": "BM-TEA-100",
+      "parentSku": "BM-TEA",
+      "tierVariationName": "Quy cách",
+      "name": "Nến Bơ Tealight Dịu Ấm Cúng Phật, Thiền Định, Thư Giãn Spa - Bơ Mộc (Hộp 10 - 50 - 100 Viên) — Phân loại: Hộp 100 viên",
+      "cleanTitle": "Nến Bơ Tealight Dịu Ấm",
+      "variantLabel": "Hộp 100 viên",
+      "description": "Nến Bơ Tealight - Bơ Mộc mang ánh sáng vàng ấm áp và cảm giác thanh tịnh nhẹ nhàng cho bàn thờ Phật, bàn thờ gia tiên, góc thiền định, bàn trà và không gian thư giãn Spa.\n\n1. ĐẶC ĐIỂM NỔI BẬT:\n• Sáp bơ vàng dịu ấm: Tỏa sắc lửa ấm dịu, hương thơm bơ nhẹ nhàng tự nhiên, dễ chịu khi thắp trong không gian sinh hoạt.\n• Bấc cotton bấm đế gọn gàng: Giúp giữ ngọn lửa ổn định trong suốt quá trình đốt (hạn chế gió lùa trực tiếp để nến cháy êm hơn).\n• Vỏ nhôm bo viền an toàn: Cốc nhôm chuẩn kích thước Tealight giúp hứng trọn phần sáp lỏng gọn sạch, dễ đặt vừa các loại chân nến hoa sen hoặc đèn đốt tinh dầu.\n\n2. QUY CÁCH PHÂN LOẠI TRÊN SHOPEE:\n• Hộp 10 viên (Dùng thử): Gồm 10 viên nến Tealight. Gọn nhẹ để thắp trải nghiệm hoặc mua kèm chân nến hoa sen.\n• Hộp 50 viên (Tiết kiệm): Gồm 50 viên nến Tealight. Đóng hộp carton gọn gàng, phù hợp thắp đều đặn bàn thờ, bàn trà.\n• Hộp 100 viên (Kinh tế): Gồm 100 viên nến Tealight. Phù hợp dùng thường xuyên cho không gian thiền, gia đình hoặc tiệm Spa.\n\n3. THÔNG SỐ TỪNG VIÊN (THAM KHẢO):\n• Đường kính viên: 3.8 cm × Chiều cao: 1.4 cm (kích thước Tealight tiêu chuẩn).\n• Khối lượng sáp: ~13.5 gram / viên.\n• Màu sắc: Vàng mộc dịu mắt của sáp bơ.\n(Lưu ý: Thời gian cháy thực tế tùy thuộc vào mức độ kín gió và nhiệt độ phòng.)\n\n4. HƯỚNG DẪN SỬ DỤNG & BẢO QUẢN:\n• Đặt viên nến trên chân nến chịu nhiệt (chân nến xi măng, đĩa gốm hoặc đèn xông).\n• Cắt gọn đầu bấc còn khoảng 0.4 – 0.5 cm trước khi châm lửa để ngọn lửa cháy êm và đều.\n• Bảo quản nơi khô ráo, thoáng mát (dưới 35°C), tránh ánh nắng trực tiếp làm mềm sáp.\n\n5. ĐÓNG GÓI & HỖ TRỢ ĐƠN HÀNG:\n• Shop đóng gói cẩn thận để hạn chế móp méo vỏ nhôm trong quá trình vận chuyển.\n• Quý khách vui lòng quay video lúc mở hộp để shop kiểm tra và hỗ trợ nhanh nhất nếu đơn hàng gặp sự cố.\n\n#nentealight #nenbo #nenbotealight #nencungphat #nenthiendinh #nenthugian #nenspa #tealight #bomoc #bomocdecor",
+      "categoryId": "cmvqainai0000ve3wcldb6o61",
+      "categoryName": "Nến & Đồ đựng nến",
+      "retailPrice": 289000,
+      "wholesalePrices": [
+        {
+          "tierId": "tier_10",
+          "minQty": 10,
+          "label": "Sỉ Khởi Nghiệp (Từ 10 SP)",
+          "badge": "-15%",
+          "discountPercent": 15,
+          "unitPrice": 245650
+        },
+        {
+          "tierId": "tier_30",
+          "minQty": 30,
+          "label": "Sỉ Đại Lý / Spa (Từ 30 SP)",
+          "badge": "-25%",
+          "discountPercent": 25,
+          "unitPrice": 216750
+        },
+        {
+          "tierId": "tier_100",
+          "minQty": 100,
+          "label": "Nhà Phân Phối / Quà Tặng DN (100+ SP)",
+          "badge": "-35%",
+          "discountPercent": 35,
+          "unitPrice": 187850
+        }
+      ],
+      "unit": "bộ",
+      "type": "SIMPLE",
+      "fragile": true,
+      "weightGram": 1400,
+      "dimensionsLabel": "15 × 15 × 10 cm",
+      "daysToShip": 2,
+      "image": "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd2y31glxc340",
+      "images": [
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd2y31glxc340",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd270cejbpm05",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd20wb3z7ka7f",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd4nfp6vojn3d",
+        "https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mvd26w8zlkw7df"
+      ],
+      "inStock": false,
+      "availableToOrder": true,
+      "stockLabel": "Đặt chế tác tại xưởng (Giao 2 ngày)",
+      "shopeeUrl": "https://shopee.vn/product/197195817/57921209130"
+    }
+  ],
+  "articles": []
+}

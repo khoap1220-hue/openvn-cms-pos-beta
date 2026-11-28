@@ -2483,6 +2483,125 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var origin = (STATE.data && STATE.data.config && STATE.data.config.cmsBackendOrigin) || 'https://openvn-cms-pos-backend.onrender.com';
       return origin.replace(/\\/+$/, '') + '/api/public/storefront';
     }
+    function healthEndpoint() {
+      var origin = (STATE.data && STATE.data.config && STATE.data.config.cmsBackendOrigin) || 'https://openvn-cms-pos-backend.onrender.com';
+      return origin.replace(/\\/+$/, '') + '/api/health';
+    }
+    function prewarmBackendClient() {
+      try {
+        var now = Date.now();
+        if (STATE.lastPrewarmAt && now - STATE.lastPrewarmAt < 90000) return;
+        STATE.lastPrewarmAt = now;
+        fetch(healthEndpoint(), { cache: 'no-store' }).catch(function() {});
+      } catch (e) {}
+    }
+    function offlineOutboxStorageKey() {
+      var cid = String((STATE.data && STATE.data.cmsInstanceId) || 'default')
+        .replace(/[^A-Za-z0-9_-]/g, '_')
+        .slice(0, 64) || 'default';
+      return 'openvn_sf_outbox_v1_' + cid;
+    }
+    function makeClientRefCode(kind) {
+      var pref = String((STATE.data && STATE.data.brand && STATE.data.brand.brandShortName) || 'BM')
+        .replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 4) || 'BM';
+      var dp = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+      var r4 = Math.floor(1000 + Math.random() * 9000);
+      return pref + '-' + kind + '-' + dp + '-' + r4;
+    }
+    async function flushOfflineOutboxClient() {
+      try {
+        if (!window.localStorage) return;
+        var key = offlineOutboxStorageKey();
+        var raw = window.localStorage.getItem(key);
+        if (!raw) return;
+        var arr = JSON.parse(raw);
+        if (!Array.isArray(arr) || !arr.length) return;
+        var rem = [];
+        for (var i = 0; i < arr.length; i++) {
+          var rec = arr[i];
+          if (!rec || !rec.refCode || !rec.payload) continue;
+          try {
+            var res = await fetch(rec.endpoint || apiEndpoint(), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(rec.payload)
+            });
+            var js = await res.json().catch(function() { return {}; });
+            if (res.ok && js && js.ok) continue;
+            if (res.status >= 400 && res.status < 500 && res.status !== 429) continue;
+            rem.push(rec);
+          } catch (e) {
+            rem.push(rec);
+          }
+        }
+        if (!rem.length) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, JSON.stringify(rem.slice(-40)));
+      } catch (e) {}
+    }
+    async function submitWithContinuityClient(kind, payload, grandTotal, summaryText) {
+      var refCode = makeClientRefCode(kind);
+      var ep = apiEndpoint();
+      var fullBody = Object.assign({}, payload, { clientRefCode: refCode });
+      for (var att = 0; att < 2; att++) {
+        try {
+          var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          var tmr = ctrl ? setTimeout(function() { try { ctrl.abort(); } catch (e) {} }, att === 0 ? 28000 : 30000) : null;
+          var res;
+          try {
+            res = await fetch(ep, Object.assign({
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(fullBody)
+            }, ctrl ? { signal: ctrl.signal } : {}));
+          } finally {
+            if (tmr) clearTimeout(tmr);
+          }
+          var json = await res.json().catch(function() { return {}; });
+          if (res.ok && json && json.ok) {
+            return {
+              ok: true,
+              refCode: json.refCode || refCode,
+              grandTotal: typeof json.grandTotal === 'number' ? json.grandTotal : grandTotal,
+              message: json.message
+            };
+          }
+          if (res.status === 400 || res.status === 429 || (json && (json.code === 'STOREFRONT_DISABLED' || json.code === 'OUT_OF_STOCK'))) {
+            var vErr = new Error((json && json.error) || 'Thông tin gửi chưa hợp lệ');
+            vErr.nonRetryable = true;
+            throw vErr;
+          }
+        } catch (err) {
+          if (err && err.nonRetryable) throw err;
+          if (att === 0) {
+            await new Promise(function(r) { setTimeout(r, 2000); });
+          }
+        }
+      }
+      try {
+        if (window.localStorage) {
+          var key = offlineOutboxStorageKey();
+          var exRaw = window.localStorage.getItem(key);
+          var exList = exRaw ? JSON.parse(exRaw) : [];
+          if (!Array.isArray(exList)) exList = [];
+          exList.push({
+            refCode: refCode,
+            endpoint: ep,
+            payload: fullBody,
+            createdAt: new Date().toISOString(),
+            grandTotal: grandTotal,
+            summaryText: summaryText || ''
+          });
+          window.localStorage.setItem(key, JSON.stringify(exList.slice(-40)));
+        }
+      } catch (e) {}
+      return {
+        ok: true,
+        offlineQueued: true,
+        refCode: refCode,
+        grandTotal: grandTotal,
+        message: 'Đã lưu bảo toàn mã ' + refCode + ' trong Bộ nhớ Dự phòng 24/7 — hệ thống sẽ tự động gửi bù về xưởng ngay khi kết nối phục hồi.'
+      };
+    }
     function isAnyModalOpen() {
       var pm = document.getElementById('prodModal');
       var cm = document.getElementById('cartModal');
@@ -4269,6 +4388,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
 
     function openCartModal() {
       hideToast();
+      prewarmBackendClient();
       if (!isAnyModalOpen()) STATE.lastFocusedEl = document.activeElement;
       renderCartModal();
       var modal = document.getElementById('cartModal');
@@ -4318,9 +4438,14 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         }
         box.innerHTML = '<button type="button" class="modal-close" id="cartModalCloseBtn" aria-label="Đóng giỏ hàng" onclick="closeCartModal()">✕</button>' +
           '<div class="alert-ok" role="status" aria-live="polite" style="text-align:center;padding:20px;margin-bottom:0;">' +
-            '<h2 id="cartModalTitle" style="font-size:18px;margin-bottom:6px;color:#115e59;">Đặt hàng thành công!</h2>' +
+            '<h2 id="cartModalTitle" style="font-size:18px;margin-bottom:6px;color:#115e59;">' + (co.offlineQueued ? 'Đã lưu bảo toàn đơn hàng!' : 'Đặt hàng thành công!') + '</h2>' +
             '<p>Mã đơn hàng của bạn: <strong style="font-family:monospace;font-size:15px;">' + esc(co.refCode) + '</strong> <button type="button" class="btn-sm-out" style="padding:0 10px;min-height:32px;margin-left:4px;" onclick="copyTxt(\\'' + jsAttr(co.refCode) + '\\',\\'mã đơn hàng\\')">Sao chép</button></p>' +
             '<p class="money" style="margin-top:6px;">Tổng thanh toán: <strong>' + fmtVND(co.grandTotal) + '</strong></p>' +
+            (co.offlineQueued
+              ? '<div class="alert-amber" style="margin-top:10px;text-align:left;">Đơn hàng đã được lưu an toàn trong <strong>Bộ nhớ Dự phòng 24/7</strong> và sẽ tự động gửi bù về xưởng ngay khi kết nối mạng/máy chủ phục hồi.' +
+                (co.summaryText ? '<div style="margin-top:6px;"><button type="button" class="btn-sm-out" onclick="copyTxt(\\'' + jsAttr(co.summaryText) + '\\',\\'chi tiết đơn hàng\\')">Sao chép chi tiết đơn để gửi nhanh</button></div>' : '') +
+              '</div>'
+              : '') +
             bankDoneHtml +
             '<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px;">' +
               '<button type="button" class="btn-outline" style="min-height:40px;" onclick="jumpTrackOrder(\\'' + jsAttr(co.refCode) + '\\',\\'' + jsAttr(co.phone || '') + '\\')">Tra cứu đơn này</button>' +
@@ -4418,31 +4543,33 @@ export function generateStandaloneStorefrontHtml(snapshot) {
     async function submitOrderForm(ev) {
       ev.preventDefault();
       syncCheckoutDraftFromDom();
+      var m = computeCartMetrics();
       var btn = document.getElementById('ordSubmitBtn');
       btn.disabled = true; btn.textContent = 'Đang gửi đơn hàng...';
       try {
-        var res = await fetch(apiEndpoint(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'SUBMIT_WEB_ORDER',
-            customerName: STATE.checkoutDraft.name,
-            customerPhone: STATE.checkoutDraft.phone,
-            address: STATE.checkoutDraft.addr,
-            note: STATE.checkoutDraft.note,
-            paymentMethod: STATE.paymentMethod || 'COD',
-            items: STATE.cart.map(function(i) { return { productId: i.product.id, sku: i.product.sku, quantity: i.quantity }; })
-          })
-        });
-        var json = await res.json();
-        if (!res.ok || !json.ok) throw new Error(json.error || 'Không thể gửi đơn');
+        var sumTxt = 'Đơn hàng ' + ((STATE.data.brand && STATE.data.brand.brandName) || 'Bơ Mộc Decor') +
+          '\\nKhách nhận: ' + STATE.checkoutDraft.name + ' - ' + STATE.checkoutDraft.phone +
+          '\\nĐịa chỉ: ' + STATE.checkoutDraft.addr +
+          '\\n' + STATE.cart.map(function(i) { return '- ' + i.product.sku + ' x' + i.quantity; }).join('\\n') +
+          '\\nTổng cộng: ' + fmtVND(m.grand);
+        var json = await submitWithContinuityClient('WEB', {
+          action: 'SUBMIT_WEB_ORDER',
+          customerName: STATE.checkoutDraft.name,
+          customerPhone: STATE.checkoutDraft.phone,
+          address: STATE.checkoutDraft.addr,
+          note: STATE.checkoutDraft.note,
+          paymentMethod: STATE.paymentMethod || 'COD',
+          items: STATE.cart.map(function(i) { return { productId: i.product.id, sku: i.product.sku, quantity: i.quantity }; })
+        }, m.grand, sumTxt);
         var ordPhoneVal = STATE.checkoutDraft.phone;
         STATE.checkoutDraft = { name: '', phone: '', addr: '', note: '' };
         STATE.completedOrder = {
           refCode: json.refCode,
           grandTotal: json.grandTotal,
           paymentMethod: STATE.paymentMethod || 'COD',
-          phone: ordPhoneVal
+          phone: ordPhoneVal,
+          offlineQueued: Boolean(json.offlineQueued),
+          summaryText: sumTxt + '\\nMã đơn: ' + json.refCode
         };
         STATE.cart = [];
         saveCartToStorage();
@@ -4450,7 +4577,7 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         renderCartModal();
       } catch (e) {
         btn.disabled = false; btn.textContent = 'Thử lại đặt mua · ' + fmtVND(computeCartMetrics().grand);
-        alert(e.message || 'Không thể kết nối máy chủ đặt hàng.');
+        alert(e.message || 'Vui lòng kiểm tra lại thông tin nhận hàng.');
       }
     }
 
@@ -4459,29 +4586,26 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var btn = document.getElementById('wsSubmitBtn');
       btn.disabled = true; btn.textContent = 'Đang gửi yêu cầu...';
       try {
-        var res = await fetch(apiEndpoint(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'SUBMIT_WHOLESALE_INQUIRY',
-            customerName: document.getElementById('wsName').value,
-            customerPhone: document.getElementById('wsPhone').value,
-            companyOrShopName: document.getElementById('wsShop').value,
-            estimatedQty: Number(document.getElementById('wsQty').value) || 30,
-            address: document.getElementById('wsAddr').value,
-            customerEmail: document.getElementById('wsEmail').value,
-            note: document.getElementById('wsNote').value
-          })
-        });
-        var json = await res.json();
-        if (!res.ok || !json.ok) throw new Error(json.error || 'Lỗi gửi báo giá');
+        var wsNameV = document.getElementById('wsName').value;
+        var wsPhoneV = document.getElementById('wsPhone').value;
+        var wsQtyV = Number(document.getElementById('wsQty').value) || 30;
+        var json = await submitWithContinuityClient('SI', {
+          action: 'SUBMIT_WHOLESALE_INQUIRY',
+          customerName: wsNameV,
+          customerPhone: wsPhoneV,
+          companyOrShopName: document.getElementById('wsShop').value,
+          estimatedQty: wsQtyV,
+          address: document.getElementById('wsAddr').value,
+          customerEmail: document.getElementById('wsEmail').value,
+          note: document.getElementById('wsNote').value
+        }, 0, 'Báo giá sỉ: ' + wsNameV + ' - ' + wsPhoneV + ' (~' + wsQtyV + ' SP)');
         var al = document.getElementById('wsSuccessAlert');
         al.textContent = json.message || ('Đã gửi yêu cầu mã ' + json.refCode);
         al.classList.remove('hidden');
         document.getElementById('wholesaleForm').reset();
         updateWsSimulator();
       } catch (e) {
-        showToast(e.message || 'Vui lòng thử lại sau ít phút.', false);
+        showToast(e.message || 'Vui lòng kiểm tra lại thông tin.', false);
       } finally {
         btn.disabled = false; btn.textContent = 'Gửi Yêu Cầu Nhận Bảng Giá Sỉ Chính Thức';
       }
@@ -4492,25 +4616,22 @@ export function generateStandaloneStorefrontHtml(snapshot) {
       var btn = document.getElementById('ctSubmitBtn');
       btn.disabled = true; btn.textContent = 'Đang gửi...';
       try {
-        var res = await fetch(apiEndpoint(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'SUBMIT_CONTACT',
-            customerName: document.getElementById('ctName').value,
-            customerPhone: document.getElementById('ctPhone').value,
-            customerEmail: document.getElementById('ctEmail').value,
-            note: document.getElementById('ctMsg').value
-          })
-        });
-        var json = await res.json();
-        if (!res.ok || !json.ok) throw new Error(json.error || 'Lỗi gửi liên hệ');
+        var ctNameV = document.getElementById('ctName').value;
+        var ctPhoneV = document.getElementById('ctPhone').value;
+        var ctMsgV = document.getElementById('ctMsg').value;
+        var json = await submitWithContinuityClient('LH', {
+          action: 'SUBMIT_CONTACT',
+          customerName: ctNameV,
+          customerPhone: ctPhoneV,
+          customerEmail: document.getElementById('ctEmail').value,
+          note: ctMsgV
+        }, 0, 'Liên hệ: ' + ctNameV + ' - ' + ctPhoneV + ': ' + ctMsgV);
         var al = document.getElementById('ctSuccessAlert');
         al.textContent = json.message || ('Đã tiếp nhận mã ' + json.refCode);
         al.classList.remove('hidden');
         document.getElementById('ctMsg').value = '';
       } catch (e) {
-        showToast(e.message || 'Không thể gửi tin nhắn lúc này.', false);
+        showToast(e.message || 'Vui lòng kiểm tra lại thông tin.', false);
       } finally {
         btn.disabled = false; btn.textContent = 'Gửi Liên Hệ Tới Cửa Hàng';
       }
@@ -4726,6 +4847,10 @@ export function generateStandaloneStorefrontHtml(snapshot) {
         stepCarousel(1);
       }
     }, 4800);
+    setTimeout(function() { flushOfflineOutboxClient(); }, 1500);
+    if (window.addEventListener) {
+      window.addEventListener('online', function() { flushOfflineOutboxClient(); });
+    }
     fetch(apiEndpoint(), { cache: 'no-store' })
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(d) { if (d) applyLiveStorefrontData(d); })
@@ -4785,6 +4910,11 @@ async function main() {
     : path.resolve('.beta_stage', `storefront-${domain.replace(/[^a-z0-9.-]/g, '-')}`)
   fs.rmSync(stageDir, { recursive: true, force: true })
   fs.mkdirSync(stageDir, { recursive: true })
+
+  // Luôn cập nhật bản chụp LKG công khai (0 secret, 0 costPrice) cho máy chủ Backend dùng khi cold-boot/mất DB
+  const publicLkgPath = path.resolve('public', 'storefront-lkg.json')
+  fs.mkdirSync(path.dirname(publicLkgPath), { recursive: true })
+  fs.writeFileSync(publicLkgPath, JSON.stringify(snapshot, null, 2), 'utf8')
 
   const html = generateStandaloneStorefrontHtml(snapshot)
   fs.writeFileSync(path.join(stageDir, 'index.html'), html, 'utf8')

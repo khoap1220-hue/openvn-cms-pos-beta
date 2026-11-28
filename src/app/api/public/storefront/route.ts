@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractClientIp } from '@/lib/auth'
+import {
+  type FailoverSubmissionEntry,
+  enqueueFailoverSubmission,
+  flushFailoverSpoolToDatabase,
+  getContinuityShieldStatus,
+  getLastKnownGoodStorefrontPayload,
+  lookupFailoverSubmission,
+  saveLastKnownGoodStorefrontPayload,
+} from '@/lib/continuity-shield'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
 import { broadcast, getApiCache, invalidateApiCache, setApiCache } from '@/lib/realtime'
 import {
   DEFAULT_STOREFRONT_BANNERS,
+  DEFAULT_STOREFRONT_CONFIG,
+  type StorefrontCmsConfig,
   computeWholesaleUnitPrice,
   getStorefrontConfigForCurrentCms,
   resolveActiveWholesaleTier,
@@ -95,6 +106,37 @@ export async function GET(req: NextRequest) {
       }
 
       const phoneTail = lookupPhone.replace(/\D/g, '').slice(-4)
+
+      // Ưu tiên kiểm tra hàng đợi dự phòng (Failover Spool) để khách tra cứu được đơn ngay cả khi DB đang gián đoạn
+      const spoolLookup = lookupFailoverSubmission(lookupCode, phoneTail)
+      if (spoolLookup.found) {
+        return NextResponse.json(
+          {
+            ok: true,
+            found: true,
+            source: 'FAILOVER_SPOOL',
+            code: spoolLookup.entry.refCode,
+            type: spoolLookup.entry.action,
+            title: `Đơn dự phòng an toàn (${spoolLookup.entry.refCode})`,
+            status:
+              spoolLookup.entry.action === 'SUBMIT_WHOLESALE_INQUIRY'
+                ? 'RECEIVED_WHOLESALE_LEAD'
+                : spoolLookup.entry.action === 'SUBMIT_CONTACT'
+                  ? 'RECEIVED_CONTACT'
+                  : 'RECEIVED_PENDING_CONFIRM',
+            total: spoolLookup.entry.grandTotal,
+            tierApplied: spoolLookup.entry.wholesaleTierLabel,
+            createdAt: spoolLookup.entry.createdAt,
+          },
+          { headers: corsHeaders }
+        )
+      }
+      if (spoolLookup.phoneMismatch) {
+        return NextResponse.json(
+          { ok: false, error: 'Số điện thoại không khớp với mã yêu cầu tra cứu.' },
+          { status: 404, headers: corsHeaders }
+        )
+      }
 
       const [ledgerHit, orderHit] = await Promise.all([
         db.ledgerEntry.findFirst({
@@ -399,10 +441,25 @@ export async function GET(req: NextRequest) {
       }),
     }
 
+    saveLastKnownGoodStorefrontPayload(responsePayload)
     setApiCache('storefront:public', responsePayload, 180_000)
+    if (getContinuityShieldStatus().pendingFailoverCount > 0) {
+      void flushFailoverSpoolToDatabase().catch(() => null)
+    }
     return NextResponse.json(responsePayload, { headers: corsHeaders })
   } catch (error) {
     console.error('Public Storefront GET error:', error)
+    const lkg = getLastKnownGoodStorefrontPayload()
+    if (lkg?.payload) {
+      return NextResponse.json(
+        {
+          ...lkg.payload,
+          degradedMode: true,
+          lkgSavedAt: lkg.savedAt,
+        },
+        { headers: corsHeaders }
+      )
+    }
     return NextResponse.json(
       { ok: false, error: 'Không thể tải dữ liệu cửa hàng trực tuyến.' },
       { status: 500, headers: corsHeaders }
@@ -433,6 +490,7 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       action?: 'SUBMIT_WEB_ORDER' | 'SUBMIT_WHOLESALE_INQUIRY' | 'SUBMIT_CONTACT'
+      clientRefCode?: string
       customerName?: string
       customerPhone?: string
       customerEmail?: string
@@ -463,13 +521,88 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { config, brandProfile, refCodePrefix } = await getStorefrontConfigForCurrentCms()
+    let config: StorefrontCmsConfig = DEFAULT_STOREFRONT_CONFIG
+    let brandNameRaw = 'Bơ Mộc Decor'
+    let refCodePrefix = 'BM'
+    let dbDegraded = false
+    const lkgRecord = getLastKnownGoodStorefrontPayload()
+
+    try {
+      const resolvedCfg = await getStorefrontConfigForCurrentCms()
+      config = resolvedCfg.config
+      brandNameRaw = resolvedCfg.brandProfile.brandName
+      refCodePrefix = resolvedCfg.refCodePrefix
+    } catch {
+      dbDegraded = true
+      if (lkgRecord?.payload) {
+        const lkgCfg = lkgRecord.payload.config as Partial<StorefrontCmsConfig> | undefined
+        const lkgBrand = lkgRecord.payload.brand as
+          | { brandName?: string; brandShortName?: string }
+          | undefined
+        if (lkgCfg && typeof lkgCfg === 'object') {
+          config = { ...DEFAULT_STOREFRONT_CONFIG, ...lkgCfg }
+        }
+        if (lkgBrand?.brandName) brandNameRaw = lkgBrand.brandName
+        if (lkgBrand?.brandShortName) {
+          const cleanPref = lkgBrand.brandShortName.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 4)
+          if (cleanPref) refCodePrefix = cleanPref
+        }
+      }
+    }
+
     const customerBrandName = formatCustomerStorefrontBrandName(
-      brandProfile.brandName,
+      brandNameRaw,
       config.customDomain
     )
     const datePart = new Date().toISOString().slice(2, 10).replace(/-/g, '')
     const randSuffix = Math.floor(1000 + Math.random() * 9000)
+    const sanitizedClientRef = String(body.clientRefCode || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9-]/g, '')
+      .slice(0, 36)
+    const isValidClientRef = /^[A-Z0-9]{2,6}-(WEB|SI|LH)-\d{6}-\d{4}$/.test(sanitizedClientRef)
+
+    // Chống trùng lặp Idempotent khi trình duyệt tự động đồng bộ bù đơn Offline Outbox
+    if (isValidClientRef) {
+      const phoneTail = customerPhone.replace(/\D/g, '').slice(-4)
+      const inSpool = lookupFailoverSubmission(sanitizedClientRef, phoneTail)
+      if (inSpool.found) {
+        return NextResponse.json(
+          {
+            ok: true,
+            deduplicated: true,
+            queuedFailover: true,
+            refCode: inSpool.entry.refCode,
+            grandTotal: inSpool.entry.grandTotal,
+            message: `Đơn/yêu cầu ${inSpool.entry.refCode} đã được bảo toàn trong hàng đợi dự phòng.`,
+          },
+          { headers: corsHeaders }
+        )
+      }
+      if (!dbDegraded) {
+        try {
+          const existingLedger = await db.ledgerEntry.findFirst({
+            where: { entityCode: sanitizedClientRef },
+            select: { entityCode: true },
+          })
+          if (existingLedger) {
+            return NextResponse.json(
+              {
+                ok: true,
+                deduplicated: true,
+                refCode: sanitizedClientRef,
+                message: `Đơn/yêu cầu ${sanitizedClientRef} đã được đồng bộ thành công trước đó.`,
+              },
+              { headers: corsHeaders }
+            )
+          }
+        } catch {
+          dbDegraded = true
+        }
+      }
+    }
+
     const cleanPhoneKey = customerPhone.replace(/\D/g, '')
     const webThreadId = `web:${cleanPhoneKey}`
     const senderTag = `${customerName}|${customerPhone}`
@@ -510,36 +643,6 @@ export async function POST(req: NextRequest) {
         .map((i) => String(i.sku || '').trim())
         .filter(Boolean)
 
-      const [websiteChannel, dbProducts] = await Promise.all([
-        db.channel.findUnique({ where: { key: 'WEBSITE' }, select: { id: true } }),
-        db.product.findMany({
-          where: {
-            status: 'ACTIVE',
-            OR: [
-              ...(prodIds.length > 0 ? [{ id: { in: prodIds } }] : []),
-              ...(skus.length > 0 ? [{ sku: { in: skus } }] : []),
-            ],
-          },
-          select: {
-            id: true,
-            sku: true,
-            name: true,
-            sellPrice: true,
-            stock: true,
-            unit: true,
-            listings: {
-              select: {
-                channelId: true,
-                price: true,
-                status: true,
-              },
-            },
-          },
-        }),
-      ])
-
-      const webChannelId = websiteChannel?.id || ''
-
       const resolvedLines: Array<{
         productId: string
         sku: string
@@ -548,41 +651,122 @@ export async function POST(req: NextRequest) {
         retailPrice: number
       }> = []
 
-      for (const reqItem of rawItems.slice(0, 50)) {
-        const qty = Math.max(1, Math.min(10_000, Math.floor(Number(reqItem.quantity) || 0)))
-        const matched = dbProducts.find(
-          (p) =>
-            (reqItem.productId && p.id === reqItem.productId) ||
-            (reqItem.sku && p.sku.toUpperCase() === String(reqItem.sku).trim().toUpperCase())
-        )
-        if (!matched) continue
-        const webListing = webChannelId
-          ? matched.listings.find((l) => l.channelId === webChannelId)
-          : undefined
-        if (webListing?.status === 'INACTIVE') continue
-        if (matched.stock <= 0 && !config.allowPreorderWhenOutOfStock) {
-          return NextResponse.json(
-            {
-              ok: false,
-              code: 'OUT_OF_STOCK',
-              error: `Sản phẩm "${matched.name}" (${matched.sku}) hiện tạm hết hàng.`,
-            },
-            { status: 400, headers: corsHeaders }
-          )
+      let resolvedFromDb = false
+      if (!dbDegraded) {
+        try {
+          const [websiteChannel, dbProducts] = await Promise.all([
+            db.channel.findUnique({ where: { key: 'WEBSITE' }, select: { id: true } }),
+            db.product.findMany({
+              where: {
+                status: 'ACTIVE',
+                OR: [
+                  ...(prodIds.length > 0 ? [{ id: { in: prodIds } }] : []),
+                  ...(skus.length > 0 ? [{ sku: { in: skus } }] : []),
+                ],
+              },
+              select: {
+                id: true,
+                sku: true,
+                name: true,
+                sellPrice: true,
+                stock: true,
+                unit: true,
+                listings: {
+                  select: {
+                    channelId: true,
+                    price: true,
+                    status: true,
+                  },
+                },
+              },
+            }),
+          ])
+
+          const webChannelId = websiteChannel?.id || ''
+          for (const reqItem of rawItems.slice(0, 50)) {
+            const qty = Math.max(1, Math.min(10_000, Math.floor(Number(reqItem.quantity) || 0)))
+            const matched = dbProducts.find(
+              (p) =>
+                (reqItem.productId && p.id === reqItem.productId) ||
+                (reqItem.sku && p.sku.toUpperCase() === String(reqItem.sku).trim().toUpperCase())
+            )
+            if (!matched) continue
+            const webListing = webChannelId
+              ? matched.listings.find((l) => l.channelId === webChannelId)
+              : undefined
+            if (webListing?.status === 'INACTIVE') continue
+            if (matched.stock <= 0 && !config.allowPreorderWhenOutOfStock) {
+              return NextResponse.json(
+                {
+                  ok: false,
+                  code: 'OUT_OF_STOCK',
+                  error: `Sản phẩm "${matched.name}" (${matched.sku}) hiện tạm hết hàng.`,
+                },
+                { status: 400, headers: corsHeaders }
+              )
+            }
+            const effectiveRetail =
+              webListing?.price && webListing.price > 0 ? webListing.price : matched.sellPrice
+            const existingIdx = resolvedLines.findIndex((x) => x.productId === matched.id)
+            if (existingIdx >= 0) {
+              resolvedLines[existingIdx].quantity += qty
+            } else {
+              resolvedLines.push({
+                productId: matched.id,
+                sku: matched.sku,
+                name: matched.name,
+                quantity: qty,
+                retailPrice: effectiveRetail,
+              })
+            }
+          }
+          resolvedFromDb = true
+        } catch {
+          dbDegraded = true
         }
-        const effectiveRetail =
-          webListing?.price && webListing.price > 0 ? webListing.price : matched.sellPrice
-        const existingIdx = resolvedLines.findIndex((x) => x.productId === matched.id)
-        if (existingIdx >= 0) {
-          resolvedLines[existingIdx].quantity += qty
-        } else {
-          resolvedLines.push({
-            productId: matched.id,
-            sku: matched.sku,
-            name: matched.name,
-            quantity: qty,
-            retailPrice: effectiveRetail,
-          })
+      }
+
+      if (!resolvedFromDb) {
+        const lkgProducts = Array.isArray(lkgRecord?.payload?.products)
+          ? (lkgRecord!.payload.products as Array<{
+              id: string
+              sku: string
+              name: string
+              retailPrice: number
+              inStock?: boolean
+              availableToOrder?: boolean
+            }>)
+          : []
+        for (const reqItem of rawItems.slice(0, 50)) {
+          const qty = Math.max(1, Math.min(10_000, Math.floor(Number(reqItem.quantity) || 0)))
+          const matched = lkgProducts.find(
+            (p) =>
+              (reqItem.productId && p.id === reqItem.productId) ||
+              (reqItem.sku && p.sku.toUpperCase() === String(reqItem.sku).trim().toUpperCase())
+          )
+          if (!matched) continue
+          if (matched.availableToOrder === false && !config.allowPreorderWhenOutOfStock) {
+            return NextResponse.json(
+              {
+                ok: false,
+                code: 'OUT_OF_STOCK',
+                error: `Sản phẩm "${matched.name}" (${matched.sku}) hiện tạm hết hàng.`,
+              },
+              { status: 400, headers: corsHeaders }
+            )
+          }
+          const existingIdx = resolvedLines.findIndex((x) => x.productId === matched.id)
+          if (existingIdx >= 0) {
+            resolvedLines[existingIdx].quantity += qty
+          } else {
+            resolvedLines.push({
+              productId: matched.id,
+              sku: matched.sku,
+              name: matched.name,
+              quantity: qty,
+              retailPrice: Math.max(0, Number(matched.retailPrice) || 0),
+            })
+          }
         }
       }
 
@@ -618,7 +802,10 @@ export async function POST(req: NextRequest) {
         subtotal >= config.freeShipThreshold ? 0 : config.baseShippingFee
       const grandTotal = subtotal + shippingFee
       const paymentMethod = body.paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'COD'
-      const refCode = `${refCodePrefix}-WEB-${datePart}-${randSuffix}`
+      const refCode =
+        isValidClientRef && sanitizedClientRef.includes('-WEB-')
+          ? sanitizedClientRef
+          : `${refCodePrefix}-WEB-${datePart}-${randSuffix}`
 
       const summaryLines = pricedLines
         .map((l) => `• ${l.sku} × ${l.quantity}: ${l.lineTotal.toLocaleString('vi-VN')} ₫`)
@@ -635,77 +822,117 @@ export async function POST(req: NextRequest) {
         .filter(Boolean)
         .join('\n')
 
-      await Promise.all([
-        db.directMessage.create({
-          data: {
-            channelKey: 'WEBSITE',
-            customerId: null,
-            sender: 'CUSTOMER',
-            agentName: senderTag,
-            relatedOrderId: webThreadId,
-            content: inboxContent,
-            isAuto: false,
-          },
-        }),
-        db.agentActivity.create({
-          data: {
-            agent: 'SUPPORT_AGENT',
-            action: 'ORDER_RECEIVED',
-            level: 'success',
-            targetType: 'ORDER',
-            targetLabel: refCode,
-            message: `Website (${config.customDomain || brandProfile.brandName}): Tiếp nhận đơn đặt hàng ${refCode} từ ${customerName} (${totalQty} SP · ${grandTotal.toLocaleString('vi-VN')} ₫)`,
-            detail: JSON.stringify({
-              refCode,
-              customerName,
-              customerPhone,
-              totalQty,
-              grandTotal,
-              wholesaleTier: activeTier?.label ?? null,
-            }),
-          },
-        }),
-        logLedger({
-          scope: 'ORDER',
-          action: 'WEB_STOREFRONT_ORDER',
-          entityType: 'WebOrderRequest',
-          entityCode: refCode,
-          title: `Website (${config.customDomain || 'Storefront'}): Đơn đặt hàng ${refCode} · ${customerName} (${grandTotal.toLocaleString('vi-VN')} ₫)`,
-          detail: {
-            refCode,
-            status: 'RECEIVED_PENDING_CONFIRM',
-            customerName,
-            customerPhone,
-            customerEmail: customerEmail || null,
-            address,
-            paymentMethod,
-            totalQty,
-            retailSubtotal,
-            wholesaleSaved,
-            wholesaleTierLabel: activeTier?.label ?? null,
-            subtotal,
-            shippingFee,
-            grandTotal,
-            note: note || null,
-            items: pricedLines,
-          },
-          actor: 'CUSTOMER',
-          actorName: customerName,
-          originSource: 'POS',
-          sourceRefCode: refCode,
-        }),
-      ])
-
-      invalidateApiCache('inbox:conversations')
-      broadcast('message.new', {
-        channelKey: 'WEBSITE',
-        customerName,
+      const failoverOrderEntry: FailoverSubmissionEntry = {
         refCode,
-      })
+        action: 'SUBMIT_WEB_ORDER',
+        createdAt: new Date().toISOString(),
+        customerName,
+        customerPhone,
+        customerEmail: customerEmail || null,
+        companyOrShopName: null,
+        address,
+        paymentMethod,
+        totalQty,
+        retailSubtotal,
+        wholesaleSaved,
+        wholesaleTierLabel: activeTier?.label ?? null,
+        subtotal,
+        shippingFee,
+        grandTotal,
+        estimatedQty: null,
+        interestedSkus: [],
+        note: note || null,
+        items: pricedLines,
+        inboxContent,
+        customDomain: config.customDomain || '',
+        brandName: customerBrandName,
+      }
+
+      let queuedFailover = false
+      if (!dbDegraded) {
+        try {
+          await Promise.all([
+            db.directMessage.create({
+              data: {
+                channelKey: 'WEBSITE',
+                customerId: null,
+                sender: 'CUSTOMER',
+                agentName: senderTag,
+                relatedOrderId: webThreadId,
+                content: inboxContent,
+                isAuto: false,
+              },
+            }),
+            db.agentActivity.create({
+              data: {
+                agent: 'SUPPORT_AGENT',
+                action: 'ORDER_RECEIVED',
+                level: 'success',
+                targetType: 'ORDER',
+                targetLabel: refCode,
+                message: `Website (${config.customDomain || customerBrandName}): Tiếp nhận đơn đặt hàng ${refCode} từ ${customerName} (${totalQty} SP · ${grandTotal.toLocaleString('vi-VN')} ₫)`,
+                detail: JSON.stringify({
+                  refCode,
+                  customerName,
+                  customerPhone,
+                  totalQty,
+                  grandTotal,
+                  wholesaleTier: activeTier?.label ?? null,
+                }),
+              },
+            }),
+            logLedger({
+              scope: 'ORDER',
+              action: 'WEB_STOREFRONT_ORDER',
+              entityType: 'WebOrderRequest',
+              entityCode: refCode,
+              title: `Website (${config.customDomain || 'Storefront'}): Đơn đặt hàng ${refCode} · ${customerName} (${grandTotal.toLocaleString('vi-VN')} ₫)`,
+              detail: {
+                refCode,
+                status: 'RECEIVED_PENDING_CONFIRM',
+                customerName,
+                customerPhone,
+                customerEmail: customerEmail || null,
+                address,
+                paymentMethod,
+                totalQty,
+                retailSubtotal,
+                wholesaleSaved,
+                wholesaleTierLabel: activeTier?.label ?? null,
+                subtotal,
+                shippingFee,
+                grandTotal,
+                note: note || null,
+                items: pricedLines,
+              },
+              actor: 'CUSTOMER',
+              actorName: customerName,
+              originSource: 'POS',
+              sourceRefCode: refCode,
+            }),
+          ])
+          invalidateApiCache('inbox:conversations')
+          broadcast('message.new', {
+            channelKey: 'WEBSITE',
+            customerName,
+            refCode,
+          })
+          if (getContinuityShieldStatus().pendingFailoverCount > 0) {
+            void flushFailoverSpoolToDatabase().catch(() => null)
+          }
+        } catch {
+          enqueueFailoverSubmission(failoverOrderEntry)
+          queuedFailover = true
+        }
+      } else {
+        enqueueFailoverSubmission(failoverOrderEntry)
+        queuedFailover = true
+      }
 
       return NextResponse.json(
         {
           ok: true,
+          ...(queuedFailover ? { queuedFailover: true } : {}),
           refCode,
           totalQty,
           subtotal,
@@ -724,7 +951,10 @@ export async function POST(req: NextRequest) {
     // 2. ĐĂNG KÝ NHẬN BÁO GIÁ SỈ / ĐẠI LÝ / GIA CÔNG OEM QUÀ TẶNG DOANH NGHIỆP
     // =========================================================================
     if (action === 'SUBMIT_WHOLESALE_INQUIRY') {
-      const refCode = `${refCodePrefix}-SI-${datePart}-${randSuffix}`
+      const refCode =
+        isValidClientRef && sanitizedClientRef.includes('-SI-')
+          ? sanitizedClientRef
+          : `${refCodePrefix}-SI-${datePart}-${randSuffix}`
       const estQty = Math.max(10, Math.min(100_000, Math.floor(Number(body.estimatedQty) || 30)))
       const matchedTier = resolveActiveWholesaleTier(
         estQty,
@@ -747,71 +977,108 @@ export async function POST(req: NextRequest) {
         .filter(Boolean)
         .join('\n')
 
-      await Promise.all([
-        db.directMessage.create({
-          data: {
-            channelKey: 'WEBSITE',
-            customerId: null,
-            sender: 'CUSTOMER',
-            agentName: senderTag,
-            relatedOrderId: webThreadId,
-            content: inboxContent,
-            isAuto: false,
-          },
-        }),
-        db.agentActivity.create({
-          data: {
-            agent: 'SUPPORT_AGENT',
-            action: 'MANUAL_ACTION',
-            level: 'info',
-            targetType: 'CONVERSATION',
-            targetLabel: refCode,
-            message: `Website (${config.customDomain || brandProfile.brandName}): Yêu cầu Báo giá Sỉ ${refCode} từ ${customerName} (~${estQty} SP)`,
-            detail: JSON.stringify({
-              refCode,
-              customerName,
-              customerPhone,
-              companyOrShopName,
-              estimatedQty: estQty,
-            }),
-          },
-        }),
-        logLedger({
-          scope: 'MESSAGE',
-          action: 'WEB_WHOLESALE_INQUIRY',
-          entityType: 'WholesaleInquiry',
-          entityCode: refCode,
-          title: `Website: Yêu cầu báo giá sỉ ${refCode} · ${customerName}${companyOrShopName ? ` (${companyOrShopName})` : ''} · ~${estQty} SP`,
-          detail: {
-            refCode,
-            status: 'RECEIVED_WHOLESALE_LEAD',
-            customerName,
-            customerPhone,
-            customerEmail: customerEmail || null,
-            companyOrShopName: companyOrShopName || null,
-            address: address || null,
-            estimatedQty: estQty,
-            wholesaleTierLabel: matchedTier?.label ?? null,
-            interestedSkus: skusList,
-            note: note || null,
-          },
-          actor: 'CUSTOMER',
-          actorName: customerName,
-          originSource: 'ZALO_OA',
-          sourceRefCode: refCode,
-        }),
-      ])
-
-      invalidateApiCache('inbox:conversations')
-      broadcast('message.new', {
-        channelKey: 'WEBSITE',
-        customerName,
+      const failoverWsEntry: FailoverSubmissionEntry = {
         refCode,
-      })
+        action: 'SUBMIT_WHOLESALE_INQUIRY',
+        createdAt: new Date().toISOString(),
+        customerName,
+        customerPhone,
+        customerEmail: customerEmail || null,
+        companyOrShopName: companyOrShopName || null,
+        address: address || null,
+        paymentMethod: null,
+        totalQty: null,
+        retailSubtotal: null,
+        wholesaleSaved: null,
+        wholesaleTierLabel: matchedTier?.label ?? null,
+        subtotal: null,
+        shippingFee: null,
+        grandTotal: null,
+        estimatedQty: estQty,
+        interestedSkus: skusList,
+        note: note || null,
+        items: [],
+        inboxContent,
+        customDomain: config.customDomain || '',
+        brandName: customerBrandName,
+      }
+
+      let queuedFailover = false
+      if (!dbDegraded) {
+        try {
+          await Promise.all([
+            db.directMessage.create({
+              data: {
+                channelKey: 'WEBSITE',
+                customerId: null,
+                sender: 'CUSTOMER',
+                agentName: senderTag,
+                relatedOrderId: webThreadId,
+                content: inboxContent,
+                isAuto: false,
+              },
+            }),
+            db.agentActivity.create({
+              data: {
+                agent: 'SUPPORT_AGENT',
+                action: 'MANUAL_ACTION',
+                level: 'info',
+                targetType: 'CONVERSATION',
+                targetLabel: refCode,
+                message: `Website (${config.customDomain || customerBrandName}): Yêu cầu Báo giá Sỉ ${refCode} từ ${customerName} (~${estQty} SP)`,
+                detail: JSON.stringify({
+                  refCode,
+                  customerName,
+                  customerPhone,
+                  companyOrShopName,
+                  estimatedQty: estQty,
+                }),
+              },
+            }),
+            logLedger({
+              scope: 'MESSAGE',
+              action: 'WEB_WHOLESALE_INQUIRY',
+              entityType: 'WholesaleInquiry',
+              entityCode: refCode,
+              title: `Website: Yêu cầu báo giá sỉ ${refCode} · ${customerName}${companyOrShopName ? ` (${companyOrShopName})` : ''} · ~${estQty} SP`,
+              detail: {
+                refCode,
+                status: 'RECEIVED_WHOLESALE_LEAD',
+                customerName,
+                customerPhone,
+                customerEmail: customerEmail || null,
+                companyOrShopName: companyOrShopName || null,
+                address: address || null,
+                estimatedQty: estQty,
+                wholesaleTierLabel: matchedTier?.label ?? null,
+                interestedSkus: skusList,
+                note: note || null,
+              },
+              actor: 'CUSTOMER',
+              actorName: customerName,
+              originSource: 'ZALO_OA',
+              sourceRefCode: refCode,
+            }),
+          ])
+          invalidateApiCache('inbox:conversations')
+          broadcast('message.new', {
+            channelKey: 'WEBSITE',
+            customerName,
+            refCode,
+          })
+        } catch {
+          enqueueFailoverSubmission(failoverWsEntry)
+          queuedFailover = true
+        }
+      } else {
+        enqueueFailoverSubmission(failoverWsEntry)
+        queuedFailover = true
+      }
 
       return NextResponse.json(
         {
           ok: true,
+          ...(queuedFailover ? { queuedFailover: true } : {}),
           refCode,
           estimatedTier: matchedTier,
           message: `Đã gửi yêu cầu báo giá sỉ (${refCode})! Bộ phận Kinh doanh Sỉ & Xưởng ${customerBrandName} sẽ phản hồi qua Zalo/SĐT ${customerPhone} trong vòng 15–30 phút.`,
@@ -830,7 +1097,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const refCode = `${refCodePrefix}-LH-${datePart}-${randSuffix}`
+    const refCode =
+      isValidClientRef && sanitizedClientRef.includes('-LH-')
+        ? sanitizedClientRef
+        : `${refCodePrefix}-LH-${datePart}-${randSuffix}`
     const inboxContent = [
       `[LIÊN HỆ TỪ WEBSITE ${refCode}]`,
       `Khách hàng: ${customerName} · SĐT/Zalo: ${customerPhone}`,
@@ -840,49 +1110,86 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join('\n')
 
-    await Promise.all([
-      db.directMessage.create({
-        data: {
-          channelKey: 'WEBSITE',
-          customerId: null,
-          sender: 'CUSTOMER',
-          agentName: senderTag,
-          relatedOrderId: webThreadId,
-          content: inboxContent,
-          isAuto: false,
-        },
-      }),
-      logLedger({
-        scope: 'MESSAGE',
-        action: 'WEB_CONTACT_MESSAGE',
-        entityType: 'WebContact',
-        entityCode: refCode,
-        title: `Website: Liên hệ tư vấn ${refCode} từ ${customerName}`,
-        detail: {
-          refCode,
-          status: 'RECEIVED_CONTACT',
-          customerName,
-          customerPhone,
-          customerEmail: customerEmail || null,
-          note,
-        },
-        actor: 'CUSTOMER',
-        actorName: customerName,
-        originSource: 'ZALO_OA',
-        sourceRefCode: refCode,
-      }),
-    ])
-
-    invalidateApiCache('inbox:conversations')
-    broadcast('message.new', {
-      channelKey: 'WEBSITE',
-      customerName,
+    const failoverCtEntry: FailoverSubmissionEntry = {
       refCode,
-    })
+      action: 'SUBMIT_CONTACT',
+      createdAt: new Date().toISOString(),
+      customerName,
+      customerPhone,
+      customerEmail: customerEmail || null,
+      companyOrShopName: null,
+      address: null,
+      paymentMethod: null,
+      totalQty: null,
+      retailSubtotal: null,
+      wholesaleSaved: null,
+      wholesaleTierLabel: null,
+      subtotal: null,
+      shippingFee: null,
+      grandTotal: null,
+      estimatedQty: null,
+      interestedSkus: [],
+      note,
+      items: [],
+      inboxContent,
+      customDomain: config.customDomain || '',
+      brandName: customerBrandName,
+    }
+
+    let queuedFailover = false
+    if (!dbDegraded) {
+      try {
+        await Promise.all([
+          db.directMessage.create({
+            data: {
+              channelKey: 'WEBSITE',
+              customerId: null,
+              sender: 'CUSTOMER',
+              agentName: senderTag,
+              relatedOrderId: webThreadId,
+              content: inboxContent,
+              isAuto: false,
+            },
+          }),
+          logLedger({
+            scope: 'MESSAGE',
+            action: 'WEB_CONTACT_MESSAGE',
+            entityType: 'WebContact',
+            entityCode: refCode,
+            title: `Website: Liên hệ tư vấn ${refCode} từ ${customerName}`,
+            detail: {
+              refCode,
+              status: 'RECEIVED_CONTACT',
+              customerName,
+              customerPhone,
+              customerEmail: customerEmail || null,
+              note,
+            },
+            actor: 'CUSTOMER',
+            actorName: customerName,
+            originSource: 'ZALO_OA',
+            sourceRefCode: refCode,
+          }),
+        ])
+        invalidateApiCache('inbox:conversations')
+        broadcast('message.new', {
+          channelKey: 'WEBSITE',
+          customerName,
+          refCode,
+        })
+      } catch {
+        enqueueFailoverSubmission(failoverCtEntry)
+        queuedFailover = true
+      }
+    } else {
+      enqueueFailoverSubmission(failoverCtEntry)
+      queuedFailover = true
+    }
 
     return NextResponse.json(
       {
         ok: true,
+        ...(queuedFailover ? { queuedFailover: true } : {}),
         refCode,
         message: `Cảm ơn ${customerName}! Tin nhắn (${refCode}) đã được gửi tới ${customerBrandName}. Chúng tôi sẽ phản hồi sớm nhất.`,
       },

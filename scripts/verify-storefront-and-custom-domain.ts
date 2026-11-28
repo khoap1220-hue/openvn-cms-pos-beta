@@ -58,9 +58,16 @@ import {
   resolveApiRoutePermission,
 } from '../src/lib/rbac'
 import { GET as authGet } from '../src/app/api/auth/route'
+import { GET as healthGet } from '../src/app/api/health/route'
 import { PUT as credentialsPut } from '../src/app/api/integrations/credentials/route'
 import { POST as credentialsTestPost } from '../src/app/api/integrations/credentials/test/route'
 import { PATCH as settingsPatch } from '../src/app/api/settings/route'
+import { GET as backupGet } from '../src/app/api/system/backup/route'
+import {
+  clearFailoverSpoolByCodes,
+  enqueueFailoverSubmission,
+  getContinuityShieldStatus,
+} from '../src/lib/continuity-shield'
 import {
   DEFAULT_STOREFRONT_CONFIG,
   computeWholesaleUnitPrice,
@@ -2094,6 +2101,133 @@ async function main() {
       'Đủ type="tel" inputmode="tel" trên các biểu mẫu, chuẩn WAI-ARIA Dialog + prefers-reduced-motion, /api/auth trả đúng thương hiệu CMS & khóa hộp mật khẩu Demo trên môi trường production'
     )
 
+    // Suite 8: Always-On Continuity Shield (LKG Snapshot, Failover Order Spool, Idempotent Replay & 24-Table Cloud Backup)
+    const testFailoverCode = 'BM-WEB-261128-9901'
+    try {
+      enqueueFailoverSubmission({
+        refCode: testFailoverCode,
+        action: 'SUBMIT_WEB_ORDER',
+        createdAt: new Date().toISOString(),
+        customerName: 'Anh Minh Dự Phòng',
+        customerPhone: '0938123989',
+        customerEmail: null,
+        companyOrShopName: null,
+        address: '88 Nguyễn Huệ, Quận 1, TP.HCM',
+        paymentMethod: 'COD',
+        totalQty: 2,
+        retailSubtotal: 100_000,
+        wholesaleSaved: 0,
+        wholesaleTierLabel: null,
+        subtotal: 100_000,
+        shippingFee: 30_000,
+        grandTotal: 130_000,
+        estimatedQty: null,
+        interestedSkus: [],
+        note: 'Kiểm thử ContinuityShield tự phục hồi',
+        items: [
+          {
+            productId: senKemProd.id,
+            sku: senKemProd.sku,
+            name: senKemProd.name,
+            quantity: 2,
+            retailPrice: 50_000,
+            unitPrice: 50_000,
+            lineTotal: 100_000,
+          },
+        ],
+        inboxContent: `[ĐƠN ĐẶT WEBSITE ${testFailoverCode}] Anh Minh Dự Phòng`,
+        customDomain: 'bomocdecor.vn',
+        brandName: 'Bơ Mộc Decor',
+      })
+
+      // 1) Lookup works directly from Failover Spool BEFORE DB replay, and rejects wrong phone
+      const spoolLookupOkRes = await publicStorefrontGet(
+        new NextRequest(
+          `http://localhost:3010/api/public/storefront?lookupCode=${testFailoverCode}&phone=3989`
+        )
+      )
+      const spoolLookupOkJson = (await spoolLookupOkRes.json()) as {
+        ok?: boolean
+        source?: string
+        code?: string
+      }
+      const spoolLookupBadRes = await publicStorefrontGet(
+        new NextRequest(
+          `http://localhost:3010/api/public/storefront?lookupCode=${testFailoverCode}&phone=0000`
+        )
+      )
+
+      // 2) /api/health?probe=db executes anti-pause heartbeat AND replays Failover Spool into PostgreSQL
+      const healthProbeRes = await healthGet(
+        new NextRequest('http://localhost:3010/api/health?probe=db')
+      )
+      const healthProbeJson = (await healthProbeRes.json()) as {
+        status?: string
+        dbReachable?: boolean
+        failoverReplay?: { flushed?: number; remaining?: number }
+        continuity?: { lkgReady?: boolean; pendingFailoverCount?: number }
+      }
+
+      // 3) Re-submitting same clientRefCode is idempotently deduplicated (0 duplicate orders)
+      const dupReplayRes = await publicStorefrontPost(
+        new NextRequest('http://localhost:3010/api/public/storefront', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'SUBMIT_WEB_ORDER',
+            clientRefCode: testFailoverCode,
+            customerName: 'Anh Minh Dự Phòng',
+            customerPhone: '0938123989',
+            address: '88 Nguyễn Huệ, Quận 1, TP.HCM',
+            items: [{ productId: senKemProd.id, sku: senKemProd.sku, quantity: 2 }],
+          }),
+        })
+      )
+      const dupReplayJson = (await dupReplayRes.json()) as {
+        ok?: boolean
+        deduplicated?: boolean
+      }
+
+      // 4) Cloud 24-Table JSON Backup (/api/system/backup?format=json) with SHA-256 verification & Zero-Secret redaction
+      const backupRes = await backupGet(
+        new NextRequest('http://localhost:3010/api/system/backup?format=json')
+      )
+      const backupRawText = await backupRes.text()
+      const backupJson = JSON.parse(backupRawText) as {
+        schemaVersion?: string
+        coreBusinessTablesCount?: number
+        checksumSha256?: string
+        tables?: Record<string, unknown[]>
+      }
+      const recomputedSha = crypto
+        .createHash('sha256')
+        .update(JSON.stringify(backupJson.tables || {}))
+        .digest('hex')
+
+      assert(
+        spoolLookupOkRes.status === 200 &&
+          spoolLookupOkJson.source === 'FAILOVER_SPOOL' &&
+          spoolLookupBadRes.status === 404 &&
+          healthProbeJson.status === 'ok' &&
+          healthProbeJson.dbReachable === true &&
+          (healthProbeJson.failoverReplay?.flushed ?? 0) >= 1 &&
+          getContinuityShieldStatus().pendingFailoverCount === 0 &&
+          dupReplayRes.status === 200 &&
+          dupReplayJson.deduplicated === true &&
+          backupRes.status === 200 &&
+          backupJson.coreBusinessTablesCount === 24 &&
+          Array.isArray(backupJson.tables?.Product) &&
+          backupJson.tables!.Product.length === 18 &&
+          backupJson.checksumSha256 === recomputedSha &&
+          liveStandaloneHtml.includes('function submitWithContinuityClient(') &&
+          liveStandaloneHtml.includes('function flushOfflineOutboxClient('),
+        'S8-ALWAYS-ON-CONTINUITY-SHIELD-REPLAY-AND-24TABLE-BACKUP',
+        'Khiên Dự Phòng 24/7 đạt chuẩn: Tra cứu Spool tức thì, /api/health?probe=db tự phát bù vào PostgreSQL + chống trùng Idempotent, xuất Backup 24 bảng khớp SHA-256 & tích hợp Offline Outbox trên Web'
+      )
+    } finally {
+      clearFailoverSpoolByCodes([testFailoverCode])
+    }
+
     // Restore canonical bomocdecor.vn config cleanly
     await saveStorefrontConfigForCurrentCms({
       enabled: true,
@@ -2119,13 +2253,15 @@ async function main() {
     // Collect test operational rows for clean teardown
     const [msgs, acts, ledgers] = await Promise.all([
       db.directMessage.findMany({
-        where: { relatedOrderId: { in: ['web:0938123987', 'web:0938123988'] } },
+        where: { relatedOrderId: { in: ['web:0938123987', 'web:0938123988', 'web:0938123989'] } },
         select: { id: true },
       }),
       db.agentActivity.findMany({
         where: {
           targetLabel: {
-            in: [orderPostJson.refCode || '', wsPostJson.refCode || ''].filter(Boolean),
+            in: [orderPostJson.refCode || '', wsPostJson.refCode || '', 'BM-WEB-261128-9901'].filter(
+              Boolean
+            ),
           },
         },
         select: { id: true },
@@ -2135,7 +2271,11 @@ async function main() {
           OR: [
             {
               entityCode: {
-                in: [orderPostJson.refCode || '', wsPostJson.refCode || ''].filter(Boolean),
+                in: [
+                  orderPostJson.refCode || '',
+                  wsPostJson.refCode || '',
+                  'BM-WEB-261128-9901',
+                ].filter(Boolean),
               },
             },
             {
@@ -2145,6 +2285,7 @@ async function main() {
                   'STOREFRONT_SHOPEE_BANNERS_SYNCED',
                   'SETTINGS_UPDATED',
                   'OPERATOR_REPLY',
+                  'DB_BACKUP_DOWNLOADED',
                 ],
               },
               createdAt: { gte: new Date(Date.now() - 60_000) },

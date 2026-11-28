@@ -1,0 +1,53 @@
+name: Continuity Guardian (Anti-Pause & Failover Flush)
+
+on:
+  schedule:
+    # Chạy 2 lần/ngày (mỗi 12 giờ):
+    # - Tiêu thụ < 0.5 KB/ngày (~0.0002% hạn mức 5 GB Egress của Supabase)
+    # - Ngăn tuyệt đối việc Supabase Free tự động Pause sau 7 ngày không có truy vấn
+    # - Tự động phát lại (flush) mọi đơn hàng dự phòng trong ContinuityShield Spool (nếu có)
+    - cron: '17 */12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: continuity-guardian
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    name: Anti-Pause DB Heartbeat & Storefront Liveness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STOREFRONT_URL: 'https://bomocdecor.vn/'
+      BACKEND_DB_PROBE_URL: ${{ vars.BETA_HEALTH_URL && format('{0}?probe=db', vars.BETA_HEALTH_URL) || 'https://openvn-cms-pos-backend.onrender.com/api/health?probe=db' }}
+    steps:
+      - name: Verify Custom Domain Storefront CDN (bomocdecor.vn)
+        run: |
+          code=$(curl -s -L -o /dev/null -w '%{http_code}' --max-time 20 "$STOREFRONT_URL" || echo 000)
+          echo "Storefront CDN ($STOREFRONT_URL) -> HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::warning::Storefront CDN trả về HTTP $code"
+          fi
+
+      - name: Trigger Lightweight Supabase Heartbeat & Flush Failover Spool
+        run: |
+          for i in $(seq 1 6); do
+            resp=$(curl -s -w '\n%{http_code}' --max-time 45 "$BACKEND_DB_PROBE_URL" || printf '\n000')
+            code=$(echo "$resp" | tail -n 1)
+            body=$(echo "$resp" | sed '$d')
+            echo "Attempt $i: HTTP $code — $body"
+            if [ "$code" = "200" ]; then
+              echo "### Continuity Heartbeat OK" >> "$GITHUB_STEP_SUMMARY"
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              echo "$body" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::Backend đang khởi động chậm hoặc bảo trì tạm thời (HTTP $code); Storefront CDN vẫn hoạt động độc lập."
+          exit 0
