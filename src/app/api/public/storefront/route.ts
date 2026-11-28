@@ -9,6 +9,11 @@ import {
   getStorefrontConfigForCurrentCms,
   resolveActiveWholesaleTier,
 } from '@/lib/storefront-config'
+import {
+  formatCustomerStorefrontBrandName,
+  formatStorefrontDisplayTitle,
+  resolveCustomerHeaderSubtitle,
+} from '@/lib/storefront-ux'
 
 export const dynamic = 'force-dynamic'
 
@@ -276,7 +281,11 @@ export async function GET(req: NextRequest) {
                 }
               }
 
-              const { cleanTitle, variantLabel } = splitProductTitleAndVariant(prod.name)
+              const { cleanTitle: rawCleanTitle, variantLabel } = splitProductTitleAndVariant(
+                prod.name
+              )
+              const cleanTitle =
+                formatStorefrontDisplayTitle(rawCleanTitle, variantLabel) || rawCleanTitle
 
               const wholesalePrices = config.wholesaleEnabled
                 ? config.wholesaleTiers.map((tier) => ({
@@ -320,9 +329,33 @@ export async function GET(req: NextRequest) {
               }
             })
 
-    const hasBankTransfer = Boolean(
-      brandProfile.invoiceBankCode && brandProfile.invoiceBankAccount
+    const resolvedBankTransfer =
+      config.bankTransfer && config.bankTransfer.bankCode && config.bankTransfer.bankAccount
+        ? {
+            bankCode: config.bankTransfer.bankCode,
+            bankName: config.bankTransfer.bankName || config.bankTransfer.bankCode,
+            bankAccount: config.bankTransfer.bankAccount,
+            bankHolder: config.bankTransfer.bankHolder || '',
+          }
+        : brandProfile.invoiceBankCode && brandProfile.invoiceBankAccount
+          ? {
+              bankCode: brandProfile.invoiceBankCode,
+              bankName: brandProfile.invoiceBankName || brandProfile.invoiceBankCode,
+              bankAccount: brandProfile.invoiceBankAccount,
+              bankHolder: brandProfile.invoiceBankHolder,
+            }
+          : null
+
+    const customerBrandName = formatCustomerStorefrontBrandName(
+      brandProfile.brandName,
+      config.customDomain
     )
+    const customerBrandSubtitle = resolveCustomerHeaderSubtitle({
+      brandSubtitle: brandProfile.brandSubtitle,
+      workshopName: brandProfile.defaultWorkshopName,
+      heroBadge: config.heroBadge,
+      brandName: customerBrandName,
+    })
 
     const publicConfig =
       config.enabled === false
@@ -342,26 +375,16 @@ export async function GET(req: NextRequest) {
       cmsInstanceId,
       generatedAt: new Date().toISOString(),
       brand: {
-        brandName: brandProfile.brandName,
+        brandName: customerBrandName,
         brandShortName: brandProfile.brandShortName,
         brandBadge: brandProfile.brandBadge,
-        brandSubtitle:
-          brandProfile.brandSubtitle && brandProfile.brandSubtitle !== 'Quản lý bán hàng đa kênh'
-            ? brandProfile.brandSubtitle
-            : config.heroBadge,
+        brandSubtitle: customerBrandSubtitle,
         footerTagline: brandProfile.brandFooterTagline,
         workshopName: brandProfile.defaultWorkshopName,
-        companyName: brandProfile.companyName || brandProfile.brandName,
+        companyName: brandProfile.companyName || customerBrandName,
       },
       config: publicConfig,
-      bankTransfer: hasBankTransfer
-        ? {
-            bankCode: brandProfile.invoiceBankCode,
-            bankName: brandProfile.invoiceBankName || brandProfile.invoiceBankCode,
-            bankAccount: brandProfile.invoiceBankAccount,
-            bankHolder: brandProfile.invoiceBankHolder,
-          }
-        : null,
+      bankTransfer: resolvedBankTransfer,
       categories,
       products: publicProducts,
       articles: posts.map((p) => {
@@ -385,7 +408,7 @@ export async function GET(req: NextRequest) {
       }),
     }
 
-    setApiCache('storefront:public', responsePayload, 15_000)
+    setApiCache('storefront:public', responsePayload, 180_000)
     return NextResponse.json(responsePayload, { headers: corsHeaders })
   } catch (error) {
     console.error('Public Storefront GET error:', error)
@@ -450,6 +473,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { config, brandProfile, refCodePrefix } = await getStorefrontConfigForCurrentCms()
+    const customerBrandName = formatCustomerStorefrontBrandName(
+      brandProfile.brandName,
+      config.customDomain
+    )
     const datePart = new Date().toISOString().slice(2, 10).replace(/-/g, '')
     const randSuffix = Math.floor(1000 + Math.random() * 9000)
     const cleanPhoneKey = customerPhone.replace(/\D/g, '')
@@ -696,7 +723,7 @@ export async function POST(req: NextRequest) {
           shippingFee,
           grandTotal,
           paymentMethod,
-          message: `Đặt hàng thành công! Mã đơn của bạn là ${refCode}. ${brandProfile.brandName} sẽ liên hệ SĐT ${customerPhone} để xác nhận giao hàng sớm nhất.`,
+          message: `Đặt hàng thành công! Mã đơn của bạn là ${refCode}. ${customerBrandName} sẽ liên hệ SĐT ${customerPhone} để xác nhận giao hàng sớm nhất.`,
         },
         { headers: corsHeaders }
       )
@@ -796,7 +823,7 @@ export async function POST(req: NextRequest) {
           ok: true,
           refCode,
           estimatedTier: matchedTier,
-          message: `Đã gửi yêu cầu báo giá sỉ (${refCode})! Bộ phận Kinh doanh Sỉ & Xưởng ${brandProfile.brandName} sẽ phản hồi qua Zalo/SĐT ${customerPhone} trong vòng 15–30 phút.`,
+          message: `Đã gửi yêu cầu báo giá sỉ (${refCode})! Bộ phận Kinh doanh Sỉ & Xưởng ${customerBrandName} sẽ phản hồi qua Zalo/SĐT ${customerPhone} trong vòng 15–30 phút.`,
         },
         { headers: corsHeaders }
       )
@@ -866,7 +893,7 @@ export async function POST(req: NextRequest) {
       {
         ok: true,
         refCode,
-        message: `Cảm ơn ${customerName}! Tin nhắn (${refCode}) đã được gửi tới ${brandProfile.brandName}. Chúng tôi sẽ phản hồi sớm nhất.`,
+        message: `Cảm ơn ${customerName}! Tin nhắn (${refCode}) đã được gửi tới ${customerBrandName}. Chúng tôi sẽ phản hồi sớm nhất.`,
       },
       { headers: corsHeaders }
     )

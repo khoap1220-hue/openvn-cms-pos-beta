@@ -47,6 +47,7 @@ import { apiGet } from '@/lib/api'
 import { useRealtime } from '@/hooks/use-realtime'
 import type { DashboardData, LiveOpsData } from '@/lib/types'
 import type { ViewId } from '@/components/cms/app-sidebar'
+import { useShopProfile } from '@/lib/shop-profile'
 import { cn } from '@/lib/utils'
 
 export function DashboardView({
@@ -56,6 +57,7 @@ export function DashboardView({
   onNavigate?: (view: ViewId) => void
   canOpenReports?: boolean
 }) {
+  const { profile: shopProfile } = useShopProfile()
   const [data, setData] = useState<DashboardData | null>(null)
   const [liveops, setLiveops] = useState<LiveOpsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -155,10 +157,10 @@ export function DashboardView({
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-bold tracking-tight sm:text-xl">
-                Tổng quan Cửa hàng Ưu Đàm
+                Tổng quan {shopProfile.brandName}
               </h1>
               <Badge className="bg-[#0066CC] text-white hover:bg-[#0055B3]">
-                {d ? `${d.stats.activeChannels}/${d.stats.totalChannels} kênh kết nối` : 'Đa kênh OPENVN'}
+                {d ? `${d.stats.activeChannels}/${d.stats.totalChannels} kênh kết nối` : `Đa kênh ${shopProfile.brandShortName}`}
               </Badge>
               <Badge
                 variant="outline"

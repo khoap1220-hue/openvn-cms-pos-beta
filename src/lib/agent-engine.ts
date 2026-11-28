@@ -6,7 +6,7 @@
 // và broadcast realtime qua socket.io mini-service.
 
 import { db } from '@/lib/db'
-import { broadcast } from '@/lib/realtime'
+import { broadcast, registerAgentWakeHandler } from '@/lib/realtime'
 import { llmChat, llmVision } from '@/lib/llm'
 import { awardPointsForCompletedOrder } from '@/lib/member'
 import { refreshCustomerMemory, getMemorySnapshot } from '@/lib/memory-engine'
@@ -45,9 +45,15 @@ const SYNTHETIC_ORDER_CHECK_SELECT = {
 } as const
 
 const g = globalThis as unknown as {
-  __cmsEngineTimer?: ReturnType<typeof setInterval>
+  __cmsEngineTimer?: ReturnType<typeof setTimeout>
+  __cmsEngineWakeDebounce?: ReturnType<typeof setTimeout>
+  __cmsEngineStarted?: boolean
   __cmsEngineBusy?: boolean
+  __cmsEngineNeedsRetick?: boolean
 }
+
+const ACTIVE_TICK_MS = 8_000
+const IDLE_SLEEP_MS = 15 * 60_000 // 15 phút ngủ đông khi không có đơn/tin nhắn chờ (0 SQL Egress)
 
 // Chống xử lý trùng lặp khi LLM đang chạy
 const inflight = new Set<string>()
@@ -70,7 +76,7 @@ export async function getSettingsMap(): Promise<Record<string, boolean>> {
   try {
     const rows = await db.automationSetting.findMany()
     for (const r of rows) map[r.key] = r.enabled
-    cachedSettings = { map, expiresAt: now + 30_000 }
+    cachedSettings = { map, expiresAt: now + 600_000 }
   } catch {
     // DB chưa sẵn sàng — dùng mặc định
   }
@@ -85,7 +91,7 @@ export async function setSetting(key: string, enabled: boolean) {
   })
   if (cachedSettings) {
     cachedSettings.map[key] = enabled
-    cachedSettings.expiresAt = Date.now() + 30_000
+    cachedSettings.expiresAt = Date.now() + 600_000
   }
   broadcast('settings.updated', { key, enabled })
   const def = AUTOMATION_DEFS.find((d) => d.key === key)
@@ -663,10 +669,10 @@ async function autoReply(customerId: string, channelKey: string) {
   })
 }
 
-// ===== Tick chính (Song song hóa Promise.all giảm 80% độ trễ truy vấn Supabase) =====
-async function runTick() {
+// ===== Tick chính (Event-Driven + Auto-Sleep: 0 SQL query khi rảnh, tức thì khi có đơn/tin nhắn) =====
+async function runTick(): Promise<boolean> {
   const settings = await getSettingsMap()
-  if (!settings.master && !settings.simulation_mode) return
+  if (!settings.master && !settings.simulation_mode) return false
 
   const now = Date.now()
   const since = (ms: number) => new Date(now - ms)
@@ -718,6 +724,7 @@ async function runTick() {
         : Promise.resolve([]),
       settings.master && settings.auto_reply
         ? db.directMessage.findMany({
+            where: { createdAt: { gte: dayAgo } },
             orderBy: { createdAt: 'desc' },
             select: {
               id: true,
@@ -727,7 +734,7 @@ async function runTick() {
               createdAt: true,
               customer: { select: { name: true, phone: true } },
             },
-            take: 30,
+            take: 20,
           })
         : Promise.resolve([]),
     ])
@@ -742,6 +749,12 @@ async function runTick() {
     .filter((s) => !isSyntheticOrder(s.order) && !isMarketplaceSyncedOrder(s.order))
     .slice(0, 5)
   const afterSale = rawAfterSale.filter((o) => !isSyntheticOrder(o)).slice(0, 6)
+
+  let hasActiveWork =
+    pendingOrders.length > 0 ||
+    confirmedOrders.length > 0 ||
+    carrierOrders.length > 0 ||
+    simShipments.length > 0
 
   // 1. Xác nhận đơn
   for (const o of pendingOrders) agentConfirm(o.id)
@@ -761,20 +774,26 @@ async function runTick() {
 
   // 7-9. Chuỗi sau bán
   for (const o of afterSale) {
-    if (settings.master && settings.auto_care && !o.events.some((e) => e.type === 'CARE_SENT') && o.updatedAt < since(2500)) {
-      agentCare(o.id)
-    }
-    if (
+    const needsCare = settings.master && settings.auto_care && !o.events.some((e) => e.type === 'CARE_SENT')
+    const needsReviewReq =
       settings.master &&
       settings.auto_review &&
       o.reviewRating == null &&
       o.events.some((e) => e.type === 'CARE_SENT') &&
-      !o.events.some((e) => e.type === 'REVIEW_REQUESTED') &&
-      o.updatedAt < since(2500)
-    ) {
+      !o.events.some((e) => e.type === 'REVIEW_REQUESTED')
+    const needsSimReview =
+      settings.simulation_mode && o.reviewRating == null && o.events.some((e) => e.type === 'REVIEW_REQUESTED')
+
+    if (needsCare || needsReviewReq || needsSimReview) {
+      hasActiveWork = true
+    }
+    if (needsCare && o.updatedAt < since(2500)) {
+      agentCare(o.id)
+    }
+    if (needsReviewReq && o.updatedAt < since(2500)) {
       requestReview(o.id)
     }
-    if (settings.simulation_mode && o.reviewRating == null && o.events.some((e) => e.type === 'REVIEW_REQUESTED') && o.updatedAt < since(8000)) {
+    if (needsSimReview && o.updatedAt < since(8000)) {
       submitReview(o.id)
     }
   }
@@ -789,6 +808,7 @@ async function runTick() {
     }
     for (const [key, lastSender] of groups) {
       if (lastSender !== 'CUSTOMER') continue
+      hasActiveWork = true
       const [customerId, channelKey] = key.split('|')
       if (!customerId) continue
       const last = recentMessages.find((m) => m.customerId === customerId && m.channelKey === channelKey)
@@ -796,18 +816,62 @@ async function runTick() {
       autoReply(customerId, channelKey)
     }
   }
+
+  return hasActiveWork
+}
+
+function scheduleNextEngineTick(delayMs: number) {
+  if (g.__cmsEngineTimer) {
+    clearTimeout(g.__cmsEngineTimer)
+  }
+  g.__cmsEngineTimer = setTimeout(() => {
+    void executeEngineCycle()
+  }, delayMs)
+  g.__cmsEngineTimer.unref?.()
+}
+
+async function executeEngineCycle() {
+  if (g.__cmsEngineBusy) {
+    g.__cmsEngineNeedsRetick = true
+    return
+  }
+  g.__cmsEngineBusy = true
+  g.__cmsEngineNeedsRetick = false
+  let hasActive = false
+  try {
+    hasActive = await runTick()
+  } catch (e) {
+    console.error('[AgentEngine] tick error:', e)
+  } finally {
+    g.__cmsEngineBusy = false
+    if (g.__cmsEngineNeedsRetick) {
+      g.__cmsEngineNeedsRetick = false
+      scheduleNextEngineTick(1_500)
+    } else {
+      scheduleNextEngineTick(hasActive ? ACTIVE_TICK_MS : IDLE_SLEEP_MS)
+    }
+  }
+}
+
+export function wakeEngineNow(delayMs = 500) {
+  if (!g.__cmsEngineStarted) return
+  if (g.__cmsEngineBusy) {
+    g.__cmsEngineNeedsRetick = true
+    return
+  }
+  if (g.__cmsEngineWakeDebounce) return
+  g.__cmsEngineWakeDebounce = setTimeout(() => {
+    g.__cmsEngineWakeDebounce = undefined
+    scheduleNextEngineTick(50)
+  }, delayMs)
+  g.__cmsEngineWakeDebounce.unref?.()
 }
 
 export function ensureEngine() {
-  if (g.__cmsEngineTimer) return
-  g.__cmsEngineTimer = setInterval(() => {
-    if (g.__cmsEngineBusy) return
-    g.__cmsEngineBusy = true
-    runTick()
-      .catch((e) => console.error('[AgentEngine] tick error:', e))
-      .finally(() => {
-        g.__cmsEngineBusy = false
-      })
-  }, 8000)
-  console.log('[AgentEngine] ✅ Autopilot engine đã khởi động (song song hóa Promise.all · tick 8s)')
+  if (g.__cmsEngineStarted) return
+  g.__cmsEngineStarted = true
+  registerAgentWakeHandler(() => wakeEngineNow(600))
+  // Trì hoãn nhẹ lúc khởi động và tự động ngủ đông 15 phút (0 SQL Egress) khi không có đơn/tin nhắn chờ
+  scheduleNextEngineTick(4_000)
+  console.log('[AgentEngine] ✅ Autopilot engine khởi động (Event-Driven Zero-Idle-Egress · ngủ đông 15m khi rảnh)')
 }

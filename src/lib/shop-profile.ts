@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react'
 
 export interface ShopProfileConfig {
   brandName: string
@@ -172,32 +172,44 @@ export function extractShopProfileFromSettings(
   }
 }
 
+const ShopProfileContext = createContext<ShopProfileConfig | null>(null)
+
+export function ShopProfileProvider({
+  initialProfile,
+  children,
+}: {
+  initialProfile: ShopProfileConfig
+  children: React.ReactNode
+}) {
+  return createElement(ShopProfileContext.Provider, { value: initialProfile }, children)
+}
+
 let memoryProfileCache: ShopProfileConfig | null = null
 let inflightSettingsFetch: Promise<ShopProfileConfig> | null = null
 
-export function readShopProfileCache(): ShopProfileConfig {
-  if (typeof window === 'undefined') return DEFAULT_SHOP_PROFILE
+export function readShopProfileCache(fallback: ShopProfileConfig = DEFAULT_SHOP_PROFILE): ShopProfileConfig {
+  if (typeof window === 'undefined') return fallback
   if (memoryProfileCache) return memoryProfileCache
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY)
-    if (!saved) return DEFAULT_SHOP_PROFILE
+    if (!saved) return fallback
     const parsed = JSON.parse(saved) as Partial<ShopProfileConfig>
     const profile: ShopProfileConfig = {
-      brandName: parsed.brandName?.trim() || DEFAULT_SHOP_PROFILE.brandName,
-      brandShortName: parsed.brandShortName?.trim() || DEFAULT_SHOP_PROFILE.brandShortName,
+      brandName: parsed.brandName?.trim() || fallback.brandName,
+      brandShortName: parsed.brandShortName?.trim() || fallback.brandShortName,
       brandBadge:
-        typeof parsed.brandBadge === 'string' ? parsed.brandBadge.trim() : DEFAULT_SHOP_PROFILE.brandBadge,
-      brandSubtitle: parsed.brandSubtitle?.trim() || DEFAULT_SHOP_PROFILE.brandSubtitle,
-      brandFooterTagline: parsed.brandFooterTagline?.trim() || DEFAULT_SHOP_PROFILE.brandFooterTagline,
-      defaultWorkshopName: parsed.defaultWorkshopName?.trim() || DEFAULT_SHOP_PROFILE.defaultWorkshopName,
+        typeof parsed.brandBadge === 'string' ? parsed.brandBadge.trim() : fallback.brandBadge,
+      brandSubtitle: parsed.brandSubtitle?.trim() || fallback.brandSubtitle,
+      brandFooterTagline: parsed.brandFooterTagline?.trim() || fallback.brandFooterTagline,
+      defaultWorkshopName: parsed.defaultWorkshopName?.trim() || fallback.defaultWorkshopName,
       workshopPresets: parseWorkshopPresets(parsed.workshopPresets),
-      defaultWarehouseLabel: parsed.defaultWarehouseLabel?.trim() || DEFAULT_SHOP_PROFILE.defaultWarehouseLabel,
-      storefrontUrl: parsed.storefrontUrl?.trim() || DEFAULT_SHOP_PROFILE.storefrontUrl,
+      defaultWarehouseLabel: parsed.defaultWarehouseLabel?.trim() || fallback.defaultWarehouseLabel,
+      storefrontUrl: parsed.storefrontUrl?.trim() || fallback.storefrontUrl,
     }
     memoryProfileCache = profile
     return profile
   } catch {
-    return DEFAULT_SHOP_PROFILE
+    return fallback
   }
 }
 
@@ -216,6 +228,32 @@ async function fetchShopProfileFromServer(force = false): Promise<ShopProfileCon
   if (typeof window !== 'undefined') {
     const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
     if (pathname === '/login' || pathname.endsWith('/login')) {
+      try {
+        const res = await fetch('/api/auth', { cache: 'no-store' })
+        if (res.ok) {
+          const data = (await res.json()) as {
+            brand?: Partial<ShopProfileConfig>
+          }
+          if (data?.brand?.brandName) {
+            const cached = readShopProfileCache()
+            const merged: ShopProfileConfig = {
+              ...cached,
+              brandName: data.brand.brandName.trim() || cached.brandName,
+              brandShortName: data.brand.brandShortName?.trim() || cached.brandShortName,
+              brandBadge:
+                typeof data.brand.brandBadge === 'string'
+                  ? data.brand.brandBadge.trim()
+                  : cached.brandBadge,
+              brandSubtitle: data.brand.brandSubtitle?.trim() || cached.brandSubtitle,
+              storefrontUrl: data.brand.storefrontUrl?.trim() || cached.storefrontUrl,
+            }
+            writeShopProfileCache(merged)
+            return merged
+          }
+        }
+      } catch {
+        // ignore network errors on login screen
+      }
       return readShopProfileCache()
     }
   }
@@ -236,7 +274,9 @@ async function fetchShopProfileFromServer(force = false): Promise<ShopProfileCon
 }
 
 export function useShopProfile() {
-  const [profile, setProfile] = useState<ShopProfileConfig>(DEFAULT_SHOP_PROFILE)
+  const ssrProfile = useContext(ShopProfileContext)
+  const baseFallback = ssrProfile ?? DEFAULT_SHOP_PROFILE
+  const [profile, setProfile] = useState<ShopProfileConfig>(baseFallback)
 
   const refreshProfile = useCallback(async () => {
     const next = await fetchShopProfileFromServer(true)
@@ -245,7 +285,7 @@ export function useShopProfile() {
   }, [])
 
   useEffect(() => {
-    setProfile(readShopProfileCache())
+    setProfile(readShopProfileCache(baseFallback))
     void fetchShopProfileFromServer(false).then((next) => setProfile(next))
 
     const handleCustomUpdate = (e: Event) => {
@@ -253,14 +293,14 @@ export function useShopProfile() {
       if (custom.detail) {
         setProfile(custom.detail)
       } else {
-        setProfile(readShopProfileCache())
+        setProfile(readShopProfileCache(baseFallback))
       }
     }
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
         memoryProfileCache = null
-        setProfile(readShopProfileCache())
+        setProfile(readShopProfileCache(baseFallback))
       }
     }
 
@@ -270,7 +310,7 @@ export function useShopProfile() {
       window.removeEventListener(UPDATE_EVENT, handleCustomUpdate)
       window.removeEventListener('storage', handleStorage)
     }
-  }, [])
+  }, [baseFallback])
 
   return {
     profile,

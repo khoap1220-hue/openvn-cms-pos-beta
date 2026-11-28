@@ -218,22 +218,22 @@ export function AppSidebar({
   }
 
   return (
-    <Sidebar collapsible="icon" style={{ ['--sidebar-width' as string]: '15.5rem' }}>
+    <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-white/10 p-2">
         <div className="group/brand flex items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0088FF] to-[#0055CC] text-white shadow-md">
             <ShoppingBag className="h-4.5 w-4.5" />
           </div>
           <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <p
-                className="truncate text-sm font-bold tracking-tight text-white"
+                className="min-w-0 truncate text-sm font-bold tracking-tight text-white"
                 title={profile.brandName}
               >
                 {profile.brandName}
               </p>
               {profile.brandBadge && (
-                <span className="shrink-0 rounded bg-[#0066CC]/35 px-1.5 py-0.5 text-xs font-semibold text-sky-200">
+                <span className="shrink-0 rounded bg-[#0066CC]/35 px-1.5 py-0.5 text-[10px] font-semibold text-sky-200">
                   {profile.brandBadge}
                 </span>
               )}
@@ -243,9 +243,9 @@ export function AppSidebar({
                   onClick={handleOpenBrandConfig}
                   title="Tùy biến tên thương hiệu & thiết lập Shop"
                   aria-label="Tùy biến tên thương hiệu & thiết lập Shop"
-                  className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-300/80 transition-colors hover:bg-white/15 hover:text-white"
+                  className="ml-auto inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-lg text-slate-300/80 transition-colors hover:bg-white/15 hover:text-white sm:min-h-8 sm:min-w-8"
                 >
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>

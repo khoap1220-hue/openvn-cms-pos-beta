@@ -9,6 +9,10 @@ import {
   sanitizeStorefrontBanners,
   type StorefrontBannersConfig,
 } from '@/lib/storefront-banners'
+import {
+  isPlaceholderStorefrontEmail,
+  isPlaceholderStorefrontPhone,
+} from '@/lib/storefront-ux'
 
 export * from '@/lib/storefront-banners'
 
@@ -107,6 +111,13 @@ export interface StorefrontContactConfig {
   tiktokUrl: string
 }
 
+export interface StorefrontBankTransferConfig {
+  bankCode: string
+  bankName: string
+  bankAccount: string
+  bankHolder: string
+}
+
 export interface StorefrontCmsConfig {
   enabled: boolean
   customDomain: string
@@ -126,6 +137,7 @@ export interface StorefrontCmsConfig {
   returnDays: number
   allowPreorderWhenOutOfStock: boolean
   contact: StorefrontContactConfig
+  bankTransfer: StorefrontBankTransferConfig | null
   banners: StorefrontBannersConfig
   updatedAt: string | null
 }
@@ -180,9 +192,9 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontCmsConfig = {
   returnDays: 7,
   allowPreorderWhenOutOfStock: true,
   contact: {
-    hotline: '0909 686 868',
-    zaloPhone: '0909686868',
-    zaloUrl: 'https://zalo.me/0909686868',
+    hotline: '',
+    zaloPhone: '',
+    zaloUrl: '',
     email: '',
     address: 'Xưởng Đúc Thủ Công & Showroom Chính Hãng — TP. Hồ Chí Minh',
     workingHours: '08:30 – 21:00 (Thứ 2 – Chủ Nhật)',
@@ -190,6 +202,7 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontCmsConfig = {
     facebookUrl: '',
     tiktokUrl: '',
   },
+  bankTransfer: null,
   banners: DEFAULT_STOREFRONT_BANNERS,
   updatedAt: null,
 }
@@ -276,6 +289,32 @@ function sanitizeTiers(raw: unknown): WholesaleTierConfig[] {
   return cleaned.sort((a, b) => a.minQty - b.minQty)
 }
 
+function sanitizeBankTransferConfig(
+  raw: unknown,
+  fallback: StorefrontBankTransferConfig | null = null
+): StorefrontBankTransferConfig | null {
+  if (raw === null) return null
+  if (raw === undefined) return fallback ? { ...fallback } : null
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return fallback ? { ...fallback } : null
+  }
+  const rec = raw as Record<string, unknown>
+  const bankCode = typeof rec.bankCode === 'string' ? rec.bankCode.trim().slice(0, 24) : ''
+  const bankName = typeof rec.bankName === 'string' ? rec.bankName.trim().slice(0, 120) : ''
+  const bankAccount =
+    typeof rec.bankAccount === 'string'
+      ? rec.bankAccount.trim().replace(/[^\w .-]/g, '').slice(0, 40)
+      : ''
+  const bankHolder = typeof rec.bankHolder === 'string' ? rec.bankHolder.trim().slice(0, 120) : ''
+  if (!bankCode || !bankAccount) return null
+  return {
+    bankCode,
+    bankName: bankName || bankCode,
+    bankAccount,
+    bankHolder,
+  }
+}
+
 export function normalizeStorefrontCmsConfig(
   rawInput: Record<string, unknown> | null | undefined,
   fallbackOverrides?: Partial<StorefrontCmsConfig>
@@ -287,17 +326,10 @@ export function normalizeStorefrontCmsConfig(
       ...DEFAULT_STOREFRONT_CONFIG.contact,
       ...(fallbackOverrides?.contact ?? {}),
     },
+    bankTransfer: sanitizeBankTransferConfig(fallbackOverrides?.bankTransfer, null),
     banners: sanitizeStorefrontBanners(fallbackOverrides?.banners, DEFAULT_STOREFRONT_BANNERS),
   }
   if (!rawInput || typeof rawInput !== 'object') return base
-
-  const str = (val: unknown, fb: string, maxLen = 300): string => {
-    if (typeof val === 'string') {
-      const t = val.trim().slice(0, maxLen)
-      return t.length > 0 ? t : fb
-    }
-    return fb
-  }
 
   const strAllowEmpty = (val: unknown, fb: string, maxLen = 300): string => {
     if (typeof val === 'string') return val.trim().slice(0, maxLen)
@@ -342,6 +374,27 @@ export function normalizeStorefrontCmsConfig(
     ''
   )
 
+  const strResettable = (val: unknown, fb: string, defaultVal: string, maxLen = 300): string => {
+    if (typeof val === 'string') {
+      const t = val.trim().slice(0, maxLen)
+      return t.length > 0 ? t : defaultVal
+    }
+    return fb
+  }
+
+  const clampNum = (
+    val: unknown,
+    fb: number,
+    min: number,
+    max: number,
+    useFloor = false
+  ): number => {
+    if (val === undefined || val === null || val === '') return fb
+    const n = Number(val)
+    if (!Number.isFinite(n)) return fb
+    return Math.max(min, Math.min(max, useFloor ? Math.floor(n) : Math.round(n)))
+  }
+
   return {
     enabled: rawInput.enabled === undefined ? base.enabled : Boolean(rawInput.enabled),
     customDomain: rawDomain,
@@ -351,24 +404,37 @@ export function normalizeStorefrontCmsConfig(
         ? 'MANUAL_STORE_PATH'
         : 'STOREFRONT_ON_CUSTOM_DOMAIN',
     cmsBackendOrigin: rawBackend || base.cmsBackendOrigin,
-    heroBadge: str(rawInput.heroBadge, base.heroBadge, 120),
-    heroTitle: str(rawInput.heroTitle, base.heroTitle, 180),
-    heroSubtitle: str(rawInput.heroSubtitle, base.heroSubtitle, 400),
-    announcementBar: str(rawInput.announcementBar, base.announcementBar, 260),
+    heroBadge: strResettable(
+      rawInput.heroBadge,
+      base.heroBadge,
+      DEFAULT_STOREFRONT_CONFIG.heroBadge,
+      120
+    ),
+    heroTitle: strResettable(
+      rawInput.heroTitle,
+      base.heroTitle,
+      DEFAULT_STOREFRONT_CONFIG.heroTitle,
+      180
+    ),
+    heroSubtitle: strResettable(
+      rawInput.heroSubtitle,
+      base.heroSubtitle,
+      DEFAULT_STOREFRONT_CONFIG.heroSubtitle,
+      400
+    ),
+    announcementBar: strAllowEmpty(rawInput.announcementBar, base.announcementBar, 260),
     wholesaleEnabled:
       rawInput.wholesaleEnabled === undefined ? base.wholesaleEnabled : Boolean(rawInput.wholesaleEnabled),
     wholesaleTiers: sanitizeTiers(rawInput.wholesaleTiers),
-    wholesalePolicyNote: str(rawInput.wholesalePolicyNote, base.wholesalePolicyNote, 500),
-    oemCustomNote: str(rawInput.oemCustomNote, base.oemCustomNote, 500),
-    freeShipThreshold: Math.max(
-      0,
-      Math.min(50_000_000, Math.round(Number(rawInput.freeShipThreshold ?? base.freeShipThreshold) || 0))
+    wholesalePolicyNote: strAllowEmpty(
+      rawInput.wholesalePolicyNote,
+      base.wholesalePolicyNote,
+      500
     ),
-    baseShippingFee: Math.max(
-      0,
-      Math.min(1_000_000, Math.round(Number(rawInput.baseShippingFee ?? base.baseShippingFee) || 0))
-    ),
-    returnDays: Math.max(0, Math.min(90, Math.floor(Number(rawInput.returnDays ?? base.returnDays) || 7))),
+    oemCustomNote: strAllowEmpty(rawInput.oemCustomNote, base.oemCustomNote, 500),
+    freeShipThreshold: clampNum(rawInput.freeShipThreshold, base.freeShipThreshold, 0, 50_000_000),
+    baseShippingFee: clampNum(rawInput.baseShippingFee, base.baseShippingFee, 0, 1_000_000),
+    returnDays: clampNum(rawInput.returnDays, base.returnDays, 0, 90, true),
     allowPreorderWhenOutOfStock:
       rawInput.allowPreorderWhenOutOfStock === undefined
         ? base.allowPreorderWhenOutOfStock
@@ -384,6 +450,7 @@ export function normalizeStorefrontCmsConfig(
       facebookUrl: strAllowEmpty(rawContact.facebookUrl, base.contact.facebookUrl, 240),
       tiktokUrl: strAllowEmpty(rawContact.tiktokUrl, base.contact.tiktokUrl, 240),
     },
+    bankTransfer: sanitizeBankTransferConfig(rawInput.bankTransfer, base.bankTransfer),
     banners: sanitizeStorefrontBanners(rawInput.banners, base.banners),
     updatedAt: typeof rawInput.updatedAt === 'string' ? rawInput.updatedAt : base.updatedAt,
   }
@@ -503,7 +570,51 @@ export async function getStorefrontConfigForCurrentCms(): Promise<{
         ? (parsedWebCfg.storefrontConfigV1 as Record<string, unknown>)
         : null
 
-  const normalized = normalizeStorefrontCmsConfig(rawV1, {
+  const rawCompanyPhone = (rawSettings.company_phone || '').trim()
+  const companyPhoneHasSample = isPlaceholderStorefrontPhone(rawCompanyPhone)
+  const effectiveCompanyPhone = rawCompanyPhone && !companyPhoneHasSample ? rawCompanyPhone : ''
+  const effectiveCompanyDigits = effectiveCompanyPhone.replace(/\D/g, '')
+
+  let sanitizedRawV1: Record<string, unknown> | null = rawV1 ? { ...rawV1 } : null
+  if (sanitizedRawV1) {
+    const prevContact =
+      sanitizedRawV1.contact && typeof sanitizedRawV1.contact === 'object'
+        ? { ...(sanitizedRawV1.contact as Record<string, unknown>) }
+        : null
+    if (prevContact) {
+      if (!companyPhoneHasSample) {
+        if (
+          typeof prevContact.hotline === 'string' &&
+          isPlaceholderStorefrontPhone(prevContact.hotline)
+        ) {
+          prevContact.hotline = effectiveCompanyPhone
+        }
+        if (
+          typeof prevContact.zaloPhone === 'string' &&
+          isPlaceholderStorefrontPhone(prevContact.zaloPhone)
+        ) {
+          prevContact.zaloPhone = effectiveCompanyDigits
+        }
+        if (
+          typeof prevContact.zaloUrl === 'string' &&
+          isPlaceholderStorefrontPhone(prevContact.zaloUrl)
+        ) {
+          prevContact.zaloUrl = effectiveCompanyDigits
+            ? `https://zalo.me/${effectiveCompanyDigits}`
+            : ''
+        }
+      }
+      if (
+        typeof prevContact.email === 'string' &&
+        isPlaceholderStorefrontEmail(prevContact.email)
+      ) {
+        prevContact.email = ''
+      }
+      sanitizedRawV1 = { ...sanitizedRawV1, contact: prevContact }
+    }
+  }
+
+  const normalized = normalizeStorefrontCmsConfig(sanitizedRawV1, {
     customDomain: fallbackCustomDomain,
     additionalDomains: fallbackCustomDomain ? [`www.${fallbackCustomDomain}`] : [],
     cmsBackendOrigin:
@@ -512,8 +623,10 @@ export async function getStorefrontConfigForCurrentCms(): Promise<{
       DEFAULT_STOREFRONT_CONFIG.cmsBackendOrigin,
     contact: {
       ...DEFAULT_STOREFRONT_CONFIG.contact,
-      hotline: rawSettings.company_phone?.trim() || DEFAULT_STOREFRONT_CONFIG.contact.hotline,
-      email: fallbackCustomDomain ? `lienhe@${fallbackCustomDomain}` : '',
+      hotline: effectiveCompanyPhone,
+      zaloPhone: effectiveCompanyDigits,
+      zaloUrl: effectiveCompanyDigits ? `https://zalo.me/${effectiveCompanyDigits}` : '',
+      email: '',
       address: rawSettings.company_address?.trim() || DEFAULT_STOREFRONT_CONFIG.contact.address,
       shopeeUrl: shopeeUsername ? `https://shopee.vn/${shopeeUsername}` : '',
     },
@@ -582,6 +695,10 @@ export async function saveStorefrontConfigForCurrentCms(
         ? (partialInput.contact as Record<string, unknown>)
         : {}),
     },
+    bankTransfer:
+      partialInput.bankTransfer !== undefined
+        ? partialInput.bankTransfer
+        : current.config.bankTransfer,
     banners:
       partialInput.banners && typeof partialInput.banners === 'object'
         ? {

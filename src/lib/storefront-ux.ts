@@ -415,11 +415,20 @@ export function resolveStorefrontHeroCopy(
     !/xưởng đúc thủ công|bơ mộc/i.test(rawWorkshop) &&
     rawWorkshop.toLowerCase() !== brandClean.toLowerCase()
 
+  const freeShipFmt = String(ctx.freeShipFormatted || '').trim()
+  const isZeroFreeShip = /^0(?:\D+)?$/.test(freeShipFmt)
+  const isDefault500kFreeShip = /^500[.,]000(?:\D+)?$/.test(freeShipFmt)
+  const freeShipPhrase = isZeroFreeShip
+    ? 'Miễn phí vận chuyển toàn quốc mọi đơn hàng'
+    : `Miễn phí vận chuyển toàn quốc đơn từ ${freeShipFmt}`
+
   const highlight3 = ctx.isStorefrontClosed
     ? 'Hỗ trợ tra cứu đơn & CSKH trực tuyến'
     : ctx.isWholesaleAllowed
       ? `Sỉ gộp mẫu tự do từ ${Math.max(1, Math.floor(ctx.minWholesaleQty || 10))} SP`
-      : `Freeship đơn từ ${ctx.freeShipFormatted}`
+      : isZeroFreeShip
+        ? 'Miễn phí vận chuyển mọi đơn'
+        : `Freeship đơn từ ${freeShipFmt}`
 
   const rawAnnounce = String(ctx.announcementBar || '').trim()
   const isDefaultWsAnnounce =
@@ -433,10 +442,10 @@ export function resolveStorefrontHeroCopy(
   } else if (!ctx.isWholesaleAllowed && isDefaultWsAnnounce) {
     effectiveAnnouncementBar =
       returnDays > 0
-        ? `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Kiểm hàng & đổi mới miễn phí trong ${returnDays} ngày`
-        : `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Đồng kiểm sản phẩm trước khi thanh toán`
-  } else if (!effectiveAnnouncementBar) {
-    effectiveAnnouncementBar = `Miễn phí vận chuyển toàn quốc đơn từ ${ctx.freeShipFormatted} · Chiết khấu Giá Sỉ từ ${Math.max(1, Math.floor(ctx.minWholesaleQty || 10))} sản phẩm`
+        ? `${freeShipPhrase} · Kiểm hàng & đổi mới miễn phí trong ${returnDays} ngày`
+        : `${freeShipPhrase} · Đồng kiểm sản phẩm trước khi thanh toán`
+  } else if (!effectiveAnnouncementBar || (isDefaultWsAnnounce && !isDefault500kFreeShip)) {
+    effectiveAnnouncementBar = `${freeShipPhrase} · Chiết khấu Giá Sỉ từ ${Math.max(1, Math.floor(ctx.minWholesaleQty || 10))} sản phẩm`
   }
 
   const totalCount = Math.max(0, Math.floor(Number(ctx.totalProductsCount) || 0))
@@ -678,4 +687,201 @@ export function selectHeroShowcaseProducts<
 
   return selected
 }
+
+const PLACEHOLDER_PHONE_DIGITS = new Set(['0909686868', '84909686868'])
+const PLACEHOLDER_EMAILS = new Set(['lienhe@bomocdecor.vn', 'lienhe@uudam.vn'])
+
+export function isPlaceholderStorefrontPhone(raw?: string | null): boolean {
+  const digits = String(raw || '').replace(/\D/g, '')
+  if (!digits) return false
+  return PLACEHOLDER_PHONE_DIGITS.has(digits)
+}
+
+export function isPlaceholderStorefrontEmail(raw?: string | null): boolean {
+  const lower = String(raw || '').trim().toLowerCase()
+  if (!lower) return false
+  return PLACEHOLDER_EMAILS.has(lower)
+}
+
+/**
+ * Chuẩn hóa tên thương hiệu hiển thị cho khách hàng trên Storefront / Blog công khai:
+ * - Gỡ tiền tố hệ thống `OPENVN · ` và hậu tố quản trị nội bộ (`· Showroom`, `· POS`, `· CMS`, `· Admin`)
+ * - Tự động giữ nguyên 100% tính độc lập của từng CMS khác nhau.
+ */
+export function formatCustomerStorefrontBrandName(
+  rawBrandName?: string | null,
+  customDomain?: string | null
+): string {
+  const dom = String(customDomain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/.*$/, '')
+  let raw = String(rawBrandName || '').trim()
+
+  if (!raw || raw.toUpperCase() === 'OPENVN') {
+    if (dom.startsWith('bomoc')) return 'Bơ Mộc Decor'
+    return 'Cửa Hàng Trực Tuyến'
+  }
+
+  if (/^OPENVN\s*[·•|-]\s*/i.test(raw)) {
+    if (dom.startsWith('bomoc')) return 'Bơ Mộc Decor'
+    raw = raw.replace(/^OPENVN\s*[·•|-]\s*/i, '').trim()
+  }
+
+  const strippedSuffix = raw
+    .replace(/\s*[·•|-]\s*(Showroom|POS|CMS|Admin|Quản\s*trị|Hệ\s*thống)\s*$/i, '')
+    .trim()
+
+  const cleaned = strippedSuffix || raw
+  if (
+    cleaned.toLowerCase() === 'bơ mộc' &&
+    dom.includes('bomocdecor')
+  ) {
+    return 'Bơ Mộc Decor'
+  }
+  return cleaned
+}
+
+/**
+ * Chọn dòng phụ ngắn gọn dưới Logo Header sao cho không lộ nhãn nội bộ POS
+ * và không lặp nguyên văn câu khẩu hiệu ở `.hero-badge` ngay bên dưới.
+ */
+export function resolveCustomerHeaderSubtitle(options: {
+  brandSubtitle?: string | null
+  workshopName?: string | null
+  heroBadge?: string | null
+  brandName?: string | null
+}): string {
+  const sub = String(options.brandSubtitle || '').trim()
+  const badge = String(options.heroBadge || '').trim()
+  const workshop = String(options.workshopName || '').trim()
+  const brand = String(options.brandName || '').trim()
+
+  const isInternalSub =
+    !sub ||
+    /quản lý bán hàng|agent autopilot|offline-first|pos/i.test(sub)
+
+  if (!isInternalSub && sub.toLowerCase() !== badge.toLowerCase()) {
+    return sub
+  }
+  if (
+    workshop &&
+    !/quản lý bán hàng/i.test(workshop) &&
+    workshop.toLowerCase() !== badge.toLowerCase() &&
+    workshop.toLowerCase() !== brand.toLowerCase()
+  ) {
+    return workshop
+  }
+  return 'Cửa hàng trực tuyến chính thức'
+}
+
+const COLOR_PHRASE_PART =
+  '(?:Trắng(?:\\s+Mộc)?|Kem(?:\\s+Bơ)?|Vàng(?:\\s+Bơ)?|Cam(?:\\s+Đất)?|Xanh(?:\\s+Sage|\\s+Rêu|\\s+Ngọc)?|Đen|Be|Nâu(?:\\s+Đất)?|Xám|Hồng(?:\\s+Phấn)?)'
+const MULTI_COLOR_LIST_RE = new RegExp(
+  `\\s+${COLOR_PHRASE_PART}(?:\\s*[,/]\\s*${COLOR_PHRASE_PART})+`,
+  'gi'
+)
+
+/**
+ * Làm sạch tiêu đề hiển thị trên thẻ sản phẩm Storefront:
+ * - Cắt đuôi nhồi từ khóa SEO sàn TMĐT (` - Decor ... - Bơ Mộc`)
+ * - Gỡ danh sách nhiều màu hoặc tên màu mâu thuẫn (`Trắng Mộc` trên thẻ `Kem bơ` / `Xanh sage`)
+ *   khi sản phẩm đã có `variantLabel` riêng, nhưng vẫn giữ đầy đủ `name` gốc để tìm kiếm.
+ */
+export function formatStorefrontDisplayTitle(
+  rawNameOrCleanTitle: string,
+  variantLabel?: string | null
+): string {
+  let base = String(rawNameOrCleanTitle || '')
+    .split('— Phân loại:')[0]
+    .trim()
+  if (!base) return ''
+
+  const vLabel = String(variantLabel || '').trim()
+  const hasVariant = vLabel.length > 0
+
+  if (hasVariant) {
+    base = base.replace(/\s*\((?:Hộp|Set|Bộ|Combo)\s+\d+\s*[-–/]\s*\d+[^)]*\)\s*$/i, '').trim()
+  }
+  base = base.replace(/\s*\(Tặng\s+Kèm[^)]*\)/gi, '').trim()
+
+  const dashParts = base.split(/\s+[-–|]\s+/)
+  if (dashParts[0] && dashParts[0].trim().length >= 8) {
+    base = dashParts[0].trim()
+  }
+
+  if (hasVariant) {
+    const colonIdx = base.indexOf(':')
+    if (colonIdx >= 10) {
+      base = base.slice(0, colonIdx).trim()
+    }
+    base = base.replace(MULTI_COLOR_LIST_RE, '').replace(/\s{2,}/g, ' ').trim()
+    const isShapeOnlyVariant = /hoa\s*sen|chum|trái\s*tim|\bcm\b/i.test(vLabel)
+    if (!isShapeOnlyVariant) {
+      base = base.replace(/\s+\bTrắng\s+Mộc\b/gi, '').replace(/\s{2,}/g, ' ').trim()
+    }
+  }
+
+  if (base.length > 34) {
+    const trimmedSeo = base
+      .replace(
+        /\s*(?:,\s*)?(?:Chịu\s+Nhiệt|Kháng\s+Dầu|Đế\s+Lót|Đựng\s+(?:Nến|Đồ|Trang\s+Sức|Phụ\s+Kiện|Nụ)|Đổ\s+Nến(?:\s+Thơm|\s+Bơ)?|Lót\s+Nến|Cắm\s+Bút|Cúng\s+Phật)(?:\s|$|[,.-]).*$/i,
+        ''
+      )
+      .trim()
+    if (trimmedSeo.length >= 14) {
+      base = trimmedSeo
+    }
+  }
+
+  return base.replace(/[,.;:]+$/, '').trim()
+}
+
+function extractShopeeProductKey(shopeeUrl?: string | null): string {
+  const raw = String(shopeeUrl || '').trim()
+  const m = raw.match(/\/product\/(\d+\/\d+)/)
+  return m?.[1] || ''
+}
+
+/**
+ * Tìm danh sách các phân loại màu/quy cách cùng dòng sản phẩm để khách chuyển nhanh
+ * trong hộp thoại Quick-View mà vẫn giữ đủ thẻ riêng lẻ ngoài lưới cho khách sỉ.
+ */
+export function findSiblingVariantProducts<
+  P extends {
+    id: string
+    sku: string
+    name: string
+    cleanTitle?: string | null
+    variantLabel?: string | null
+    shopeeUrl?: string | null
+  },
+>(current: P, catalogProducts: P[]): P[] {
+  if (!current || !Array.isArray(catalogProducts) || catalogProducts.length <= 1) {
+    return []
+  }
+  const curShopeeKey = extractShopeeProductKey(current.shopeeUrl)
+  const curDisplay = formatStorefrontDisplayTitle(
+    current.cleanTitle || current.name,
+    current.variantLabel
+  ).toLowerCase()
+
+  const siblings = catalogProducts.filter((item) => {
+    if (!item.variantLabel && !current.variantLabel) return false
+    if (curShopeeKey && extractShopeeProductKey(item.shopeeUrl) === curShopeeKey) {
+      return true
+    }
+    if (!curDisplay || !item.variantLabel || !current.variantLabel) return false
+    const itemDisplay = formatStorefrontDisplayTitle(
+      item.cleanTitle || item.name,
+      item.variantLabel
+    ).toLowerCase()
+    return itemDisplay === curDisplay
+  })
+
+  return siblings.length >= 2 ? siblings : []
+}
+
 

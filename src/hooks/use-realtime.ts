@@ -20,7 +20,7 @@ export interface CmsEvent {
 /** Trạng thái realtime: live = WebSocket đang kết nối, polling = fallback 30s, offline = chưa kết nối. */
 export type RealtimeMode = 'live' | 'polling' | 'offline'
 
-const FALLBACK_POLL_MS = 30_000
+const FALLBACK_POLL_MS = 60_000
 
 let socket: Socket | null = null
 let socketRefCount = 0
@@ -36,10 +36,11 @@ function setMode(next: RealtimeMode) {
   modeListeners.forEach((listener) => listener(next))
 }
 
-/** Polling dự phòng: bắn event 'realtime.poll' cho mọi listener mỗi 10s cho tới khi WS sống lại. */
+/** Polling dự phòng: bắn event 'realtime.poll' cho mọi listener mỗi 60s (chỉ khi tab đang hiển thị) cho tới khi WS sống lại. */
 function startPolling() {
   if (pollTimer) return
   pollTimer = setInterval(() => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     const event: CmsEvent = { type: 'realtime.poll', at: new Date().toISOString(), data: null }
     eventListeners.forEach((listener) => listener(event))
   }, FALLBACK_POLL_MS)

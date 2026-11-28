@@ -345,6 +345,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     invalidateApiCache('settings:')
+    invalidateApiCache('storefront:public')
     let fresh: Record<string, string | boolean>
     if (prevCached) {
       fresh = { ...prevCached }

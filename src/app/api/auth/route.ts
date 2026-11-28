@@ -26,6 +26,7 @@ import {
   resolveFirstAllowedView,
 } from '@/lib/rbac'
 import { logLedger } from '@/lib/ledger'
+import { getSettings } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,12 +98,47 @@ export async function GET(req: NextRequest) {
       setApiCache('auth:legacyPwd', hasLegacyPwd, 60_000)
     }
 
+    let publicBrand = getApiCache<{
+      brandName: string
+      brandShortName: string
+      brandBadge: string
+      brandSubtitle: string
+      storefrontUrl: string
+    }>('settings:auth-brand')
+    if (!publicBrand) {
+      const brandSettings = await getSettings([
+        'brand_name',
+        'brand_short_name',
+        'brand_badge',
+        'brand_subtitle',
+        'shop_storefront_url',
+      ]).catch(() => ({} as Record<string, string>))
+      publicBrand = {
+        brandName: brandSettings.brand_name?.trim() || 'OPENVN · Ưu Đàm',
+        brandShortName: brandSettings.brand_short_name?.trim() || 'OPENVN',
+        brandBadge:
+          typeof brandSettings.brand_badge === 'string'
+            ? brandSettings.brand_badge.trim()
+            : 'OMNI',
+        brandSubtitle: brandSettings.brand_subtitle?.trim() || 'Quản lý bán hàng đa kênh',
+        storefrontUrl: brandSettings.shop_storefront_url?.trim() || '/store',
+      }
+      setApiCache('settings:auth-brand', publicBrand, 60_000)
+    }
+
+    const allowDemoGuide =
+      process.env.NODE_ENV !== 'production' ||
+      process.env.CMS_ALLOW_DEMO_HINTS === '1' ||
+      process.env.NEXT_PUBLIC_ALLOW_DEMO_HINTS === '1'
+
     const payload = {
       authenticated: ctx.authenticated,
       revokedOrLocked: ctx.revokedOrLocked,
       mode: ctx.mode,
       sessionId: ctx.sessionId,
       role: ctx.user?.role ?? null,
+      brand: publicBrand,
+      allowDemoGuide,
       user: ctx.user
         ? {
             id: ctx.user.id,

@@ -40,11 +40,54 @@ export interface MaintenanceMemoryState {
 }
 
 // Bộ nhớ đệm đọc tốc độ cao (In-Memory L1 Pre-Serialized SWR Cache) tự động xóa tức thì khi có bất kỳ sự kiện broadcast mutation nào
+export interface OutboxDirtyMemoryState {
+  dirty: boolean
+  epoch: number
+  lastVerifiedIdleAt: number
+}
+
 const gCache = globalThis as unknown as {
   __cmsApiCache?: Map<string, { data: unknown; rawJson: string; expiresAt: number }>
   __cmsMaintenanceState?: MaintenanceMemoryState
+  __cmsOutboxDirtyState?: OutboxDirtyMemoryState
+  __cmsAgentWakeFn?: (() => void) | null
 }
 const apiCacheMap = gCache.__cmsApiCache ?? (gCache.__cmsApiCache = new Map())
+const outboxDirtyState: OutboxDirtyMemoryState =
+  gCache.__cmsOutboxDirtyState ??
+  (gCache.__cmsOutboxDirtyState = {
+    dirty: true,
+    epoch: 1,
+    lastVerifiedIdleAt: 0,
+  })
+
+export function markOutboxDirty(): void {
+  outboxDirtyState.epoch += 1
+  outboxDirtyState.dirty = true
+}
+
+export function getOutboxDirtyState(): OutboxDirtyMemoryState {
+  return { ...outboxDirtyState }
+}
+
+export function markOutboxVerifiedIdle(observedEpoch: number): void {
+  if (outboxDirtyState.epoch === observedEpoch) {
+    outboxDirtyState.dirty = false
+    outboxDirtyState.lastVerifiedIdleAt = Date.now()
+  }
+}
+
+export function registerAgentWakeHandler(fn: () => void): void {
+  gCache.__cmsAgentWakeFn = fn
+}
+
+export function wakeAgentEngine(): void {
+  try {
+    gCache.__cmsAgentWakeFn?.()
+  } catch {
+    // non-fatal
+  }
+}
 const maintenanceState =
   gCache.__cmsMaintenanceState ??
   (gCache.__cmsMaintenanceState = {
@@ -150,6 +193,10 @@ export function patchProductInApiCache(
       patchedAny = true
     }
   }
+  if (patchedAny) {
+    markOutboxDirty()
+    invalidateApiCache('channels:async-queue')
+  }
   return patchedAny
 }
 
@@ -167,6 +214,8 @@ export function resolveL1CacheKey(pathname: string, searchParams: URLSearchParam
       return 'channels:all'
     case '/api/channels/product-links':
       return 'channels:product-links'
+    case '/api/channels/async-queue':
+      return 'channels:async-queue'
     case '/api/orders':
       return `orders:${searchParams.toString()}`
     case '/api/inventory':
@@ -226,7 +275,17 @@ export function resolveL1CacheKey(pathname: string, searchParams: URLSearchParam
 export function invalidateApiCache(prefix?: string): void {
   if (!prefix) {
     apiCacheMap.clear()
+    markOutboxDirty()
     return
+  }
+  if (
+    prefix.startsWith('product') ||
+    prefix.startsWith('inventory') ||
+    prefix.startsWith('channel') ||
+    prefix.startsWith('order') ||
+    prefix.startsWith('settings')
+  ) {
+    markOutboxDirty()
   }
   for (const k of apiCacheMap.keys()) {
     if (k.startsWith(prefix)) apiCacheMap.delete(k)
@@ -241,21 +300,35 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
     case 'behavior.new':
       invalidateApiCache('behavior:')
       break
-    case 'ledger.new':
+    case 'ledger.new': {
       invalidateApiCache('ledger:')
       invalidateApiCache('reconciliation:')
       invalidateApiCache('integrations:')
+      const scope =
+        payload != null && typeof payload === 'object'
+          ? String((payload as { scope?: unknown }).scope || '')
+          : ''
+      if (scope === 'CHANNEL' || scope === 'INVENTORY' || scope === 'ORDER') {
+        markOutboxDirty()
+        invalidateApiCache('channels:async-queue')
+      }
       break
+    }
     case 'agent.activity':
       invalidateApiCache('liveops:')
       break
     case 'message.new':
+      invalidateApiCache('inbox:')
+      invalidateApiCache('liveops:')
+      wakeAgentEngine()
+      break
     case 'message.reaction':
       invalidateApiCache('inbox:')
       invalidateApiCache('liveops:')
       break
     case 'product.updated':
     case 'inventory.updated': {
+      markOutboxDirty()
       const keepProductsCache =
         payload != null &&
         typeof payload === 'object' &&
@@ -281,6 +354,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
     case 'channel.link_lost':
     case 'outbox.updated':
     case 'marketplace.unlisted_alert':
+      markOutboxDirty()
       invalidateApiCache('channels')
       invalidateApiCache('products:')
       invalidateApiCache('dashboard:')
@@ -291,6 +365,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
     case 'order.updated':
     case 'order.event':
     case 'shipment.updated':
+      markOutboxDirty()
       invalidateApiCache('orders:')
       invalidateApiCache('products:')
       invalidateApiCache('inventory:')
@@ -304,6 +379,7 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('sales-invoices:')
       invalidateApiCache('reconciliation:')
       invalidateApiCache('storefront:')
+      wakeAgentEngine()
       break
     case 'customer.updated':
     case 'loyalty.policy.updated':
@@ -311,11 +387,13 @@ export function broadcast(type: CmsEventType, payload?: unknown): void {
       invalidateApiCache('loyalty-policy:')
       break
     case 'settings.updated':
+      markOutboxDirty()
       invalidateApiCache('settings:')
       invalidateApiCache('liveops:')
       invalidateApiCache('periods:')
       invalidateApiCache('integrations:')
       invalidateApiCache('storefront:')
+      wakeAgentEngine()
       break
     case 'review.received':
       invalidateApiCache('dashboard:')

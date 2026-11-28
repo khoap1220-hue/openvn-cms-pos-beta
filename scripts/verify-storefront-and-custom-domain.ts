@@ -19,7 +19,7 @@ import {
   matchesConfiguredStorefrontDomain,
   normalizeDomainHostname,
 } from '../src/lib/domain-routing'
-import { invalidateApiCache } from '../src/lib/realtime'
+import { getApiCache, invalidateApiCache, setApiCache } from '../src/lib/realtime'
 import {
   parseShopeeDecorationPayloadToBanners,
   selectEffectiveShopeeDraft,
@@ -33,12 +33,18 @@ import {
   buildStorefrontCartStorageKey,
   buildStorefrontProductShareUrl,
   buildStorefrontVietQrUrl,
+  findSiblingVariantProducts,
+  formatCustomerStorefrontBrandName,
   formatHeroShortProductLabel,
+  formatStorefrontDisplayTitle,
   formatStorefrontLookupStatusLabel,
   formatWholesaleTiersSummary,
+  isPlaceholderStorefrontEmail,
+  isPlaceholderStorefrontPhone,
   parseStorefrontDeepLinkQuery,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
+  resolveCustomerHeaderSubtitle,
   resolveHeroPrimaryStage,
   resolveStorefrontHeroCopy,
   selectHeroShowcaseProducts,
@@ -49,9 +55,12 @@ import {
   checkApiRequirement,
   resolveApiRoutePermission,
 } from '../src/lib/rbac'
+import { GET as authGet } from '../src/app/api/auth/route'
 import { PUT as credentialsPut } from '../src/app/api/integrations/credentials/route'
 import { POST as credentialsTestPost } from '../src/app/api/integrations/credentials/test/route'
+import { PATCH as settingsPatch } from '../src/app/api/settings/route'
 import {
+  DEFAULT_STOREFRONT_CONFIG,
   computeWholesaleUnitPrice,
   getStorefrontConfigForCurrentCms,
   matchesCollectionBannerProduct,
@@ -1517,6 +1526,489 @@ async function main() {
       allowPreorderWhenOutOfStock: true,
     })
 
+    // ------------------------------------------------------------------------
+    // SUITE 6: UX/UI Remediation Invariants (F-01 -> F-16)
+    // ------------------------------------------------------------------------
+    console.log('\n--- SUITE 6: UX/UI Remediation, Checkout Draft, WCAG 2.2 AA & Brand Parity (F-01..F-16) ---')
+
+    // F-02: Zero hardcoded sample phone/email in defaults + placeholder scrubbing
+    assert(
+      DEFAULT_STOREFRONT_CONFIG.contact.hotline === '' &&
+        DEFAULT_STOREFRONT_CONFIG.contact.zaloPhone === '' &&
+        DEFAULT_STOREFRONT_CONFIG.contact.zaloUrl === '' &&
+        DEFAULT_STOREFRONT_CONFIG.contact.email === '' &&
+        isPlaceholderStorefrontPhone('0909 686 868') === true &&
+        isPlaceholderStorefrontPhone('https://zalo.me/0909686868') === true &&
+        isPlaceholderStorefrontPhone('0912 345 678') === false &&
+        isPlaceholderStorefrontEmail('lienhe@bomocdecor.vn') === true &&
+        isPlaceholderStorefrontEmail('cskh@annhientra.vn') === false,
+      'S6-UX-F02-NO-SAMPLE-PHONE-DEFAULTS',
+      'Xóa cứng số mẫu giả 0909 686 868 & email giả khỏi DEFAULT_STOREFRONT_CONFIG, giữ nguyên số thật của shop khác'
+    )
+
+    await saveStorefrontConfigForCurrentCms({
+      contact: {
+        ...DEFAULT_STOREFRONT_CONFIG.contact,
+        hotline: '0909 686 868',
+        zaloPhone: '0909686868',
+        zaloUrl: 'https://zalo.me/0909686868',
+        email: 'lienhe@bomocdecor.vn',
+        shopeeUrl: 'https://shopee.vn/bomocdecor',
+      },
+    })
+    const scrubbedSf = await getStorefrontConfigForCurrentCms()
+    const scrubbedPublicRes = await publicStorefrontGet(
+      new NextRequest('http://localhost:3010/api/public/storefront')
+    )
+    const scrubbedPublicJson = (await scrubbedPublicRes.json()) as Record<string, unknown>
+    const scrubbedHtml = generateStandaloneStorefrontHtml(scrubbedPublicJson)
+    const scrubbedLdMatch = scrubbedHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+    const scrubbedLd = scrubbedLdMatch?.[1]
+      ? (JSON.parse(scrubbedLdMatch[1]) as { '@graph'?: Array<Record<string, unknown>> })
+      : null
+    const storeLdNode = scrubbedLd?.['@graph']?.[0] || {}
+    assert(
+      scrubbedSf.config.contact.hotline === '' &&
+        scrubbedSf.config.contact.zaloUrl === '' &&
+        scrubbedSf.config.contact.email === '' &&
+        !scrubbedHtml.includes('0909 686 868') &&
+        !scrubbedHtml.includes('zalo.me/0909686868') &&
+        !('telephone' in storeLdNode) &&
+        !('email' in storeLdNode),
+      'S6-UX-F02-LEGACY-PLACEHOLDER-SCRUBBED-AND-JSONLD-CLEAN',
+      'Tự động lọc bỏ số mẫu cũ 0909686868 trong __storefront_v1 khi company_phone trống & lược bỏ telephone/email rỗng khỏi JSON-LD Store'
+    )
+
+    // F-03 & F-16: Storefront bankTransfer inside __storefront_v1 (0 new AppSetting rows) + settings cache invalidation
+    const patchBankRes = await storefrontConfigPatch(
+      new NextRequest('http://localhost:3010/api/storefront-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          announcementBar: 'Freeship toàn quốc từ 500.000 ₫',
+          bankTransfer: {
+            bankCode: 'VCB',
+            bankName: 'Vietcombank',
+            bankAccount: '0071009998888',
+            bankHolder: 'BO MOC DECOR',
+          },
+        }),
+      })
+    )
+    invalidateApiCache('storefront:')
+    const withBankPubRes = await publicStorefrontGet(
+      new NextRequest('http://localhost:3010/api/public/storefront')
+    )
+    const withBankPubJson = (await withBankPubRes.json()) as {
+      bankTransfer?: { bankCode?: string; bankAccount?: string } | null
+    }
+    const appSettingCountDuringBank = await db.appSetting.count()
+
+    // Clear bankTransfer back to null
+    await storefrontConfigPatch(
+      new NextRequest('http://localhost:3010/api/storefront-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bankTransfer: null }),
+      })
+    )
+
+    setApiCache('storefront:public', { staleMarker: true }, 60_000)
+    const existingBrandSetting = await db.appSetting.findFirst({
+      where: { key: { in: ['brand_name', 'shop_storefront_url'] } },
+    })
+    if (existingBrandSetting) {
+      await settingsPatch(
+        new NextRequest('http://localhost:3010/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [existingBrandSetting.key]: existingBrandSetting.value }),
+        })
+      )
+      await new Promise((r) => setTimeout(r, 80))
+    }
+    const cacheAfterSettingsPatch = getApiCache('storefront:public')
+
+    assert(
+      patchBankRes.status === 200 &&
+        withBankPubJson.bankTransfer?.bankCode === 'VCB' &&
+        withBankPubJson.bankTransfer?.bankAccount === '0071009998888' &&
+        appSettingCountDuringBank === 21 &&
+        cacheAfterSettingsPatch === null,
+      'S6-UX-F03-F16-VIETQR-CONFIG-ZERO-APPSETTING-AND-CACHE-INVALIDATION',
+      'Lưu cấu hình VietQR vào __storefront_v1 giữ nguyên AppSetting=21/21 & PATCH /api/settings xóa sạch cache storefront:public'
+    )
+
+    // F-01, F-03, F-04, F-05, F-12: Interactive VM DOM Execution of Standalone Storefront JS
+    const livePubRes = await publicStorefrontGet(
+      new NextRequest('http://localhost:3010/api/public/storefront')
+    )
+    const livePubData = (await livePubRes.json()) as {
+      ok: boolean
+      cmsInstanceId: string
+      brand: Record<string, unknown>
+      config: Record<string, unknown>
+      bankTransfer: null
+      categories: Array<Record<string, unknown>>
+      products: Array<{
+        id: string
+        sku: string
+        name: string
+        cleanTitle: string
+        variantLabel: string | null
+        description: string
+        stockLabel: string
+        unit: string
+      }>
+    }
+    const liveStandaloneHtml = generateStandaloneStorefrontHtml(livePubData)
+    const liveScriptMatch = liveStandaloneHtml.match(/<script>([\s\S]*?)<\/script>/)
+
+    type MockDomEl = {
+      id: string
+      value: string
+      textContent: string
+      innerHTML: string
+      className: string
+      disabled: boolean
+      href: string
+      min: string
+      style: Record<string, string>
+      attrs: Record<string, string>
+      classList: {
+        add: (...tokens: string[]) => void
+        remove: (...tokens: string[]) => void
+        toggle: (token: string, force?: boolean) => boolean
+        contains: (token: string) => boolean
+      }
+      setAttribute: (k: string, v: string) => void
+      removeAttribute: (k: string) => void
+      getAttribute: (k: string) => string | null
+      focus: () => void
+      reset: () => void
+      scrollIntoView: () => void
+      querySelectorAll: () => MockDomEl[]
+    }
+
+    const checkoutInputIds = new Set(['ordName', 'ordPhone', 'ordAddr', 'ordNote'])
+    const domMap = new Map<string, MockDomEl>()
+    const keydownHandlers: Array<(ev: { key: string }) => void> = []
+
+    const createMockEl = (id: string, initialClasses = ''): MockDomEl => {
+      const classes = new Set(initialClasses.split(/\s+/).filter(Boolean))
+      let rawInner = ''
+      const el: MockDomEl = {
+        id,
+        value: '',
+        textContent: '',
+        get innerHTML() {
+          return rawInner
+        },
+        set innerHTML(next: string) {
+          rawInner = String(next || '')
+          if (id === 'cartModalContent') {
+            for (const cid of checkoutInputIds) {
+              const re = new RegExp(`<input[^>]*id="${cid}"[^>]*>`, 'i')
+              const tagMatch = rawInner.match(re)
+              if (tagMatch) {
+                const valMatch = tagMatch[0].match(/value="([^"]*)"/i)
+                const decoded = (valMatch?.[1] || '')
+                  .replace(/&quot;/g, '"')
+                  .replace(/&#39;/g, "'")
+                  .replace(/&amp;/g, '&')
+                const inputEl = domMap.get(cid) || createMockEl(cid)
+                inputEl.value = decoded
+                domMap.set(cid, inputEl)
+              } else {
+                domMap.delete(cid)
+              }
+            }
+          }
+        },
+        get className() {
+          return Array.from(classes).join(' ')
+        },
+        set className(v: string) {
+          classes.clear()
+          String(v || '')
+            .split(/\s+/)
+            .filter(Boolean)
+            .forEach((t) => classes.add(t))
+        },
+        disabled: false,
+        href: '',
+        min: '',
+        style: {},
+        attrs: {},
+        classList: {
+          add: (...tokens: string[]) => tokens.forEach((t) => t && classes.add(t)),
+          remove: (...tokens: string[]) => tokens.forEach((t) => classes.delete(t)),
+          toggle: (token: string, force?: boolean) => {
+            const shouldAdd = force !== undefined ? force : !classes.has(token)
+            if (shouldAdd) classes.add(token)
+            else classes.delete(token)
+            return shouldAdd
+          },
+          contains: (token: string) => classes.has(token),
+        },
+        setAttribute(k: string, v: string) {
+          this.attrs[k] = String(v)
+        },
+        removeAttribute(k: string) {
+          delete this.attrs[k]
+        },
+        getAttribute(k: string) {
+          return this.attrs[k] ?? null
+        },
+        focus() {},
+        reset() {},
+        scrollIntoView() {},
+        querySelectorAll() {
+          return []
+        },
+      }
+      return el
+    }
+
+    domMap.set('sec-WHOLESALE', createMockEl('sec-WHOLESALE', 'hidden'))
+    domMap.set('sec-CONTACT', createMockEl('sec-CONTACT', 'hidden'))
+    domMap.set('sec-TRACKING', createMockEl('sec-TRACKING', 'hidden'))
+    domMap.set('mobileCartBar', createMockEl('mobileCartBar', 'hidden'))
+    const bodyEl = createMockEl('body')
+
+    const storageMap = new Map<string, string>()
+    const mockWindow: Record<string, unknown> = {
+      location: { origin: 'https://bomocdecor.vn', search: '', pathname: '/', hash: '' },
+      localStorage: {
+        getItem: (k: string) => storageMap.get(k) ?? null,
+        setItem: (k: string, v: string) => {
+          storageMap.set(k, String(v))
+        },
+        removeItem: (k: string) => {
+          storageMap.delete(k)
+        },
+      },
+      history: { replaceState: () => {} },
+      matchMedia: () => ({ matches: false }),
+      scrollTo: () => {},
+    }
+
+    const mockDocument = {
+      title: '',
+      body: bodyEl,
+      activeElement: bodyEl,
+      getElementById(id: string) {
+        if (checkoutInputIds.has(id)) {
+          return domMap.get(id) ?? null
+        }
+        if (!domMap.has(id)) {
+          domMap.set(id, createMockEl(id))
+        }
+        return domMap.get(id)!
+      },
+      addEventListener(type: string, cb: (ev: { key: string }) => void) {
+        if (type === 'keydown') keydownHandlers.push(cb)
+      },
+    }
+
+    const vmCtx = vm.createContext({
+      window: mockWindow,
+      document: mockDocument,
+      navigator: { clipboard: { writeText: async () => {} } },
+      fetch: async () => ({ ok: false, json: async () => null }),
+      setInterval: () => 1,
+      clearInterval: () => {},
+      setTimeout: () => 1,
+      clearTimeout: () => {},
+      URLSearchParams,
+      encodeURIComponent,
+      decodeURIComponent,
+      Math,
+      Number,
+      String,
+      Boolean,
+      Array,
+      Object,
+      JSON,
+      RegExp,
+      Intl,
+      alert: () => {},
+    })
+    mockWindow.document = mockDocument
+
+    vm.runInContext(liveScriptMatch![1], vmCtx)
+
+    const firstProdId = livePubData.products[0].id
+    vm.runInContext(`addToCart(${JSON.stringify(firstProdId)}, 2);`, vmCtx)
+    const toastOpenedAfterAdd = domMap.get('toastBox')!.classList.contains('open')
+    const mobileBarVisibleBeforeModal = !domMap.get('mobileCartBar')!.classList.contains('hidden')
+
+    vm.runInContext(`openCartModal();`, vmCtx)
+    const toastHiddenOnModalOpen = !domMap.get('toastBox')!.classList.contains('open')
+    const mobileBarHiddenDuringModal = domMap.get('mobileCartBar')!.classList.contains('hidden')
+
+    // Customer fills all 4 checkout inputs BEFORE clicking BANK_TRANSFER
+    domMap.get('ordName')!.value = 'Nguyễn Minh Châu'
+    domMap.get('ordPhone')!.value = '0988777666'
+    domMap.get('ordAddr')!.value = '120 Lê Lợi, Quận 1, TP.HCM'
+    domMap.get('ordNote')!.value = 'Gói hộp quà chỉn chu'
+    vm.runInContext(
+      `onCheckoutDraftInput('name', 'Nguyễn Minh Châu'); onCheckoutDraftInput('phone', '0988777666'); onCheckoutDraftInput('addr', '120 Lê Lợi, Quận 1, TP.HCM'); onCheckoutDraftInput('note', 'Gói hộp quà chỉn chu');`,
+      vmCtx
+    )
+
+    // Trigger payment toggle, quantity change, and background live refresh
+    vm.runInContext(`setPaymentMethod('BANK_TRANSFER');`, vmCtx)
+    const preservedAfterPaymentToggle =
+      domMap.get('ordName')?.value === 'Nguyễn Minh Châu' &&
+      domMap.get('ordPhone')?.value === '0988777666' &&
+      domMap.get('ordAddr')?.value === '120 Lê Lợi, Quận 1, TP.HCM' &&
+      domMap.get('ordNote')?.value === 'Gói hộp quà chỉn chu'
+    const hasNullBankGuidanceInCheckout = domMap
+      .get('cartModalContent')!
+      .innerHTML.includes('gửi mã VietQR chính thức')
+
+    vm.runInContext(`updateCartQty(${JSON.stringify(firstProdId)}, 1);`, vmCtx)
+    vm.runInContext(`applyLiveStorefrontData(${JSON.stringify(livePubData)});`, vmCtx)
+    const preservedAfterQtyAndLiveSync =
+      domMap.get('ordName')?.value === 'Nguyễn Minh Châu' &&
+      domMap.get('ordPhone')?.value === '0988777666' &&
+      domMap.get('ordAddr')?.value === '120 Lê Lợi, Quận 1, TP.HCM' &&
+      domMap.get('ordNote')?.value === 'Gói hộp quà chỉn chu'
+
+    // Escape key closes open modal (F-12)
+    keydownHandlers.forEach((fn) => fn({ key: 'Escape' }))
+    const modalClosedByEscape = !domMap.get('cartModal')!.classList.contains('open')
+
+    // Tab switching hides Hero on WHOLESALE / CONTACT / TRACKING and restores on PRODUCTS (F-04)
+    vm.runInContext(`switchTab('WHOLESALE');`, vmCtx)
+    const heroHiddenOnWholesale = domMap.get('heroSection')!.classList.contains('hidden')
+    vm.runInContext(`switchTab('TRACKING');`, vmCtx)
+    const heroHiddenOnTracking = domMap.get('heroSection')!.classList.contains('hidden')
+    vm.runInContext(`switchTab('PRODUCTS');`, vmCtx)
+    const heroVisibleOnProducts = !domMap.get('heroSection')!.classList.contains('hidden')
+
+    assert(
+      toastOpenedAfterAdd &&
+        mobileBarVisibleBeforeModal &&
+        toastHiddenOnModalOpen &&
+        mobileBarHiddenDuringModal &&
+        preservedAfterPaymentToggle &&
+        hasNullBankGuidanceInCheckout &&
+        preservedAfterQtyAndLiveSync &&
+        modalClosedByEscape &&
+        heroHiddenOnWholesale &&
+        heroHiddenOnTracking &&
+        heroVisibleOnProducts,
+      'S6-UX-F01-F03-F04-F05-F12-VM-INTERACTIVE-FLOWS',
+      'VM thực thi thật: giữ nguyên 100% dữ liệu Checkout khi đổi Chuyển khoản/Tăng SL/Đồng bộ nền, hiện hướng dẫn khi bankTransfer=null, tự ẩn Toast & đóng Modal bằng Escape, chỉ hiện Hero ở tab PRODUCTS'
+    )
+
+    // F-07, F-09, F-10, F-11: DIY filter accuracy, clean display titles, sibling variants & brand formatting
+    const diyMatchesOnLive = livePubData.products.filter((p) =>
+      matchesCollectionBannerProduct(p, {
+        name: 'Nguyên Liệu DIY',
+        filterKeyword: 'đổ nến|nguyên liệu|bột thạch cao|khuôn|diy',
+      })
+    )
+    const rawDiyMaterialMatch = matchesCollectionBannerProduct(
+      {
+        sku: 'BM-DIY-BOT-1KG',
+        name: 'Bột Thạch Cao Nguyên Liệu Đúc Khuôn DIY 1kg',
+        cleanTitle: 'Bột Thạch Cao Nguyên Liệu Đúc Khuôn DIY 1kg',
+      },
+      { name: 'Nguyên Liệu DIY' }
+    )
+    const senKemProd = livePubData.products.find((p) => p.sku === 'BM-DEC-SEN-KEM')!
+    const senSiblings = findSiblingVariantProducts(senKemProd, livePubData.products)
+    const singleCocProd = livePubData.products.find((p) => p.sku === 'BM-DEC-COC-TRON')!
+    const singleSiblings = findSiblingVariantProducts(singleCocProd, livePubData.products)
+    const conflictingColorCards = livePubData.products.filter(
+      (p) =>
+        p.variantLabel &&
+        /kem|xanh|cam|vàng|đen|nâu|\bbe\b/i.test(p.variantLabel) &&
+        p.cleanTitle.toLowerCase().includes('trắng mộc')
+    )
+    const customerBrandBomoc = formatCustomerStorefrontBrandName(
+      'Bơ Mộc · Showroom',
+      'bomocdecor.vn'
+    )
+    const customerBrandOtherCms = formatCustomerStorefrontBrandName(
+      'An Nhiên · Showroom',
+      'annhientra.vn'
+    )
+    const dedupedHeaderSub = resolveCustomerHeaderSubtitle({
+      brandSubtitle: 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc',
+      workshopName: 'Xưởng đúc thủ công Bơ Mộc',
+      heroBadge: 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc',
+      brandName: 'Bơ Mộc Decor',
+    })
+
+    assert(
+      diyMatchesOnLive.length === 0 &&
+        rawDiyMaterialMatch === true &&
+        senSiblings.length === 3 &&
+        singleSiblings.length === 0 &&
+        conflictingColorCards.length === 0 &&
+        formatStorefrontDisplayTitle(
+          'Hũ Búp Sen Thạch Cao Có Nắp Trắng Mộc Đựng Nến - Decor Phòng Ngủ - Bơ Mộc',
+          'Kem bơ'
+        ) === 'Hũ Búp Sen Thạch Cao Có Nắp' &&
+        customerBrandBomoc === 'Bơ Mộc Decor' &&
+        customerBrandOtherCms === 'An Nhiên' &&
+        dedupedHeaderSub === 'Xưởng đúc thủ công Bơ Mộc' &&
+        liveStandaloneHtml.includes('--accent: #8c4f1e;') &&
+        !liveStandaloneHtml.toLowerCase().includes('#0066cc') &&
+        liveStandaloneHtml.includes('<span>Sản phẩm (<span id="prodCountNav">'),
+      'S6-UX-F07-F09-F10-F11-CATALOG-TITLES-VARIANTS-AND-WABISABI',
+      'Bộ lọc DIY không bắt nhầm hũ/cốc "đổ nến", 0/18 thẻ lệch màu "Trắng Mộc", gom đúng 3 phân loại anh em trong Quick-View, làm sạch hậu tố "· Showroom" đa CMS & áp màu Wabi-Sabi #8c4f1e'
+    )
+
+    // F-08, F-12, F-14, F-15: Mobile tel inputs, ARIA dialogs, reduced-motion, /api/auth brand & prod password guard
+    const origNodeEnv = process.env.NODE_ENV
+    const origAllowDemo = process.env.CMS_ALLOW_DEMO_HINTS
+    let prodAuthJson: {
+      allowDemoGuide?: boolean
+      brand?: { brandName?: string; brandBadge?: string }
+    } = {}
+    try {
+      ;(process.env as Record<string, string | undefined>).NODE_ENV = 'production'
+      delete process.env.CMS_ALLOW_DEMO_HINTS
+      const prodAuthRes = await authGet(
+        new NextRequest('http://localhost:3010/api/auth?hints=1')
+      )
+      prodAuthJson = (await prodAuthRes.json()) as typeof prodAuthJson
+    } finally {
+      if (origNodeEnv !== undefined) {
+        ;(process.env as Record<string, string | undefined>).NODE_ENV = origNodeEnv
+      }
+      if (origAllowDemo !== undefined) process.env.CMS_ALLOW_DEMO_HINTS = origAllowDemo
+    }
+
+    assert(
+      liveStandaloneHtml.includes('id="wsPhone" name="wsPhone" type="tel" inputmode="tel" autocomplete="tel"') &&
+        liveStandaloneHtml.includes('id="ctPhone" name="contactPhone" type="tel" inputmode="tel" autocomplete="tel"') &&
+        liveStandaloneHtml.includes('id="lkPhone" name="lookupPhone" type="tel" inputmode="tel" autocomplete="tel"') &&
+        liveStandaloneHtml.includes('id="prodModal" role="dialog" aria-modal="true"') &&
+        liveStandaloneHtml.includes('id="cartModal" role="dialog" aria-modal="true"') &&
+        liveStandaloneHtml.includes('@media (prefers-reduced-motion: reduce)') &&
+        liveStandaloneHtml.includes('.ws-mobile-cards') &&
+        prodAuthJson.allowDemoGuide === false &&
+        Boolean(prodAuthJson.brand?.brandName) &&
+        !prodAuthJson.brand?.brandName?.includes('Ưu Đàm'),
+      'S6-UX-F08-F12-F14-MOBILE-FORMS-ARIA-AND-AUTH-PROD-GUARD',
+      'Đủ type="tel" inputmode="tel" trên các biểu mẫu, chuẩn WAI-ARIA Dialog + prefers-reduced-motion, /api/auth trả đúng thương hiệu CMS & khóa hộp mật khẩu Demo trên môi trường production'
+    )
+
+    // Restore canonical bomocdecor.vn config cleanly
+    await saveStorefrontConfigForCurrentCms({
+      enabled: true,
+      customDomain: 'bomocdecor.vn',
+      cmsBackendOrigin: 'https://openvn-cms-pos-backend.onrender.com',
+      allowPreorderWhenOutOfStock: true,
+      bankTransfer: null,
+    })
+
     // Verify 24-table baseline counts were NOT altered even BEFORE cleanup!
     const [appSettingCnt, credCnt, orderCnt, custCnt] = await Promise.all([
       db.appSetting.count(),
@@ -1557,6 +2049,7 @@ async function main() {
                 in: [
                   'STOREFRONT_CONFIG_UPDATED',
                   'STOREFRONT_SHOPEE_BANNERS_SYNCED',
+                  'SETTINGS_UPDATED',
                   'OPERATOR_REPLY',
                 ],
               },

@@ -50,9 +50,11 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  hideMaximizeButton = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  hideMaximizeButton?: boolean
 }) {
   const [isMaximized, setIsMaximized] = React.useState(false)
 
@@ -74,12 +76,16 @@ function DialogContent({
           "sm:top-[50%] sm:left-[50%] sm:max-w-[calc(100%-2rem)] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-xl sm:p-6",
           isCompactModal
             ? "sm:max-w-md"
-            : "sm:max-h-[92vh] sm:max-w-3xl sm:overflow-y-auto lg:max-w-5xl xl:max-w-6xl",
+            : hideMaximizeButton
+              ? "sm:max-h-[90vh] sm:w-full sm:max-w-2xl sm:overflow-y-auto"
+              : "sm:max-h-[92vh] sm:max-w-3xl sm:overflow-y-auto lg:max-w-5xl xl:max-w-6xl",
           className,
           !isCompactModal &&
+            !hideMaximizeButton &&
             !isMaximized &&
             "sm:w-[94vw] lg:!max-w-5xl xl:!max-w-6xl",
-          isMaximized &&
+          !hideMaximizeButton &&
+            isMaximized &&
             "sm:!h-[94vh] sm:!max-h-[95vh] sm:!w-[96vw] sm:!max-w-[1680px] sm:content-start sm:overflow-y-auto"
         )}
         {...props}
@@ -94,7 +100,7 @@ function DialogContent({
 
         {showCloseButton && (
           <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 sm:right-4">
-            {!isCompactModal && (
+            {!isCompactModal && !hideMaximizeButton && (
               <button
                 type="button"
                 onClick={() => setIsMaximized((v) => !v)}

@@ -141,6 +141,11 @@ def get_or_create_node_id(role):
 
 NODE_ROLE = detect_node_role()
 NODE_ID = get_or_create_node_id(NODE_ROLE)
+LEADER_LEASE_TTL_MS = int(
+    os.environ.get("SHOPEE_LEADER_LEASE_TTL_MS")
+    or (600000 if NODE_ROLE == "CLOUD_RENDER" else 180000)
+)
+LOOP_WAKE_EVENT = threading.Event()
 
 def is_outbox_dry_run():
     """Kiem tra che do DRY_RUN cua Outbox de tranh mutate du lieu Shopee that khi test."""
@@ -2097,14 +2102,14 @@ def notify_session_alert(alert_type, reason=""):
     })
     return ok
 
-def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token):
+def process_outbound_outbox_from_cms(cookies, spc_cds, csrf_token, idle_poll=False):
     """
     LUỒNG 2 (OUTBOUND CONSUMER: CMS -> Sàn Shopee):
     Kéo các tác vụ OUTBOX_PENDING / biến động tồn kho, giá bán, ẩn/hiện từ CMS (OUTBOX_FETCH_PENDING),
     gọi API v3 của Shopee (update_product_stock, update_product_price, update_product_status),
     và gửi ACK (OUTBOX_ACK_RESULT) về CMS.
     """
-    ok, resp = call_cms_webhook("OUTBOX_FETCH_PENDING", {})
+    ok, resp = call_cms_webhook("OUTBOX_FETCH_PENDING", {"idlePoll": bool(idle_poll)})
     if not ok or not isinstance(resp, dict) or not resp.get("ok"):
         return 0
 
@@ -2523,6 +2528,7 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
                     )
                 )
                 requeued_dlq = 0 if is_standby else requeue_dlq_to_inbound()
+                LOOP_WAKE_EVENT.set()
 
                 if not is_standby:
                     def _bg_replay_on_session_restore():
@@ -2872,6 +2878,7 @@ class LocalBridgeHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"ok": True, "paused": False}).encode('utf-8'))
         elif self.path == '/shopee/trigger-sync':
+            LOOP_WAKE_EVENT.set()
             with GLOBAL_STATE["lock"]:
                 is_standby = bool(GLOBAL_STATE.get("standbyYieldedToLocal", False))
                 curr_cookies = dict(GLOBAL_STATE["cookies"])
@@ -2984,6 +2991,9 @@ def sync_vault_and_lease(action="ACQUIRE_OR_RENEW", ttl_ms=None, timeout=8):
     eff_ttl = int(ttl_ms or LEADER_LEASE_TTL_MS)
     with GLOBAL_STATE["lock"]:
         expected_shop = str(GLOBAL_STATE.get("shopId") or "197195817")
+        has_mem_cookies = bool(GLOBAL_STATE.get("cookies"))
+        known_ver = int(GLOBAL_STATE.get("vaultVersion") or 0) if has_mem_cookies else 0
+        known_ms = int(GLOBAL_STATE.get("vaultUpdatedAtMs") or 0) if has_mem_cookies else 0
 
     ok, resp = call_cms_webhook(
         "OUTBOX_VAULT_PULL_AND_LEASE",
@@ -2994,6 +3004,8 @@ def sync_vault_and_lease(action="ACQUIRE_OR_RENEW", ttl_ms=None, timeout=8):
             "action": action,
             "ttlMs": eff_ttl,
             "expectedShopId": expected_shop,
+            "knownVaultVersion": known_ver,
+            "knownVaultUpdatedAtMs": known_ms,
         },
         timeout=timeout,
     )
@@ -3210,26 +3222,34 @@ def run_loop(interval_sec=20):
                 notify_session_alert("SESSION_LOST", "Phiên Cookie Shopee đã hết hạn — mọi thay đổi giá/tồn được giữ an toàn trong hàng đợi bất đồng bộ.")
 
     last_ping = time.time()
+    last_lease_sync = time.time()
     was_standby = not lease_granted
+    lease_renew_interval = 240 if NODE_ROLE == "CLOUD_RENDER" else 90
 
     while True:
         try:
+            woken_early = LOOP_WAKE_EVENT.is_set()
+            LOOP_WAKE_EVENT.clear()
+
             with GLOBAL_STATE["lock"]:
                 is_paused = bool(GLOBAL_STATE.get("paused"))
 
             if is_paused:
-                time.sleep(min(interval_sec, 2))
+                LOOP_WAKE_EVENT.wait(timeout=min(interval_sec, 5))
                 continue
 
-            # Thương lượng khóa Leader Lease & kéo phiên mới nhất từ Kho Mã Hóa Supabase mỗi chu kỳ 20s
-            lease_granted, lease_resp = sync_vault_and_lease("ACQUIRE_OR_RENEW")
-            if not lease_granted:
-                if not was_standby:
-                    holder_lbl = ((lease_resp or {}).get("lease") or {}).get("holderLabel") or "Máy bán hàng VN"
-                    print(f"[{time.strftime('%H:%M:%S')}] [STANDBY YIELD] Nhường quyền điều phối cho {holder_lbl} để chống xung đột IP Shopee.")
-                was_standby = True
-                time.sleep(interval_sec)
-                continue
+            now_loop = time.time()
+            # Chỉ thương lượng lại Leader Lease khi đến hạn gia hạn (4 phút trên Cloud / 90s Local), đang Standby, hoặc vừa có sự kiện đánh thức
+            if was_standby or woken_early or (now_loop - last_lease_sync >= lease_renew_interval):
+                lease_granted, lease_resp = sync_vault_and_lease("ACQUIRE_OR_RENEW")
+                last_lease_sync = now_loop
+                if not lease_granted:
+                    if not was_standby:
+                        holder_lbl = ((lease_resp or {}).get("lease") or {}).get("holderLabel") or "Máy bán hàng VN"
+                        print(f"[{time.strftime('%H:%M:%S')}] [STANDBY YIELD] Nhường quyền điều phối cho {holder_lbl} để chống xung đột IP Shopee.")
+                    was_standby = True
+                    LOOP_WAKE_EVENT.wait(timeout=interval_sec)
+                    continue
 
             with GLOBAL_STATE["lock"]:
                 curr_alive = bool(GLOBAL_STATE.get("alive"))
@@ -3372,8 +3392,8 @@ def run_loop(interval_sec=20):
                     flush_inbound_queue_to_cms()
                     process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
                 else:
-                    # 1. Xử lý hàng đợi Outbound Outbox (CMS -> Sàn Shopee; nếu mất phiên sẽ tự giữ WAITING_SESSION)
-                    process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf)
+                    # 1. Xử lý hàng đợi Outbound Outbox (bật cờ idle_poll=True khi là nhịp tuần hoàn tự động để đi qua cổng RAM 0-SQL-Query của CMS)
+                    process_outbound_outbox_from_cms(curr_cookies, curr_spc_cds, curr_csrf, idle_poll=(not woken_early))
 
                     # 2. Quét biến động Sản phẩm & Đơn hàng từ Sàn Shopee -> Spool Queue (chỉ khi phiên đang sống)
                     if curr_alive:
@@ -3390,7 +3410,7 @@ def run_loop(interval_sec=20):
         except Exception as e:
             print(f"[LOOP ERROR] {e}")
 
-        time.sleep(interval_sec)
+        LOOP_WAKE_EVENT.wait(timeout=interval_sec)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--once":
@@ -3416,4 +3436,8 @@ if __name__ == "__main__":
                     signal.signal(_sig, lambda *_: (release_leader_lease_gracefully(), sys.exit(0)))
                 except Exception:
                     pass
-        run_loop(interval_sec=20)
+        default_interval = int(
+            os.environ.get("SHOPEE_SYNC_INTERVAL_SEC")
+            or (180 if NODE_ROLE == "CLOUD_RENDER" else 45)
+        )
+        run_loop(interval_sec=default_interval)

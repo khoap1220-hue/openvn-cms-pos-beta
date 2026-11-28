@@ -27,6 +27,7 @@ import {
   resolveFirstAllowedView,
   type PermissionMap,
 } from '@/lib/rbac'
+import { useShopProfile } from '@/lib/shop-profile'
 
 interface PosStaffInfo {
   username: string
@@ -38,12 +39,17 @@ interface PosStaffInfo {
 
 export default function StandalonePosPage() {
   const router = useRouter()
+  const { profile: shopProfile } = useShopProfile()
   const [staff, setStaff] = useState<PosStaffInfo | null>(null)
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false)
   const [switchingShift, setSwitchingShift] = useState(false)
   const [permissions, setPermissions] = useState<PermissionMap>(() =>
     resolveEffectivePermissions('ADMIN')
   )
+
+  useEffect(() => {
+    document.title = `POS Bán hàng tại kho — ${shopProfile.brandName}`
+  }, [shopProfile.brandName])
 
   useEffect(() => {
     initPwaClientRuntime()
@@ -67,7 +73,6 @@ export default function StandalonePosPage() {
         if (res.permissions) setPermissions(res.permissions as PermissionMap)
       })
       .catch(() => null)
-    document.title = 'POS Bán hàng tại kho — OPENVN · Ưu Đàm'
     const onCloudOp = (ev: Event) => {
       const op = (
         ev as CustomEvent<{
@@ -139,7 +144,7 @@ export default function StandalonePosPage() {
           </div>
           <div className="flex min-w-0 items-center gap-2">
             <h1 className="truncate text-sm font-bold tracking-tight whitespace-nowrap">
-              OPENVN POS · Ưu Đàm
+              {shopProfile.brandName}
             </h1>
             <span className="hidden shrink-0 rounded bg-[#0066CC] px-1.5 py-0.5 text-[10px] font-semibold text-white sm:inline-block">
               QUẦY BÁN TẠI KHO

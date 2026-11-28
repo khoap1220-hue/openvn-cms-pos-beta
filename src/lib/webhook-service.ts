@@ -710,7 +710,7 @@ export async function getActiveInboundSecrets(): Promise<string[]> {
     if (k.secret?.trim()) secrets.add(k.secret.trim())
   }
   const result = Array.from(secrets)
-  cachedInboundSecrets = { secrets: result, expiresAt: now + 60_000 }
+  cachedInboundSecrets = { secrets: result, expiresAt: now + 600_000 }
   return result
 }
 
@@ -734,23 +734,44 @@ export async function verifyInboundWebhook(
     }
   | { ok: false; reason: string }
 > {
-  const allSecrets = await getActiveInboundSecrets()
   const internalDaemonSecrets = getInternalDaemonBridgeSecretsSet()
   const rejectPublicDemoSecrets = Boolean(options?.hasForwardedFor) || isCloudRenderRuntime()
-  const allowedSecrets = rejectPublicDemoSecrets
-    ? allSecrets.filter((s) => !isPublicDemoSecret(s))
-    : allSecrets
 
   let matchedSecret: string | null = null
 
-  if (signature && signature.trim()) {
-    const cleanSig = signature.trim().replace(/^sha256=/i, '')
-    matchedSecret = allowedSecrets.find((s) => signPayload(s, rawBody) === cleanSig) ?? null
-  } else if (authorizationHeader && /^(Apikey|Bearer)\s+/i.test(authorizationHeader.trim())) {
-    const token = authorizationHeader.trim().replace(/^(Apikey|Bearer)\s+/i, '').trim()
-    matchedSecret = allowedSecrets.find((s) => s === token) ?? null
-  } else {
-    return { ok: false, reason: 'Thiếu header X-Signature (hoặc Authorization: Apikey cho SePay)' }
+  // Fast-Path 0-SQL-Query: Kiểm tra khớp khóa cầu nối Daemon nội bộ (RAM) TRƯỚC KHI chạm vào bảng IntegrationCredential / ApiKey trên Supabase!
+  if (internalDaemonSecrets.size > 0) {
+    if (signature && signature.trim()) {
+      const cleanSig = signature.trim().replace(/^sha256=/i, '')
+      for (const sec of internalDaemonSecrets) {
+        if (signPayload(sec, rawBody) === cleanSig) {
+          matchedSecret = sec
+          break
+        }
+      }
+    } else if (authorizationHeader && /^(Apikey|Bearer)\s+/i.test(authorizationHeader.trim())) {
+      const token = authorizationHeader.trim().replace(/^(Apikey|Bearer)\s+/i, '').trim()
+      if (internalDaemonSecrets.has(token)) {
+        matchedSecret = token
+      }
+    }
+  }
+
+  if (!matchedSecret) {
+    const allSecrets = await getActiveInboundSecrets()
+    const allowedSecrets = rejectPublicDemoSecrets
+      ? allSecrets.filter((s) => !isPublicDemoSecret(s))
+      : allSecrets
+
+    if (signature && signature.trim()) {
+      const cleanSig = signature.trim().replace(/^sha256=/i, '')
+      matchedSecret = allowedSecrets.find((s) => signPayload(s, rawBody) === cleanSig) ?? null
+    } else if (authorizationHeader && /^(Apikey|Bearer)\s+/i.test(authorizationHeader.trim())) {
+      const token = authorizationHeader.trim().replace(/^(Apikey|Bearer)\s+/i, '').trim()
+      matchedSecret = allowedSecrets.find((s) => s === token) ?? null
+    } else {
+      return { ok: false, reason: 'Thiếu header X-Signature (hoặc Authorization: Apikey cho SePay)' }
+    }
   }
 
   if (!matchedSecret) return { ok: false, reason: 'Chữ ký HMAC hoặc Apikey không hợp lệ' }

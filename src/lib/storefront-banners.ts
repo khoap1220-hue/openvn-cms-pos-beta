@@ -355,15 +355,14 @@ export function matchesCollectionBannerProduct(
     )
   }
 
-  // Bộ sưu tập Nguyên Liệu DIY / Đổ Nến
+  // Bộ sưu tập Nguyên Liệu DIY (chỉ khớp nguyên liệu thô/bột/khuôn/sáp rời, không khớp hũ/cốc thành phẩm có chữ "đổ nến")
   if (colName.includes('nguyên liệu') || colName.includes('diy')) {
     return (
       cleanTitle.includes('nguyên liệu') ||
       cleanTitle.includes('bột thạch cao') ||
       cleanTitle.includes('khuôn') ||
       cleanTitle.includes('diy') ||
-      cleanTitle.includes('đổ nến') ||
-      descLower.includes('bột thạch cao') ||
+      descLower.includes('bột thạch cao nguyên liệu') ||
       descLower.includes('khuôn silicone')
     )
   }

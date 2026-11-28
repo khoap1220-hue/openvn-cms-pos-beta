@@ -643,7 +643,10 @@ export default function Home() {
 
   useEffect(() => {
     const t = setTimeout(() => void refreshPeriodStatus(), 0)
-    const timer = setInterval(() => void refreshPeriodStatus(), 60_000)
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      void refreshPeriodStatus()
+    }, 300_000)
     return () => {
       clearTimeout(t)
       clearInterval(timer)
@@ -781,7 +784,10 @@ export default function Home() {
 
   useEffect(() => {
     const t = setTimeout(() => void refreshChannelHealth(), 200)
-    const timer = setInterval(() => void refreshChannelHealth(), 45_000)
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      void refreshChannelHealth()
+    }, 180_000)
     return () => {
       clearTimeout(t)
       clearInterval(timer)

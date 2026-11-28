@@ -44,6 +44,7 @@ import {
 
 import { apiGet, apiPost } from '@/lib/api'
 import { formatDateTime, formatNumber, formatVND } from '@/lib/format'
+import { useShopProfile } from '@/lib/shop-profile'
 import {
   DEFAULT_INVENTORY_SYNC_POLICY,
   canChannelSellNegative,
@@ -194,6 +195,7 @@ export function PosView({
   onAnyModalOpen?: () => void
 } = {}) {
   const { toast } = useToast()
+  const { profile: shopProfile } = useShopProfile()
 
   // ===== Dữ liệu kho hàng, danh mục, kênh bán & khách hàng =====
   const [products, setProducts] = useState<Product[]>([])
@@ -2102,7 +2104,7 @@ export function PosView({
                 ))}
               </select>
             ) : (
-              <p className="truncate text-[11px] font-medium text-slate-200">Kho Trung Tâm Ưu Đàm</p>
+              <p className="truncate text-[11px] font-medium text-slate-200">{shopProfile.defaultWarehouseLabel}</p>
             )}
           </div>
         </div>

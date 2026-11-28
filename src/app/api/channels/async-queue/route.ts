@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logLedger } from '@/lib/ledger'
-import { broadcast, invalidateApiCache, patchProductInApiCache } from '@/lib/realtime'
+import { broadcast, getApiCache, invalidateApiCache, patchProductInApiCache, setApiCache } from '@/lib/realtime'
 import { DEFAULT_SHOPEE_SHOP_BINDING } from '@/lib/shopee-extension-bundle'
 import { getInventorySyncPolicy, resolveMarketplaceTargetStock } from '@/lib/inventory-policy'
 import { readShopeeSessionVaultMetadata } from '@/lib/shopee-session-vault'
@@ -86,7 +86,22 @@ async function buildAsyncQueueSnapshot() {
     readShopeeSessionVaultMetadata(),
     db.product.findMany({
       where: { status: { not: 'INACTIVE' } },
-      include: { listings: { include: { channel: true } } },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        image: true,
+        stock: true,
+        sellPrice: true,
+        attributes: true,
+        updatedAt: true,
+        listings: {
+          select: {
+            price: true,
+            channel: { select: { key: true } },
+          },
+        },
+      },
       orderBy: { updatedAt: 'desc' },
     }),
     db.ledgerEntry.findMany({
@@ -418,7 +433,12 @@ async function buildAsyncQueueSnapshot() {
 
 export async function GET() {
   try {
+    const cached = getApiCache<Record<string, unknown>>('channels:async-queue')
+    if (cached) {
+      return NextResponse.json(cached)
+    }
     const snapshot = await buildAsyncQueueSnapshot()
+    setApiCache('channels:async-queue', snapshot, 60_000)
     return NextResponse.json(snapshot)
   } catch (error) {
     console.error('GET /api/channels/async-queue error:', error)

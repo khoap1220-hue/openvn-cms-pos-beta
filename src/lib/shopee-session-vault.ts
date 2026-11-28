@@ -801,6 +801,7 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
   yieldedToLocal: boolean
   lease: ShopeePublicLeaderLeaseView
   rawLease: ShopeeLeaderLeaseV1 | null
+  rawVault: EncryptedVaultEnvelopeV1 | null
 }> {
   const nodeId = String(params.nodeId || '').trim()
   if (!nodeId) {
@@ -810,7 +811,7 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
     params.nodeRole === 'CLOUD_RENDER' ? 'CLOUD_RENDER' : 'LOCAL_VN'
   const hostname = String(params.hostname || nodeRole).trim().slice(0, 120)
   const action = params.action || 'ACQUIRE_OR_RENEW'
-  const ttlMs = Math.min(300_000, Math.max(20_000, Math.floor(Number(params.ttlMs) || 90_000)))
+  const ttlMs = Math.min(900_000, Math.max(20_000, Math.floor(Number(params.ttlMs) || 90_000)))
 
   return mutateShopeeCredentialConfigAtomic<{
     leaseGranted: boolean
@@ -818,8 +819,13 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
     yieldedToLocal: boolean
     lease: ShopeePublicLeaderLeaseView
     rawLease: ShopeeLeaderLeaseV1 | null
+    rawVault: EncryptedVaultEnvelopeV1 | null
   }>((currentCfg, nowMs) => {
     const existing = (currentCfg.__lease_v1 as ShopeeLeaderLeaseV1 | undefined) ?? null
+    const rawVault =
+      currentCfg.__vault_v1 && typeof currentCfg.__vault_v1 === 'object'
+        ? (currentCfg.__vault_v1 as EncryptedVaultEnvelopeV1)
+        : null
     const isActive = Boolean(existing && existing.holderId && Number(existing.expiresAtMs) > nowMs)
     const nowIso = new Date(nowMs).toISOString()
 
@@ -835,6 +841,7 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
           ),
           lease: formatPublicLeaderLease(existing, nowMs),
           rawLease: existing,
+          rawVault,
         },
       }
     }
@@ -855,6 +862,7 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
             yieldedToLocal: false,
             lease: formatPublicLeaderLease(released, nowMs),
             rawLease: released,
+            rawVault,
           },
         }
       }
@@ -868,6 +876,7 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
           ),
           lease: formatPublicLeaderLease(existing, nowMs),
           rawLease: existing,
+          rawVault,
         },
       }
     }
@@ -881,6 +890,23 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
       nodeRole === 'LOCAL_VN' && isActive && existing?.holderRole === 'CLOUD_RENDER'
 
     if (!isActive || sameHolder || canPreemptCloud) {
+      // Zero-Idle-Write Optimization: Nếu chính trạm này đang giữ khóa và hạn còn > 65% ttlMs (tối thiểu > 180s),
+      // bỏ qua lệnh UPDATE thừa vào bảng IntegrationCredential để tiết kiệm WAL & Egress Supabase.
+      const remainingMs = existing ? Number(existing.expiresAtMs || 0) - nowMs : 0
+      if (sameHolder && isActive && remainingMs > Math.max(180_000, Math.floor(ttlMs * 0.65))) {
+        return {
+          patch: {},
+          result: {
+            leaseGranted: true,
+            preemptedCloud: false,
+            yieldedToLocal: false,
+            lease: formatPublicLeaderLease(existing, nowMs),
+            rawLease: existing,
+            rawVault,
+          },
+        }
+      }
+
       const expiresAtMs = nowMs + ttlMs
       const nextEpoch = sameHolder && isActive
         ? Number(existing?.epoch || 1)
@@ -905,6 +931,7 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
           yieldedToLocal: false,
           lease: formatPublicLeaderLease(nextLease, nowMs),
           rawLease: nextLease,
+          rawVault,
         },
       }
     }
@@ -918,6 +945,7 @@ export async function acquireOrRenewShopeeLeaderLease(params: {
         yieldedToLocal: Boolean(nodeRole === 'CLOUD_RENDER' && existing?.holderRole === 'LOCAL_VN'),
         lease: formatPublicLeaderLease(existing, nowMs),
         rawLease: existing,
+        rawVault,
       },
     }
   })

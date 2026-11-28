@@ -7,7 +7,14 @@ import {
 } from '@/lib/webhook-service'
 import { createOrder, cancelOrder, isMaskedOrDummyPhone } from '@/lib/order-service'
 import { logLedger, recordLineageChange } from '@/lib/ledger'
-import { broadcast, patchProductInApiCache, invalidateApiCache } from '@/lib/realtime'
+import {
+  broadcast,
+  getOutboxDirtyState,
+  invalidateApiCache,
+  markOutboxDirty,
+  markOutboxVerifiedIdle,
+  patchProductInApiCache,
+} from '@/lib/realtime'
 import { awardPointsForCompletedOrder } from '@/lib/member'
 import { syncCombosUsingComponents } from '@/lib/combo'
 import { logEvent, sendZalo } from '@/lib/agent-log'
@@ -28,6 +35,7 @@ import {
 } from '@/lib/inventory-policy'
 import {
   acquireOrRenewShopeeLeaderLease,
+  decryptShopeeSessionPayload,
   hasNonLoopbackForwardedClient,
   isCloudRenderRuntime,
   markVaultSessionExpiredInMeta,
@@ -3142,15 +3150,58 @@ export async function POST(req: NextRequest) {
 
     // ===== 13. OUTBOX_FETCH_PENDING: Worker kéo hàng đợi Outbox (CMS -> Sàn Shopee) bất đồng bộ =====
     if (event === 'OUTBOX_FETCH_PENDING') {
+      const outboxReq = (data ?? {}) as {
+        includeSyntheticTest?: boolean
+        onlySyntheticTest?: boolean
+        idlePoll?: boolean
+      }
+      const dirtySnapshot = getOutboxDirtyState()
+      // Cổng Zero-Idle-Egress: Khi Daemon chạy chu kỳ rảnh (idlePoll === true) và không có bất kỳ thay đổi nào
+      // trên sản phẩm/kho/kênh trong vòng 30 phút kể từ lần đối soát rỗng gần nhất -> trả về tức thì từ RAM (0 SQL query).
+      if (
+        outboxReq.idlePoll === true &&
+        !outboxReq.includeSyntheticTest &&
+        !outboxReq.onlySyntheticTest &&
+        !dirtySnapshot.dirty &&
+        Date.now() - dirtySnapshot.lastVerifiedIdleAt < 1_800_000
+      ) {
+        return NextResponse.json({
+          ok: true,
+          pendingCount: 0,
+          jobs: [],
+          cachedIdle: true,
+        })
+      }
+
       const [allProducts, pendingLedgerEntries, inventoryPolicy] = await Promise.all([
         db.product.findMany({
           where: { status: { not: 'INACTIVE' } },
-          include: { listings: { include: { channel: true } } },
+          // Chỉ SELECT các cột mỏng cần cho tính toán Outbox — tuyệt đối KHÔNG kéo cột description SEO dài (giảm ~80% băng thông)
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            stock: true,
+            sellPrice: true,
+            image: true,
+            attributes: true,
+            listings: {
+              select: {
+                price: true,
+                channel: { select: { key: true } },
+              },
+            },
+          },
         }),
         db.ledgerEntry.findMany({
           where: {
             scope: 'CHANNEL',
             action: 'OUTBOX_PENDING',
+          },
+          select: {
+            id: true,
+            entityId: true,
+            detail: true,
           },
           orderBy: { createdAt: 'asc' },
           take: 50,
@@ -3212,11 +3263,6 @@ export async function POST(req: NextRequest) {
         imageDrifted: boolean
         idempotencyKey: string
       }> = []
-
-      const outboxReq = (data ?? {}) as {
-        includeSyntheticTest?: boolean
-        onlySyntheticTest?: boolean
-      }
 
       for (const p of allProducts) {
         const isSynth = isSyntheticSku(p.sku, PROTECTED_REAL_SKUS)
@@ -3374,6 +3420,14 @@ export async function POST(req: NextRequest) {
             imageDrifted,
             idempotencyKey: `OUTBOX_${shopeeItemId}_${shopeeModelId || '0'}_S${targetStock}_P${targetPrice}_U${targetUnlisted ? 1 : 0}`,
           })
+        }
+      }
+
+      if (!outboxReq.includeSyntheticTest && !outboxReq.onlySyntheticTest) {
+        if (jobs.length === 0) {
+          markOutboxVerifiedIdle(dirtySnapshot.epoch)
+        } else {
+          markOutboxDirty()
         }
       }
 
@@ -4142,6 +4196,8 @@ export async function POST(req: NextRequest) {
         action?: 'ACQUIRE_OR_RENEW' | 'RELEASE' | 'PEEK'
         ttlMs?: number
         expectedShopId?: string
+        knownVaultVersion?: number
+        knownVaultUpdatedAtMs?: number
       }
       const nodeId = String(d.nodeId || '').trim()
       if (!nodeId) {
@@ -4163,10 +4219,55 @@ export async function POST(req: NextRequest) {
         ttlMs: d.ttlMs,
       })
 
-      const decryptedSession =
-        action !== 'RELEASE'
-          ? await readDecryptedShopeeSessionFromVault(d.expectedShopId)
-          : null
+      const rawVault = action !== 'RELEASE' ? leaseOutcome.rawVault : null
+      const knownVer = Number(d.knownVaultVersion || 0)
+      const knownMs = Number(d.knownVaultUpdatedAtMs || 0)
+
+      if (
+        rawVault &&
+        rawVault.v === 1 &&
+        rawVault.ciphertext &&
+        knownVer > 0 &&
+        knownVer === Number(rawVault.version || 0) &&
+        knownMs > 0 &&
+        knownMs === Number(rawVault.updatedAtMs || 0)
+      ) {
+        return NextResponse.json({
+          ok: true,
+          leaseGranted: leaseOutcome.leaseGranted,
+          preemptedCloud: leaseOutcome.preemptedCloud,
+          yieldedToLocal: leaseOutcome.yieldedToLocal,
+          lease: leaseOutcome.lease,
+          vault: {
+            hasSession: true,
+            unchanged: true,
+            verifiedLive: Boolean(rawVault.verifiedLive),
+            version: Number(rawVault.version || 1),
+            updatedAt: rawVault.updatedAt,
+            updatedAtMs: Number(rawVault.updatedAtMs || 0),
+            source: rawVault.source,
+            shopId: rawVault.shopId,
+            username: rawVault.username,
+          },
+        })
+      }
+
+      let decryptedSession:
+        | (ReturnType<typeof decryptShopeeSessionPayload> & { verifiedLive: boolean })
+        | null = null
+      if (rawVault && rawVault.v === 1 && rawVault.ciphertext) {
+        try {
+          const dec = decryptShopeeSessionPayload(rawVault, {
+            expectedShopId: d.expectedShopId,
+          })
+          decryptedSession = {
+            ...dec,
+            verifiedLive: Boolean(rawVault.verifiedLive),
+          }
+        } catch {
+          decryptedSession = await readDecryptedShopeeSessionFromVault(d.expectedShopId)
+        }
+      }
 
       return NextResponse.json({
         ok: true,

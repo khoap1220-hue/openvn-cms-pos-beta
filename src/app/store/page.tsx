@@ -17,6 +17,7 @@ import {
   FileSearch,
   Flame,
   Globe,
+  Info,
   Layers,
   LayoutDashboard,
   Mail,
@@ -55,6 +56,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ToastAction } from '@/components/ui/toast'
 import { useToast } from '@/hooks/use-toast'
 import { formatVND } from '@/lib/format'
 import {
@@ -67,12 +69,18 @@ import {
   buildStorefrontCartStorageKey,
   buildStorefrontProductShareUrl,
   buildStorefrontVietQrUrl,
+  findSiblingVariantProducts,
+  formatCustomerStorefrontBrandName,
   formatHeroShortProductLabel,
+  formatStorefrontDisplayTitle,
   formatStorefrontLookupStatusLabel,
   formatWholesaleTiersSummary,
+  isPlaceholderStorefrontEmail,
+  isPlaceholderStorefrontPhone,
   parseStorefrontDeepLinkQuery,
   reconcileActiveCartItems,
   reconcilePersistedCartWithCatalog,
+  resolveCustomerHeaderSubtitle,
   resolveHeroPrimaryStage,
   resolveStorefrontHeroCopy,
   selectHeroShowcaseProducts,
@@ -161,6 +169,12 @@ interface StorefrontPayload {
       facebookUrl: string
       tiktokUrl: string
     }
+    bankTransfer?: {
+      bankCode: string
+      bankName: string
+      bankAccount: string
+      bankHolder: string
+    } | null
     banners?: StorefrontBannersConfig
   }
   bankTransfer: {
@@ -213,6 +227,53 @@ function isStaticBetaHost(): boolean {
   )
 }
 
+function sanitizeClientStorefrontPayload(payload: StorefrontPayload | null): StorefrontPayload | null {
+  if (!payload) return null
+  const contact = payload.config?.contact
+  const cleanedHotline =
+    contact?.hotline && !isPlaceholderStorefrontPhone(contact.hotline) ? contact.hotline : ''
+  const cleanedZaloPhone =
+    contact?.zaloPhone && !isPlaceholderStorefrontPhone(contact.zaloPhone)
+      ? contact.zaloPhone
+      : ''
+  const cleanedZaloUrl =
+    contact?.zaloUrl && !isPlaceholderStorefrontPhone(contact.zaloUrl) ? contact.zaloUrl : ''
+  const cleanedEmail =
+    contact?.email && !isPlaceholderStorefrontEmail(contact.email) ? contact.email : ''
+
+  const cleanedProducts = Array.isArray(payload.products)
+    ? payload.products.map((p) => ({
+        ...p,
+        cleanTitle:
+          formatStorefrontDisplayTitle(p.cleanTitle || p.name, p.variantLabel) ||
+          p.cleanTitle ||
+          p.name,
+      }))
+    : []
+
+  return {
+    ...payload,
+    brand: {
+      ...payload.brand,
+      brandName: formatCustomerStorefrontBrandName(
+        payload.brand?.brandName,
+        payload.config?.customDomain
+      ),
+    },
+    config: {
+      ...payload.config,
+      contact: {
+        ...payload.config.contact,
+        hotline: cleanedHotline,
+        zaloPhone: cleanedZaloPhone,
+        zaloUrl: cleanedZaloUrl,
+        email: cleanedEmail,
+      },
+    },
+    products: cleanedProducts,
+  }
+}
+
 function resolveStorefrontApiEndpoint(bootstrapData?: StorefrontPayload | null): string {
   if (typeof window === 'undefined') return '/api/public/storefront'
   const host = window.location.hostname.toLowerCase()
@@ -241,11 +302,11 @@ function resolveStorefrontApiEndpoint(bootstrapData?: StorefrontPayload | null):
 type ActiveNavSection = 'PRODUCTS' | 'WHOLESALE' | 'CONTACT' | 'TRACKING'
 
 export default function OnlineStorefrontPage() {
-  const { toast } = useToast()
+  const { toast, dismiss } = useToast()
 
   const [storeData, setStoreData] = useState<StorefrontPayload | null>(() =>
     typeof window !== 'undefined' && window.__OPENVN_STOREFRONT_BOOTSTRAP__
-      ? window.__OPENVN_STOREFRONT_BOOTSTRAP__
+      ? sanitizeClientStorefrontPayload(window.__OPENVN_STOREFRONT_BOOTSTRAP__)
       : null
   )
   const [loading, setLoading] = useState<boolean>(() =>
@@ -259,9 +320,11 @@ export default function OnlineStorefrontPage() {
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('ALL')
   const [carouselIdx, setCarouselIdx] = useState(0)
   const [carouselPaused, setCarouselPaused] = useState(false)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [sortBy, setSortBy] = useState<'DEFAULT' | 'PRICE_ASC' | 'PRICE_DESC'>('DEFAULT')
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null)
   const [selectedImageIdx, setSelectedImageIdx] = useState(0)
+  const [quickViewQty, setQuickViewQty] = useState(1)
 
   const [cart, setCart] = useState<StoreCartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -285,6 +348,7 @@ export default function OnlineStorefrontPage() {
   const [hydratedCartKey, setHydratedCartKey] = useState<string | null>(null)
   const pendingDeepLinkSkuRef = useRef<string>('')
   const deepLinkSkuAppliedRef = useRef<boolean>(false)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   // Wholesale Inquiry Form state
   const [wsName, setWsName] = useState('')
@@ -326,12 +390,13 @@ export default function OnlineStorefrontPage() {
   const [lookupError, setLookupError] = useState<string | null>(null)
 
   const [isCustomDomainHost, setIsCustomDomainHost] = useState(false)
+  const [hasStaffSession, setHasStaffSession] = useState(false)
 
   const loadStorefront = useCallback(async () => {
     const bootstrapped =
       typeof window !== 'undefined' ? window.__OPENVN_STOREFRONT_BOOTSTRAP__ ?? null : null
     if (bootstrapped) {
-      setStoreData(bootstrapped)
+      setStoreData(sanitizeClientStorefrontPayload(bootstrapped))
       setLoading(false)
     } else {
       setLoading(true)
@@ -343,13 +408,24 @@ export default function OnlineStorefrontPage() {
       if (res.ok) {
         const liveData = (await res.json()) as StorefrontPayload
         if (liveData && liveData.ok && Array.isArray(liveData.products)) {
-          setStoreData(liveData)
+          setStoreData(sanitizeClientStorefrontPayload(liveData))
         }
       }
     } catch {
-      // Nếu mạng chậm hoặc máy chủ Render đang khởi động, giữ nguyên dữ liệu bootstrap tức thì
+      // Giữ nguyên dữ liệu bootstrap tức thì nếu mạng chậm
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (mq) {
+      setPrefersReducedMotion(mq.matches)
+      const onChange = (ev: MediaQueryListEvent) => setPrefersReducedMotion(ev.matches)
+      mq.addEventListener?.('change', onChange)
+      return () => mq.removeEventListener?.('change', onChange)
     }
   }, [])
 
@@ -357,33 +433,67 @@ export default function OnlineStorefrontPage() {
     if (typeof window !== 'undefined') {
       const h = window.location.hostname.toLowerCase()
       const p = window.location.pathname.toLowerCase()
+      const staticBeta = isStaticBetaHost()
       const isInternal =
         h === 'localhost' ||
         h === '127.0.0.1' ||
         h.endsWith('.onrender.com') ||
-        isStaticBetaHost() ||
+        staticBeta ||
         p.startsWith('/store') ||
         p.endsWith('/store') ||
         p.endsWith('/store/')
-      setIsCustomDomainHost(!isInternal)
+      const customHost = !isInternal
+      setIsCustomDomainHost(customHost)
+
       const dl = parseStorefrontDeepLinkQuery(window.location.search)
       if (dl.tab) setActiveTab(dl.tab)
       if (dl.priceMode) setPriceViewMode(dl.priceMode)
       if (dl.query) setSearch(dl.query)
       if (dl.lookupCode) setLookupCode(dl.lookupCode)
       if (dl.sku) pendingDeepLinkSkuRef.current = dl.sku
+
+      // Chỉ hiển thị nút CMS trên Header khi nhân sự đang có phiên đăng nhập hợp lệ trên máy chủ CMS
+      if (!customHost && !staticBeta && !window.__OPENVN_STOREFRONT_BOOTSTRAP__) {
+        fetch('/api/auth', {
+          headers: { 'x-session-check': '1' },
+          cache: 'no-store',
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d: { valid?: boolean } | null) => {
+            if (d?.valid === true) setHasStaffSession(true)
+          })
+          .catch(() => null)
+      }
     }
     void loadStorefront()
   }, [loadStorefront])
 
-  useEffect(() => {
-    if (storeData?.brand?.brandName) {
-      document.title = `${storeData.brand.brandName} — Sản phẩm Thủ công, Bảng Giá Sỉ & Liên hệ Chính thức`
-    }
-  }, [storeData?.brand?.brandName])
-
-  const brandName = storeData?.brand?.brandName || 'Bơ Mộc Decor'
   const cfg = storeData?.config
+  const brandName = useMemo(
+    () =>
+      formatCustomerStorefrontBrandName(
+        storeData?.brand?.brandName || 'Bơ Mộc Decor',
+        cfg?.customDomain
+      ),
+    [storeData?.brand?.brandName, cfg?.customDomain]
+  )
+  const headerSubtitle = useMemo(
+    () =>
+      resolveCustomerHeaderSubtitle({
+        brandSubtitle: storeData?.brand?.brandSubtitle,
+        workshopName: storeData?.brand?.workshopName,
+        heroBadge: cfg?.heroBadge,
+        brandName,
+      }),
+    [storeData?.brand?.brandSubtitle, storeData?.brand?.workshopName, cfg?.heroBadge, brandName]
+  )
+
+  useEffect(() => {
+    if (brandName) {
+      document.title = `${brandName} — Sản phẩm Thủ công, Bảng Giá Sỉ & Liên hệ Chính thức`
+    }
+  }, [brandName])
+
   const banners = cfg?.banners
   const showShopeeBanners =
     !storeData?.storefrontClosed &&
@@ -398,17 +508,29 @@ export default function OnlineStorefrontPage() {
     () => (showShopeeBanners ? banners?.spotlightBanners ?? [] : []),
     [showShopeeBanners, banners?.spotlightBanners]
   )
-  const collectionBanners = useMemo(
+  const products = useMemo(() => storeData?.products ?? [], [storeData?.products])
+  const rawCollectionBanners = useMemo(
     () => (showShopeeBanners ? banners?.collectionBanners ?? [] : []),
     [showShopeeBanners, banners?.collectionBanners]
   )
-  const products = useMemo(() => storeData?.products ?? [], [storeData?.products])
+  const collectionBannersWithCounts = useMemo(
+    () =>
+      rawCollectionBanners
+        .map((col) => ({
+          col,
+          matchedCount: products.filter((p) => matchesCollectionBannerProduct(p, col)).length,
+        }))
+        .filter((entry) => entry.matchedCount > 0 || Boolean(entry.col.shopeeUrl)),
+    [rawCollectionBanners, products]
+  )
+
   const categories = useMemo(() => storeData?.categories ?? [], [storeData?.categories])
   const wholesaleTiers = useMemo(
     () => cfg?.wholesaleTiers ?? [],
     [cfg?.wholesaleTiers]
   )
   const contact = cfg?.contact
+  const effectiveBankTransfer = storeData?.bankTransfer ?? cfg?.bankTransfer ?? null
   const cartStorageKey = storeData?.cmsInstanceId
     ? buildStorefrontCartStorageKey(storeData.cmsInstanceId)
     : null
@@ -417,6 +539,26 @@ export default function OnlineStorefrontPage() {
   const isWholesaleAllowed = !isStorefrontClosed && cfg?.wholesaleEnabled !== false
   const freeShipThresholdEarly = cfg?.freeShipThreshold ?? 500_000
   const mainCatalogRef = useRef<HTMLElement | null>(null)
+
+  const openQuickView = useCallback(
+    (product: StorefrontProduct) => {
+      dismiss()
+      setSelectedImageIdx(0)
+      setQuickViewQty(1)
+      setSelectedProduct(product)
+    },
+    [dismiss]
+  )
+
+  const openCartModal = useCallback(() => {
+    dismiss()
+    setCartOpen(true)
+  }, [dismiss])
+
+  const siblingVariants = useMemo(
+    () => (selectedProduct ? findSiblingVariantProducts(selectedProduct, products) : []),
+    [selectedProduct, products]
+  )
 
   const heroShowcaseProducts = useMemo(
     () => (isStorefrontClosed ? [] : selectHeroShowcaseProducts(products, 3)),
@@ -471,7 +613,7 @@ export default function OnlineStorefrontPage() {
   const heroCopy = useMemo(
     () =>
       resolveStorefrontHeroCopy({
-        brandName: storeData?.brand?.brandName,
+        brandName,
         workshopName: storeData?.brand?.workshopName,
         customDomain: cfg?.customDomain,
         heroBadge: cfg?.heroBadge,
@@ -487,7 +629,7 @@ export default function OnlineStorefrontPage() {
         sampleTexts: products.slice(0, 6).map((p) => p.cleanTitle || p.name),
       }),
     [
-      storeData?.brand?.brandName,
+      brandName,
       storeData?.brand?.workshopName,
       cfg?.customDomain,
       cfg?.heroBadge,
@@ -503,14 +645,39 @@ export default function OnlineStorefrontPage() {
     ]
   )
 
+  const selectNavTab = useCallback(
+    (nextTab: ActiveNavSection) => {
+      setActiveTab(nextTab)
+      if (typeof window !== 'undefined') {
+        const scrollBehavior: ScrollBehavior = prefersReducedMotion ? 'auto' : 'smooth'
+        window.requestAnimationFrame(() => {
+          const tabEl = document.querySelector<HTMLElement>(`[data-nav-tab="${nextTab}"]`)
+          tabEl?.scrollIntoView({
+            behavior: scrollBehavior,
+            block: 'nearest',
+            inline: 'nearest',
+          })
+          if (nextTab === 'PRODUCTS') {
+            window.scrollTo({ top: 0, behavior: scrollBehavior })
+          } else {
+            mainCatalogRef.current?.scrollIntoView({ behavior: scrollBehavior, block: 'start' })
+          }
+        })
+      }
+    },
+    [prefersReducedMotion]
+  )
+
   const scrollToCatalog = useCallback(() => {
     setActiveTab('PRODUCTS')
-    window.requestAnimationFrame(() => {
-      mainCatalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }, [])
+    if (typeof window !== 'undefined') {
+      const scrollBehavior: ScrollBehavior = prefersReducedMotion ? 'auto' : 'smooth'
+      window.requestAnimationFrame(() => {
+        mainCatalogRef.current?.scrollIntoView({ behavior: scrollBehavior, block: 'start' })
+      })
+    }
+  }, [prefersReducedMotion])
 
-  // Tự động hạ tab/chế độ Giá Sỉ về mặc định nếu CMS tắt kênh Sỉ hoặc tạm ngưng nhận đơn
   useEffect(() => {
     if (!storeData) return
     if (!isWholesaleAllowed) {
@@ -519,7 +686,6 @@ export default function OnlineStorefrontPage() {
     }
   }, [storeData, isWholesaleAllowed, activeTab, priceViewMode])
 
-  // Phục hồi giỏ hàng cô lập theo đúng cmsInstanceId & luôn đối chiếu lại giá/tồn kho mới nhất khi liveData cập nhật
   useEffect(() => {
     if (typeof window === 'undefined' || !cartStorageKey || !storeData) return
 
@@ -554,7 +720,7 @@ export default function OnlineStorefrontPage() {
           return combined
         })
       } catch {
-        // Bỏ qua nếu trình duyệt chặn localStorage (chế độ ẩn danh nghiêm ngặt)
+        // ignore storage restrictions
       }
       setHydratedCartKey(cartStorageKey)
       return
@@ -584,11 +750,10 @@ export default function OnlineStorefrontPage() {
         window.localStorage.setItem(cartStorageKey, JSON.stringify(serialized))
       }
     } catch {
-      // Bỏ qua nếu bộ nhớ đầy hoặc bị chặn
+      // ignore quota errors
     }
   }, [cart, cartStorageKey, hydratedCartKey, isStorefrontClosed])
 
-  // Mở thẳng sản phẩm khi truy cập qua Deep-Link ?sku=... (kể cả sản phẩm mới thêm chỉ có trên liveData)
   useEffect(() => {
     if (deepLinkSkuAppliedRef.current || !pendingDeepLinkSkuRef.current) {
       return
@@ -603,10 +768,9 @@ export default function OnlineStorefrontPage() {
     const matched = products.find((p) => p.sku.toUpperCase() === targetSku)
     if (matched) {
       deepLinkSkuAppliedRef.current = true
-      setSelectedImageIdx(0)
-      setSelectedProduct(matched)
+      openQuickView(matched)
     }
-  }, [products, isStorefrontClosed])
+  }, [products, isStorefrontClosed, openQuickView])
 
   useEffect(() => {
     if (carouselIdx >= carouselBanners.length && carouselBanners.length > 0) {
@@ -615,12 +779,19 @@ export default function OnlineStorefrontPage() {
   }, [carouselIdx, carouselBanners.length])
 
   useEffect(() => {
-    if (carouselBanners.length <= 1 || carouselPaused || activeTab !== 'PRODUCTS') return
+    if (
+      carouselBanners.length <= 1 ||
+      carouselPaused ||
+      prefersReducedMotion ||
+      activeTab !== 'PRODUCTS'
+    ) {
+      return
+    }
     const timer = window.setInterval(() => {
       setCarouselIdx((prev) => (prev + 1) % carouselBanners.length)
     }, 4800)
     return () => window.clearInterval(timer)
-  }, [carouselBanners.length, carouselPaused, activeTab])
+  }, [carouselBanners.length, carouselPaused, prefersReducedMotion, activeTab])
 
   const resolveProductFromBannerRef = useCallback(
     (targetSku?: string, shopeeProductId?: string): StorefrontProduct | null => {
@@ -644,8 +815,7 @@ export default function OnlineStorefrontPage() {
     (slide: StorefrontCarouselBanner) => {
       const matched = resolveProductFromBannerRef(slide.targetSku, slide.shopeeProductId)
       if (matched) {
-        setSelectedImageIdx(0)
-        setSelectedProduct(matched)
+        openQuickView(matched)
         return
       }
       if (slide.filterKeyword) {
@@ -656,15 +826,17 @@ export default function OnlineStorefrontPage() {
         window.open(slide.linkUrl, '_blank', 'noopener,noreferrer')
       }
     },
-    [resolveProductFromBannerRef]
+    [resolveProductFromBannerRef, openQuickView]
   )
 
   const activeCollectionBanner = useMemo(
     () =>
       selectedCollectionId === 'ALL'
         ? null
-        : collectionBanners.find((c) => c.id === selectedCollectionId) ?? null,
-    [collectionBanners, selectedCollectionId]
+        : collectionBannersWithCounts.find(
+            (x) => x.col.id === selectedCollectionId && x.matchedCount > 0
+          )?.col ?? null,
+    [collectionBannersWithCounts, selectedCollectionId]
   )
 
   const filteredProducts = useMemo(() => {
@@ -680,6 +852,7 @@ export default function OnlineStorefrontPage() {
       if (!q) return true
       return (
         p.name.toLowerCase().includes(q) ||
+        p.cleanTitle.toLowerCase().includes(q) ||
         p.sku.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q)
       )
@@ -729,6 +902,7 @@ export default function OnlineStorefrontPage() {
   const wholesaleSavings = Math.max(0, retailCartSubtotal - effectiveCartSubtotal)
   const freeShipThreshold = cfg?.freeShipThreshold ?? 500_000
   const baseShippingFee = cfg?.baseShippingFee ?? 30_000
+  const freeShipRemaining = Math.max(0, freeShipThreshold - effectiveCartSubtotal)
   const shippingFee =
     effectiveCartSubtotal === 0 || effectiveCartSubtotal >= freeShipThreshold
       ? 0
@@ -755,13 +929,13 @@ export default function OnlineStorefrontPage() {
   )
 
   const checkoutPreviewVietQrUrl =
-    paymentMethod === 'BANK_TRANSFER' && storeData?.bankTransfer
+    paymentMethod === 'BANK_TRANSFER' && effectiveBankTransfer
       ? buildStorefrontVietQrUrl({
-          bankCode: storeData.bankTransfer.bankCode,
-          bankAccount: storeData.bankTransfer.bankAccount,
-          bankHolder: storeData.bankTransfer.bankHolder,
+          bankCode: effectiveBankTransfer.bankCode,
+          bankAccount: effectiveBankTransfer.bankAccount,
+          bankHolder: effectiveBankTransfer.bankHolder,
           amount: grandTotal,
-          addInfo: `${storeData.brand?.brandShortName || 'BM'} WEB ${customerPhone.replace(/\D/g, '').slice(-10) || 'DONHANG'}`,
+          addInfo: `${storeData?.brand?.brandShortName || 'BM'} WEB ${customerPhone.replace(/\D/g, '').slice(-10) || 'DONHANG'}`,
           template: 'compact2',
         })
       : ''
@@ -769,31 +943,47 @@ export default function OnlineStorefrontPage() {
   const completedOrderVietQrUrl =
     completedOrder &&
     completedOrder.paymentMethod === 'BANK_TRANSFER' &&
-    storeData?.bankTransfer
+    effectiveBankTransfer
       ? buildStorefrontVietQrUrl({
-          bankCode: storeData.bankTransfer.bankCode,
-          bankAccount: storeData.bankTransfer.bankAccount,
-          bankHolder: storeData.bankTransfer.bankHolder,
+          bankCode: effectiveBankTransfer.bankCode,
+          bankAccount: effectiveBankTransfer.bankAccount,
+          bankHolder: effectiveBankTransfer.bankHolder,
           amount: completedOrder.grandTotal,
           addInfo: completedOrder.refCode,
           template: 'compact2',
         })
       : ''
 
-  const addToCart = (product: StorefrontProduct, qtyToAdd = 1) => {
+  const addToCart = (
+    product: StorefrontProduct,
+    qtyToAdd = 1,
+    options?: { silent?: boolean }
+  ) => {
     if (!product.availableToOrder || isStorefrontClosed) return
+    const safeQty = Math.max(1, Math.min(10_000, Math.floor(Number(qtyToAdd) || 1)))
     setCompletedOrder(null)
     setCart((prev) => {
       const idx = prev.findIndex((it) => it.product.id === product.id)
-      if (idx === -1) return [...prev, { product, quantity: qtyToAdd }]
+      if (idx === -1) return [...prev, { product, quantity: safeQty }]
       return prev.map((it, i) =>
-        i === idx ? { ...it, quantity: it.quantity + qtyToAdd } : it
+        i === idx ? { ...it, quantity: it.quantity + safeQty } : it
       )
     })
-    toast({
-      title: `Đã thêm ${qtyToAdd} ${product.unit} vào giỏ hàng`,
-      description: `${product.cleanTitle}${product.variantLabel ? ` (${product.variantLabel})` : ''}`,
-    })
+    if (!options?.silent) {
+      toast({
+        title: `Đã thêm ${safeQty} ${product.unit} vào giỏ hàng`,
+        description: `${product.cleanTitle}${product.variantLabel ? ` (${product.variantLabel})` : ''}`,
+        action: (
+          <ToastAction
+            altText="Xem giỏ hàng"
+            onClick={() => openCartModal()}
+            className="border-amber-300 bg-[#8c4f1e] text-xs font-bold text-white hover:bg-[#733f16] dark:border-amber-500 dark:bg-amber-400 dark:text-stone-950"
+          >
+            Xem giỏ →
+          </ToastAction>
+        ),
+      })
+    }
   }
 
   const updateCartQty = (productId: string, delta: number) => {
@@ -857,6 +1047,7 @@ export default function OnlineStorefrontPage() {
         paymentMethod,
       })
       setCart([])
+      setOrderNote('')
       toast({
         title: `Đặt hàng thành công (${refCode})`,
         description: json.message || 'Cửa hàng sẽ liên hệ xác nhận giao hàng sớm nhất.',
@@ -864,7 +1055,7 @@ export default function OnlineStorefrontPage() {
     } catch (e) {
       toast({
         title: 'Không thể gửi đơn đặt hàng',
-        description: e instanceof Error ? e.message : 'Vui lòng thử lại hoặc liên hệ Zalo/Hotline.',
+        description: e instanceof Error ? e.message : 'Vui lòng thử lại hoặc gửi tin nhắn liên hệ.',
         variant: 'destructive',
       })
     } finally {
@@ -916,7 +1107,7 @@ export default function OnlineStorefrontPage() {
     } catch (err) {
       toast({
         title: 'Lỗi gửi yêu cầu báo giá sỉ',
-        description: err instanceof Error ? err.message : 'Vui lòng thử lại hoặc nhắn Zalo trực tiếp.',
+        description: err instanceof Error ? err.message : 'Vui lòng thử lại sau ít phút.',
         variant: 'destructive',
       })
     } finally {
@@ -1030,449 +1221,476 @@ export default function OnlineStorefrontPage() {
     return sorted.find((t) => estimatedQtyNum >= t.minQty) ?? wholesaleTiers[0] ?? null
   }, [wholesaleTiers, estimatedQtyNum])
 
+  const showMobileStickyCart =
+    !isStorefrontClosed && totalCartItems > 0 && !cartOpen && !selectedProduct
+
   return (
-    <div className="flex min-h-svh flex-col bg-background text-foreground">
+    <div
+      className={cn(
+        'flex min-h-svh flex-col bg-background text-foreground',
+        showMobileStickyCart && 'max-sm:pb-24'
+      )}
+    >
       {/* Thanh thông báo ưu đãi đầu trang */}
-      <div className="border-b border-amber-200/70 bg-gradient-to-r from-amber-50 via-stone-50 to-emerald-50 px-4 py-2 text-center text-xs font-medium text-stone-800 dark:border-stone-800 dark:from-stone-900 dark:via-slate-900 dark:to-emerald-950/50 dark:text-stone-200">
+      <div className="border-b border-amber-200/70 bg-gradient-to-r from-amber-50 via-stone-50 to-emerald-50 px-3 py-1.5 text-center text-[11.5px] font-medium text-stone-800 sm:px-4 sm:py-2 sm:text-xs dark:border-stone-800 dark:from-stone-900 dark:via-slate-900 dark:to-emerald-950/50 dark:text-stone-200">
         <span>{heroCopy.effectiveAnnouncementBar}</span>
       </div>
 
-      {/* Header Điều hướng Chính */}
-      <header className="z-30 border-b bg-card/95 backdrop-blur-md sm:sticky sm:top-0">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 px-4 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
+      {/* Header Điều hướng Chính — Sticky 2 tầng gọn <= 92px trên Mobile, 1 hàng cân đối trên Desktop */}
+      <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5 sm:gap-3 sm:px-6 sm:py-2.5">
+          {/* Tầng 1 Trái: Thương hiệu */}
           <button
             type="button"
-            onClick={() => setActiveTab('PRODUCTS')}
-            className="flex items-center gap-3 text-left"
+            onClick={() => selectNavTab('PRODUCTS')}
+            className="order-1 flex min-w-0 flex-1 items-center gap-2.5 text-left sm:flex-initial sm:gap-3"
           >
             {banners?.shopLogoUrl ? (
               <img
                 src={banners.shopLogoUrl}
                 alt={brandName}
                 referrerPolicy="no-referrer"
-                className="h-10 w-10 shrink-0 rounded-full border border-stone-200 object-cover shadow-xs dark:border-stone-700"
+                className="h-8 w-8 shrink-0 rounded-full border border-stone-200 object-cover shadow-xs sm:h-10 sm:w-10 dark:border-stone-700"
               />
             ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-700 via-amber-600 to-stone-800 text-white shadow-sm">
-                <ShoppingBag className="h-5 w-5" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8c4f1e] to-stone-800 text-white shadow-sm sm:h-10 sm:w-10 sm:rounded-2xl">
+                <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
             )}
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-lg font-extrabold tracking-tight text-foreground">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-base font-extrabold tracking-tight text-foreground sm:text-lg">
                   {brandName}
                 </span>
                 {cfg?.customDomain && (
                   <Badge
                     variant="outline"
-                    className="border-amber-300 bg-amber-50/90 text-[10px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+                    className="hidden border-amber-300 bg-amber-50/90 text-[10px] font-semibold text-amber-950 md:inline-flex dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
                   >
                     {cfg.customDomain}
                   </Badge>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                {cfg?.heroBadge ||
-                  'Xưởng Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công · Sỉ & Lẻ Toàn Quốc'}
+              <p className="hidden truncate text-[11px] text-muted-foreground sm:block">
+                {headerSubtitle}
               </p>
             </div>
           </button>
 
-          {/* Menu Chức năng Khách hàng */}
+          {/* Tầng 1 Phải trên Mobile / Cuối hàng trên Desktop: Nút Giỏ hàng + Công cụ */}
+          <div className="order-2 flex shrink-0 items-center gap-1.5 sm:order-3">
+            <Button
+              type="button"
+              size="sm"
+              onClick={openCartModal}
+              className="h-8.5 gap-1.5 bg-[#8c4f1e] px-2.5 text-xs font-bold text-white shadow-2xs hover:bg-[#733f16] sm:h-10 sm:px-3.5 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+            >
+              <ShoppingCart className="h-4 w-4 shrink-0" />
+              <span className="tabular-nums">Giỏ hàng ({totalCartItems})</span>
+            </Button>
+
+            {!isCustomDomainHost && hasStaffSession && (
+              <Button asChild variant="outline" size="sm" className="h-8.5 gap-1.5 text-xs sm:h-10">
+                <Link href="/?cms=1" title="Về không gian Quản trị CMS">
+                  <LayoutDashboard className="h-3.5 w-3.5 text-[#8c4f1e] dark:text-amber-400" />
+                  <span className="hidden xl:inline">CMS</span>
+                </Link>
+              </Button>
+            )}
+
+            <div className="[&_button]:max-sm:h-8.5 [&_button]:max-sm:min-h-8.5 [&_button]:max-sm:w-8.5 [&_button]:max-sm:min-w-8.5">
+              <ThemeToggle />
+            </div>
+          </div>
+
+          {/* Tầng 2 trên Mobile (cuộn ngang 1 dòng mượt) / Giữa hàng trên Desktop: 4 Tab điều hướng */}
           <nav
             aria-label="Điều hướng cửa hàng"
-            className="flex flex-wrap items-center gap-1.5"
+            className="order-3 -mx-1 flex w-[calc(100%+0.5rem)] flex-nowrap items-center gap-1 overflow-x-auto px-1 pb-0 [scrollbar-width:none] sm:order-2 sm:mx-0 sm:w-auto sm:flex-wrap sm:gap-1.5 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden"
           >
             <Button
               type="button"
+              data-nav-tab="PRODUCTS"
+              aria-current={activeTab === 'PRODUCTS' ? 'page' : undefined}
               variant={activeTab === 'PRODUCTS' ? 'default' : 'ghost'}
               size="sm"
-              onClick={() => setActiveTab('PRODUCTS')}
+              onClick={() => selectNavTab('PRODUCTS')}
               className={cn(
-                'h-10 gap-1.5 text-xs font-semibold',
-                activeTab === 'PRODUCTS' && 'bg-stone-900 text-white hover:bg-stone-800 dark:bg-amber-600'
+                'h-8.5 shrink-0 gap-1 px-2 text-xs font-semibold whitespace-nowrap sm:h-9.5 sm:gap-1.5 sm:px-3',
+                activeTab === 'PRODUCTS' &&
+                  'bg-stone-900 text-white hover:bg-stone-800 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300'
               )}
             >
-              <Store className="h-3.5 w-3.5" />
+              <Store className="h-3.5 w-3.5 shrink-0" />
               <span>Sản phẩm ({products.length})</span>
             </Button>
 
             {isWholesaleAllowed && (
               <Button
                 type="button"
+                data-nav-tab="WHOLESALE"
+                aria-current={activeTab === 'WHOLESALE' ? 'page' : undefined}
                 variant={activeTab === 'WHOLESALE' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => setActiveTab('WHOLESALE')}
+                onClick={() => selectNavTab('WHOLESALE')}
                 className={cn(
-                  'h-10 gap-1.5 text-xs font-semibold',
+                  'h-8.5 shrink-0 gap-1 px-2 text-xs font-semibold whitespace-nowrap sm:h-9.5 sm:gap-1.5 sm:px-3',
                   activeTab === 'WHOLESALE' &&
-                    'bg-amber-700 text-white hover:bg-amber-800 dark:bg-amber-600'
+                    'bg-[#8c4f1e] text-white hover:bg-[#733f16] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300'
                 )}
               >
-                <BadgePercent className="h-3.5 w-3.5" />
-                <span>Bảng Giá Sỉ {wsRangeLabel}</span>
+                <BadgePercent className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Bảng Giá Sỉ
+                  {wsRangeLabel ? (
+                    <span className="max-[479px]:hidden"> {wsRangeLabel}</span>
+                  ) : null}
+                </span>
               </Button>
             )}
 
             <Button
               type="button"
+              data-nav-tab="CONTACT"
+              aria-current={activeTab === 'CONTACT' ? 'page' : undefined}
               variant={activeTab === 'CONTACT' ? 'default' : 'ghost'}
               size="sm"
-              onClick={() => setActiveTab('CONTACT')}
+              onClick={() => selectNavTab('CONTACT')}
               className={cn(
-                'h-10 gap-1.5 text-xs font-semibold',
-                activeTab === 'CONTACT' && 'bg-stone-900 text-white hover:bg-stone-800 dark:bg-amber-600'
+                'h-8.5 shrink-0 gap-1 px-2 text-xs font-semibold whitespace-nowrap sm:h-9.5 sm:gap-1.5 sm:px-3',
+                activeTab === 'CONTACT' &&
+                  'bg-stone-900 text-white hover:bg-stone-800 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300'
               )}
             >
-              <Phone className="h-3.5 w-3.5" />
+              <Phone className="h-3.5 w-3.5 shrink-0" />
               <span>Liên hệ &amp; Xưởng</span>
             </Button>
 
             <Button
               type="button"
+              data-nav-tab="TRACKING"
+              aria-current={activeTab === 'TRACKING' ? 'page' : undefined}
               variant={activeTab === 'TRACKING' ? 'default' : 'ghost'}
               size="sm"
-              onClick={() => setActiveTab('TRACKING')}
+              onClick={() => selectNavTab('TRACKING')}
               className={cn(
-                'h-10 gap-1.5 text-xs font-semibold',
-                activeTab === 'TRACKING' && 'bg-stone-900 text-white hover:bg-stone-800 dark:bg-amber-600'
+                'h-8.5 shrink-0 gap-1 px-2 text-xs font-semibold whitespace-nowrap sm:h-9.5 sm:gap-1.5 sm:px-3',
+                activeTab === 'TRACKING' &&
+                  'bg-stone-900 text-white hover:bg-stone-800 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300'
               )}
             >
-              <FileSearch className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Tra cứu đơn</span>
+              <FileSearch className="h-3.5 w-3.5 shrink-0" />
+              <span>Tra cứu đơn</span>
             </Button>
-
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setCartOpen(true)}
-              className="h-10 gap-1.5 bg-[#0066CC] px-3.5 text-xs font-bold text-white hover:bg-[#0055B3]"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              <span>Giỏ hàng ({totalCartItems})</span>
-            </Button>
-
-            {!isCustomDomainHost && (
-              <Button asChild variant="outline" size="sm" className="h-10 gap-1.5 text-xs">
-                <Link href="/?cms=1">
-                  <LayoutDashboard className="h-3.5 w-3.5 text-[#0066CC]" />
-                  <span className="hidden lg:inline">CMS</span>
-                </Link>
-              </Button>
-            )}
-
-            <ThemeToggle />
           </nav>
         </div>
       </header>
 
-      {/* Hero Section — Editorial Wabi-Sabi Atelier Layout */}
-      <section className="relative overflow-hidden border-b border-stone-200/80 bg-[radial-gradient(circle_at_0%_0%,rgba(245,213,172,0.28),transparent_48%),radial-gradient(circle_at_100%_100%,rgba(167,214,193,0.22),transparent_46%),linear-gradient(135deg,#fbf9f5_0%,#f7f1e7_52%,#f2f6f3_100%)] py-7 sm:py-9 lg:py-11 dark:border-stone-800 dark:bg-[radial-gradient(circle_at_0%_0%,rgba(180,83,9,0.16),transparent_45%),linear-gradient(135deg,#0c0a09_0%,#1c1917_55%,#0f172a_100%)]">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div
-            className={cn(
-              'grid items-center gap-7 lg:gap-9',
-              hasHeroVisual ? 'lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)]' : 'max-w-3xl'
-            )}
-          >
-            {/* Cột Trái: Câu chuyện Thương hiệu, Điểm nhấn Chất lượng & Hành động Chính */}
-            <div className="min-w-0 space-y-4">
-              <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/75 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-amber-950 shadow-2xs backdrop-blur-xs dark:border-amber-800/80 dark:bg-stone-900/90 dark:text-amber-200">
-                <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
-                <span className="truncate">
-                  {cfg?.heroBadge || 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc'}
-                </span>
-              </div>
+      {/* Hero Section — Chỉ hiển thị khi đang ở tab PRODUCTS để 3 tab còn lại hiện thẳng nội dung chính */}
+      {activeTab === 'PRODUCTS' && (
+        <section className="relative overflow-hidden border-b border-stone-200/80 bg-[radial-gradient(circle_at_0%_0%,rgba(245,213,172,0.28),transparent_48%),radial-gradient(circle_at_100%_100%,rgba(167,214,193,0.22),transparent_46%),linear-gradient(135deg,#fbf9f5_0%,#f7f1e7_52%,#f2f6f3_100%)] py-4 sm:py-8 lg:py-10 dark:border-stone-800 dark:bg-[radial-gradient(circle_at_0%_0%,rgba(180,83,9,0.16),transparent_45%),linear-gradient(135deg,#0c0a09_0%,#1c1917_55%,#0f172a_100%)]">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <div
+              className={cn(
+                'grid items-center gap-5 sm:gap-7 lg:gap-9',
+                hasHeroVisual ? 'lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)]' : 'max-w-3xl'
+              )}
+            >
+              {/* Cột Trái */}
+              <div className="min-w-0 space-y-3 sm:space-y-4">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/75 bg-white/90 px-3 py-1 text-[11.5px] font-semibold text-amber-950 shadow-2xs backdrop-blur-xs sm:px-3.5 sm:py-1.5 sm:text-xs dark:border-amber-800/80 dark:bg-stone-900/90 dark:text-amber-200">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
+                  <span className="truncate">
+                    {cfg?.heroBadge || 'Xưởng Thủ Công Chính Hãng · Sỉ & Lẻ Toàn Quốc'}
+                  </span>
+                </div>
 
-              <h1 className="text-[25px] leading-[1.18] font-extrabold tracking-tight text-stone-900 sm:text-4xl lg:text-[38px] dark:text-stone-50">
-                {cfg?.heroTitle || 'Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công Tinh Tế'}
-              </h1>
+                <h1 className="text-[22px] leading-[1.2] font-extrabold tracking-tight text-stone-900 sm:text-4xl lg:text-[38px] dark:text-stone-50">
+                  {cfg?.heroTitle || 'Nến Bơ Tự Nhiên & Thạch Cao Decor Thủ Công Tinh Tế'}
+                </h1>
 
-              <p className="max-w-xl text-sm leading-relaxed text-stone-600 sm:text-[15px] sm:leading-[1.65] dark:text-stone-300">
-                {cfg?.heroSubtitle ||
-                  'Chế tác tỉ mỉ từng khay, hũ nến thạch cao kháng dầu chịu nhiệt và nến bơ thực vật thuần chay không khói cho góc thiền, bàn trà, spa & quà tặng doanh nghiệp.'}
-              </p>
+                <p className="max-w-xl text-[13.5px] leading-relaxed text-stone-600 sm:text-[15px] sm:leading-[1.65] dark:text-stone-300">
+                  {cfg?.heroSubtitle ||
+                    'Chế tác tỉ mỉ từng khay, hũ nến thạch cao kháng dầu chịu nhiệt và nến bơ thực vật thuần chay không khói cho góc thiền, bàn trà, spa & quà tặng doanh nghiệp.'}
+                </p>
 
-              {/* Dải điểm nhấn thương hiệu thích ứng tự động theo từng CMS độc lập */}
-              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 pt-0.5 text-xs font-semibold text-stone-700 dark:text-stone-300">
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
-                  <span>{heroCopy.highlight1}</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
-                  <span>{heroCopy.highlight2}</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-400" />
-                  <span>{heroCopy.highlight3}</span>
-                </span>
-              </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                    <span>{heroCopy.highlight1}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
+                    <span>{heroCopy.highlight2}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-400" />
+                    <span>{heroCopy.highlight3}</span>
+                  </span>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-2.5 pt-1.5">
-                {isStorefrontClosed ? (
-                  <>
+                <div className="flex flex-wrap items-center gap-2 pt-0.5 sm:gap-2.5 sm:pt-1">
+                  {isStorefrontClosed ? (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={() => selectNavTab('CONTACT')}
+                        className="h-10 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:h-11 sm:px-4.5 sm:text-[13px] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+                      >
+                        <Phone className="h-4 w-4 shrink-0" />
+                        <span>Liên Hệ Cửa Hàng</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => selectNavTab('TRACKING')}
+                        className="h-10 cursor-pointer gap-1.5 rounded-xl border-amber-400/90 bg-amber-50/85 px-3.5 text-xs font-bold text-amber-950 transition hover:bg-amber-100/90 sm:h-11 sm:px-4 sm:text-[13px] dark:border-amber-700 dark:bg-amber-950/45 dark:text-amber-200"
+                      >
+                        <FileSearch className="h-4 w-4 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
+                        <span>Tra Cứu Đơn Hàng</span>
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       type="button"
-                      onClick={() => setActiveTab('CONTACT')}
-                      className="h-11 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4.5 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:text-[13px] dark:bg-amber-600 dark:hover:bg-amber-500"
+                      onClick={scrollToCatalog}
+                      className="h-10 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:h-11 sm:px-4.5 sm:text-[13px] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                     >
-                      <Phone className="h-4 w-4 shrink-0" />
-                      <span>Liên Hệ Cửa Hàng</span>
+                      <ShoppingBag className="h-4 w-4 shrink-0" />
+                      <span>Khám Phá Sản Phẩm</span>
                     </Button>
+                  )}
+
+                  {isWholesaleAllowed && (
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setActiveTab('TRACKING')}
-                      className="h-11 cursor-pointer gap-1.5 rounded-xl border-amber-400/90 bg-amber-50/85 px-4 text-xs font-bold text-amber-950 transition hover:bg-amber-100/90 sm:text-[13px] dark:border-amber-700 dark:bg-amber-950/45 dark:text-amber-200"
+                      onClick={() => selectNavTab('WHOLESALE')}
+                      className="h-10 max-w-full cursor-pointer gap-1.5 rounded-xl border-amber-400/90 bg-amber-50/85 px-3.5 text-xs font-bold text-amber-950 transition hover:bg-amber-100/90 sm:h-11 sm:px-4 sm:text-[13px] dark:border-amber-700 dark:bg-amber-950/45 dark:text-amber-200 dark:hover:bg-amber-950/70"
                     >
-                      <FileSearch className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
-                      <span>Tra Cứu Đơn Hàng</span>
+                      <BadgePercent className="h-4 w-4 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
+                      <span className="truncate">Bảng Giá Sỉ &amp; OEM {wsRangeLabel}</span>
                     </Button>
-                  </>
-                ) : (
-                  <Button
-                    type="button"
-                    onClick={scrollToCatalog}
-                    className="h-11 cursor-pointer gap-2 rounded-xl bg-stone-900 px-4.5 text-xs font-bold text-white shadow-sm transition hover:bg-stone-800 sm:text-[13px] dark:bg-amber-600 dark:hover:bg-amber-500"
-                  >
-                    <ShoppingBag className="h-4 w-4 shrink-0" />
-                    <span>Khám Phá Sản Phẩm</span>
-                  </Button>
-                )}
+                  )}
 
-                {isWholesaleAllowed && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setActiveTab('WHOLESALE')}
-                    className="h-11 max-w-full cursor-pointer gap-1.5 rounded-xl border-amber-400/90 bg-amber-50/85 px-4 text-xs font-bold text-amber-950 transition hover:bg-amber-100/90 sm:text-[13px] dark:border-amber-700 dark:bg-amber-950/45 dark:text-amber-200 dark:hover:bg-amber-950/70"
-                  >
-                    <BadgePercent className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
-                    <span className="truncate">Bảng Giá Sỉ &amp; OEM {wsRangeLabel}</span>
-                  </Button>
-                )}
-
-                {contact?.shopeeUrl && (
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="h-11 gap-1.5 rounded-xl border-stone-300/90 bg-white/90 px-4 text-xs font-semibold text-stone-800 hover:bg-white sm:text-[13px] dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-200"
-                  >
-                    <a href={contact.shopeeUrl} target="_blank" rel="noopener noreferrer">
-                      <span>Gian hàng Shopee</span>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                    </a>
-                  </Button>
-                )}
+                  {contact?.shopeeUrl && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-10 gap-1.5 rounded-xl border-stone-300/90 bg-white/90 px-3.5 text-xs font-semibold text-stone-800 hover:bg-white sm:h-11 sm:px-4 sm:text-[13px] dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-200"
+                    >
+                      <a href={contact.shopeeUrl} target="_blank" rel="noopener noreferrer">
+                        <span>Gian hàng Shopee</span>
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Cột Phải: Khung Trưng Bày Nghệ Thuật & Sản Phẩm Tiêu Biểu (0 CLS / 0 Dead-Click) */}
-            {hasHeroVisual && (
-              <div className="min-w-0 rounded-[22px] border border-stone-200/90 bg-white/92 p-2.5 shadow-[0_20px_44px_-20px_rgba(45,33,20,0.18)] backdrop-blur-xs sm:p-3 dark:border-stone-800 dark:bg-stone-900/90">
-                {isInitialHeroLoading ? (
-                  <div className="space-y-2.5" aria-hidden="true">
-                    <div className="aspect-[1196/518] w-full animate-pulse rounded-2xl bg-stone-200/70 dark:bg-stone-800/70" />
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="h-[58px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
-                      <div className="h-[58px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
-                      <div className="h-[58px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {heroPrimaryStage.hasStageImage && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (heroPrimaryStage.stageProduct) {
-                            setSelectedImageIdx(0)
-                            setSelectedProduct(heroPrimaryStage.stageProduct)
-                          } else {
-                            scrollToCatalog()
-                          }
-                        }}
-                        aria-label={
-                          heroPrimaryStage.stageProduct
-                            ? `Xem chi tiết ${heroPrimaryStage.stageProduct.cleanTitle || heroPrimaryStage.stageProduct.name}`
-                            : `Khám phá danh mục ${brandName}`
-                        }
-                        className="group/stage relative block w-full cursor-pointer overflow-hidden rounded-2xl border border-stone-200/70 bg-stone-100 text-left focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none dark:border-stone-800 dark:bg-stone-950"
-                      >
-                        <picture>
-                          {heroPrimaryStage.mobileImageUrl && (
-                            <source
-                              media="(max-width: 640px)"
-                              srcSet={heroPrimaryStage.mobileImageUrl}
-                            />
-                          )}
-                          <img
-                            src={heroPrimaryStage.imageUrl}
-                            alt={heroPrimaryStage.alt}
-                            referrerPolicy="no-referrer"
-                            className="aspect-[1196/518] w-full object-cover transition-transform duration-500 group-hover/stage:scale-[1.018]"
-                          />
-                        </picture>
-                        {heroPrimaryStage.isProductFallback && heroPrimaryStage.stageProduct ? (
-                          <span className="pointer-events-none absolute right-2.5 bottom-2.5 left-2.5 flex items-center justify-between gap-2 rounded-xl bg-stone-950/72 px-3 py-1.5 text-xs text-white backdrop-blur-xs">
-                            <span className="truncate font-bold">
-                              {formatHeroShortProductLabel(
-                                heroPrimaryStage.stageProduct.cleanTitle ||
-                                  heroPrimaryStage.stageProduct.name,
-                                36
-                              )}
-                            </span>
-                            <span className="shrink-0 font-extrabold text-amber-300">
-                              {formatVND(heroPrimaryStage.stageProduct.retailPrice)} · Xem →
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="pointer-events-none absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full bg-stone-950/68 px-2.5 py-1 text-[10.5px] font-semibold text-white opacity-90 backdrop-blur-xs transition group-hover/stage:bg-amber-800 group-hover/stage:opacity-100">
-                            <span>Khám phá bộ sưu tập</span>
-                            <ChevronRight className="h-3 w-3" />
-                          </span>
-                        )}
-                      </button>
-                    )}
-
-                    {heroPrimaryStage.stripProducts.length > 0 && (
-                      <div className={cn(heroPrimaryStage.hasStageImage && 'mt-2.5')}>
-                        <div className="mb-1.5 flex items-center justify-between gap-2 px-1 text-[11px] text-stone-500 dark:text-stone-400">
-                          <span className="font-bold text-stone-700 dark:text-stone-200">
-                            {heroCopy.showcaseHeading}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={scrollToCatalog}
-                            className="cursor-pointer font-semibold text-amber-800 transition hover:text-amber-950 hover:underline dark:text-amber-400"
-                          >
-                            {heroCopy.showcaseActionLabel}
-                          </button>
-                        </div>
-
-                        <div
-                          className={cn(
-                            'grid gap-2',
-                            heroPrimaryStage.stripProducts.length === 1
-                              ? 'grid-cols-1'
-                              : heroPrimaryStage.stripProducts.length === 2
-                                ? 'grid-cols-2'
-                                : 'grid-cols-3'
-                          )}
-                        >
-                          {heroPrimaryStage.stripProducts.map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedImageIdx(0)
-                                setSelectedProduct(item)
-                              }}
-                              className="group flex min-h-[58px] cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border border-stone-200/85 bg-stone-50/85 p-1.5 text-left transition hover:-translate-y-0.5 hover:border-amber-400/80 hover:bg-white hover:shadow-xs min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2 min-[560px]:p-2 dark:border-stone-800 dark:bg-stone-950/60 dark:hover:border-amber-600/70 dark:hover:bg-stone-950"
-                            >
-                              {item.image && (
-                                <img
-                                  src={item.image}
-                                  alt={item.cleanTitle || item.name}
-                                  referrerPolicy="no-referrer"
-                                  loading="lazy"
-                                  className="aspect-[4/3] w-full shrink-0 rounded-lg border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 min-[560px]:aspect-square min-[560px]:h-11 min-[560px]:w-11 dark:border-stone-800"
-                                />
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <p className="line-clamp-2 text-[11px] leading-[1.24] font-bold text-stone-800 group-hover:text-amber-900 min-[560px]:text-[11.5px] dark:text-stone-100 dark:group-hover:text-amber-300">
-                                  {formatHeroShortProductLabel(item.cleanTitle || item.name)}
-                                </p>
-                                <p className="mt-0.5 text-[11px] font-extrabold text-amber-800 dark:text-amber-400">
-                                  {formatVND(item.retailPrice)}
-                                </p>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
+              {/* Cột Phải: Khung Trưng Bày */}
+              {hasHeroVisual && (
+                <div className="min-w-0 rounded-[20px] border border-stone-200/90 bg-white/92 p-2 shadow-[0_20px_44px_-20px_rgba(45,33,20,0.18)] backdrop-blur-xs sm:rounded-[22px] sm:p-3 dark:border-stone-800 dark:bg-stone-900/90">
+                  {isInitialHeroLoading ? (
+                    <div className="space-y-2" aria-hidden="true">
+                      <div className="aspect-[1196/518] w-full animate-pulse rounded-2xl bg-stone-200/70 dark:bg-stone-800/70" />
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="h-[52px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
+                        <div className="h-[52px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
+                        <div className="h-[52px] animate-pulse rounded-xl bg-stone-100 dark:bg-stone-800/50" />
                       </div>
-                    )}
-                  </>
-                )}
+                    </div>
+                  ) : (
+                    <>
+                      {heroPrimaryStage.hasStageImage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (heroPrimaryStage.stageProduct) {
+                              openQuickView(heroPrimaryStage.stageProduct)
+                            } else {
+                              scrollToCatalog()
+                            }
+                          }}
+                          aria-label={
+                            heroPrimaryStage.stageProduct
+                              ? `Xem chi tiết ${heroPrimaryStage.stageProduct.cleanTitle || heroPrimaryStage.stageProduct.name}`
+                              : `Khám phá danh mục ${brandName}`
+                          }
+                          className="group/stage relative block w-full cursor-pointer overflow-hidden rounded-2xl border border-stone-200/70 bg-stone-100 text-left focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none dark:border-stone-800 dark:bg-stone-950"
+                        >
+                          <picture>
+                            {heroPrimaryStage.mobileImageUrl && (
+                              <source
+                                media="(max-width: 640px)"
+                                srcSet={heroPrimaryStage.mobileImageUrl}
+                              />
+                            )}
+                            <img
+                              src={heroPrimaryStage.imageUrl}
+                              alt={heroPrimaryStage.alt}
+                              fetchPriority="high"
+                              referrerPolicy="no-referrer"
+                              className="aspect-[1196/518] w-full object-cover transition-transform duration-500 group-hover/stage:scale-[1.018]"
+                            />
+                          </picture>
+                          {heroPrimaryStage.isProductFallback && heroPrimaryStage.stageProduct ? (
+                            <span className="pointer-events-none absolute right-2.5 bottom-2.5 left-2.5 flex items-center justify-between gap-2 rounded-xl bg-stone-950/75 px-3 py-1.5 text-xs text-white backdrop-blur-xs">
+                              <span className="truncate font-bold">
+                                {formatHeroShortProductLabel(
+                                  heroPrimaryStage.stageProduct.cleanTitle ||
+                                    heroPrimaryStage.stageProduct.name,
+                                  36
+                                )}
+                              </span>
+                              <span className="shrink-0 font-extrabold whitespace-nowrap tabular-nums text-amber-300">
+                                {formatVND(heroPrimaryStage.stageProduct.retailPrice)} · Xem →
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="pointer-events-none absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full bg-stone-950/72 px-2.5 py-1 text-[10.5px] font-semibold text-white opacity-90 backdrop-blur-xs transition group-hover/stage:bg-[#8c4f1e] group-hover/stage:opacity-100">
+                              <span>Khám phá bộ sưu tập</span>
+                              <ChevronRight className="h-3 w-3" />
+                            </span>
+                          )}
+                        </button>
+                      )}
+
+                      {heroPrimaryStage.stripProducts.length > 0 && (
+                        <div className={cn(heroPrimaryStage.hasStageImage && 'mt-2')}>
+                          <div className="mb-1 flex items-center justify-between gap-2 px-1 text-[11px] text-stone-600 dark:text-stone-400">
+                            <span className="font-bold text-stone-800 dark:text-stone-200">
+                              {heroCopy.showcaseHeading}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={scrollToCatalog}
+                              className="inline-flex min-h-8 cursor-pointer items-center rounded-lg px-2 font-semibold text-[#8c4f1e] transition hover:bg-amber-50 hover:text-[#6f3d15] hover:underline dark:text-amber-400 dark:hover:bg-stone-800"
+                            >
+                              {heroCopy.showcaseActionLabel}
+                            </button>
+                          </div>
+
+                          <div
+                            className={cn(
+                              'grid gap-1.5 sm:gap-2',
+                              heroPrimaryStage.stripProducts.length === 1
+                                ? 'grid-cols-1'
+                                : heroPrimaryStage.stripProducts.length === 2
+                                  ? 'grid-cols-2'
+                                  : 'grid-cols-3'
+                            )}
+                          >
+                            {heroPrimaryStage.stripProducts.map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => openQuickView(item)}
+                                className="group flex min-h-[52px] cursor-pointer items-center gap-1.5 rounded-xl border border-stone-200/85 bg-stone-50/85 p-1.5 text-left transition hover:-translate-y-0.5 hover:border-amber-400/80 hover:bg-white hover:shadow-xs sm:gap-2 sm:p-2 dark:border-stone-800 dark:bg-stone-950/60 dark:hover:border-amber-600/70 dark:hover:bg-stone-950"
+                              >
+                                {item.image && (
+                                  <img
+                                    src={item.image}
+                                    alt={item.cleanTitle || item.name}
+                                    referrerPolicy="no-referrer"
+                                    loading="lazy"
+                                    className="h-10 w-10 shrink-0 rounded-lg border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 sm:h-11 sm:w-11 dark:border-stone-800"
+                                  />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="line-clamp-2 text-[10.5px] leading-[1.22] font-bold text-stone-800 group-hover:text-[#8c4f1e] sm:text-[11.5px] dark:text-stone-100 dark:group-hover:text-amber-300">
+                                    {formatHeroShortProductLabel(item.cleanTitle || item.name)}
+                                  </p>
+                                  <p className="mt-0.5 text-[10.5px] font-extrabold whitespace-nowrap tabular-nums text-[#8c4f1e] sm:text-[11px] dark:text-amber-400">
+                                    {formatVND(item.retailPrice)}
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Tầng Đáy Hero: 3 Cam Kết (thu gọn trên Mobile để rút ngắn quãng cuộn tới sản phẩm) */}
+            <div className="mt-4 grid gap-2 border-t border-stone-200/80 pt-3.5 md:mt-6 md:grid-cols-3 md:gap-4 md:pt-5 dark:border-stone-800/90">
+              <div className="flex items-start gap-2.5 rounded-2xl border border-stone-200/85 bg-white/80 p-2.5 shadow-2xs backdrop-blur-xs transition hover:bg-white sm:gap-3 sm:p-3.5 dark:border-stone-800 dark:bg-stone-900/75">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100/90 text-[#7c4316] sm:h-9 sm:w-9 dark:bg-amber-950/80 dark:text-amber-300">
+                  {heroCopy.craftIcon === 'FLAME' ? (
+                    <Flame className="h-4 w-4" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0 text-xs">
+                  <p className="font-bold text-stone-900 dark:text-stone-100">
+                    {heroCopy.craftPromiseTitle}
+                  </p>
+                  <p className="mt-0.5 line-clamp-1 leading-relaxed text-stone-600 sm:line-clamp-none dark:text-stone-400">
+                    {heroCopy.craftPromiseDesc}
+                  </p>
+                </div>
               </div>
-            )}
+
+              <div className="flex items-start gap-2.5 rounded-2xl border border-stone-200/85 bg-white/80 p-2.5 shadow-2xs backdrop-blur-xs transition hover:bg-white sm:gap-3 sm:p-3.5 dark:border-stone-800 dark:bg-stone-900/75">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100/90 text-emerald-900 sm:h-9 sm:w-9 dark:bg-emerald-950/80 dark:text-emerald-300">
+                  {isWholesaleAllowed ? (
+                    <BadgePercent className="h-4 w-4" />
+                  ) : (
+                    <Truck className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0 text-xs">
+                  <p className="font-bold text-stone-900 dark:text-stone-100">
+                    {heroCopy.wsPromiseTitle}
+                  </p>
+                  <p className="mt-0.5 line-clamp-1 leading-relaxed text-stone-600 sm:line-clamp-none dark:text-stone-400">
+                    {isWholesaleAllowed
+                      ? wsTiersSummary
+                      : `Miễn phí giao hàng toàn quốc đơn lẻ từ ${formatVND(freeShipThreshold)}.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 rounded-2xl border border-stone-200/85 bg-white/80 p-2.5 shadow-2xs backdrop-blur-xs transition hover:bg-white sm:gap-3 sm:p-3.5 dark:border-stone-800 dark:bg-stone-900/75">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100/90 text-sky-900 sm:h-9 sm:w-9 dark:bg-sky-950/80 dark:text-sky-300">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 text-xs">
+                  <p className="font-bold text-stone-900 dark:text-stone-100">
+                    {heroCopy.safePromiseTitle}
+                  </p>
+                  <p className="mt-0.5 line-clamp-1 leading-relaxed text-stone-600 sm:line-clamp-none dark:text-stone-400">
+                    {heroCopy.safePromiseDesc}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-
-          {/* Tầng Đáy Hero: 3 Cam Kết Trải Ngang Cân Đối (Thích ứng Đa CMS) */}
-          <div className="mt-6 grid gap-3 border-t border-stone-200/80 pt-5 md:grid-cols-3 md:gap-4 dark:border-stone-800/90">
-            <div className="flex items-start gap-3 rounded-2xl border border-stone-200/85 bg-white/80 p-3.5 shadow-2xs backdrop-blur-xs transition hover:bg-white dark:border-stone-800 dark:bg-stone-900/75">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100/90 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300">
-                {heroCopy.craftIcon === 'FLAME' ? (
-                  <Flame className="h-4 w-4" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-              </div>
-              <div className="min-w-0 text-xs">
-                <p className="font-bold text-stone-900 dark:text-stone-100">
-                  {heroCopy.craftPromiseTitle}
-                </p>
-                <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
-                  {heroCopy.craftPromiseDesc}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 rounded-2xl border border-stone-200/85 bg-white/80 p-3.5 shadow-2xs backdrop-blur-xs transition hover:bg-white dark:border-stone-800 dark:bg-stone-900/75">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100/90 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300">
-                {isWholesaleAllowed ? (
-                  <BadgePercent className="h-4 w-4" />
-                ) : (
-                  <Truck className="h-4 w-4" />
-                )}
-              </div>
-              <div className="min-w-0 text-xs">
-                <p className="font-bold text-stone-900 dark:text-stone-100">
-                  {heroCopy.wsPromiseTitle}
-                </p>
-                <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
-                  {isWholesaleAllowed
-                    ? wsTiersSummary
-                    : `Miễn phí giao hàng toàn quốc đơn lẻ từ ${formatVND(freeShipThreshold)} · Kiểm hàng trước khi nhận.`}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 rounded-2xl border border-stone-200/85 bg-white/80 p-3.5 shadow-2xs backdrop-blur-xs transition hover:bg-white dark:border-stone-800 dark:bg-stone-900/75">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100/90 text-sky-900 dark:bg-sky-950/80 dark:text-sky-300">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 text-xs">
-                <p className="font-bold text-stone-900 dark:text-stone-100">
-                  {heroCopy.safePromiseTitle}
-                </p>
-                <p className="mt-0.5 leading-relaxed text-stone-600 dark:text-stone-400">
-                  {heroCopy.safePromiseDesc}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* MAIN CONTENT */}
       <main
         ref={mainCatalogRef}
-        className="mx-auto w-full max-w-7xl flex-1 scroll-mt-16 px-4 py-8 sm:px-6"
+        className="mx-auto w-full max-w-7xl flex-1 scroll-mt-24 px-4 py-6 sm:scroll-mt-18 sm:px-6 sm:py-8"
       >
         {/* ==================== TAB 1: DANH MỤC SẢN PHẨM ==================== */}
         {activeTab === 'PRODUCTS' && (
           <div className="space-y-6">
-            {/* Banner Trang trí Đồng bộ từ Gian hàng Shopee (Carousel + Điểm chạm SP + Bộ sưu tập) */}
+            {/* Banner Trang trí Đồng bộ từ Gian hàng Shopee */}
             {showShopeeBanners &&
               (carouselBanners.length > 0 ||
                 spotlightBanners.length > 0 ||
-                collectionBanners.length > 0) && (
+                collectionBannersWithCounts.length > 0) && (
                 <section aria-label="Bộ sưu tập & Banner nổi bật" className="space-y-4">
                   {(carouselBanners.length > 0 || spotlightBanners.length > 0) && (
                     <div className="grid items-start gap-4 lg:grid-cols-12">
-                      {/* Carousel Banner Xoay vòng */}
+                      {/* Carousel Banner */}
                       {carouselBanners.length > 0 && (
                         <div
                           onMouseEnter={() => setCarouselPaused(true)}
@@ -1496,35 +1714,59 @@ export default function OnlineStorefrontPage() {
                                   key={slide.id}
                                   aria-hidden={!isCurrent}
                                   className={cn(
-                                    'absolute inset-0 transition-opacity duration-500',
+                                    'absolute inset-0 transition-opacity duration-500 motion-reduce:transition-none',
                                     isCurrent
                                       ? 'z-10 opacity-100'
                                       : 'pointer-events-none z-0 opacity-0'
                                   )}
                                 >
-                                  <picture>
-                                    {slide.mobileImageUrl && (
-                                      <source
-                                        media="(max-width: 640px)"
-                                        srcSet={slide.mobileImageUrl}
-                                      />
-                                    )}
-                                    <img
-                                      src={slide.imageUrl}
-                                      alt={
+                                  {isClickable ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCarouselSlideClick(slide)}
+                                      aria-label={
                                         slide.title ||
                                         `${brandName} — Bộ sưu tập nổi bật #${idx + 1}`
                                       }
-                                      referrerPolicy="no-referrer"
-                                      onClick={() => {
-                                        if (isClickable) handleCarouselSlideClick(slide)
-                                      }}
-                                      className={cn(
-                                        'h-full w-full object-cover',
-                                        isClickable && 'cursor-pointer'
+                                      className="block h-full w-full cursor-pointer text-left"
+                                    >
+                                      <picture>
+                                        {slide.mobileImageUrl && (
+                                          <source
+                                            media="(max-width: 640px)"
+                                            srcSet={slide.mobileImageUrl}
+                                          />
+                                        )}
+                                        <img
+                                          src={slide.imageUrl}
+                                          alt={
+                                            slide.title ||
+                                            `${brandName} — Bộ sưu tập nổi bật #${idx + 1}`
+                                          }
+                                          referrerPolicy="no-referrer"
+                                          className="h-full w-full object-cover"
+                                        />
+                                      </picture>
+                                    </button>
+                                  ) : (
+                                    <picture>
+                                      {slide.mobileImageUrl && (
+                                        <source
+                                          media="(max-width: 640px)"
+                                          srcSet={slide.mobileImageUrl}
+                                        />
                                       )}
-                                    />
-                                  </picture>
+                                      <img
+                                        src={slide.imageUrl}
+                                        alt={
+                                          slide.title ||
+                                          `${brandName} — Bộ sưu tập nổi bật #${idx + 1}`
+                                        }
+                                        referrerPolicy="no-referrer"
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </picture>
+                                  )}
                                 </div>
                               )
                             })}
@@ -1541,7 +1783,7 @@ export default function OnlineStorefrontPage() {
                                         carouselBanners.length
                                     )
                                   }
-                                  className="absolute top-1/2 left-2.5 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/35 text-white backdrop-blur-xs transition hover:bg-black/60"
+                                  className="absolute top-1/2 left-2.5 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/40 text-white backdrop-blur-xs transition hover:bg-black/65"
                                 >
                                   <ChevronLeft className="h-4 w-4" />
                                 </button>
@@ -1553,7 +1795,7 @@ export default function OnlineStorefrontPage() {
                                       (prev) => (prev + 1) % carouselBanners.length
                                     )
                                   }
-                                  className="absolute top-1/2 right-2.5 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/35 text-white backdrop-blur-xs transition hover:bg-black/60"
+                                  className="absolute top-1/2 right-2.5 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/40 text-white backdrop-blur-xs transition hover:bg-black/65"
                                 >
                                   <ChevronRight className="h-4 w-4" />
                                 </button>
@@ -1561,33 +1803,37 @@ export default function OnlineStorefrontPage() {
                             )}
                           </div>
 
-                          <div className="flex h-[34px] items-center justify-between gap-2 border-t bg-card px-3.5 text-[11px] text-muted-foreground">
+                          <div className="flex min-h-[38px] items-center justify-between gap-2 border-t bg-card px-3.5 text-[11px] text-muted-foreground">
                             <span className="truncate font-medium">
                               {carouselBanners[carouselIdx]?.title ||
                                 `Bộ sưu tập Thủ công ${brandName}`}{' '}
                               ({carouselIdx + 1}/{carouselBanners.length})
                             </span>
-                            <div className="flex shrink-0 items-center gap-1.5">
+                            <div className="flex shrink-0 items-center">
                               {carouselBanners.map((s, idx) => (
                                 <button
                                   key={s.id}
                                   type="button"
                                   aria-label={`Chuyển tới banner ${idx + 1}`}
                                   onClick={() => setCarouselIdx(idx)}
-                                  className={cn(
-                                    'h-2 rounded-full transition-all',
-                                    idx === carouselIdx
-                                      ? 'w-5 bg-amber-700 dark:bg-amber-400'
-                                      : 'w-2 bg-stone-300 hover:bg-stone-400 dark:bg-stone-700'
-                                  )}
-                                />
+                                  className="flex h-8 w-8 items-center justify-center"
+                                >
+                                  <span
+                                    className={cn(
+                                      'block h-2 rounded-full transition-all',
+                                      idx === carouselIdx
+                                        ? 'w-5 bg-[#8c4f1e] dark:bg-amber-400'
+                                        : 'w-2 bg-stone-300 dark:bg-stone-700'
+                                    )}
+                                  />
+                                </button>
                               ))}
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Banner Điểm chạm Tương tác Đa Sản phẩm (Shopee Hotspot Banner) */}
+                      {/* Spotlight Hotspot Banner */}
                       {spotlightBanners.map((sb) => (
                         <div
                           key={sb.id}
@@ -1634,8 +1880,7 @@ export default function OnlineStorefrontPage() {
                                   aria-label={labelText}
                                   onClick={() => {
                                     if (matchedProd) {
-                                      setSelectedImageIdx(0)
-                                      setSelectedProduct(matchedProd)
+                                      openQuickView(matchedProd)
                                       return
                                     }
                                     if (hs.linkUrl) {
@@ -1650,7 +1895,7 @@ export default function OnlineStorefrontPage() {
                                   }}
                                   className="group/hs absolute z-10 cursor-pointer transition-all hover:bg-black/5 hover:ring-2 hover:ring-amber-300/90 hover:ring-inset focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                                 >
-                                  <span className="pointer-events-none absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-full bg-stone-950/75 px-1.5 py-0.5 text-[9.5px] font-semibold whitespace-nowrap text-white opacity-90 shadow-sm backdrop-blur-xs transition group-hover/hs:scale-105 group-hover/hs:bg-amber-700 group-hover/hs:opacity-100 sm:right-2 sm:bottom-2 sm:px-2.5 sm:py-1 sm:text-[10.5px]">
+                                  <span className="pointer-events-none absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-full bg-stone-950/78 px-1.5 py-0.5 text-[9.5px] font-semibold whitespace-nowrap tabular-nums text-white opacity-92 shadow-sm backdrop-blur-xs transition group-hover/hs:scale-105 group-hover/hs:bg-[#8c4f1e] group-hover/hs:opacity-100 sm:right-2 sm:bottom-2 sm:px-2.5 sm:py-1 sm:text-[10.5px]">
                                     <span>
                                       {matchedProd
                                         ? formatVND(matchedProd.retailPrice)
@@ -1667,14 +1912,49 @@ export default function OnlineStorefrontPage() {
                     </div>
                   )}
 
-                  {/* 4 Thẻ Bộ Sưu Tập Hình Ảnh Đồng Bộ Từ Shopee */}
-                  {collectionBanners.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-                      {collectionBanners.map((col) => {
-                        const isSelected = selectedCollectionId === col.id
-                        const matchedCount = products.filter((p) =>
-                          matchesCollectionBannerProduct(p, col)
-                        ).length
+                  {/* Thẻ Bộ Sưu Tập: nếu 0 SP khớp CMS thì chuyển thành mở Shopee (hoặc đã tự ẩn nếu không có shopeeUrl) */}
+                  {collectionBannersWithCounts.length > 0 && (
+                    <div
+                      className={cn(
+                        'grid grid-cols-2 gap-2.5 sm:gap-3',
+                        collectionBannersWithCounts.length >= 4
+                          ? 'sm:grid-cols-4'
+                          : collectionBannersWithCounts.length === 3
+                            ? 'sm:grid-cols-3'
+                            : 'sm:grid-cols-2'
+                      )}
+                    >
+                      {collectionBannersWithCounts.map(({ col, matchedCount }) => {
+                        const isSelected = selectedCollectionId === col.id && matchedCount > 0
+                        if (matchedCount === 0 && col.shopeeUrl) {
+                          return (
+                            <a
+                              key={col.id}
+                              href={col.shopeeUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group flex flex-col items-start gap-2 rounded-2xl border border-border/80 bg-card p-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm min-[420px]:flex-row min-[420px]:items-center sm:gap-3"
+                            >
+                              <img
+                                src={col.imageUrl}
+                                alt={col.name}
+                                referrerPolicy="no-referrer"
+                                loading="lazy"
+                                className="h-12 w-12 shrink-0 rounded-xl border border-stone-200/70 object-cover transition-transform duration-300 group-hover:scale-105 min-[420px]:h-14 min-[420px]:w-14 sm:h-16 sm:w-16 dark:border-stone-800"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="line-clamp-2 text-xs leading-tight font-extrabold text-foreground sm:text-sm">
+                                  {col.name}
+                                </p>
+                                <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#8c4f1e] dark:text-amber-400">
+                                  <span>Xem trên Shopee</span>
+                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                </p>
+                              </div>
+                            </a>
+                          )
+                        }
+
                         return (
                           <button
                             key={col.id}
@@ -1688,7 +1968,7 @@ export default function OnlineStorefrontPage() {
                             className={cn(
                               'group flex flex-col items-start gap-2 rounded-2xl border p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm min-[420px]:flex-row min-[420px]:items-center sm:gap-3',
                               isSelected
-                                ? 'border-amber-600 bg-amber-50/80 ring-1 ring-amber-600/40 dark:border-amber-500 dark:bg-amber-950/35'
+                                ? 'border-[#8c4f1e] bg-amber-50/80 ring-1 ring-[#8c4f1e]/40 dark:border-amber-400 dark:bg-amber-950/35'
                                 : 'border-border/80 bg-card hover:border-amber-300'
                             )}
                           >
@@ -1717,24 +1997,50 @@ export default function OnlineStorefrontPage() {
                 </section>
               )}
 
-            {/* Thanh công cụ Tìm kiếm + Lọc Danh mục + Chuyển đổi Xem Giá Lẻ / Giá Sỉ */}
+            {/* Thanh công cụ Tìm kiếm + Xem Giá Lẻ/Sỉ + Lọc Danh mục (chỉ hiện dải pill khi > 1 danh mục hoặc đang lọc bộ sưu tập) */}
             {!isStorefrontClosed && (
-              <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-2xs">
+              <div className="flex flex-col gap-3.5 rounded-2xl border bg-card p-3.5 shadow-2xs sm:p-4">
+                <p className="sr-only" role="status" aria-live="polite">
+                  Đang hiển thị {filteredProducts.length} sản phẩm
+                </p>
                 <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-                  <div className="relative w-full lg:max-w-md">
+                  <form
+                    role="search"
+                    onSubmit={(e) => e.preventDefault()}
+                    className="relative w-full lg:max-w-md"
+                  >
+                    <Label htmlFor="store-search-input" className="sr-only">
+                      Tìm kiếm sản phẩm
+                    </Label>
                     <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
+                      ref={searchInputRef}
+                      id="store-search-input"
+                      name="q"
+                      type="search"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder={
-                        heroCopy.isCandlePlasterAtelier
-                          ? 'Tìm theo tên sản phẩm (nến bơ, hoa sen, hũ búp sen, khay oval) hoặc SKU...'
-                          : 'Tìm theo tên sản phẩm hoặc mã SKU...'
-                      }
+                      placeholder="Tìm tên sản phẩm, màu hoặc mã SKU..."
                       aria-label="Tìm kiếm sản phẩm"
-                      className="h-10 pl-9"
+                      className={cn('h-10 pl-9', search && 'pr-10')}
                     />
-                  </div>
+                    <button type="submit" className="sr-only">
+                      Tìm kiếm sản phẩm
+                    </button>
+                    {search && (
+                      <button
+                        type="button"
+                        aria-label="Xóa từ khóa tìm kiếm"
+                        onClick={() => {
+                          setSearch('')
+                          searchInputRef.current?.focus()
+                        }}
+                        className="absolute top-1/2 right-1.5 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </form>
 
                   <div className="flex flex-wrap items-center gap-2">
                     {isWholesaleAllowed && (
@@ -1757,8 +2063,8 @@ export default function OnlineStorefrontPage() {
                           className={cn(
                             'min-h-9 rounded-lg px-3 text-xs font-bold transition-colors',
                             priceViewMode === 'WHOLESALE'
-                              ? 'bg-amber-600 text-white shadow-2xs'
-                              : 'text-amber-800 hover:text-amber-900 dark:text-amber-300'
+                              ? 'bg-[#8c4f1e] text-white shadow-2xs dark:bg-amber-400 dark:text-stone-950'
+                              : 'text-[#7c4316] hover:text-stone-900 dark:text-amber-300'
                           )}
                         >
                           Hiển thị Giá Sỉ
@@ -1766,7 +2072,12 @@ export default function OnlineStorefrontPage() {
                       </div>
                     )}
 
+                    <Label htmlFor="store-sort-select" className="sr-only">
+                      Sắp xếp sản phẩm theo giá
+                    </Label>
                     <select
+                      id="store-sort-select"
+                      name="sort"
                       aria-label="Sắp xếp theo giá"
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
@@ -1779,7 +2090,7 @@ export default function OnlineStorefrontPage() {
                   </div>
                 </div>
 
-                {categories.length > 0 && (
+                {(categories.length > 1 || Boolean(activeCollectionBanner)) && (
                   <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                     <button
                       type="button"
@@ -1789,19 +2100,19 @@ export default function OnlineStorefrontPage() {
                       }}
                       className={cn(
                         'inline-flex min-h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors',
-                        selectedCat === 'ALL' && selectedCollectionId === 'ALL'
-                          ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-600 dark:bg-amber-600'
+                        selectedCat === 'ALL' && !activeCollectionBanner
+                          ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950'
                           : 'bg-background text-foreground hover:bg-muted'
                       )}
                     >
                       Tất cả ({products.length})
                     </button>
                     {activeCollectionBanner && (
-                      <div className="inline-flex items-center gap-1.5">
+                      <div className="inline-flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => setSelectedCollectionId('ALL')}
-                          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-amber-600 bg-amber-600 px-3.5 text-xs font-bold text-white"
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#8c4f1e] bg-[#8c4f1e] px-3.5 text-xs font-bold text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950"
                         >
                           <span>Bộ sưu tập: {activeCollectionBanner.name}</span>
                           <X className="h-3.5 w-3.5" />
@@ -1819,21 +2130,22 @@ export default function OnlineStorefrontPage() {
                         )}
                       </div>
                     )}
-                    {categories.map((cat) => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setSelectedCat(cat.id)}
-                        className={cn(
-                          'inline-flex min-h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors',
-                          selectedCat === cat.id
-                            ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-600 dark:bg-amber-600'
-                            : 'bg-background text-foreground hover:bg-muted'
-                        )}
-                      >
-                        {cat.name}
-                      </button>
-                    ))}
+                    {categories.length > 1 &&
+                      categories.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setSelectedCat(cat.id)}
+                          className={cn(
+                            'inline-flex min-h-9 items-center rounded-full border px-3.5 text-xs font-semibold transition-colors',
+                            selectedCat === cat.id
+                              ? 'border-stone-900 bg-stone-900 text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950'
+                              : 'bg-background text-foreground hover:bg-muted'
+                          )}
+                        >
+                          {cat.name}
+                        </button>
+                      ))}
                   </div>
                 )}
               </div>
@@ -1846,45 +2158,73 @@ export default function OnlineStorefrontPage() {
                 ))}
               </div>
             ) : storeData?.storefrontClosed || cfg?.enabled === false ? (
-              <div className="rounded-2xl border border-amber-300/80 bg-amber-50/70 py-14 px-6 text-center dark:border-amber-900 dark:bg-amber-950/30">
-                <Store className="mx-auto mb-3 h-10 w-10 text-amber-700 dark:text-amber-400" />
-                <p className="text-base font-bold text-foreground">
+              <div className="rounded-2xl border border-amber-300/80 bg-amber-50/70 px-6 py-14 text-center dark:border-amber-900 dark:bg-amber-950/30">
+                <Store className="mx-auto mb-3 h-10 w-10 text-[#8c4f1e] dark:text-amber-400" />
+                <h2 className="text-base font-bold text-foreground">
                   Website hiện đang tạm ngưng nhận đơn trực tuyến để cập nhật danh mục
-                </p>
+                </h2>
                 <p className="mx-auto mt-1.5 max-w-lg text-xs text-muted-foreground">
-                  Quý khách vẫn có thể tra cứu trạng thái đơn hàng đã đặt hoặc liên hệ trực tiếp Hotline / Zalo của {brandName} để được phục vụ ngay.
+                  Quý khách vẫn có thể tra cứu trạng thái đơn hàng đã đặt hoặc gửi tin nhắn liên hệ trực tiếp tới {brandName} để được hỗ trợ ngay.
                 </p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <Button type="button" size="sm" onClick={() => setActiveTab('CONTACT')}>
-                    Xem Thông tin Liên hệ &amp; Zalo
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => selectNavTab('CONTACT')}
+                    className="bg-[#8c4f1e] text-white hover:bg-[#733f16] dark:bg-amber-400 dark:text-stone-950"
+                  >
+                    Liên hệ Cửa hàng
                   </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setActiveTab('TRACKING')}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => selectNavTab('TRACKING')}
+                  >
                     Tra cứu đơn hàng
                   </Button>
                 </div>
               </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="rounded-2xl border border-dashed py-16 text-center">
+              <div className="rounded-2xl border border-dashed py-14 text-center">
                 <Package className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
                 <p className="text-base font-semibold">Không tìm thấy sản phẩm phù hợp</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Hãy thử từ khóa khác hoặc xem toàn bộ bộ sưu tập.
+                  Hãy thử từ khóa khác hoặc xem lại toàn bộ bộ sưu tập.
                 </p>
+                {(search || selectedCollectionId !== 'ALL' || selectedCat !== 'ALL') && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => {
+                      setSearch('')
+                      setSelectedCat('ALL')
+                      setSelectedCollectionId('ALL')
+                    }}
+                  >
+                    Hiển thị toàn bộ {products.length} mẫu
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredProducts.map((p) => {
                   const firstWs = p.wholesalePrices[0]
                   const bestWs = p.wholesalePrices[p.wholesalePrices.length - 1]
+                  const cardTitle =
+                    formatStorefrontDisplayTitle(p.cleanTitle || p.name, p.variantLabel) ||
+                    p.cleanTitle
                   return (
                     <Card
                       key={p.id}
-                      className="group flex flex-col overflow-hidden border-border/80 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                      className="group flex flex-col gap-0 overflow-hidden border-border/80 py-0 transition-all hover:-translate-y-0.5 hover:shadow-md"
                     >
                       <button
                         type="button"
-                        onClick={() => setSelectedProduct(p)}
-                        className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-stone-100/70 p-3 text-left dark:bg-stone-900/50"
+                        onClick={() => openQuickView(p)}
+                        className="relative flex aspect-square w-full cursor-pointer items-center justify-center overflow-hidden bg-stone-100/70 p-3 text-left dark:bg-stone-900/50"
                       >
                         {p.image ? (
                           <img
@@ -1897,12 +2237,12 @@ export default function OnlineStorefrontPage() {
                           <ProductAvatar name={p.name} className="h-20 w-20 text-xl" />
                         )}
                         {p.variantLabel && (
-                          <Badge className="absolute top-3 left-3 bg-stone-900/85 text-[10px] font-semibold text-white backdrop-blur-xs">
+                          <Badge className="absolute top-3 left-3 bg-stone-900/88 text-[10px] font-semibold text-white backdrop-blur-xs">
                             {p.variantLabel}
                           </Badge>
                         )}
                         {bestWs && (
-                          <Badge className="absolute top-3 right-3 border-amber-300 bg-amber-500 text-[10px] font-bold text-stone-950">
+                          <Badge className="absolute top-3 right-3 border-amber-300 bg-amber-400 text-[10px] font-bold whitespace-nowrap tabular-nums text-stone-950">
                             Sỉ từ {formatVND(bestWs.unitPrice)}
                           </Badge>
                         )}
@@ -1910,25 +2250,23 @@ export default function OnlineStorefrontPage() {
 
                       <CardContent className="flex flex-1 flex-col justify-between gap-3 p-4">
                         <div className="space-y-1.5">
+                          {/* Ẩn mã SKU nội bộ khỏi mặt ngoài thẻ để nhãn tồn kho nằm gọn trên 1 dòng */}
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-[10.5px] text-muted-foreground">
-                              {p.sku}
-                            </span>
-                            <span className="text-[10.5px] font-medium text-emerald-700 dark:text-emerald-400">
+                            <span className="truncate text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
                               {p.stockLabel}
                             </span>
                           </div>
                           <button
                             type="button"
-                            onClick={() => setSelectedProduct(p)}
-                            className="text-left"
+                            onClick={() => openQuickView(p)}
+                            className="block w-full cursor-pointer text-left"
                           >
-                            <h2 className="line-clamp-2 text-sm font-bold leading-snug text-foreground hover:text-[#0066CC]">
-                              {p.cleanTitle}
+                            <h2 className="line-clamp-2 text-sm leading-snug font-bold text-foreground transition-colors hover:text-[#8c4f1e] dark:hover:text-amber-300">
+                              {cardTitle}
                             </h2>
                           </button>
                           {p.variantLabel && (
-                            <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                            <p className="text-xs font-semibold text-[#7c4316] dark:text-amber-300">
                               Phân loại: {p.variantLabel}
                             </p>
                           )}
@@ -1937,14 +2275,19 @@ export default function OnlineStorefrontPage() {
                         <div className="space-y-2.5 border-t pt-3">
                           {priceViewMode === 'WHOLESALE' && p.wholesalePrices.length > 0 ? (
                             <div className="space-y-1 rounded-xl border border-amber-200/80 bg-amber-50/60 p-2 text-[11px] dark:border-amber-900/60 dark:bg-amber-950/30">
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Giá lẻ niêm yết:</span>
-                                <span className="line-through">{formatVND(p.retailPrice)}</span>
+                              <div className="flex justify-between gap-2 text-muted-foreground">
+                                <span>Giá lẻ:</span>
+                                <span className="line-through whitespace-nowrap tabular-nums">
+                                  {formatVND(p.retailPrice)}
+                                </span>
                               </div>
                               {p.wholesalePrices.map((wp) => (
-                                <div key={wp.tierId} className="flex justify-between font-semibold">
+                                <div
+                                  key={wp.tierId}
+                                  className="flex justify-between gap-2 font-semibold"
+                                >
                                   <span>Từ {wp.minQty} SP ({wp.badge}):</span>
-                                  <span className="font-bold text-amber-800 dark:text-amber-300">
+                                  <span className="font-bold whitespace-nowrap tabular-nums text-[#7c4316] dark:text-amber-300">
                                     {formatVND(wp.unitPrice)}
                                   </span>
                                 </div>
@@ -1953,7 +2296,7 @@ export default function OnlineStorefrontPage() {
                           ) : (
                             <div>
                               <div className="flex items-baseline justify-between gap-2">
-                                <p className="text-base font-extrabold text-[#0066CC] dark:text-sky-400">
+                                <p className="text-base font-extrabold whitespace-nowrap tabular-nums text-[#8c4f1e] dark:text-amber-400">
                                   {formatVND(p.retailPrice)}
                                 </p>
                                 <span className="text-[11px] text-muted-foreground">
@@ -1961,9 +2304,11 @@ export default function OnlineStorefrontPage() {
                                 </span>
                               </div>
                               {firstWs && (
-                                <p className="mt-0.5 text-[11px] text-amber-800 dark:text-amber-300">
+                                <p className="mt-0.5 text-[11px] text-[#7c4316] dark:text-amber-300">
                                   Giá sỉ từ {firstWs.minQty} SP:{' '}
-                                  <strong>{formatVND(firstWs.unitPrice)}</strong>
+                                  <strong className="whitespace-nowrap tabular-nums">
+                                    {formatVND(firstWs.unitPrice)}
+                                  </strong>
                                 </p>
                               )}
                             </div>
@@ -1974,10 +2319,7 @@ export default function OnlineStorefrontPage() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                setSelectedImageIdx(0)
-                                setSelectedProduct(p)
-                              }}
+                              onClick={() => openQuickView(p)}
                               className="col-span-2 h-10 gap-1 px-2 text-xs font-semibold"
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -1988,9 +2330,12 @@ export default function OnlineStorefrontPage() {
                               size="sm"
                               disabled={!p.availableToOrder}
                               onClick={() =>
-                                addToCart(p, priceViewMode === 'WHOLESALE' && firstWs ? firstWs.minQty : 1)
+                                addToCart(
+                                  p,
+                                  priceViewMode === 'WHOLESALE' && firstWs ? firstWs.minQty : 1
+                                )
                               }
-                              className="col-span-3 h-10 gap-1 bg-stone-900 px-2.5 text-xs font-bold text-white hover:bg-stone-800 dark:bg-[#0066CC] dark:hover:bg-[#0055B3]"
+                              className="col-span-3 h-10 gap-1 bg-stone-900 px-2.5 text-xs font-bold text-white hover:bg-[#8c4f1e] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                             >
                               <Plus className="h-3.5 w-3.5" />
                               {!p.availableToOrder
@@ -2012,21 +2357,21 @@ export default function OnlineStorefrontPage() {
 
         {/* ==================== TAB 2: BẢNG GIÁ SỈ & CHÍNH SÁCH ĐẠI LÝ ==================== */}
         {activeTab === 'WHOLESALE' && isWholesaleAllowed && (
-          <div className="space-y-8">
-            <div className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-6 sm:space-y-8">
+            <div className="grid gap-3.5 md:grid-cols-3">
               {wholesaleTiers.map((tier, idx) => (
                 <Card
                   key={tier.id}
                   className={cn(
                     'border-2',
                     idx === 1
-                      ? 'border-amber-500 bg-amber-50/40 shadow-sm dark:bg-amber-950/20'
+                      ? 'border-[#8c4f1e] bg-amber-50/40 shadow-sm dark:border-amber-500 dark:bg-amber-950/20'
                       : 'border-border'
                   )}
                 >
                   <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <Badge className="bg-amber-600 text-xs font-bold text-white">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge className="bg-[#8c4f1e] text-xs font-bold text-white dark:bg-amber-400 dark:text-stone-950">
                         Chiết khấu {tier.badge}
                       </Badge>
                       <span className="text-xs font-semibold text-muted-foreground">
@@ -2041,11 +2386,11 @@ export default function OnlineStorefrontPage() {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-12">
-              {/* Bảng ma trận giá sỉ toàn bộ SKU */}
+              {/* Bảng giá sỉ Responsive: Thẻ Mobile (< 640px) & Bảng Desktop (>= 640px) */}
               <Card className="lg:col-span-7">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Layers className="h-5 w-5 text-amber-700" />
+                    <Layers className="h-5 w-5 text-[#8c4f1e] dark:text-amber-400" />
                     Bảng Báo Giá Sỉ Niêm Yết Theo Từng Mã Sản Phẩm ({products.length} mã)
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -2053,65 +2398,155 @@ export default function OnlineStorefrontPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto rounded-xl border">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/60 font-bold text-foreground">
-                        <tr>
-                          <th className="px-3 py-2.5">Sản phẩm / Phân loại</th>
-                          <th className="px-3 py-2.5 text-right">Giá lẻ</th>
-                          {wholesaleTiers.map((t) => (
-                            <th
-                              key={t.id}
-                              className="px-3 py-2.5 text-right text-amber-800 dark:text-amber-300"
-                            >
-                              Từ {t.minQty} SP ({t.badge})
-                            </th>
-                          ))}
-                          <th className="px-3 py-2.5 text-center">Chọn sỉ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {products.map((p) => (
-                          <tr key={p.id} className="hover:bg-muted/30">
-                            <td className="px-3 py-2.5">
-                              <p className="font-mono text-[10px] text-muted-foreground">{p.sku}</p>
-                              <p className="font-semibold text-foreground">{p.cleanTitle}</p>
-                              {p.variantLabel && (
-                                <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                                  Phân loại: {p.variantLabel}
-                                </p>
-                              )}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-medium text-muted-foreground">
-                              {formatVND(p.retailPrice)}
-                            </td>
-                            {wholesaleTiers.map((t) => {
+                  {/* Mobile Wholesale Cards (< 640px) — chống bóp nát chữ & gãy ký hiệu ₫ */}
+                  <div className="space-y-3 sm:hidden">
+                    {products.map((p) => {
+                      const cardTitle =
+                        formatStorefrontDisplayTitle(p.cleanTitle || p.name, p.variantLabel) ||
+                        p.cleanTitle
+                      return (
+                        <div
+                          key={p.id}
+                          className="space-y-2.5 rounded-2xl border bg-card p-3 shadow-2xs"
+                        >
+                          <div className="flex items-start gap-2.5">
+                            {p.image ? (
+                              <img
+                                src={p.image}
+                                alt={p.name}
+                                loading="lazy"
+                                className="h-12 w-12 shrink-0 rounded-xl border object-cover"
+                              />
+                            ) : (
+                              <ProductAvatar name={p.name} className="h-12 w-12 shrink-0 text-sm" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="line-clamp-2 text-xs leading-snug font-bold text-foreground">
+                                {cardTitle}
+                              </p>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                                {p.variantLabel && (
+                                  <span className="font-semibold text-[#7c4316] dark:text-amber-300">
+                                    {p.variantLabel}
+                                  </span>
+                                )}
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                  {p.sku}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-amber-200/70 bg-amber-50/45 p-2 text-center dark:border-amber-900/60 dark:bg-amber-950/25">
+                            {wholesaleTiers.slice(0, 3).map((t) => {
                               const wp =
                                 p.wholesalePrices.find((x) => x.tierId === t.id)?.unitPrice ??
                                 computeDiscountedPriceClient(p.retailPrice, t.discountPercent)
                               return (
-                                <td
-                                  key={t.id}
-                                  className="px-3 py-2.5 text-right font-bold text-foreground"
-                                >
-                                  {formatVND(wp)}
-                                </td>
+                                <div key={t.id} className="min-w-0">
+                                  <p className="text-[10px] font-semibold text-muted-foreground">
+                                    ≥{t.minQty} ({t.badge})
+                                  </p>
+                                  <p className="mt-0.5 text-xs font-extrabold whitespace-nowrap tabular-nums text-[#7c4316] dark:text-amber-300">
+                                    {formatVND(wp)}
+                                  </p>
+                                </div>
                               )
                             })}
-                            <td className="px-3 py-2.5 text-center">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={!p.availableToOrder}
-                                onClick={() => addToCart(p, minWholesaleQty)}
-                                className="h-8 px-2.5 text-[11px] font-semibold"
-                              >
-                                {p.availableToOrder ? `+${minWholesaleQty}` : 'Tạm hết'}
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-0.5">
+                            <span className="text-[11px] text-muted-foreground">
+                              Giá lẻ:{' '}
+                              <span className="line-through whitespace-nowrap tabular-nums">
+                                {formatVND(p.retailPrice)}
+                              </span>
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!p.availableToOrder}
+                              onClick={() => addToCart(p, minWholesaleQty)}
+                              className="min-h-[38px] gap-1 bg-stone-900 px-3.5 text-xs font-bold text-white hover:bg-[#8c4f1e] dark:bg-amber-400 dark:text-stone-950"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              {p.availableToOrder ? `Thêm ${minWholesaleQty} ${p.unit}` : 'Tạm hết'}
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Desktop/Tablet Matrix Table (>= 640px) */}
+                  <div className="hidden overflow-x-auto rounded-xl border sm:block">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b bg-muted/60 font-bold text-foreground">
+                        <tr>
+                          <th className="px-3 py-2.5">Sản phẩm / Phân loại</th>
+                          <th className="px-3 py-2.5 text-right whitespace-nowrap">Giá lẻ</th>
+                          {wholesaleTiers.map((t) => (
+                            <th
+                              key={t.id}
+                              className="px-3 py-2.5 text-right whitespace-nowrap text-[#7c4316] dark:text-amber-300"
+                            >
+                              Từ {t.minQty} SP ({t.badge})
+                            </th>
+                          ))}
+                          <th className="px-3 py-2.5 text-center whitespace-nowrap">Chọn sỉ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {products.map((p) => {
+                          const rowTitle =
+                            formatStorefrontDisplayTitle(
+                              p.cleanTitle || p.name,
+                              p.variantLabel
+                            ) || p.cleanTitle
+                          return (
+                            <tr key={p.id} className="hover:bg-muted/30">
+                              <td className="px-3 py-2.5">
+                                <p className="font-mono text-[10px] text-muted-foreground">
+                                  {p.sku}
+                                </p>
+                                <p className="font-semibold text-foreground">{rowTitle}</p>
+                                {p.variantLabel && (
+                                  <p className="text-[11px] font-medium text-[#7c4316] dark:text-amber-300">
+                                    Phân loại: {p.variantLabel}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap tabular-nums text-muted-foreground">
+                                {formatVND(p.retailPrice)}
+                              </td>
+                              {wholesaleTiers.map((t) => {
+                                const wp =
+                                  p.wholesalePrices.find((x) => x.tierId === t.id)?.unitPrice ??
+                                  computeDiscountedPriceClient(p.retailPrice, t.discountPercent)
+                                return (
+                                  <td
+                                    key={t.id}
+                                    className="px-3 py-2.5 text-right font-bold whitespace-nowrap tabular-nums text-foreground"
+                                  >
+                                    {formatVND(wp)}
+                                  </td>
+                                )
+                              })}
+                              <td className="px-3 py-2.5 text-center">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!p.availableToOrder}
+                                  onClick={() => addToCart(p, minWholesaleQty)}
+                                  className="min-h-[36px] px-2.5 text-[11px] font-semibold whitespace-nowrap"
+                                >
+                                  {p.availableToOrder ? `+${minWholesaleQty}` : 'Tạm hết'}
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -2122,7 +2557,7 @@ export default function OnlineStorefrontPage() {
               <Card className="border-amber-300/80 lg:col-span-5 dark:border-amber-900">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Calculator className="h-5 w-5 text-amber-700" />
+                    <Calculator className="h-5 w-5 text-[#8c4f1e] dark:text-amber-400" />
                     Đăng Ký Nhận Báo Giá Sỉ &amp; Gia Công Quà Tặng (OEM)
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -2131,7 +2566,11 @@ export default function OnlineStorefrontPage() {
                 </CardHeader>
                 <CardContent>
                   {wholesaleSubmittedCode ? (
-                    <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-5 text-center dark:border-emerald-900 dark:bg-emerald-950/40">
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-5 text-center dark:border-emerald-900 dark:bg-emerald-950/40"
+                    >
                       <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
                       <p className="text-base font-bold text-emerald-950 dark:text-emerald-200">
                         Đã tiếp nhận yêu cầu sỉ ({wholesaleSubmittedCode})
@@ -2149,10 +2588,10 @@ export default function OnlineStorefrontPage() {
                     </div>
                   ) : (
                     <form onSubmit={handleWholesaleSubmit} className="space-y-3">
-                      <div className="rounded-xl border bg-amber-50/60 p-3 text-xs dark:bg-amber-950/30">
-                        <div className="flex items-center justify-between">
+                      <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs dark:border-amber-900/60 dark:bg-amber-950/30">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="font-semibold">Sản lượng dự kiến mỗi đơn:</span>
-                          <span className="font-bold text-amber-800 dark:text-amber-300">
+                          <span className="font-bold whitespace-nowrap tabular-nums text-[#7c4316] dark:text-amber-300">
                             {estimatedQtyNum} sản phẩm
                           </span>
                         </div>
@@ -2171,6 +2610,8 @@ export default function OnlineStorefrontPage() {
                           <Label htmlFor="ws-name">Họ và tên người liên hệ *</Label>
                           <Input
                             id="ws-name"
+                            name="wsName"
+                            autoComplete="name"
                             value={wsName}
                             onChange={(e) => setWsName(e.target.value)}
                             placeholder="Chị Minh Anh"
@@ -2181,9 +2622,13 @@ export default function OnlineStorefrontPage() {
                           <Label htmlFor="ws-phone">Số điện thoại / Zalo *</Label>
                           <Input
                             id="ws-phone"
+                            name="wsPhone"
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
                             value={wsPhone}
                             onChange={(e) => setWsPhone(e.target.value)}
-                            placeholder="0909..."
+                            placeholder="VD: 09xx xxx xxx"
                             required
                           />
                         </div>
@@ -2191,6 +2636,8 @@ export default function OnlineStorefrontPage() {
                           <Label htmlFor="ws-shop">Tên Shop / Spa / Doanh nghiệp</Label>
                           <Input
                             id="ws-shop"
+                            name="companyOrShopName"
+                            autoComplete="organization"
                             value={wsShopName}
                             onChange={(e) => setWsShopName(e.target.value)}
                             placeholder="An Nhiên Spa / Quà tặng ABC..."
@@ -2200,7 +2647,9 @@ export default function OnlineStorefrontPage() {
                           <Label htmlFor="ws-qty">Số lượng sỉ dự kiến (SP)</Label>
                           <Input
                             id="ws-qty"
+                            name="estimatedQty"
                             type="number"
+                            inputMode="numeric"
                             min={minWholesaleQty}
                             value={wsEstimatedQty}
                             onChange={(e) => setWsEstimatedQty(e.target.value)}
@@ -2210,6 +2659,8 @@ export default function OnlineStorefrontPage() {
                           <Label htmlFor="ws-addr">Tỉnh/Thành phố nhận hàng</Label>
                           <Input
                             id="ws-addr"
+                            name="wsAddress"
+                            autoComplete="address-level1"
                             value={wsAddress}
                             onChange={(e) => setWsAddress(e.target.value)}
                             placeholder="TP.HCM, Hà Nội, Đà Nẵng..."
@@ -2219,7 +2670,10 @@ export default function OnlineStorefrontPage() {
                           <Label htmlFor="ws-email">Email nhận bảng giá PDF/Excel (tùy chọn)</Label>
                           <Input
                             id="ws-email"
+                            name="wsEmail"
                             type="email"
+                            inputMode="email"
+                            autoComplete="email"
                             value={wsEmail}
                             onChange={(e) => setWsEmail(e.target.value)}
                             placeholder="purchasing@company.vn"
@@ -2229,6 +2683,7 @@ export default function OnlineStorefrontPage() {
                           <Label htmlFor="ws-note">Ghi chú mẫu quan tâm / Yêu cầu in logo OEM</Label>
                           <Textarea
                             id="ws-note"
+                            name="wsNote"
                             rows={3}
                             value={wsNote}
                             onChange={(e) => setWsNote(e.target.value)}
@@ -2240,7 +2695,7 @@ export default function OnlineStorefrontPage() {
                       <Button
                         type="submit"
                         disabled={submittingWholesale}
-                        className="h-11 w-full gap-2 bg-amber-700 text-xs font-bold text-white hover:bg-amber-800"
+                        className="h-11 w-full gap-2 bg-[#8c4f1e] text-xs font-bold text-white hover:bg-[#733f16] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                       >
                         <Send className="h-4 w-4" />
                         {submittingWholesale
@@ -2262,22 +2717,22 @@ export default function OnlineStorefrontPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Building2 className="h-5 w-5 text-[#0066CC]" />
+                    <Building2 className="h-5 w-5 text-[#8c4f1e] dark:text-amber-400" />
                     Thông Tin Liên Hệ Chính Thức — {brandName}
                   </CardTitle>
                   <CardDescription>
                     Kết nối trực tiếp với Xưởng sản xuất &amp; Bộ phận CSKH lẻ / sỉ
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 text-sm">
+                <CardContent className="space-y-3.5 text-sm">
                   {contact?.hotline && (
                     <div className="flex items-start gap-3 rounded-xl border p-3">
-                      <Phone className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#0066CC]" />
+                      <Phone className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
                       <div>
                         <p className="text-xs text-muted-foreground">Hotline Tư vấn &amp; Đặt sỉ nhanh</p>
                         <a
                           href={`tel:${contact.hotline.replace(/\s+/g, '')}`}
-                          className="text-base font-extrabold text-foreground hover:text-[#0066CC]"
+                          className="text-base font-extrabold text-foreground hover:text-[#8c4f1e]"
                         >
                           {contact.hotline}
                         </a>
@@ -2287,18 +2742,35 @@ export default function OnlineStorefrontPage() {
 
                   {contact?.zaloUrl && (
                     <div className="flex items-start gap-3 rounded-xl border p-3">
-                      <MessageCircle className="mt-0.5 h-4.5 w-4.5 shrink-0 text-sky-600" />
+                      <MessageCircle className="mt-0.5 h-4.5 w-4.5 shrink-0 text-sky-700 dark:text-sky-400" />
                       <div>
                         <p className="text-xs text-muted-foreground">Zalo Chăm sóc Khách hàng &amp; Báo Sỉ</p>
                         <a
                           href={contact.zaloUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 font-bold text-[#0066CC] hover:underline"
+                          className="inline-flex items-center gap-1 font-bold text-[#8c4f1e] hover:underline dark:text-amber-400"
                         >
-                          <span>Nhắn Zalo trực tiếp ({contact.zaloPhone || contact.hotline})</span>
+                          <span>
+                            Nhắn Zalo trực tiếp
+                            {contact.zaloPhone || contact.hotline
+                              ? ` (${contact.zaloPhone || contact.hotline})`
+                              : ''}
+                          </span>
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {!contact?.hotline && !contact?.zaloUrl && (
+                    <div className="flex items-start gap-3 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3.5 text-xs text-stone-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-stone-200">
+                      <MessageCircle className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
+                      <div>
+                        <p className="font-bold">Tiếp nhận tư vấn trực tuyến 24/7 qua Hộp thư CMS</p>
+                        <p className="mt-0.5 leading-relaxed text-muted-foreground">
+                          Để lại SĐT/Zalo và nội dung cần hỗ trợ ở biểu mẫu bên cạnh — bộ phận CSKH &amp; Xưởng {brandName} nhận tin tức thì và phản hồi trực tiếp cho bạn.
+                        </p>
                       </div>
                     </div>
                   )}
@@ -2312,7 +2784,7 @@ export default function OnlineStorefrontPage() {
                           href={contact.shopeeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 font-bold text-orange-600 hover:underline"
+                          className="inline-flex items-center gap-1 font-bold text-orange-700 hover:underline dark:text-orange-400"
                         >
                           <span>{contact.shopeeUrl}</span>
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -2323,7 +2795,7 @@ export default function OnlineStorefrontPage() {
 
                   {contact?.email && (
                     <div className="flex items-start gap-3 rounded-xl border p-3">
-                      <Mail className="mt-0.5 h-4.5 w-4.5 shrink-0 text-emerald-600" />
+                      <Mail className="mt-0.5 h-4.5 w-4.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
                       <div>
                         <p className="text-xs text-muted-foreground">Email Hợp tác &amp; Hóa đơn Doanh nghiệp</p>
                         <a
@@ -2338,7 +2810,7 @@ export default function OnlineStorefrontPage() {
 
                   {contact?.address && (
                     <div className="flex items-start gap-3 rounded-xl border p-3">
-                      <MapPin className="mt-0.5 h-4.5 w-4.5 shrink-0 text-rose-600" />
+                      <MapPin className="mt-0.5 h-4.5 w-4.5 shrink-0 text-rose-700 dark:text-rose-400" />
                       <div>
                         <p className="text-xs text-muted-foreground">Địa chỉ Xưởng &amp; Kho Trung Tâm</p>
                         <p className="font-medium text-foreground">{contact.address}</p>
@@ -2348,7 +2820,7 @@ export default function OnlineStorefrontPage() {
 
                   {contact?.workingHours && (
                     <div className="flex items-start gap-3 rounded-xl border p-3">
-                      <Clock className="mt-0.5 h-4.5 w-4.5 shrink-0 text-amber-600" />
+                      <Clock className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
                       <div>
                         <p className="text-xs text-muted-foreground">Khung giờ hỗ trợ</p>
                         <p className="font-medium text-foreground">{contact.workingHours}</p>
@@ -2363,16 +2835,20 @@ export default function OnlineStorefrontPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Send className="h-5 w-5 text-[#0066CC]" />
+                    <Send className="h-5 w-5 text-[#8c4f1e] dark:text-amber-400" />
                     Gửi Tin Nhắn Tư Vấn Trực Tuyến
                   </CardTitle>
                   <CardDescription>
-                    Mọi câu hỏi về sản phẩm, mùi hương nến bơ, phối màu khay thạch cao hoặc đặt quà sự kiện sẽ được chuyển thẳng vào Hộp thư CSKH của CMS.
+                    Mọi câu hỏi về sản phẩm, phối màu thủ công hoặc đặt quà tặng sự kiện sẽ chuyển thẳng vào Hộp thư CSKH của {brandName}.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {contactSubmittedCode && (
-                    <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    >
                       Đã tiếp nhận tin nhắn mã <strong>{contactSubmittedCode}</strong>. Cảm ơn bạn đã liên hệ {brandName}!
                     </div>
                   )}
@@ -2382,6 +2858,8 @@ export default function OnlineStorefrontPage() {
                         <Label htmlFor="ct-name">Họ và tên *</Label>
                         <Input
                           id="ct-name"
+                          name="contactName"
+                          autoComplete="name"
                           value={ctName}
                           onChange={(e) => setCtName(e.target.value)}
                           placeholder="Nguyễn Thanh Hà"
@@ -2392,9 +2870,13 @@ export default function OnlineStorefrontPage() {
                         <Label htmlFor="ct-phone">Số điện thoại / Zalo *</Label>
                         <Input
                           id="ct-phone"
+                          name="contactPhone"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
                           value={ctPhone}
                           onChange={(e) => setCtPhone(e.target.value)}
-                          placeholder="0909..."
+                          placeholder="VD: 09xx xxx xxx"
                           required
                         />
                       </div>
@@ -2403,7 +2885,10 @@ export default function OnlineStorefrontPage() {
                       <Label htmlFor="ct-email">Email (tùy chọn)</Label>
                       <Input
                         id="ct-email"
+                        name="contactEmail"
                         type="email"
+                        inputMode="email"
+                        autoComplete="email"
                         value={ctEmail}
                         onChange={(e) => setCtEmail(e.target.value)}
                         placeholder="ban@email.com"
@@ -2413,6 +2898,7 @@ export default function OnlineStorefrontPage() {
                       <Label htmlFor="ct-msg">Nội dung cần hỗ trợ *</Label>
                       <Textarea
                         id="ct-msg"
+                        name="contactMessage"
                         rows={4}
                         value={ctMessage}
                         onChange={(e) => setCtMessage(e.target.value)}
@@ -2423,7 +2909,7 @@ export default function OnlineStorefrontPage() {
                     <Button
                       type="submit"
                       disabled={submittingContact}
-                      className="h-11 w-full gap-2 bg-[#0066CC] text-xs font-bold text-white hover:bg-[#0055B3]"
+                      className="h-11 w-full gap-2 bg-stone-900 text-xs font-bold text-white hover:bg-[#8c4f1e] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                     >
                       <Send className="h-4 w-4" />
                       {submittingContact ? 'Đang gửi tin nhắn...' : 'Gửi Liên Hệ Tới Cửa Hàng'}
@@ -2441,7 +2927,7 @@ export default function OnlineStorefrontPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <FileSearch className="h-5 w-5 text-[#0066CC]" />
+                  <FileSearch className="h-5 w-5 text-[#8c4f1e] dark:text-amber-400" />
                   Tra Cứu Trạng Thái Đơn Hàng &amp; Yêu Cầu Báo Giá Sỉ
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -2454,6 +2940,8 @@ export default function OnlineStorefrontPage() {
                     <Label htmlFor="lk-code">Mã đơn hàng / Mã yêu cầu sỉ *</Label>
                     <Input
                       id="lk-code"
+                      name="lookupCode"
+                      autoComplete="off"
                       value={lookupCode}
                       onChange={(e) => setLookupCode(e.target.value)}
                       placeholder="VD: BM-WEB-261127-1234"
@@ -2464,29 +2952,41 @@ export default function OnlineStorefrontPage() {
                     <Label htmlFor="lk-phone">Số điện thoại người nhận (hoặc 4 số cuối) *</Label>
                     <Input
                       id="lk-phone"
+                      name="lookupPhone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
                       value={lookupPhone}
                       onChange={(e) => setLookupPhone(e.target.value)}
-                      placeholder="VD: 0909686868"
+                      placeholder="Nhập SĐT đặt hàng hoặc 4 số cuối"
                       required
                     />
                   </div>
                   <Button
                     type="submit"
                     disabled={lookupLoading}
-                    className="h-11 w-full bg-[#0066CC] text-xs font-bold text-white hover:bg-[#0055B3]"
+                    className="h-11 w-full bg-stone-900 text-xs font-bold text-white hover:bg-[#8c4f1e] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                   >
                     {lookupLoading ? 'Đang kiểm tra...' : 'Tra cứu ngay'}
                   </Button>
                 </form>
 
                 {lookupError && (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200"
+                  >
                     {lookupError}
                   </div>
                 )}
 
                 {lookupResult && (
-                  <div className="space-y-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="space-y-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs dark:border-emerald-900 dark:bg-emerald-950/30"
+                  >
                     <p className="font-mono text-sm font-bold text-emerald-900 dark:text-emerald-200">
                       Mã: {lookupResult.code}
                     </p>
@@ -2499,7 +2999,10 @@ export default function OnlineStorefrontPage() {
                     </p>
                     {typeof lookupResult.total === 'number' && (
                       <p>
-                        Tổng thanh toán: <strong>{formatVND(lookupResult.total)}</strong>
+                        Tổng thanh toán:{' '}
+                        <strong className="whitespace-nowrap tabular-nums">
+                          {formatVND(lookupResult.total)}
+                        </strong>
                       </p>
                     )}
                     {lookupResult.tierApplied && (
@@ -2541,17 +3044,17 @@ export default function OnlineStorefrontPage() {
                 <li>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('WHOLESALE')}
+                    onClick={() => selectNavTab('WHOLESALE')}
                     className="hover:text-foreground hover:underline"
                   >
-                    Bảng giá sỉ tận xưởng (Từ 10 · 30 · 100 sản phẩm)
+                    Bảng giá sỉ tận xưởng (Từ {minWholesaleQty} sản phẩm)
                   </button>
                 </li>
               )}
               <li>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('CONTACT')}
+                  onClick={() => selectNavTab('CONTACT')}
                   className="hover:text-foreground hover:underline"
                 >
                   Đặt gia công quà tặng doanh nghiệp (OEM)
@@ -2560,7 +3063,7 @@ export default function OnlineStorefrontPage() {
               <li>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('TRACKING')}
+                  onClick={() => selectNavTab('TRACKING')}
                   className="hover:text-foreground hover:underline"
                 >
                   Tra cứu đơn hàng trực tuyến
@@ -2571,7 +3074,19 @@ export default function OnlineStorefrontPage() {
 
           <div className="space-y-1.5">
             <p className="font-bold text-foreground">Kết nối đa kênh</p>
-            {contact?.hotline && <p>Hotline / Zalo: {contact.hotline}</p>}
+            {contact?.hotline ? (
+              <p>Hotline / Zalo: {contact.hotline}</p>
+            ) : (
+              <p>
+                <button
+                  type="button"
+                  onClick={() => selectNavTab('CONTACT')}
+                  className="font-medium text-[#8c4f1e] hover:underline dark:text-amber-400"
+                >
+                  Nhắn tin tư vấn trực tuyến 24/7 →
+                </button>
+              </p>
+            )}
             {contact?.shopeeUrl && (
               <p>
                 <a
@@ -2584,9 +3099,12 @@ export default function OnlineStorefrontPage() {
                 </a>
               </p>
             )}
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
               {!isCustomDomainHost && (
-                <Link href="/blog" className="inline-flex items-center gap-1 hover:text-foreground hover:underline">
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+                >
                   <BookOpen className="h-3 w-3" /> Góc Tĩnh Tâm
                 </Link>
               )}
@@ -2605,32 +3123,75 @@ export default function OnlineStorefrontPage() {
         </div>
       </footer>
 
-      {/* Hộp thoại Xem Chi Tiết Sản Phẩm (Quick-View Modal) */}
+      {/* Sticky Bottom Cart & Wholesale Progress Bar trên Mobile (< 640px) */}
+      {showMobileStickyCart && (
+        <div
+          role="region"
+          aria-label="Tóm tắt giỏ hàng nhanh"
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-amber-300/80 bg-card/98 px-3 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(28,25,23,0.12)] backdrop-blur-md sm:hidden dark:border-stone-800"
+        >
+          <p className="mb-1.5 truncate text-[11px] font-semibold text-[#7c4316] dark:text-amber-300">
+            {activeCartWholesaleTier
+              ? `Đã áp giá sỉ ${activeCartWholesaleTier.badge} · Tiết kiệm ${formatVND(wholesaleSavings)}`
+              : nextWholesaleTierHint
+                ? `Mua thêm ${nextWholesaleTierHint.minQty - totalCartItems} SP nhận giá sỉ ${nextWholesaleTierHint.badge}`
+                : freeShipRemaining > 0
+                  ? `Mua thêm ${formatVND(freeShipRemaining)} để Miễn phí vận chuyển`
+                  : 'Đơn hàng đã đủ điều kiện Miễn phí vận chuyển'}
+          </p>
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground">
+                {totalCartItems} sản phẩm
+              </p>
+              <p className="text-sm font-extrabold whitespace-nowrap tabular-nums text-foreground">
+                {formatVND(effectiveCartSubtotal)}
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="h-10 shrink-0 gap-1.5 rounded-xl bg-[#8c4f1e] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#733f16] dark:bg-amber-400 dark:text-stone-950"
+            >
+              <span>Xem giỏ &amp; Đặt mua →</span>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Hộp thoại Xem Chi Tiết Sản Phẩm (Quick-View Modal — chuẩn cửa hàng thủ công, không lộ nút ERP Mở rộng) */}
       <Dialog
         open={Boolean(selectedProduct)}
         onOpenChange={(open) => {
           if (!open) setSelectedProduct(null)
         }}
       >
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent hideMaximizeButton className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
           {selectedProduct && (
             <>
-              <DialogHeader>
+              <DialogHeader className="sm:pr-10">
                 <DialogTitle className="text-base leading-snug">
-                  {selectedProduct.cleanTitle}
+                  {formatStorefrontDisplayTitle(
+                    selectedProduct.cleanTitle || selectedProduct.name,
+                    selectedProduct.variantLabel
+                  ) || selectedProduct.cleanTitle}
                 </DialogTitle>
-                <DialogDescription className="text-xs">
-                  Mã SKU: <strong className="font-mono">{selectedProduct.sku}</strong>
-                  {selectedProduct.variantLabel
-                    ? ` · Phân loại: ${selectedProduct.variantLabel}`
-                    : ''}{' '}
-                  · {selectedProduct.stockLabel}
+                <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  <span>
+                    Mã SKU: <strong className="font-mono">{selectedProduct.sku}</strong>
+                  </span>
+                  {selectedProduct.variantLabel && (
+                    <span>· Phân loại: <strong>{selectedProduct.variantLabel}</strong></span>
+                  )}
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                    · {selectedProduct.stockLabel}
+                  </span>
                 </DialogDescription>
               </DialogHeader>
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border bg-muted/30 p-2">
+                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border bg-stone-100/60 p-2 dark:bg-stone-900/40">
                     {(selectedProduct.images[selectedImageIdx] || selectedProduct.image) ? (
                       <img
                         src={selectedProduct.images[selectedImageIdx] || selectedProduct.image || ''}
@@ -2645,13 +3206,14 @@ export default function OnlineStorefrontPage() {
                     <div className="flex gap-1.5 overflow-x-auto pb-1">
                       {selectedProduct.images.map((imgUrl, idx) => (
                         <button
-                          key={imgUrl}
+                          key={`${imgUrl}-${idx}`}
                           type="button"
+                          aria-label={`Ảnh sản phẩm ${idx + 1}`}
                           onClick={() => setSelectedImageIdx(idx)}
                           className={cn(
                             'h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all',
                             selectedImageIdx === idx
-                              ? 'border-[#0066CC] ring-1 ring-[#0066CC]'
+                              ? 'border-[#8c4f1e] ring-1 ring-[#8c4f1e] dark:border-amber-400'
                               : 'border-transparent opacity-70 hover:opacity-100'
                           )}
                         >
@@ -2666,7 +3228,7 @@ export default function OnlineStorefrontPage() {
                   <div className="space-y-3">
                     <div>
                       <span className="text-xs text-muted-foreground">Giá bán lẻ niêm yết:</span>
-                      <p className="text-2xl font-extrabold text-[#0066CC] dark:text-sky-400">
+                      <p className="text-2xl font-extrabold whitespace-nowrap tabular-nums text-[#8c4f1e] dark:text-amber-400">
                         {formatVND(selectedProduct.retailPrice)}{' '}
                         <span className="text-xs font-normal text-muted-foreground">
                           / {selectedProduct.unit}
@@ -2674,17 +3236,49 @@ export default function OnlineStorefrontPage() {
                       </p>
                     </div>
 
+                    {/* Chip chuyển nhanh giữa các màu/quy cách cùng dòng sản phẩm */}
+                    {siblingVariants.length > 1 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-foreground">
+                          Chọn nhanh phân loại cùng mẫu ({siblingVariants.length}):
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {siblingVariants.map((sib) => {
+                            const isCurrent = sib.id === selectedProduct.id
+                            return (
+                              <button
+                                key={sib.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedImageIdx(0)
+                                  setSelectedProduct(sib)
+                                }}
+                                className={cn(
+                                  'inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all',
+                                  isCurrent
+                                    ? 'border-[#8c4f1e] bg-[#8c4f1e] text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950'
+                                    : 'border-border bg-background text-foreground hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-stone-800'
+                                )}
+                              >
+                                <span>{sib.variantLabel || sib.sku}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {selectedProduct.wholesalePrices.length > 0 && (
                       <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/30">
                         <p className="font-bold text-amber-950 dark:text-amber-200">
                           Bảng Giá Sỉ Xưởng (Gộp mẫu tự do):
                         </p>
                         {selectedProduct.wholesalePrices.map((wp) => (
-                          <div key={wp.tierId} className="flex items-center justify-between">
+                          <div key={wp.tierId} className="flex items-center justify-between gap-2">
                             <span>
                               Từ {wp.minQty} {selectedProduct.unit} ({wp.badge}):
                             </span>
-                            <strong className="text-amber-900 dark:text-amber-300">
+                            <strong className="whitespace-nowrap tabular-nums text-[#7c4316] dark:text-amber-300">
                               {formatVND(wp.unitPrice)} / {selectedProduct.unit}
                             </strong>
                           </div>
@@ -2693,13 +3287,45 @@ export default function OnlineStorefrontPage() {
                     )}
 
                     {selectedProduct.description && (
-                      <div className="max-h-36 overflow-y-auto whitespace-pre-line rounded-xl border bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
+                      <div className="max-h-32 overflow-y-auto rounded-xl border bg-muted/20 p-3 text-xs leading-relaxed whitespace-pre-line text-muted-foreground">
                         {selectedProduct.description}
                       </div>
                     )}
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2.5 border-t pt-3">
+                    {/* Bộ chọn số lượng trước khi thêm vào giỏ */}
+                    {selectedProduct.availableToOrder && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-foreground">Số lượng chọn:</span>
+                        <div className="inline-flex items-center gap-1 rounded-xl border bg-muted/30 p-1">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Giảm số lượng chọn"
+                            onClick={() => setQuickViewQty((q) => Math.max(1, q - 1))}
+                            className="h-8 w-8 rounded-lg"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-9 text-center text-sm font-bold tabular-nums">
+                            {quickViewQty}
+                          </span>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Tăng số lượng chọn"
+                            onClick={() => setQuickViewQty((q) => Math.min(999, q + 1))}
+                            className="h-8 w-8 rounded-lg"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     <div
                       className={cn(
                         'grid gap-2',
@@ -2710,13 +3336,15 @@ export default function OnlineStorefrontPage() {
                         type="button"
                         disabled={!selectedProduct.availableToOrder}
                         onClick={() => {
-                          addToCart(selectedProduct, 1)
+                          addToCart(selectedProduct, quickViewQty)
                           setSelectedProduct(null)
                         }}
-                        className="h-10 gap-1.5 bg-[#0066CC] text-xs font-bold text-white hover:bg-[#0055B3]"
+                        className="h-10 gap-1.5 bg-stone-900 text-xs font-bold text-white hover:bg-[#8c4f1e] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                       >
                         <Plus className="h-4 w-4" />
-                        {selectedProduct.availableToOrder ? 'Mua lẻ (+1)' : 'Tạm hết hàng'}
+                        {selectedProduct.availableToOrder
+                          ? `Thêm vào giỏ (+${quickViewQty})`
+                          : 'Tạm hết hàng'}
                       </Button>
                       {isWholesaleAllowed && (
                         <Button
@@ -2728,7 +3356,7 @@ export default function OnlineStorefrontPage() {
                             setSelectedProduct(null)
                             setCartOpen(true)
                           }}
-                          className="h-10 gap-1.5 border-amber-400 text-xs font-bold text-amber-900 dark:text-amber-300"
+                          className="h-10 gap-1.5 border-amber-400 bg-amber-50/70 text-xs font-bold text-[#7c4316] hover:bg-amber-100/80 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
                         >
                           <BadgePercent className="h-4 w-4" />
                           Nhập sỉ (+{minWholesaleQty})
@@ -2774,12 +3402,12 @@ export default function OnlineStorefrontPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Hộp thoại Giỏ hàng & Đặt hàng (Tự động tính cả Giá Lẻ & Giá Sỉ theo tổng số lượng!) */}
+      {/* Hộp thoại Giỏ hàng & Đặt hàng */}
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent hideMaximizeButton className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader className="sm:pr-10">
             <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-[#0066CC]" />
+              <ShoppingCart className="h-5 w-5 text-[#8c4f1e] dark:text-amber-400" />
               Giỏ hàng &amp; Đặt mua Trực tuyến
             </DialogTitle>
             <DialogDescription>
@@ -2790,7 +3418,11 @@ export default function OnlineStorefrontPage() {
           </DialogHeader>
 
           {completedOrder ? (
-            <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-5 text-center dark:border-emerald-900 dark:bg-emerald-950/30">
+            <div
+              role="status"
+              aria-live="polite"
+              className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-5 text-center dark:border-emerald-900 dark:bg-emerald-950/30"
+            >
               <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
               <p className="text-base font-bold text-emerald-900 dark:text-emerald-200">
                 Đặt hàng thành công!
@@ -2808,14 +3440,14 @@ export default function OnlineStorefrontPage() {
                   <Copy className="h-3 w-3" /> Sao chép
                 </Button>
               </div>
-              <p className="text-xs font-semibold">
+              <p className="text-xs font-semibold whitespace-nowrap tabular-nums">
                 Tổng thanh toán: {formatVND(completedOrder.grandTotal)}
                 {completedOrder.tierLabel ? ` (${completedOrder.tierLabel})` : ''}
               </p>
 
-              {completedOrder.paymentMethod === 'BANK_TRANSFER' && storeData?.bankTransfer && (
-                <div className="space-y-2 rounded-xl border border-sky-200 bg-white/95 p-3 text-left text-xs dark:border-sky-900 dark:bg-slate-950/80">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-900 dark:text-sky-200">
+              {completedOrder.paymentMethod === 'BANK_TRANSFER' && effectiveBankTransfer ? (
+                <div className="space-y-2 rounded-xl border border-amber-200 bg-white/95 p-3 text-left text-xs dark:border-amber-900 dark:bg-stone-950/80">
+                  <div className="flex items-center gap-1.5 font-bold text-[#7c4316] dark:text-amber-200">
                     <QrCode className="h-4 w-4 shrink-0" />
                     <span>Quét mã VietQR thanh toán đơn {completedOrder.refCode}</span>
                   </div>
@@ -2831,11 +3463,12 @@ export default function OnlineStorefrontPage() {
                   )}
                   <div className="space-y-1 text-[11.5px]">
                     <p>
-                      Ngân hàng: <strong>{storeData.bankTransfer.bankName}</strong>
+                      Ngân hàng: <strong>{effectiveBankTransfer.bankName}</strong>
                     </p>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span>
-                        Số TK: <strong className="font-mono">{storeData.bankTransfer.bankAccount}</strong>
+                        Số TK:{' '}
+                        <strong className="font-mono">{effectiveBankTransfer.bankAccount}</strong>
                       </span>
                       <Button
                         type="button"
@@ -2844,7 +3477,7 @@ export default function OnlineStorefrontPage() {
                         className="h-7 gap-1 px-2 text-[11px]"
                         onClick={() =>
                           void copyToClipboard(
-                            storeData.bankTransfer?.bankAccount || '',
+                            effectiveBankTransfer.bankAccount,
                             'số tài khoản'
                           )
                         }
@@ -2852,8 +3485,8 @@ export default function OnlineStorefrontPage() {
                         <Copy className="h-3 w-3" /> Copy STK
                       </Button>
                     </div>
-                    {storeData.bankTransfer.bankHolder && (
-                      <p>Chủ TK: {storeData.bankTransfer.bankHolder}</p>
+                    {effectiveBankTransfer.bankHolder && (
+                      <p>Chủ TK: {effectiveBankTransfer.bankHolder}</p>
                     )}
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span>
@@ -2873,6 +3506,17 @@ export default function OnlineStorefrontPage() {
                     </div>
                   </div>
                 </div>
+              ) : (
+                completedOrder.paymentMethod === 'BANK_TRANSFER' && (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-300/80 bg-amber-50/90 p-3 text-left text-xs text-stone-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
+                    <span>
+                      Xưởng sẽ kiểm tra đơn <strong>{completedOrder.refCode}</strong> và gửi mã
+                      VietQR chính thức kèm mã đơn hàng qua SĐT/Zalo của bạn ngay sau khi tiếp nhận
+                      đơn.
+                    </span>
+                  </div>
+                )
               )}
 
               <div className="flex flex-wrap justify-center gap-2 pt-1">
@@ -2885,7 +3529,7 @@ export default function OnlineStorefrontPage() {
                     if (customerPhone.trim()) setLookupPhone(customerPhone.trim())
                     setCompletedOrder(null)
                     setCartOpen(false)
-                    setActiveTab('TRACKING')
+                    selectNavTab('TRACKING')
                   }}
                 >
                   <FileSearch className="mr-1.5 h-3.5 w-3.5" />
@@ -2893,7 +3537,7 @@ export default function OnlineStorefrontPage() {
                 </Button>
                 <Button
                   type="button"
-                  className="h-10 bg-[#0066CC] text-xs font-bold text-white hover:bg-[#0055B3]"
+                  className="h-10 bg-[#8c4f1e] text-xs font-bold text-white hover:bg-[#733f16] dark:bg-amber-400 dark:text-stone-950"
                   onClick={() => {
                     setCompletedOrder(null)
                     setCartOpen(false)
@@ -2904,29 +3548,67 @@ export default function OnlineStorefrontPage() {
               </div>
             </div>
           ) : cart.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              Giỏ hàng đang trống — hãy chọn sản phẩm lẻ hoặc sỉ để đặt mua.
+            <div className="space-y-3 py-8 text-center">
+              <ShoppingBag className="mx-auto h-10 w-10 text-muted-foreground/45" />
+              <p className="text-sm text-muted-foreground">
+                Giỏ hàng đang trống — hãy chọn sản phẩm lẻ hoặc gộp mẫu sỉ để đặt mua.
+              </p>
+              <Button
+                type="button"
+                onClick={() => {
+                  setCartOpen(false)
+                  scrollToCatalog()
+                }}
+                className="bg-[#8c4f1e] text-xs font-bold text-white hover:bg-[#733f16] dark:bg-amber-400 dark:text-stone-950"
+              >
+                Khám phá sản phẩm
+              </Button>
             </div>
           ) : (
             <div className="space-y-4">
-              {activeCartWholesaleTier ? (
-                <div className="rounded-xl border border-amber-300 bg-amber-50/80 px-3 py-2 text-xs font-semibold text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                  🎉 Đã kích hoạt <strong>{activeCartWholesaleTier.label}</strong>: Giảm ngay{' '}
-                  <strong>{formatVND(wholesaleSavings)}</strong> trên đơn này!
-                </div>
-              ) : (
-                nextWholesaleTierHint && (
-                  <div className="rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    Mua thêm{' '}
-                    <strong className="text-foreground">
-                      {nextWholesaleTierHint.minQty - totalCartItems} sản phẩm
-                    </strong>{' '}
-                    bất kỳ để nhận giá sỉ <strong>{nextWholesaleTierHint.badge}</strong>!
-                  </div>
-                )
-              )}
+              {/* Hộp gợi ý tiến trình đạt mốc Giá Sỉ & Freeship */}
+              <div className="space-y-1.5 rounded-xl border border-amber-200/85 bg-amber-50/65 px-3 py-2.5 text-xs dark:border-amber-900/60 dark:bg-amber-950/35">
+                {activeCartWholesaleTier ? (
+                  <p className="font-semibold text-amber-950 dark:text-amber-200">
+                    Đã kích hoạt <strong>{activeCartWholesaleTier.label}</strong>: Giảm ngay{' '}
+                    <strong className="whitespace-nowrap tabular-nums">
+                      {formatVND(wholesaleSavings)}
+                    </strong>
+                    {nextWholesaleTierHint
+                      ? ` · Mua thêm ${nextWholesaleTierHint.minQty - totalCartItems} SP nhận mức ${nextWholesaleTierHint.badge}`
+                      : ''}
+                  </p>
+                ) : (
+                  nextWholesaleTierHint && (
+                    <p className="text-stone-700 dark:text-stone-200">
+                      Mua thêm{' '}
+                      <strong className="text-[#7c4316] dark:text-amber-300">
+                        {nextWholesaleTierHint.minQty - totalCartItems} sản phẩm
+                      </strong>{' '}
+                      bất kỳ để nhận giá sỉ <strong>{nextWholesaleTierHint.badge}</strong>.
+                    </p>
+                  )
+                )}
+                <p className="text-[11.5px] text-muted-foreground">
+                  {freeShipRemaining > 0 ? (
+                    <>
+                      Mua thêm{' '}
+                      <strong className="whitespace-nowrap tabular-nums text-foreground">
+                        {formatVND(freeShipRemaining)}
+                      </strong>{' '}
+                      để được <strong>Miễn phí vận chuyển toàn quốc</strong>.
+                    </>
+                  ) : (
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      ✓ Đã đủ điều kiện Miễn phí vận chuyển toàn quốc (≥{' '}
+                      {formatVND(freeShipThreshold)})
+                    </span>
+                  )}
+                </p>
+              </div>
 
-              <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+              {/* Danh sách dòng giỏ hàng có ảnh 48×48px + nút >= 36px + nút Xóa */}
+              <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                 {cart.map((it) => {
                   const unitPrice = activeCartWholesaleTier
                     ? computeDiscountedPriceClient(
@@ -2934,49 +3616,71 @@ export default function OnlineStorefrontPage() {
                         activeCartWholesaleTier.discountPercent
                       )
                     : it.product.retailPrice
+                  const lineTitle =
+                    formatStorefrontDisplayTitle(
+                      it.product.cleanTitle || it.product.name,
+                      it.product.variantLabel
+                    ) || it.product.cleanTitle
                   return (
                     <div
                       key={it.product.id}
-                      className="flex items-center justify-between gap-2 rounded-xl border bg-muted/30 p-2.5 text-xs"
+                      className="flex items-center justify-between gap-2.5 rounded-xl border bg-muted/30 p-2 text-xs"
                     >
+                      {it.product.image ? (
+                        <img
+                          src={it.product.image}
+                          alt={lineTitle}
+                          className="h-12 w-12 shrink-0 rounded-lg border object-cover"
+                        />
+                      ) : (
+                        <ProductAvatar
+                          name={it.product.name}
+                          className="h-12 w-12 shrink-0 text-xs"
+                        />
+                      )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">{it.product.cleanTitle}</p>
-                        <p className="text-muted-foreground">
-                          {formatVND(unitPrice)} / {it.product.unit}
+                        <p className="truncate font-semibold text-foreground">{lineTitle}</p>
+                        <p className="truncate text-[11.5px] text-muted-foreground">
+                          <span className="whitespace-nowrap tabular-nums">
+                            {formatVND(unitPrice)}
+                          </span>{' '}
+                          / {it.product.unit}
                           {it.product.variantLabel ? ` · ${it.product.variantLabel}` : ''}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-1">
                         <Button
                           type="button"
                           size="icon"
                           variant="outline"
-                          className="h-8 w-8"
+                          className="h-9 w-9"
                           aria-label="Giảm số lượng"
                           onClick={() => updateCartQty(it.product.id, -1)}
                         >
-                          <Minus className="h-3 w-3" />
+                          <Minus className="h-3.5 w-3.5" />
                         </Button>
-                        <span className="w-8 text-center font-bold">{it.quantity}</span>
+                        <span className="w-7 text-center font-bold tabular-nums">
+                          {it.quantity}
+                        </span>
                         <Button
                           type="button"
                           size="icon"
                           variant="outline"
-                          className="h-8 w-8"
+                          className="h-9 w-9"
                           aria-label="Tăng số lượng"
                           onClick={() => updateCartQty(it.product.id, 1)}
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-rose-600"
-                          aria-label="Xóa khỏi giỏ"
+                          className="h-9 w-9 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
+                          aria-label="Xóa sản phẩm khỏi giỏ"
                           onClick={() => updateCartQty(it.product.id, -it.quantity)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -2989,6 +3693,8 @@ export default function OnlineStorefrontPage() {
                   <Label htmlFor="store-cust-name">Họ và tên người nhận *</Label>
                   <Input
                     id="store-cust-name"
+                    name="customerName"
+                    autoComplete="name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Nguyễn Minh Trân"
@@ -2998,15 +3704,21 @@ export default function OnlineStorefrontPage() {
                   <Label htmlFor="store-cust-phone">Số điện thoại *</Label>
                   <Input
                     id="store-cust-phone"
+                    name="customerPhone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="0909..."
+                    placeholder="VD: 09xx xxx xxx"
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <Label htmlFor="store-cust-addr">Địa chỉ giao hàng chi tiết *</Label>
                   <Input
                     id="store-cust-addr"
+                    name="address"
+                    autoComplete="street-address"
                     value={shippingAddress}
                     onChange={(e) => setShippingAddress(e.target.value)}
                     placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành..."
@@ -3016,6 +3728,7 @@ export default function OnlineStorefrontPage() {
                   <Label htmlFor="store-cust-note">Ghi chú đơn hàng (tùy chọn)</Label>
                   <Textarea
                     id="store-cust-note"
+                    name="note"
                     rows={2}
                     value={orderNote}
                     onChange={(e) => setOrderNote(e.target.value)}
@@ -3029,99 +3742,118 @@ export default function OnlineStorefrontPage() {
                   type="button"
                   onClick={() => setPaymentMethod('COD')}
                   className={cn(
-                    'min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors',
+                    'min-h-10 cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold transition-colors',
                     paymentMethod === 'COD'
-                      ? 'border-[#0066CC] bg-sky-50 text-[#0066CC] dark:bg-sky-950/50 dark:text-sky-300'
-                      : 'bg-card text-muted-foreground'
+                      ? 'border-[#8c4f1e] bg-amber-50/90 text-[#7c4316] dark:border-amber-400 dark:bg-amber-950/50 dark:text-amber-200'
+                      : 'bg-card text-muted-foreground hover:text-foreground'
                   )}
                 >
-                  Thanh toán khi nhận hàng (COD)
+                  Thanh toán khi nhận (COD)
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('BANK_TRANSFER')}
                   className={cn(
-                    'min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors',
+                    'min-h-10 cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold transition-colors',
                     paymentMethod === 'BANK_TRANSFER'
-                      ? 'border-[#0066CC] bg-sky-50 text-[#0066CC] dark:bg-sky-950/50 dark:text-sky-300'
-                      : 'bg-card text-muted-foreground'
+                      ? 'border-[#8c4f1e] bg-amber-50/90 text-[#7c4316] dark:border-amber-400 dark:bg-amber-950/50 dark:text-amber-200'
+                      : 'bg-card text-muted-foreground hover:text-foreground'
                   )}
                 >
                   Chuyển khoản Ngân hàng
                 </button>
               </div>
 
-              {paymentMethod === 'BANK_TRANSFER' && storeData?.bankTransfer && (
-                <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs dark:border-sky-900 dark:bg-sky-950/30">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="flex items-center gap-1.5 font-bold text-sky-900 dark:text-sky-200">
-                      <QrCode className="h-4 w-4 shrink-0" />
-                      <span>Thông tin chuyển khoản &amp; VietQR tự động:</span>
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-[11px]"
-                      onClick={() =>
-                        void copyToClipboard(
-                          storeData.bankTransfer?.bankAccount || '',
-                          'số tài khoản'
-                        )
-                      }
-                    >
-                      <Copy className="h-3 w-3" /> Copy STK
-                    </Button>
-                  </div>
-                  <p className="mt-0.5">
-                    Ngân hàng: <strong>{storeData.bankTransfer.bankName}</strong> · STK:{' '}
-                    <strong className="font-mono">{storeData.bankTransfer.bankAccount}</strong>
-                  </p>
-                  {storeData.bankTransfer.bankHolder && (
-                    <p>Chủ TK: {storeData.bankTransfer.bankHolder}</p>
-                  )}
-                  {checkoutPreviewVietQrUrl && qrLoadFailedUrl !== checkoutPreviewVietQrUrl && (
-                    <div className="flex flex-col items-center gap-1 pt-1">
-                      <img
-                        src={checkoutPreviewVietQrUrl}
-                        alt="Mã VietQR chuyển khoản"
-                        className="max-h-48 rounded-lg border bg-white p-1.5 shadow-xs"
-                        onError={() => setQrLoadFailedUrl(checkoutPreviewVietQrUrl)}
-                      />
-                      <span className="text-[11px] text-muted-foreground">
-                        Mã QR kèm đúng mã đơn BM-WEB-... cũng sẽ hiển thị ngay sau khi bấm Đặt mua
-                      </span>
+              {paymentMethod === 'BANK_TRANSFER' &&
+                (effectiveBankTransfer ? (
+                  <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/30">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="flex items-center gap-1.5 font-bold text-[#7c4316] dark:text-amber-200">
+                        <QrCode className="h-4 w-4 shrink-0" />
+                        <span>Thông tin chuyển khoản &amp; VietQR tự động:</span>
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-[11px]"
+                        onClick={() =>
+                          void copyToClipboard(
+                            effectiveBankTransfer.bankAccount,
+                            'số tài khoản'
+                          )
+                        }
+                      >
+                        <Copy className="h-3 w-3" /> Copy STK
+                      </Button>
                     </div>
-                  )}
-                </div>
-              )}
+                    <p className="mt-0.5">
+                      Ngân hàng: <strong>{effectiveBankTransfer.bankName}</strong> · STK:{' '}
+                      <strong className="font-mono">{effectiveBankTransfer.bankAccount}</strong>
+                    </p>
+                    {effectiveBankTransfer.bankHolder && (
+                      <p>Chủ TK: {effectiveBankTransfer.bankHolder}</p>
+                    )}
+                    {checkoutPreviewVietQrUrl && qrLoadFailedUrl !== checkoutPreviewVietQrUrl && (
+                      <div className="flex flex-col items-center gap-1 pt-1">
+                        <img
+                          src={checkoutPreviewVietQrUrl}
+                          alt="Mã VietQR chuyển khoản"
+                          className="max-h-48 rounded-lg border bg-white p-1.5 shadow-xs"
+                          onError={() => setQrLoadFailedUrl(checkoutPreviewVietQrUrl)}
+                        />
+                        <span className="text-[11px] text-muted-foreground">
+                          Mã QR kèm đúng mã đơn hàng cũng sẽ hiển thị ngay sau khi bấm Đặt mua
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="flex items-start gap-2 rounded-xl border border-amber-300/80 bg-amber-50/85 p-3 text-xs text-stone-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+                  >
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#8c4f1e] dark:text-amber-400" />
+                    <span>
+                      Xưởng sẽ kiểm tra đơn và gửi mã VietQR chính thức kèm mã đơn hàng qua
+                      SĐT/Zalo của bạn ngay sau khi tiếp nhận đơn.
+                    </span>
+                  </div>
+                ))}
 
               <div className="space-y-1 rounded-xl border bg-muted/40 p-3 text-xs">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">
                     Tạm tính ({totalCartItems} sản phẩm):
                   </span>
-                  <span className="font-medium">{formatVND(effectiveCartSubtotal)}</span>
+                  <span className="font-medium whitespace-nowrap tabular-nums">
+                    {formatVND(effectiveCartSubtotal)}
+                  </span>
                 </div>
                 {wholesaleSavings > 0 && (
-                  <div className="flex justify-between text-amber-800 dark:text-amber-300">
+                  <div className="flex justify-between gap-2 text-[#7c4316] dark:text-amber-300">
                     <span>Tiết kiệm chiết khấu sỉ:</span>
-                    <span className="font-bold">-{formatVND(wholesaleSavings)}</span>
+                    <span className="font-bold whitespace-nowrap tabular-nums">
+                      -{formatVND(wholesaleSavings)}
+                    </span>
                   </div>
                 )}
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="flex items-center gap-1 text-muted-foreground">
                     <Truck className="h-3.5 w-3.5" /> Phí giao hàng:
                   </span>
-                  <span className="font-medium">
+                  <span className="font-medium whitespace-nowrap tabular-nums">
                     {shippingFee === 0
                       ? `Miễn phí (Đơn ≥ ${formatVND(freeShipThreshold)})`
                       : formatVND(shippingFee)}
                   </span>
                 </div>
-                <div className="flex justify-between border-t pt-1.5 text-sm font-bold text-foreground">
+                <div className="flex justify-between gap-2 border-t pt-1.5 text-sm font-bold text-foreground">
                   <span>Tổng thanh toán:</span>
-                  <span className="text-[#0066CC] dark:text-sky-400">{formatVND(grandTotal)}</span>
+                  <span className="whitespace-nowrap tabular-nums text-[#8c4f1e] dark:text-amber-400">
+                    {formatVND(grandTotal)}
+                  </span>
                 </div>
               </div>
 
@@ -3130,7 +3862,7 @@ export default function OnlineStorefrontPage() {
                   type="button"
                   disabled={submittingOrder}
                   onClick={() => void handleCheckout()}
-                  className="h-11 w-full bg-[#0066CC] text-sm font-bold text-white hover:bg-[#0055B3]"
+                  className="h-11 w-full bg-[#8c4f1e] text-sm font-bold whitespace-nowrap tabular-nums text-white hover:bg-[#733f16] dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
                 >
                   {submittingOrder
                     ? 'Đang xử lý đơn hàng...'

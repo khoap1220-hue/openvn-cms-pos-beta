@@ -131,7 +131,7 @@ function deriveCollectionFilterKeyword(name: string): string {
   const lower = name.trim().toLowerCase()
   if (lower === 'nến') return '__CANDLE_ONLY__'
   if (lower.includes('nguyên liệu') || lower.includes('diy')) {
-    return 'đổ nến|nguyên liệu|bột thạch cao|khuôn|diy'
+    return 'nguyên liệu|bột thạch cao|khuôn|diy'
   }
   if (lower.includes('khay') || lower.includes('đế nến')) {
     return 'khay|đế nến|chân nến'

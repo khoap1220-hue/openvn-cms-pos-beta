@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     }
 
     const payload = { year, periods }
-    setApiCache(cacheKey, payload, 30_000)
+    setApiCache(cacheKey, payload, 300_000)
     return NextResponse.json(payload)
   } catch (error) {
     console.error('Periods GET error:', error)
