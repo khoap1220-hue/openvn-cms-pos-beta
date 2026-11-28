@@ -1,0 +1,99 @@
+{
+  "id": "/openvn-cms-pos-beta/",
+  "name": "OPENVN · Ưu Đàm — Quản trị Đa kênh & POS",
+  "short_name": "OPENVN POS",
+  "description": "Ứng dụng quản trị bán hàng đa kênh (Shopee, TikTok, Lazada, Zalo OA), Tồn kho Thật CMS, Hóa đơn VietQR và Quầy POS Bán tại kho.",
+  "lang": "vi",
+  "dir": "ltr",
+  "start_url": "/openvn-cms-pos-beta/",
+  "scope": "/openvn-cms-pos-beta/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#0F1E36",
+  "theme_color": "#0066CC",
+  "categories": [
+    "business",
+    "finance",
+    "productivity",
+    "shopping"
+  ],
+  "icons": [
+    {
+      "src": "/openvn-cms-pos-beta/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/openvn-cms-pos-beta/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/openvn-cms-pos-beta/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quầy POS Bán tại kho",
+      "short_name": "Quầy POS",
+      "description": "Mở nhanh giao diện thu ngân POS quét mã vạch & thanh toán VietQR",
+      "url": "/openvn-cms-pos-beta/pos",
+      "icons": [
+        {
+          "src": "/openvn-cms-pos-beta/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Quản lý Đơn hàng",
+      "short_name": "Đơn hàng",
+      "description": "Xử lý đơn Shopee, POS và vận đơn chờ giao",
+      "url": "/openvn-cms-pos-beta/?view=orders",
+      "icons": [
+        {
+          "src": "/openvn-cms-pos-beta/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Tồn kho & Thẻ kho Thật",
+      "short_name": "Tồn kho",
+      "description": "Kiểm tra tồn kho thật CMS, tồn ảo Sàn và cảnh báo sắp hết",
+      "url": "/openvn-cms-pos-beta/?view=inventory",
+      "icons": [
+        {
+          "src": "/openvn-cms-pos-beta/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Liên kết Kênh Shopee",
+      "short_name": "Kênh Sàn",
+      "description": "Theo dõi phiên Cookie Shopee & Hàng đợi đồng bộ bất đồng bộ",
+      "url": "/openvn-cms-pos-beta/?view=channels",
+      "icons": [
+        {
+          "src": "/openvn-cms-pos-beta/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
